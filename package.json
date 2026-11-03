@@ -52,8 +52,8 @@
   },
   "devDependencies": {
     "@jitsi/rnnoise-wasm": "^0.2.1",
-    "@mediapipe/tasks-vision": "^1.1.1",
-    "@yao-pkg/pkg": "^6.23.0",
+    "@mediapipe/tasks-vision": "^1.2.0",
+    "@yao-pkg/pkg": "^6.24.0",
     "esbuild": "^0.28.2",
     "ssh2": "^1.17.0"
   }

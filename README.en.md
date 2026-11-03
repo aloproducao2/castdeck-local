@@ -20,6 +20,8 @@ and multistream without a cloud subscription.
 [**Documentation**](docs/DOCUMENTACAO.md) ·
 [**Português**](README.md) · [**Español**](README.es.md)
 
+<a href="https://www.producthunt.com/products/castdeck-local?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-castdeck-local" target="_blank" rel="noopener noreferrer"><img alt="CastDeck Local - Your free, open-source alternative to StreamYard | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1301120&amp;theme=light&amp;t=1793684308962"></a>
+
 </div>
 
 ![CastDeck Local — studio with guests and switcher](https://cast.flue.live/assets/img/estudio-grade.png)

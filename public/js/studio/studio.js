@@ -241,6 +241,9 @@ async function boot() {
   saver.rev = typeof S.studio.rev === 'number' ? S.studio.rev : 0;
   await loadIce();
   S.brand = { ...DEFAULT_BRAND, ...(S.studio.brand || {}) };
+  // Camada global dos overlays em relação ao DSK (estúdios antigos assumem "atrás").
+  S.brand.overlayLayers = { ...DEFAULT_BRAND.overlayLayers, ...(S.brand.overlayLayers || {}) };
+  S.brand.overlayLayers.aboveDsk = !!S.brand.overlayLayers.aboveDsk;
   S.banners = S.studio.banners || [];
   S.gcTemplates = S.studio.gcTemplates || [];
   S.layout = S.brand.layout || 'grid';
@@ -4043,7 +4046,19 @@ function renderBannersPanel() {
     const v = localStorage.getItem('castdeck.gcsec.' + k);
     return v === null ? def : v === '1';
   };
+  const layers = S.brand.overlayLayers || { aboveDsk: false };
+  const android = S.system?.platform === 'android';
   p.innerHTML = `
+    <div class="gc-layerbar ${android ? 'is-disabled' : ''}" title="Comentários, enquetes e banners: atrás ou acima do DSK 1/2">
+      <div class="gc-layerbar-t">
+        <strong>Overlays sobre o DSK</strong>
+        <small>${android ? 'Indisponível no Android — o DSK não é renderizado aqui.' : 'Comentários, enquetes e banners: atrás (padrão) ou acima do DSK.'}</small>
+      </div>
+      <label class="switch" aria-label="Colocar comentários, enquetes e banners acima do DSK">
+        <input type="checkbox" id="gcl-front" ${layers.aboveDsk ? 'checked' : ''} ${android ? 'disabled' : ''}>
+        <span></span>
+      </label>
+    </div>
     <div class="gc-acc-stack">
       <details class="gc-acc" data-sec="studio" ${open('studio', true) ? 'open' : ''}>
         <summary>GC / Template Studio</summary>
@@ -4092,6 +4107,15 @@ function renderBannersPanel() {
       </details>
     </div>
   `;
+  const gclFront = $('#gcl-front', p);
+  if (gclFront) {
+    gclFront.onchange = () => {
+      setBrand({ overlayLayers: { aboveDsk: !!gclFront.checked } });
+      toast(gclFront.checked
+        ? 'Comentários, enquetes e banners agora ficam acima do DSK.'
+        : 'Comentários, enquetes e banners voltaram para trás do DSK.');
+    };
+  }
   $$('details.gc-acc', p).forEach((d) => {
     d.addEventListener('toggle', () => {
       try { localStorage.setItem('castdeck.gcsec.' + d.dataset.sec, d.open ? '1' : '0'); } catch {}

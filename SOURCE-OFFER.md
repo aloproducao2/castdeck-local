@@ -7,8 +7,8 @@ Quem recebe um binário tem direito ao **código-fonte correspondente** àquela 
 
 - Repositório: **https://github.com/aloproducao2/castdeck-local**
 - Página oficial: **https://cast.flue.live/downloads/source/**
-- Versão desta árvore: `1.3.26`
-- Pacote de fonte: `castdeck-1.3.26-source.zip` (gerado a partir do mesmo commit/tag)
+- Versão desta árvore: `1.3.27`
+- Pacote de fonte: `castdeck-1.3.27-source.zip` (gerado a partir do mesmo commit/tag)
 
 Cada pacote inclui, no mínimo:
 
@@ -28,7 +28,7 @@ da data da distribuição do binário:
 > correspondente à versão distribuída do CastDeck. A fonte pode ser obtida em
 > https://cast.flue.live/downloads/source/ ou solicitada pelo contato do site.
 
-Versão desta árvore: `1.3.26`. O SHA-256 do pacote publicado e a data são registrados no release e na
+Versão desta árvore: `1.3.27`. O SHA-256 do pacote publicado e a data são registrados no release e na
 página de fonte no momento da publicação.
 
 ## Componentes de terceiros

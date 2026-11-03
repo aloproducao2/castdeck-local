@@ -25,6 +25,9 @@ export const DEFAULT_BRAND = {
   nameStyle: 'bubble', // bubble | block | minimal
   corner: 14,
   padding: 'normal', // tight | normal | wide
+  // Camadas de overlays em relação ao DSK: global, escolhido pelo operador.
+  // false = comentários/enquetes/banner atrás do DSK; true = acima do DSK 1/2.
+  overlayLayers: { aboveDsk: false },
 };
 
 const num = (v, min, max, fallback) => (Number.isFinite(+v) ? Math.max(min, Math.min(max, +v)) : fallback);
@@ -284,6 +287,7 @@ export class Compositor {
     this.hover = null; // id destacado durante o arrasto
     this.social = { featured: null, feed: [], opts: { pos: 'bottom', feedOn: false, feedMax: 5, feedTtl: 20, avatars: true } }; // chat de redes sociais no ar
     this.socialImgs = new Map();
+    this._socialH = 0; // altura do social no quadro anterior (usada quando ele é desenhado acima do DSK)
     this.wg = new WidgetLayer(); // widgets no ar: QR, enquete, placar
     this._order = [];
     this.last = performance.now();
@@ -312,7 +316,11 @@ export class Compositor {
   }
 
   setBrand(brand) {
-    this.brand = { ...DEFAULT_BRAND, ...brand };
+    this.brand = {
+      ...DEFAULT_BRAND,
+      ...brand,
+      overlayLayers: { ...DEFAULT_BRAND.overlayLayers, ...(brand?.overlayLayers || {}) },
+    };
   }
 
   // O vídeo de fundo usa um elemento próprio, mudo e em loop, para não interferir no player da playlist.
@@ -653,27 +661,42 @@ export class Compositor {
       ctx.drawImage(logo, lx, ly, lw, lh);
     });
 
-    this._wz = [];
-    if (this.wg.active) {
+    const front = !!brand.overlayLayers?.aboveDsk;
+    const drawWidgets = () => {
+      if (!this.wg.active) return;
       if (this.vertical) {
         // no 9:16 os widgets de baixo ficam na faixa inferior (acima da interface dos apps), não no meio da tela
         this.scoped(true, () => this.wg.draw(this, color, now, (v) => v !== 'b'));
         this.scoped(false, () => this.wg.draw(this, color, now, (v) => v === 'b'));
       } else this.wg.draw(this, color, now);
-    }
-
-    const socialH = this.scoped(this.social.opts.pos === 'top', () => drawSocial(this, color, now, tickerH)) || 0;
-    this.scoped(((this.banner && this.banner.pos) || 'bl')[0] === 't', () => this.drawBanner(color, now, tickerH, socialH));
-    this.scoped(false, () => this.drawTicker(color, dt, tickerH));
-
-    // Legenda ao vivo: acima do GC/letreiro (desvia deles) e abaixo do DSK/FTB. Posição própria no 16:9 e no 9:16
-    // (grade 3×3: em cima/meio/embaixo × esquerda/centro/direita)
-    if (this.cc?.show) {
+    };
+    const drawSocialAndBanner = () => {
+      const socialH = this.scoped(this.social.opts.pos === 'top', () => drawSocial(this, color, now, tickerH)) || 0;
+      this.scoped(((this.banner && this.banner.pos) || 'bl')[0] === 't', () => this.drawBanner(color, now, tickerH, socialH));
+      return socialH;
+    };
+    const drawCaptionsNow = (socialH) => {
+      // Legenda ao vivo: acima do GC/letreiro (desvia deles) e abaixo do DSK/FTB. Posição própria no 16:9 e no 9:16
+      // (grade 3×3: em cima/meio/embaixo × esquerda/centro/direita)
+      if (!this.cc?.show) return;
       const st = this.cc.style || {};
       const pp = (this.vertical ? st.posV : st.posH) || {};
       const pos = { y: pp.y || (st.pos === 'top' ? 't' : 'b'), x: pp.x || 'c' };
       if (pos.y === 'm') this.drawCaptions(now, tickerH, socialH, pos);
       else this.scoped(pos.y === 't', () => this.drawCaptions(now, tickerH, socialH, pos));
+    };
+
+    this._wz = [];
+    if (!front) {
+      drawWidgets();
+      this._socialH = drawSocialAndBanner();
+      this.scoped(false, () => this.drawTicker(color, dt, tickerH));
+      drawCaptionsNow(this._socialH);
+    } else {
+      // Acima do DSK: comentários, enquetes e banner vão para depois das camadas DSK.
+      // O letreiro/legenda continuam atrás do DSK; usam a altura do social do quadro anterior.
+      this.scoped(false, () => this.drawTicker(color, dt, tickerH));
+      drawCaptionsNow(this._socialH || 0);
     }
 
     // DSK 1 e 2 (downstream keyers): por cima de tudo que a cena desenha, independentes do corte/dissolve
@@ -684,6 +707,14 @@ export class Compositor {
       } catch (e) {
         console.warn('[dsk]', e);
       }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    if (front) {
+      // Grupo acima do DSK, na mesma ordem relativa de antes: widgets/enquete → social → banner.
+      drawWidgets();
+      this._socialH = drawSocialAndBanner();
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';
     }

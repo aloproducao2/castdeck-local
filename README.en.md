@@ -140,7 +140,8 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.3.26** — GC Template Studio, accordions, separated RSS, resize handles and coalesced undo.
+Version **1.3.27** — overlays above the DSK, a global selector, GC Template Studio, accordions, separated RSS,
+resize handles and coalesced undo.
 See the [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

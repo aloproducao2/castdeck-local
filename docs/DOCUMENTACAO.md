@@ -108,6 +108,7 @@ O **CastDeck Local** parte da premissa inversa:
 
 ### Gráficos e marca
 - Banners com estilos, posições, cor, tempo no ar e alternância automática.
+- **Camadas sobre o DSK:** em **GCs & Letreiro**, a chave **Overlays sobre o DSK** coloca comentários (destaque e feed), enquetes/QR/placar e banners **atrás do DSK** (padrão) ou **acima do DSK 1/2**. A opção é global, salva no estúdio e não altera letreiro/legendas, que continuam atrás do DSK.
 - **Letreiro** com notícias **RSS/Atom** (feeds descobertos automaticamente), configurado na aba **Jornal**.
 - **Jornal / GC**: lower thirds de telejornal (entrevistado/repórter e hard news) com logo opcional.
 - **Widgets** (grupo Público → Enquetes e QR): enquetes votadas pelo chat (um voto por pessoa, barras ao vivo) e, opcionalmente, **pelo celular**: com “Votar pelo celular” ativo, a enquete exibe um QR Code no vídeo que abre uma página própria de votação (`/vote/:id`, um voto por aparelho por rodada; funciona fora da rede pelo túnel). Criadas/editadas numa janela própria, com duplicar e **tempo de votação** opcional (contagem "encerra em m:ss" no vídeo e encerramento automático); **QR Code** gerado localmente (cor, logo, título, posição).

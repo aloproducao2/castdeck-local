@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="build/assets/icon-256.png" width="92" alt="CastDeck Local">
+<img src="https://cast.flue.live/assets/img/icon.png" width="92" alt="CastDeck Local">
 
 # CastDeck Local
 

@@ -1,0 +1,21 @@
+[package]
+name = "castdeck-parakeet"
+version = "1.2.71"
+description = "CastDeck Local - worker de legenda ao vivo (Parakeet-TDT ONNX via transcribe-rs)"
+authors = ["Miguel Kallemback <miguel@flue.live>"]
+license = "AGPL-3.0-only"
+edition = "2021"
+
+[dependencies]
+serde_json = "1"
+hound = "3"
+transcribe-rs = { version = "0.2", features = ["parakeet"] }
+# usa onnxruntime.dll em runtime (evita o link estático que quebra no MSVC local)
+ort = { version = "2.0.0-rc.10", features = ["load-dynamic", "download-binaries", "copy-dylibs"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

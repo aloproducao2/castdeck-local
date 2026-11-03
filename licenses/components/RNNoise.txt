@@ -1,0 +1,6 @@
+﻿RNNoise — componente de terceiros
+Licença: BSD-3-Clause / Apache-2.0 (conforme o pacote @jitsi/rnnoise-wasm)
+Copyright: Xiph.Org, Jean-Marc Valin e contribuidores
+Fonte: https://github.com/xiph/rnnoise
+Pacote: https://github.com/jitsi/rnnoise-wasm
+Texto: licenses/BSD-3-Clause.txt e licenses/Apache-2.0.txt

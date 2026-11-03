@@ -1,0 +1,129 @@
+/* SPDX-License-Identifier: AGPL-3.0-only
+ * CastDeck Module: audio.css
+ * Descrição: Mesa de áudio broadcast, medidores VU dBFS, faders e popout
+ * Módulo com escopo reduzido para facilitar leitura e edição por IAs e desenvolvedores.
+ */
+/* ===== Mesa de áudio (estilo broadcast) ===== */
+.ax-top-bar { display: flex; justify-content: flex-end; margin-bottom: 2px; }
+.ax-popout-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--line-strong, #3a3a54); background: var(--bg-2); color: var(--text-1); cursor: pointer; transition: all .15s ease; }
+.ax-popout-btn:hover { background: var(--bg-3); color: #fff; border-color: var(--accent, #7c5cff); transform: translateY(-1px); }
+.ax { display: flex; flex-direction: column; gap: 10px; }
+.ax-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; }
+.ax-head b { font-weight: 700; }
+.ax-sub { color: var(--text-2); font-size: 11.5px; }
+.ax-badge { font: 800 10px/1 var(--font); letter-spacing: .08em; padding: 4px 6px; border-radius: 4px; background: var(--bg-4); color: var(--text-1); }
+.ax-badge.pgm { background: var(--live); color: #fff; }
+.ax-title { display: flex; justify-content: space-between; align-items: baseline; margin: 6px 2px -2px; font-size: 12px; font-weight: 700; color: var(--text-1); text-transform: uppercase; letter-spacing: .06em; }
+.ax-master, .ax-mon, .ch { background: linear-gradient(180deg, var(--bg-2), var(--bg-1)); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+.ax-master { border-color: hsl(354 60% 40% / .45); box-shadow: inset 0 1px 0 hsl(0 0% 100% / .04); }
+.ax-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.ax-lbl { font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; min-width: 52px; }
+.ax-gr { margin-left: auto; display: flex; align-items: center; gap: 5px; font: 700 9.5px var(--font); color: var(--text-2); letter-spacing: .06em; }
+.ax-gr i { width: 46px; height: 6px; border-radius: 3px; background: var(--bg-0); overflow: hidden; display: block; }
+.ax-gr b { display: block; height: 100%; background: var(--warn); transform: scaleX(0); transform-origin: left; }
+
+/* medidor: faixa colorida fixa (verde até -18 dBFS, amarelo até -6, vermelho) + máscara que esconde a parte apagada */
+.vu { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+.vu-ch { font: 800 10px var(--font); color: var(--text-2); width: 10px; }
+.vu-bar { position: relative; flex: 1; height: 9px; border-radius: 2px; overflow: hidden;
+  background: linear-gradient(90deg, hsl(145 70% 42%) 0 46%, hsl(48 95% 52%) 46% 82%, hsl(354 85% 55%) 82% 100%); }
+.vu-bar::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 3px, hsl(240 18% 6% / .55) 3px 4px); pointer-events: none; }
+.vu-mask { position: absolute; inset: 0; background: hsl(240 18% 7%); transform-origin: right; transform: scaleX(1); will-change: transform; }
+.vu-pk { position: absolute; inset: 0; will-change: transform; opacity: 0; }
+.vu-pk::before { content: ''; position: absolute; left: -1px; top: 0; bottom: 0; width: 2px; background: #fff; box-shadow: 0 0 4px #fff; }
+.vu-db { font: 600 10.5px/1 ui-monospace, 'Cascadia Mono', Consolas, monospace; color: var(--text-1); width: 26px; text-align: right; font-variant-numeric: tabular-nums; }
+.vu-clip { font: 800 8.5px/1 var(--font); letter-spacing: .04em; padding: 2px 3px; border-radius: 3px; background: var(--bg-0); color: hsl(354 30% 35%); }
+.vu.clip .vu-clip { background: var(--live); color: #fff; box-shadow: 0 0 8px var(--live); }
+.vu-scale { position: relative; height: 13px; margin: 1px 72px 0 16px; font: 600 9px/1 ui-monospace, Consolas, monospace; color: var(--text-2); }
+.vu-scale span { position: absolute; top: 2px; transform: translateX(-50%); }
+.vu-scale span.ref { top: -1px; color: var(--warn); font-size: 8px; }
+.vu-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 10.5px; color: var(--text-2); margin: -2px 2px 2px; }
+.vu-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-left: 4px; }
+.vu-legend .g { background: hsl(145 70% 42%); } .vu-legend .y { background: hsl(48 95% 52%); } .vu-legend .r { background: hsl(354 85% 55%); }
+.ch .vu-bar { height: 7px; }
+
+/* fader com porcentagem editável e leitura em dB */
+.fader { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.fader input[type=range] { flex: 1; min-width: 60px; accent-color: var(--accent); }
+.fader .pct { display: flex; align-items: center; gap: 1px; font-size: 11px; color: var(--text-2); }
+.fader .pct input { width: 44px; padding: 3px 4px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-0); color: var(--text-0); font: 600 12px var(--font); text-align: right; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+.fader .pct input::-webkit-inner-spin-button, .fader .pct input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.fader .pct input:focus { outline: none; border-color: var(--accent); }
+.fader .fdb { font: 600 10.5px ui-monospace, Consolas, monospace; color: var(--text-2); width: 50px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* canal */
+.ch { padding: 8px 10px 9px; transition: border-color .2s, opacity .2s; }
+.ch-top { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+.ch-tag { font: 800 9px/1 var(--font); letter-spacing: .07em; padding: 3px 5px; border-radius: 4px; background: var(--accent-soft); color: hsl(258 90% 80%); }
+.ch-name { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-mute { width: 26px; height: 22px; border-radius: 5px; border: 1px solid var(--line-strong); background: var(--bg-3); color: var(--text-1); font: 800 11px var(--font); cursor: pointer; transition: .15s; }
+.ch-mute:hover { border-color: var(--live); }
+.ch-mute.on { background: var(--live); border-color: var(--live); color: #fff; box-shadow: 0 0 10px var(--live-soft); }
+/* CC: este canal vai para a legenda ao vivo (padrão: pessoas). Apagado (idle) quando a legenda está desligada. */
+.ch-cc { width: 28px; height: 22px; border-radius: 5px; border: 1px solid var(--line-strong); background: var(--bg-3); color: var(--text-2); font: 800 10px var(--font); letter-spacing: .04em; cursor: pointer; transition: .15s; flex: none; }
+.ch-cc:hover { border-color: hsl(48 95% 55%); color: var(--text-0); }
+.ch-cc.on { background: hsl(48 95% 52%); border-color: hsl(48 95% 52%); color: #1a1300; }
+.ch-cc.idle { opacity: .45; }
+.ch-cc.idle.on { background: hsl(48 50% 30%); border-color: hsl(48 50% 35%); color: hsl(48 90% 85%); }
+.ch.muted { opacity: .72; }
+.ch.muted .vu-bar { filter: saturate(.2) brightness(.7); }
+.ch-nr { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: var(--text-2); cursor: pointer; user-select: none; }
+.ch-nr input { position: absolute; opacity: 0; width: 0; height: 0; }
+.ch-nr .sw { position: relative; width: 26px; height: 15px; border-radius: 15px; background: var(--bg-4); transition: .2s; }
+.ch-nr .sw::after { content: ''; position: absolute; left: 2px; top: 2px; width: 11px; height: 11px; border-radius: 50%; background: #fff; transition: .2s var(--ease); }
+.ch-nr input:checked + .sw { background: var(--ok); }
+.ch-nr input:checked + .sw::after { transform: translateX(11px); }
+.ch-nr input:focus-visible + .sw { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ch.nr-on { border-color: hsl(150 65% 46% / .35); }
+.ch.nr-on .ch-nr { color: var(--ok); }
+.ch-nrc { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.ch-nrc input { flex: 1; accent-color: var(--ok); }
+.ch-nrc .nrv { font: 600 11px var(--font); color: var(--ok); width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+.ch.ch-waiting-audio { border-style: dashed; border-color: var(--line-strong); }
+.ch.ch-waiting-audio .vu-bar { opacity: 0.65; }
+.ch-audio-prompt { animation: fadeIn .2s var(--ease); }
+.ax-mon .hint { margin: 8px 0 0; }
+.ch-nr.disabled { opacity: .45; cursor: not-allowed; }
+.ch-nr.disabled .sw { filter: saturate(.3); }
+
+/* ===== Mesa nova: Solo, buses e saídas ===== */
+.ch-air { font: 800 8px/1 var(--font); letter-spacing: .06em; padding: 3px 5px; border-radius: 4px; background: var(--live); color: #fff; }
+.ch-solo { width: 24px; height: 22px; border-radius: 5px; border: 1px solid var(--line-strong); background: var(--bg-3); color: var(--text-2); font: 800 10px var(--font); cursor: pointer; transition: .15s; }
+.ch-solo:hover { border-color: hsl(48 95% 55%); color: var(--text-0); }
+.ch-solo.on { background: hsl(48 95% 52%); border-color: hsl(48 95% 52%); color: #1a1300; box-shadow: 0 0 8px hsl(48 95% 52% / .35); }
+.ch.solo-on { border-color: hsl(48 95% 55% / .6); }
+.ch.on-air { border-color: hsl(354 85% 55% / .5); }
+.ch-sends { display: flex; gap: 3px; margin-top: 6px; flex-wrap: wrap; }
+.ch-send { min-width: 20px; height: 18px; padding: 0 4px; border-radius: 4px; border: 1px solid var(--line); background: var(--bg-0); color: var(--text-3); font: 800 9px var(--font); cursor: pointer; }
+.ch-send:hover { border-color: var(--accent); color: var(--text-0); }
+.ch-send.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ch-send:disabled { opacity: .35; cursor: default; }
+.ax-mini { height: 22px; padding: 0 7px; border-radius: 5px; border: 1px solid var(--line-strong); background: var(--bg-3); color: var(--text-2); font: 800 9.5px var(--font); letter-spacing: .04em; cursor: pointer; }
+.ax-mini:hover { color: var(--text-0); border-color: var(--accent); }
+.ax-mini.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ax-mini.danger { background: var(--live); border-color: var(--live); color: #fff; }
+.ax-buses { background: linear-gradient(180deg, var(--bg-2), var(--bg-1)); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+.ax-bus { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-top: 1px dashed var(--line); }
+.ax-bus:first-of-type { border-top: 0; }
+.ax-bus.muted { opacity: .6; }
+.ax-bus-id { width: 16px; font: 800 12px var(--font); color: var(--accent); text-align: center; }
+.ax-bus-meter { flex: 1; min-width: 40px; height: 7px; border-radius: 2px; background: var(--bg-0); overflow: hidden; }
+.ax-bus-meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, hsl(145 70% 42%), hsl(48 95% 52%) 70%, hsl(354 85% 55%)); transition: width .08s linear; }
+.ax-bus input[type=range] { width: 84px; accent-color: var(--accent); }
+.ax-bus-pct { width: 34px; text-align: right; font: 600 10px var(--font); color: var(--text-2); }
+.ax-bus select { width: 150px; }
+@media (max-width: 900px) { .ax-bus select { width: 110px; } .ax-bus input[type=range] { width: 60px; } }
+.ch-route { font: 800 8px/1 var(--font); letter-spacing: .05em; padding: 3px 5px; border-radius: 4px; background: hsl(48 95% 52% / .18); color: hsl(48 95% 70%); border: 1px solid hsl(48 95% 52% / .35); }
+
+/* ===== Painel em accordion ===== */
+.ax-acc-tools { display: flex; gap: 6px; justify-content: flex-end; margin: -2px 0 0; }
+.ax-sec { background: linear-gradient(180deg, var(--bg-2), var(--bg-1)); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.ax-sec-head { display: flex; width: 100%; align-items: center; gap: 8px; padding: 9px 12px; background: transparent; border: 0; border-bottom: 1px solid transparent; color: var(--text-1); font: inherit; cursor: pointer; text-align: left; }
+.ax-sec-head:hover { background: hsl(0 0% 100% / .03); }
+.ax-sec-head[aria-expanded="true"] { border-bottom-color: var(--line); }
+.ax-arrow { width: 12px; font-size: 11px; color: var(--text-2); flex: none; }
+.ax-sec-head b { font-size: 12.5px; font-weight: 700; }
+.ax-sec-sum { margin-left: auto; font: 600 10.5px var(--font); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ax-sec-body { padding: 8px 10px 10px; }
+.ax-sec .ax-master, .ax-sec .ax-buses, .ax-sec .ax-mon { border: 0; background: transparent; padding: 2px 2px 4px; box-shadow: none; }
+.ax-sec .ax-head { margin-bottom: 6px; }

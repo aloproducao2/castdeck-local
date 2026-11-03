@@ -1,0 +1,7 @@
+﻿libsignal — dependência do Baileys
+Licença: GPL-3.0
+Copyright: Signal Foundation e contribuidores
+Fonte: https://github.com/signalapp/libsignal
+Texto: licenses/GPL-3.0.txt
+Atenção: componente GPLv3 embutido na cadeia do Baileys. Não é relicenciado pela licença comercial do
+CastDeck. Avaliar isolamento/remoção antes de vender licença comercial para binário que o inclua.

@@ -1,0 +1,5 @@
+﻿Inter — fonte tipográfica
+Licença: SIL Open Font License 1.1
+Copyright: The Inter Project Authors
+Fonte: https://github.com/rsms/inter
+Texto: licenses/OFL-1.1.txt

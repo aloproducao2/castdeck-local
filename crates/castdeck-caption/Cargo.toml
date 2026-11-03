@@ -1,0 +1,20 @@
+[package]
+name = "castdeck-caption"
+version = "1.2.66"
+description = "CastDeck Local - worker de legenda ao vivo (whisper.cpp)"
+authors = ["Miguel Kallemback <miguel@flue.live>"]
+license = "AGPL-3.0-only"
+edition = "2021"
+
+# Processo separado do servidor: se travar ou faltar memória, só a legenda cai (o servidor reinicia o worker).
+[dependencies]
+whisper-rs = "0.16"
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+

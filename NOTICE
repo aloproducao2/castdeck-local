@@ -1,0 +1,85 @@
+CastDeck Local
+Copyright (C) 2026 Miguel Kallemback / flue.live
+https://cast.flue.live
+
+Este programa é software livre: você pode redistribuí-lo e/ou modificá-lo
+sob os termos da GNU Affero General Public License, versão 3, publicada pela
+Free Software Foundation (somente a versão 3 — "AGPL-3.0-only").
+
+Este programa é distribuído na esperança de ser útil, mas SEM NENHUMA
+GARANTIA; sem mesmo a garantia implícita de COMERCIABILIDADE ou ADEQUAÇÃO A
+UM PROPÓSITO ESPECÍFICO. Veja a GNU Affero General Public License para mais
+detalhes. O texto completo está no arquivo LICENSE.
+
+Código-fonte correspondente (AGPL-3.0, seção 6):
+https://cast.flue.live/downloads/source/
+Veja também SOURCE-OFFER.md. A fonte deve estar disponível na mesma versão do
+binário entregue.
+
+------------------------------------------------------------------------------
+Licenciamento duplo
+------------------------------------------------------------------------------
+O CastDeck é oferecido sob duas licenças, à sua escolha:
+
+  1. AGPL-3.0-only (gratuita): qualquer pessoa pode usar, estudar, modificar e
+     redistribuir, desde que cumpra a AGPL. Em especial: quem distribuir o
+     programa, ou oferecer uma versão modificada como serviço pela rede
+     (seção 13), deve disponibilizar o código-fonte completo das modificações
+     sob a mesma licença, mantendo estes avisos de direitos autorais.
+
+  2. Licença comercial (paga): para quem quiser incorporar o código original
+     do CastDeck em produto ou serviço próprio sem as obrigações da AGPL
+     (por exemplo, manter o código fechado, revender, oferecer como SaaS ou
+     white-label). Veja COMMERCIAL-LICENSE.md.
+
+A licença comercial NÃO cobre componentes de terceiros (FFmpeg, cloudflared,
+MediaMTX, yt-dlp, Node.js, modelos, fontes etc.), que continuam sob suas
+próprias licenças e obrigações. Ela também não concede direitos sobre as
+marcas.
+
+------------------------------------------------------------------------------
+Marcas
+------------------------------------------------------------------------------
+"CastDeck", "CastDeck Local", "flue.live" e os logotipos associados são
+marcas de Miguel Kallemback / flue.live. A AGPL concede direitos sobre o
+código, não sobre as marcas. Versões modificadas distribuídas por terceiros
+devem usar outro nome e outra identidade visual, conforme TRADEMARK.md. Esta
+é uma política de marca separada e não restringe os direitos da AGPL.
+
+------------------------------------------------------------------------------
+Contribuições
+------------------------------------------------------------------------------
+Para manter possível o licenciamento duplo, contribuições só são aceitas
+mediante concordância com o CLA (CLA.md e CONTRIBUTING.md). O autor mantém
+seus direitos autorais e concede a Miguel Kallemback / flue.live o direito de
+licenciar a contribuição também sob a licença comercial.
+
+------------------------------------------------------------------------------
+Componentes de terceiros
+------------------------------------------------------------------------------
+Cada componente é redistribuído sob sua própria licença. Os textos completos
+devem acompanhar o instalador e o repositório em THIRD-PARTY-NOTICES.md e
+licenses/.
+
+  - FFmpeg (binários embutidos) ...................... GPLv3 (confirmar build)
+  - cloudflared (Cloudflare) ......................... Apache-2.0
+  - MediaMTX (bluenviron) ............................ MIT
+  - yt-dlp ........................................... Unlicense
+  - Node.js .......................................... MIT
+  - Express, ws, pino, Baileys e demais npm .......... MIT/ISC/Apache-2.0
+  - libsignal (cadeia do Baileys) .................... GPLv3
+  - sharp / libvips .................................. Apache-2.0 / LGPLv3
+  - MediaPipe Tasks Vision e modelos (Google) ........ Apache-2.0
+  - RNNoise (Xiph.Org / Jean-Marc Valin) ............. BSD-3-Clause
+  - Whisper ggml (ggerganov/whisper.cpp) ............. MIT
+  - Parakeet pt-BR ONNX (calneymgp) .................. CC-BY-4.0 (atribuição)
+  - Fonte Inter ...................................... SIL OFL 1.1
+
+O FFmpeg distribuído é um binário GPL; a fonte correspondente do FFmpeg e a
+configuração de build devem ser disponibilizadas junto ou por oferta escrita.
+O libsignal é GPLv3 e integra o binário via Baileys; isso precisa de análise
+GPL/AGPL e NÃO pode ser coberto pela licença comercial como código fechado.
+O libvips é LGPLv3 e exige possibilidade de relink/uso da biblioteca.
+O Parakeet pt-BR é CC-BY-4.0 e exige atribuição visível no app/site.
+A AGPL do CastDeck não relicencia esses componentes; a licença comercial
+também não os cobre. Textos completos: THIRD-PARTY-NOTICES.md e licenses/.

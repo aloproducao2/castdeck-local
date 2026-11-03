@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Syntax check
+        run: |
+          node --check server/index.js
+          node --check build/build-exe.mjs
+          node --check public/js/studio/studio.js
+          node --check public/js/studio/gc-designer.js
+
+      - name: Security test
+        run: npm run test:security

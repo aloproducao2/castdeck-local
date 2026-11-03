@@ -1,0 +1,11 @@
+BlueOak-1.0.0 e CDLA-Permissive-2.0 — dependências de build/dev
+
+Alguns pacotes npm usados no build (chownr, minipass, tar, yallist) usam BlueOak-1.0.0:
+https://blueoakcouncil.org/license/1.0.0
+Texto: licenses/BlueOak-1.0.0.txt
+
+Alguns crates usados pelo launcher (webpki-roots, webpki-root-certs) usam CDLA-Permissive-2.0:
+https://cdla.dev/permissive-2-0/
+Texto: licenses/CDLA-Permissive-2.0.txt
+
+Ambas são licenças permissivas. Os textos completos acompanham o repositório/instalador.

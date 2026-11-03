@@ -1,0 +1,94 @@
+// Barra de controle (GC + mídia) e divisórias redimensionáveis. BASE=http://localhost:3100 node test/deck-e2e.mjs
+const CDP = 'http://127.0.0.1:9333';
+const base = process.env.BASE || 'http://localhost:3100';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const v = await (await fetch(`${CDP}/json/version`)).json();
+const bws = new WebSocket(v.webSocketDebuggerUrl);
+await new Promise((r) => (bws.onopen = r));
+let bid = 0; const bp = new Map();
+bws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id && bp.has(m.id)) { bp.get(m.id)(m); bp.delete(m.id); } };
+const bsend = (method, params = {}) => new Promise((r) => { const i = ++bid; bp.set(i, r); bws.send(JSON.stringify({ id: i, method, params })); });
+const MOCKJS = `(()=>{const gum=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+ const cam=()=>{const c=document.createElement('canvas');c.width=640;c.height=360;const x=c.getContext('2d');let k=0;setInterval(()=>{x.fillStyle='hsl('+(k*3%360)+',60%,40%)';x.fillRect(0,0,640,360);k++},33);return c.captureStream(30).getVideoTracks()[0]};
+ navigator.mediaDevices.getUserMedia=async(c)=>{if(c&&c.video){const o=new MediaStream();o.addTrack(cam());if(c.audio){try{(await gum({audio:c.audio})).getAudioTracks().forEach(a=>o.addTrack(a))}catch{}}return o}return gum(c)};
+ const en=navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices);navigator.mediaDevices.enumerateDevices=async()=>{const d=await en();return d.some(x=>x.kind==='videoinput')?d:[...d,{kind:'videoinput',deviceId:'fakecam',label:'Fake Camera',groupId:'g'}]};})()`;
+async function open(url) {
+  const { result } = await bsend('Target.createTarget', { url: 'about:blank' });
+  const ws = new WebSocket(`ws://127.0.0.1:9333/devtools/page/${result.targetId}`);
+  await new Promise((r) => (ws.onopen = r));
+  let id = 0; const pend = new Map(); const errors = [];
+  ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id && pend.has(m.id)) { pend.get(m.id)(m); pend.delete(m.id); } if (m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text); };
+  const send = (method, params = {}) => new Promise((r) => { const i = ++id; pend.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
+  await send('Runtime.enable'); await send('Page.enable'); await send('Page.bringToFront');
+  await send('Emulation.setFocusEmulationEnabled', { enabled: true });
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: MOCKJS });
+  const ev = async (expr) => { const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }); if (r.result.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || 'eval error'); return r.result.result.value; };
+  await send('Page.navigate', { url });
+  return { ev, errors, send };
+}
+const waitFor = async (p, expr, ms = 15000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (await p.ev(expr)) return true; } catch {} await sleep(250); } return false; };
+let fails = 0;
+const check = (n, ok, extra = '') => { console.log((ok ? 'OK   ' : 'FALHA'), n, ok ? '' : extra); if (!ok) fails++; };
+
+const shot = async (name, w, hh) => {
+  await host.send('Emulation.setDeviceMetricsOverride', { width: w, height: hh, deviceScaleFactor: 1, mobile: false });
+  await sleep(900);
+  const r = await host.send('Page.captureScreenshot', { format: 'png' });
+  (await import('node:fs')).writeFileSync((process.env.TEMP || '.') + '/' + name + '.png', Buffer.from(r.result.data, 'base64'));
+};
+const drag = async (sel, dx, dy) => {
+  const r = await host.ev(`(()=>{const b=document.querySelector('${sel}').getBoundingClientRect();return {x:b.left+b.width/2,y:b.top+b.height/2}})()`);
+  await host.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: r.x, y: r.y, button: 'left', clickCount: 1 });
+  for (let i = 1; i <= 6; i++) await host.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: r.x + (dx * i) / 6, y: r.y + (dy * i) / 6, button: 'left', buttons: 1 });
+  await host.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: r.x + dx, y: r.y + dy, button: 'left', clickCount: 1 });
+  await sleep(300);
+};
+const studio = await (await fetch(base + '/api/studios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Deck' }) })).json();
+const host = await open(`${base}/studio/${studio.id}`);
+await host.send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+await waitFor(host, `!!document.querySelector('#lb-go')`); await sleep(2000);
+await host.ev(`localStorage.removeItem('castdeck.layout');document.querySelector('#lb-go').click()`);
+check('estudio abriu', await waitFor(host, `!!document.querySelector('#program-canvas')`));
+await sleep(800);
+check('barra: GC + midia + limpar', await host.ev(`!!document.querySelector('#gcbar #gc-off') && !!document.querySelector('#gc-quick') && !!document.querySelector('#deck-media') && !!document.querySelector('#deck-clear') && !!document.querySelector('#dm-add')`));
+const dh = await host.ev(`document.querySelector('#gcbar').getBoundingClientRect().height`);
+check('barra compacta (1 linha) em 1366', dh <= 50, 'altura ' + dh);
+// video de teste gerado no navegador e solto no painel de midia
+await host.ev(`(async()=>{const c=document.createElement('canvas');c.width=320;c.height=180;const x=c.getContext('2d');let k=0;const t=setInterval(()=>{x.fillStyle='hsl('+(k*20%360)+',70%,50%)';x.fillRect(0,0,320,180);k++},40);const rec=new MediaRecorder(c.captureStream(25),{mimeType:'video/webm'});const ch=[];rec.ondataavailable=e=>ch.push(e.data);rec.start();await new Promise(r=>setTimeout(r,3000));rec.stop();await new Promise(r=>rec.onstop=r);clearInterval(t);const f=new File(ch,'clipe-teste.webm',{type:'video/webm'});const dt=new DataTransfer();dt.items.add(f);document.querySelector('#panel-media').dispatchEvent(new DragEvent('drop',{dataTransfer:dt,bubbles:true,cancelable:true}));return true})()`);
+check('midia aparece na barra', await waitFor(host, `!!document.querySelector('#dm-sel') && document.querySelector('#dm-sel').options.length===1`));
+await host.ev(`document.querySelector('#dm-stage').click()`);
+check('por no palco pela barra', await waitFor(host, `document.querySelector('#dm-stage').classList.contains('on')`));
+await host.ev(`document.querySelector('#dm-play').click()`);
+check('tocar pela barra', await waitFor(host, `!![...window.__castdeck.S.sources.values()].find(s=>s.kind==='media'&&!s.el.paused)`, 5000));
+await sleep(900);
+check('tempo/progresso atualiza', await host.ev(`parseFloat(document.querySelector('#dm-prog i').style.width)>0`));
+await shot('deck1', 1366, 768);
+await host.ev(`document.querySelector('#deck-clear').click()`);
+check('limpar tela pausa midia', await waitFor(host, `![...window.__castdeck.S.sources.values()].some(s=>s.kind==='media'&&!s.el.paused)`, 4000));
+// divisorias
+const w0 = await host.ev(`document.querySelector('.side').offsetWidth`);
+await drag('#rz-side', -160, 0);
+const w1 = await host.ev(`document.querySelector('.side').offsetWidth`);
+check('arrastar painel lateral', w1 - w0 > 120, w0 + ' -> ' + w1);
+const h0 = await host.ev(`document.querySelector('#stage-row').offsetHeight`);
+await drag('#rz-stage', 0, -70);
+const h1 = await host.ev(`document.querySelector('#stage-row').offsetHeight`);
+check('arrastar altura do preview', h0 - h1 > 40, h0 + ' -> ' + h1);
+await host.ev(`document.querySelector('#btn-vertical').click()`);
+await waitFor(host, `!document.querySelector('#vdock').hidden`); await sleep(500);
+const v0 = await host.ev(`document.querySelector('#vdock').offsetWidth`);
+await drag('#rz-v', -90, 0);
+const v1 = await host.ev(`document.querySelector('#vdock').offsetWidth`);
+check('arrastar painel vertical', v1 - v0 > 60, v0 + ' -> ' + v1);
+check('tamanhos salvos', await host.ev(`(()=>{const o=JSON.parse(localStorage.getItem('castdeck.layout')||'{}');return o.side>0&&o.stage>0&&o.vdock>0})()`));
+await shot('deck2', 1366, 768);
+await host.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: 1, y: 1, button: 'left', clickCount: 1 });
+await host.ev(`document.querySelector('#rz-side').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}))`);
+await sleep(300);
+const w2 = await host.ev(`document.querySelector('.side').offsetWidth`);
+check('duplo clique restaura', Math.abs(w2 - w0) < 4, w2 + ' vs ' + w0);
+await shot('deck3', 1920, 1080);
+await shot('deck4', 390, 844);
+check('sem erros JS', host.errors.filter((e) => !/Receiving end does not exist/.test(e)).length === 0, host.errors.join(' | '));
+console.log(fails ? fails + ' falha(s)' : 'TUDO OK');
+process.exit(fails ? 1 : 0);

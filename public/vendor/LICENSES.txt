@@ -1,0 +1,2 @@
+MediaPipe Tasks Vision - Apache License 2.0 - https://github.com/google-ai-edge/mediapipe
+RNNoise (jitsi/rnnoise-wasm, xiph/rnnoise) - BSD-3-Clause / Apache-2.0

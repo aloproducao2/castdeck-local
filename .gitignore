@@ -1,0 +1,77 @@
+# CastDeck — arquivos que NUNCA vão para o GitHub público
+
+# Dados locais e gravações
+/data/
+/recordings/
+/backups/
+
+# Configuração de deploy/VPS (IP, usuário root, chave SSH, setup, TURN)
+/deploy/
+/build/deploy.mjs
+/build/release.mjs
+
+# Landing page e ferramentas internas do site (marketing, analytics, contatos)
+/landpage/
+/site-private/
+
+# Builds e artefatos
+/dist/
+/build/tmp/
+/build/vendor/
+/src-tauri/server.bin
+*.zip
+*.exe
+*.msi
+*.AppImage
+*.apk
+*.aab
+*.dmg
+*.pkg
+
+# Dependências
+/node_modules/
+/.pnpm-store/
+
+# Segredos e certificados
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+*.cer
+*.crt
+id_rsa
+id_ed25519
+.ssh/
+
+# Android
+/android/local.properties
+/android/.gradle/
+/android/.idea/
+/android/build/
+/android/app/build/
+
+# Documentação interna (estado do projeto, VPS, diário)
+/docs/ai/
+
+# Logs, temporários e lixo de sistema
+*.log
+*.tmp
+*.part
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Testes manuais/scratch
+/test/.shot.mjs
+/test/dbg.mjs
+/test/*.tmp
+
+# Documentos internos que não podem ir para o repositório público
+/docs/artigo-imprensa.md
+/docs/PLANO-MELHORIAS.md

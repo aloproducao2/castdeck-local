@@ -1,0 +1,6 @@
+﻿sharp / libvips — dependência de imagem
+Licença: Apache-2.0 (sharp) / LGPL-3.0-or-later (libvips)
+Copyright: Lovell Fuller e contribuidores; libvips contributors.
+Fontes: https://github.com/lovell/sharp e https://github.com/libvips/libvips
+Textos: licenses/Apache-2.0.txt e licenses/LGPL-3.0.txt
+Atenção: libvips LGPL exige possibilidade de relink/uso da biblioteca; revisar empacotamento.

@@ -1,0 +1,5 @@
+﻿Node.js — runtime embutido
+Licença: MIT
+Copyright: Node.js contributors
+Fonte: https://github.com/nodejs/node
+Texto: licenses/Node-MIT.txt

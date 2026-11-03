@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-6B798YQVS1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-6B798YQVS1');
+</script>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="/icon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0a0a12">
+  <meta name="robots" content="noindex">
+  <title>Moderação de Redes — CastDeck</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    body {
+      background: var(--bg-0, #07080d);
+      color: var(--text-0, #f4f5fb);
+      font-family: Inter, system-ui, sans-serif;
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+    .pop-header {
+      padding: 10px 14px;
+      background: linear-gradient(180deg, hsl(228 28% 9.5%), hsl(228 28% 7%));
+      border-bottom: 1px solid var(--line, #22273c);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex: none;
+    }
+    .pop-title {
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pop-onair-bar {
+      padding: 10px 14px;
+      background: linear-gradient(90deg, #1f1435 0%, #17172b 100%);
+      border-bottom: 1px solid #7c5cff44;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex: none;
+    }
+    .pop-onair-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .pop-onair-badge {
+      background: #ff2d4d;
+      color: #fff;
+      font-weight: 800;
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      letter-spacing: .05em;
+      animation: pulse-rec 1.6s infinite;
+      flex: none;
+    }
+    .pop-onair-text {
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .pop-onair-text b { color: #ffd166; margin-right: 6px; }
+    .pop-toolbar {
+      padding: 10px 14px;
+      background: var(--bg-1, #131322);
+      border-bottom: 1px solid var(--line, #24243a);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: none;
+    }
+    .pop-feed-wrap {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+    }
+    .pop-resume-scroll {
+      position: sticky;
+      bottom: 10px;
+      align-self: center;
+      background: var(--accent, #7c5cff);
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      box-shadow: 0 4px 14px #000a;
+      cursor: pointer;
+      display: none;
+      z-index: 10;
+    }
+    .pop-resume-scroll.show { display: block; }
+    .pop-pin-btn.active {
+      background: var(--accent, #7c5cff) !important;
+      color: #fff !important;
+      border-color: var(--accent, #7c5cff) !important;
+    }
+  </style>
+</head>
+<body>
+  <header class="pop-header">
+    <div class="pop-title">
+      <span style="color:var(--accent,#7c5cff)">💬</span>
+      <span>Central de Moderação</span>
+      <span class="pill sm ok" id="pop-status">Conectado</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="btn sm ghost pop-pin-btn" id="pop-pin" title="Sempre no topo: fixa a janela sobre as outras (Picture-in-Picture)" aria-pressed="false" style="gap:5px;font-weight:600">
+        <span id="pop-pin-icon">📌</span>
+        <span id="pop-pin-lbl">Fixar no topo</span>
+      </button>
+      <button class="btn sm" id="pop-btn-focus" title="Alternar Modo Foco: recolhe opções secundárias e maximiza o feed de mensagens">
+        <span id="pop-focus-icon">⚡</span>
+        <span id="pop-focus-text">Modo Foco</span>
+      </button>
+      <button class="btn sm" id="pop-btn-density" title="Alternar visualização compacta/padrão">
+        <span id="pop-density-text">𝄜 Compacto</span>
+      </button>
+      <span class="hint" id="pop-sources-hint" style="font-size:11.5px">0 redes ativas</span>
+      <button class="btn sm danger" id="pop-clear" title="Apagar todas as mensagens recebidas da lista">🗑️ Limpar chat</button>
+    </div>
+  </header>
+
+  <div class="pop-onair-bar" id="pop-onair" style="display:none">
+    <div class="pop-onair-info">
+      <span class="pop-onair-badge">NO AR NO PGM</span>
+      <div class="pop-onair-text" id="pop-onair-text">...</div>
+    </div>
+    <button class="btn sm danger" id="pop-onair-hide">✕ Tirar do ar</button>
+  </div>
+
+  <div class="pop-toolbar" id="pop-toolbar">
+    <div class="soc-search-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input class="input sm" id="pop-search" placeholder="Filtrar por nome, texto ou doação...">
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <div class="soc-filter-bar" style="margin:0">
+        <button class="soc-chip active" data-tab="all">Todas</button>
+        <button class="soc-chip purple" data-tab="queue">📋 Fila (0)</button>
+        <button class="soc-chip gold" data-tab="donations">⭐ Super Chats</button>
+        <button class="soc-chip" data-tab="youtube">🔴 YouTube</button>
+        <button class="soc-chip" data-tab="twitch">🟣 Twitch</button>
+      </div>
+    </div>
+
+    <!-- Seção Secundária Colapsável -->
+    <div class="pop-collapsible" id="pop-sec-toolbar" style="display:flex;flex-direction:column;gap:8px;padding-top:6px;border-top:1px solid var(--line,#24243a)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <select class="input sm" id="pop-slow" title="Reduzir velocidade de mensagens" style="font-size:11.5px">
+            <option value="0">⚡ Tempo real</option>
+            <option value="1">⏳ 1 msg / seg</option>
+            <option value="2">⏳ 1 msg / 2 seg</option>
+            <option value="3">⏳ 1 msg / 3 seg</option>
+            <option value="5">⏳ 1 msg / 5 seg</option>
+            <option value="-1">⭐ Apenas Doações</option>
+          </select>
+          <label class="check" style="font-size:11.5px" title="Coloca novos Super Chats no ar automaticamente">
+            <input type="checkbox" id="pop-auto-sc" checked>
+            <span>Auto Super Chat</span>
+          </label>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:6px;border-top:1px solid var(--line,#24243a);flex-wrap:wrap">
+        <label class="check" style="font-size:11.5px;color:#c4b5fd;font-weight:700" title="Exibe mensagens da fila e do chat automaticamente em sequência no PGM">
+          <input type="checkbox" id="pop-auto-seq">
+          <span>🔄 Exibir em sequência (Carrossel no PGM)</span>
+        </label>
+        <div id="pop-auto-dur-wrap" style="display:none;align-items:center;gap:6px">
+          <select class="input sm" id="pop-auto-dur" style="width:115px;font-size:11px">
+            <option value="3">⏱️ 3 seg</option>
+            <option value="5">⏱️ 5 seg</option>
+            <option value="8" selected>⏱️ 8 seg</option>
+            <option value="10">⏱️ 10 seg</option>
+            <option value="15">⏱️ 15 seg</option>
+            <option value="20">⏱️ 20 seg</option>
+          </select>
+          <button class="btn sm primary" id="pop-next-seq" title="Avançar imediatamente para a próxima mensagem da sequência">▶ Próxima</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <main class="pop-feed-wrap" id="pop-feed">
+    <div class="empty" style="padding:40px 20px;text-align:center;color:var(--text-1)">
+      Aguardando mensagens das redes sociais conectadas...
+    </div>
+  </main>
+  <button class="pop-resume-scroll" id="pop-resume">⬇ Novas mensagens (rolar para o fim)</button>
+
+  <script type="module" src="/js/social-popout.js"></script>
+</body>
+</html>

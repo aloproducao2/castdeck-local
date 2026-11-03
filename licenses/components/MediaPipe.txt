@@ -1,0 +1,6 @@
+﻿MediaPipe Tasks Vision e modelos — componente de terceiros
+Licença: Apache-2.0
+Copyright: Google LLC
+Fonte: https://github.com/google-ai-edge/mediapipe
+Modelos: selfie_segmenter.tflite, blaze_face_short_range.tflite (MediaPipe Models)
+Texto: licenses/Apache-2.0.txt

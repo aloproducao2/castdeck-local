@@ -1,0 +1,2296 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="/icon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#06060c">
+  <meta name="robots" content="noindex">
+  <title>Replay & VAR Console — CastDeck Broadcast</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    :root {
+      --bc-bg: #06070c;
+      --bc-panel: #0d0f18;
+      --bc-panel-header: #131624;
+      --bc-panel-sub: #181c2e;
+      --bc-border: rgba(255, 255, 255, 0.09);
+      --bc-border-bright: rgba(255, 255, 255, 0.2);
+      --bc-accent: #7c5cff;
+      --bc-live: #ef4444;
+      --bc-cue: #00d2ff;
+      --bc-var: #a855f7;
+      --bc-gold: #f59e0b;
+      --bc-green: #10b981;
+      --bc-vfd: #22d3ee;
+      --bc-font-mono: "JetBrains Mono", Consolas, "SF Mono", monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bc-bg);
+      color: #f3f4f9;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+    .bc-app {
+      display: flex;
+      flex-direction: column;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 0%, #111528 0%, #06070c 78%);
+    }
+
+    /* Top Master Header */
+    .bc-header {
+      min-height: 48px;
+      height: auto;
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      padding: 6px 14px;
+      background: linear-gradient(180deg, #141829 0%, #0b0d16 100%);
+      border-bottom: 1px solid var(--bc-border);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      z-index: 20;
+      gap: 6px 12px;
+    }
+    .bc-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: none;
+    }
+    .bc-logo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: linear-gradient(135deg, #7c5cff 0%, #4f46e5 100%);
+      padding: 4px 10px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(124, 92, 255, 0.4);
+    }
+    .bc-title-group {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .bc-title {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      color: #fff;
+    }
+    .bc-sub {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #8b85a8;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    /* Tally Indicators in Header */
+    .bc-tally-rack {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: none;
+    }
+    .bc-tally-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--bc-border);
+      letter-spacing: 0.5px;
+    }
+    .bc-tally-pill.cue {
+      color: var(--bc-cue);
+      border-color: rgba(0, 210, 255, 0.3);
+    }
+    .bc-tally-pill.live {
+      color: var(--bc-live);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    .bc-tally-pill.live.on-air {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: var(--bc-live);
+      animation: pulse-live 1.2s infinite ease-in-out;
+    }
+    @keyframes pulse-live {
+      0%, 100% { box-shadow: 0 0 4px rgba(239, 68, 68, 0.4); }
+      50% { box-shadow: 0 0 14px rgba(239, 68, 68, 0.8); }
+    }
+    .bc-tally-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* SMPTE Master Display */
+    .bc-smpte-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #050508;
+      padding: 3px 10px;
+      border-radius: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-family: var(--bc-font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--bc-vfd);
+      letter-spacing: 1px;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.8);
+      flex: none;
+    }
+    .bc-smpte-label {
+      font-size: 9px;
+      color: #64748b;
+      font-family: sans-serif;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    /* Signal Input Source Rack */
+    .bc-source-rack {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.45);
+      padding: 3px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--bc-border);
+      flex: none;
+    }
+    .bc-source-rack-lbl {
+      font-size: 10px;
+      font-weight: 800;
+      color: #8b85a8;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    /* Independent Replay Audio Rack */
+    .bc-audio-rack {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.45);
+      padding: 3px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--bc-border);
+      flex: none;
+    }
+    .bc-audio-rack-lbl {
+      font-size: 10px;
+      font-weight: 800;
+      color: #8b85a8;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      letter-spacing: 0.5px;
+    }
+    .bc-select {
+      height: 26px;
+      background: #18152b;
+      color: #f1f0f7;
+      border: 1px solid var(--bc-border);
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 0 6px;
+      outline: none;
+      cursor: pointer;
+      max-width: 160px;
+    }
+    .bc-select:focus {
+      border-color: var(--bc-cue);
+    }
+    .bc-audio-vol {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .bc-vol-slider {
+      width: 50px;
+      -webkit-appearance: none;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.2);
+      outline: none;
+      cursor: pointer;
+    }
+    .bc-vol-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--bc-cue);
+      cursor: pointer;
+      box-shadow: 0 0 6px var(--bc-cue);
+    }
+
+    /* Buffer Stat Meter */
+    .bc-buf-stat {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: #94a3b8;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 4px 10px;
+      border-radius: 5px;
+      border: 1px solid var(--bc-border);
+      flex: none;
+    }
+    .bc-buf-track {
+      width: 55px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .bc-buf-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #06b6d4);
+      transition: width 0.3s ease;
+    }
+
+    /* Header Action Buttons */
+    .bc-hdr-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: none;
+    }
+    .bc-hdr-btn {
+      height: 28px;
+      padding: 0 9px;
+      border-radius: 4px;
+      border: 1px solid var(--bc-border);
+      background: rgba(255, 255, 255, 0.05);
+      color: #e2e8f0;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+    .bc-hdr-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+    .bc-hdr-btn.close:hover {
+      background: #ef4444;
+      border-color: #ef4444;
+      color: #fff;
+    }
+    .bc-rec-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #94a3b8;
+      display: inline-block;
+      transition: all 0.2s ease;
+    }
+    .bc-hdr-btn.is-recording {
+      background: rgba(239, 68, 68, 0.25) !important;
+      border-color: #ef4444 !important;
+      color: #fff !important;
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+    }
+    .bc-hdr-btn.is-recording .bc-rec-dot {
+      background: #ef4444 !important;
+      box-shadow: 0 0 8px #ef4444;
+      animation: bc-pulse-rec 1s infinite alternate;
+    }
+    @keyframes bc-pulse-rec {
+      from { opacity: 1; transform: scale(1); }
+      to { opacity: 0.3; transform: scale(0.75); }
+    }
+    .bc-hdr-btn.buffer-btn {
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .bc-hdr-btn.buffer-active {
+      background: rgba(16, 185, 129, 0.22) !important;
+      border-color: #10b981 !important;
+      color: #34d399 !important;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+    }
+    .bc-hdr-btn.buffer-active .bc-rec-dot {
+      background: #10b981 !important;
+      box-shadow: 0 0 8px #10b981;
+      animation: bc-pulse-rec 1s infinite alternate;
+    }
+    .bc-hdr-btn.buffer-idle {
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.45);
+      color: #fbbf24;
+    }
+    .bc-hdr-btn.buffer-idle:hover {
+      background: rgba(245, 158, 11, 0.25);
+      border-color: #f59e0b;
+      color: #fff;
+    }
+    .bc-hdr-btn.buffer-idle .bc-rec-dot {
+      background: #f59e0b;
+    }
+
+    /* Main Workspace Layout */
+    .bc-main {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1fr 310px;
+      grid-template-rows: 1fr 180px;
+      gap: 8px;
+      padding: 8px;
+    }
+
+    /* Screens Section */
+    .bc-screens-box {
+      grid-column: 1;
+      grid-row: 1;
+      background: var(--bc-panel);
+      border-radius: 8px;
+      border: 1px solid var(--bc-border);
+      padding: 8px;
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      min-height: 0;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+    }
+    .bc-screen {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      background: #000;
+      border-radius: 6px;
+      border: 2px solid var(--bc-border);
+      overflow: hidden;
+      position: relative;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .bc-screen.cue-active {
+      border-color: var(--bc-cue);
+      box-shadow: 0 0 14px rgba(0, 210, 255, 0.25);
+    }
+    .bc-screen.live-active {
+      border-color: var(--bc-live);
+      box-shadow: 0 0 18px rgba(239, 68, 68, 0.45);
+    }
+    .bc-screen.pvw-mirrored {
+      border-color: #ef4444;
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+    }
+
+    /* Central Transition Hub between PVW and PGM */
+    .bc-transition-hub {
+      width: 82px;
+      flex: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      background: linear-gradient(180deg, #1b1732 0%, #0d0b1a 100%);
+      border: 1px solid var(--bc-border-bright);
+      border-radius: 6px;
+      padding: 8px 5px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.7);
+      z-index: 12;
+    }
+    .bc-hub-title {
+      font-size: 8.5px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      text-align: center;
+      margin-bottom: 2px;
+    }
+    .bc-hub-btn {
+      width: 100%;
+      height: 48px;
+      border-radius: 5px;
+      border: 1px solid var(--bc-border);
+      background: linear-gradient(180deg, #241f3f 0%, #17142a 100%);
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      transition: all 0.15s ease;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      position: relative;
+    }
+    .bc-hub-btn:hover {
+      filter: brightness(1.18);
+      transform: translateY(-1px);
+    }
+    .bc-hub-btn.take-direct {
+      background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+      border-color: #10b981;
+      color: #fff;
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.4);
+    }
+    .bc-hub-btn.take-stinger {
+      background: linear-gradient(180deg, #8b5cf6 0%, #6d28d9 100%);
+      border-color: #a78bfa;
+      color: #fff;
+      box-shadow: 0 0 14px rgba(139, 92, 246, 0.4);
+    }
+    .bc-hub-btn.live-mirror {
+      background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
+      border-color: #00d2ff;
+      color: #fff;
+    }
+    .bc-hub-btn.live-mirror.active {
+      background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+      border-color: #f87171;
+      box-shadow: 0 0 16px rgba(239, 68, 68, 0.7);
+      animation: pulse-live 1.2s infinite ease-in-out;
+    }
+    .bc-hub-btn.cut-live {
+      background: linear-gradient(180deg, #dc2626 0%, #991b1b 100%);
+      border-color: #ef4444;
+      color: #fff;
+    }
+    .bc-hub-shortcut {
+      font-size: 7.5px;
+      color: rgba(255, 255, 255, 0.7);
+      font-family: var(--bc-font-mono);
+      font-weight: 700;
+    }
+    .bc-led-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      position: absolute;
+      top: 4px;
+      right: 4px;
+    }
+    .bc-hub-btn.live-mirror.active .bc-led-dot {
+      background: #10b981;
+      box-shadow: 0 0 6px #10b981;
+    }
+
+    /* Screen Head Bar */
+    .bc-scr-head {
+      height: 32px;
+      flex: none;
+      background: var(--bc-panel-header);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+      border-bottom: 1px solid var(--bc-border);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      z-index: 10;
+    }
+    .bc-scr-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .bc-scr-badge {
+      font-size: 9px;
+      font-weight: 900;
+      padding: 2px 6px;
+      border-radius: 3px;
+      color: #fff;
+      letter-spacing: 0.5px;
+    }
+    .bc-scr-badge.cue { background: var(--bc-cue); color: #000; }
+    .bc-scr-badge.live { background: var(--bc-live); }
+
+    .bc-scr-tc {
+      font-family: var(--bc-font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--bc-vfd);
+      letter-spacing: 0.5px;
+    }
+
+    /* Multi-Cam Selector in Monitor A */
+    .bc-cam-rack {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 2px;
+      border-radius: 4px;
+      border: 1px solid var(--bc-border);
+    }
+    .bc-cam-btn {
+      height: 20px;
+      padding: 0 6px;
+      border-radius: 3px;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      font-size: 9.5px;
+      font-weight: 800;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+    }
+    .bc-cam-btn.active {
+      background: var(--bc-cue);
+      color: #000;
+    }
+
+    /* Screen Video Viewport */
+    .bc-video-viewport {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #050508;
+      overflow: hidden;
+    }
+    .bc-video-viewport video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* Multi-Cam Grid Viewport */
+    .bc-multicam-grid {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 2px;
+      background: #000;
+      z-index: 2;
+    }
+    .bc-cam-slot {
+      position: relative;
+      background: #0d0c17;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .bc-cam-slot:hover {
+      border-color: rgba(0, 210, 255, 0.4);
+    }
+    .bc-cam-slot.active-cam {
+      box-shadow: inset 0 0 0 2px var(--bc-cue);
+      border-color: var(--bc-cue);
+    }
+    .bc-cam-slot video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .bc-cam-slot-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 24px;
+      background: rgba(10, 8, 20, 0.88);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 6px;
+      gap: 6px;
+      z-index: 4;
+      backdrop-filter: blur(4px);
+    }
+    .bc-cam-slot-tag {
+      font-size: 9px;
+      font-weight: 800;
+      color: #00d2ff;
+      letter-spacing: 0.5px;
+      flex: none;
+    }
+    .bc-slot-select {
+      flex: 1;
+      height: 18px;
+      background: #17142a;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 600;
+      outline: none;
+      padding: 0 3px;
+      cursor: pointer;
+      max-width: 140px;
+    }
+    .bc-slot-solo-btn {
+      height: 18px;
+      padding: 0 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .bc-slot-solo-btn:hover {
+      background: var(--bc-cue);
+      color: #000;
+      border-color: var(--bc-cue);
+    }
+    .bc-mode-group {
+      display: flex;
+      gap: 2px;
+      border-right: 1px solid rgba(255, 255, 255, 0.15);
+      padding-right: 4px;
+      margin-right: 2px;
+    }
+    .bc-angle-group {
+      display: flex;
+      gap: 2px;
+    }
+
+    /* VAR Canvas & Tools Overlay */
+    .bc-var-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .bc-var-active .bc-var-overlay {
+      pointer-events: auto;
+      cursor: crosshair;
+    }
+    .bc-var-watermark {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      background: rgba(168, 85, 247, 0.9);
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      z-index: 6;
+    }
+    .bc-var-active .bc-var-watermark {
+      display: flex;
+    }
+
+    /* VAR Interactive Toolbar */
+    .bc-var-toolbar {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      align-items: center;
+      gap: 6px;
+      background: rgba(17, 16, 27, 0.95);
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--bc-border-bright);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.8);
+      z-index: 7;
+      backdrop-filter: blur(8px);
+    }
+    .bc-var-active .bc-var-toolbar {
+      display: flex;
+    }
+    .bc-var-tool-btn {
+      height: 26px;
+      padding: 0 8px;
+      border-radius: 4px;
+      border: 1px solid var(--bc-border);
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .bc-var-tool-btn:hover {
+      background: rgba(255, 255, 255, 0.18);
+    }
+    .bc-var-tool-btn.active {
+      background: var(--bc-var);
+      border-color: var(--bc-var);
+      color: #fff;
+    }
+
+    /* Stinger Overlay on Live Program (TV Sports Wipe) */
+    .bc-stinger-wipe {
+      position: absolute;
+      inset: -5% -20%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 25;
+      transform: translateX(-140%);
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .bc-stinger-wipe.animating {
+      animation: stinger-tv-wipe 0.75s cubic-bezier(0.77, 0, 0.175, 1) forwards;
+    }
+    @keyframes stinger-tv-wipe {
+      0% {
+        transform: translateX(-140%) skewX(-20deg);
+        opacity: 0;
+      }
+      15% {
+        opacity: 1;
+      }
+      45%, 55% {
+        transform: translateX(0%) skewX(-4deg);
+        opacity: 1;
+      }
+      85% {
+        opacity: 1;
+      }
+      100% {
+        transform: translateX(140%) skewX(20deg);
+        opacity: 0;
+      }
+    }
+    .bc-stinger-blade-1 {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(115deg, #991b1b 0%, #dc2626 22%, #ef4444 45%, #181428 75%, #090812 100%);
+      box-shadow: 0 0 50px rgba(239, 68, 68, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.2);
+    }
+    .bc-stinger-blade-2 {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(115deg, transparent 38%, rgba(245, 158, 11, 0.9) 45%, rgba(255, 255, 255, 0.95) 48%, rgba(239, 68, 68, 0.8) 54%, transparent 62%);
+      mix-blend-mode: screen;
+    }
+    .bc-stinger-streak {
+      position: absolute;
+      width: 150%;
+      height: 4px;
+      background: linear-gradient(90deg, transparent, #00d2ff, #fff, #ef4444, transparent);
+      box-shadow: 0 0 16px #00d2ff, 0 0 30px #fff;
+      transform: rotate(-10deg);
+    }
+    .bc-stinger-badge {
+      position: relative;
+      z-index: 5;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 28px;
+      background: rgba(10, 8, 20, 0.92);
+      border: 2.5px solid #ef4444;
+      border-radius: 10px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.9), 0 0 30px rgba(239, 68, 68, 0.7);
+      transform: scale(1.1);
+    }
+    .bc-stinger-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #ef4444;
+      box-shadow: 0 0 14px #ef4444;
+      animation: pulse-live 0.6s infinite ease-in-out;
+    }
+    .bc-stinger-text {
+      font-size: 38px;
+      font-weight: 900;
+      font-style: italic;
+      letter-spacing: 5px;
+      color: #fff;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8), 0 0 20px rgba(239, 68, 68, 0.8);
+    }
+
+    /* On-Air Broadcast Replay Bug Tag (Canto superior esquerdo, menor e compacto) */
+    .bc-onair-replay-bug {
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      z-index: 10;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 10.5px;
+      font-weight: 900;
+      letter-spacing: 0.8px;
+      background: rgba(14, 10, 22, 0.92);
+      border: 1px solid #ef4444;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.65);
+      pointer-events: none;
+      text-transform: uppercase;
+    }
+    .bc-replay-bug-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #ef4444;
+      box-shadow: 0 0 6px #ef4444;
+      animation: pulse-live 0.8s infinite ease-in-out;
+    }
+
+    /* On-Screen Status Pill on Preview Viewport */
+    .bc-pvw-status-overlay {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      z-index: 10;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      background: rgba(10, 9, 20, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    .bc-pvw-status-overlay.paused {
+      border-color: rgba(245, 158, 11, 0.8);
+      color: #f59e0b;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+    }
+    .bc-pvw-status-overlay.playing {
+      border-color: rgba(16, 185, 129, 0.8);
+      color: #10b981;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
+    }
+
+    /* Transport Play & Pause button active states */
+    #rp-btn-play.active {
+      background: #10b981 !important;
+      color: #fff !important;
+      border-color: #10b981 !important;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.5) !important;
+      font-weight: 800;
+    }
+    #rp-btn-pause.active {
+      background: #f59e0b !important;
+      color: #000 !important;
+      border-color: #f59e0b !important;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.5) !important;
+      font-weight: 800;
+    }
+
+    /* Right Sidebar: Highlights Playlist & Shotbox */
+    .bc-sidebar {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      background: var(--bc-panel);
+      border-radius: 8px;
+      border: 1px solid var(--bc-border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .bc-sb-head {
+      height: 38px;
+      flex: none;
+      background: var(--bc-panel-header);
+      border-bottom: 1px solid var(--bc-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    /* Shotbox Quick Event Bank */
+    .bc-shotbox {
+      flex: none;
+      padding: 10px;
+      background: var(--bc-panel-sub);
+      border-bottom: 1px solid var(--bc-border);
+    }
+    .bc-shotbox-title {
+      font-size: 10px;
+      font-weight: 800;
+      color: #8b85a8;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .bc-shotbox-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 5px;
+    }
+    .bc-tag-btn {
+      height: 28px;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(0,0,0,0.4);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      transition: all 0.15s ease;
+    }
+    .bc-tag-btn:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.2);
+    }
+    .bc-tag-btn.tag-gol { border-color: #10b981; color: #34d399; }
+    .bc-tag-btn.tag-falta { border-color: #f59e0b; color: #fbbf24; }
+    .bc-tag-btn.tag-amarelo { border-color: #eab308; color: #fde047; }
+    .bc-tag-btn.tag-vermelho { border-color: #ef4444; color: #f87171; }
+    .bc-tag-btn.tag-penalti { border-color: #f97316; color: #fb923c; }
+    .bc-tag-btn.tag-var { border-color: #a855f7; color: #c084fc; }
+    .bc-tag-btn.tag-defesa { border-color: #06b6d4; color: #38bdf8; }
+    .bc-tag-btn.tag-trave { border-color: #ec4899; color: #f472b6; }
+
+    /* Playlist Scroll Area */
+    .bc-playlist {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .bc-clip-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--bc-border);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .bc-clip-card:hover {
+      background: rgba(255, 255, 255, 0.07);
+      border-color: var(--bc-accent);
+    }
+    .bc-clip-card.active {
+      background: rgba(124, 92, 255, 0.15);
+      border-color: var(--bc-accent);
+    }
+    .bc-clip-card.active .bc-clip-thumb-wrap::after {
+      content: 'NO AR';
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      font: 800 7px/1 var(--bc-font-mono, monospace);
+      letter-spacing: 0.5px;
+      color: #fff;
+      background: #ef4444;
+      padding: 2px 3px;
+      border-radius: 3px;
+      z-index: 2;
+    }
+    .bc-clip-thumb-wrap {
+      width: 64px;
+      height: 36px;
+      background: #000;
+      border-radius: 4px;
+      overflow: hidden;
+      flex: none;
+      border: 1px solid rgba(255,255,255,0.1);
+      position: relative;
+    }
+    .bc-clip-thumb-wrap video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    /* Thumbnail leve: placeholder até o card entrar na tela (evita 50+ <video> carregando metadata) */
+    .bc-thumb-ph {
+      width: 100%;
+      height: 100%;
+      background: #0b0a14;
+      background-size: cover;
+      background-position: center;
+    }
+    /* Medidor do custo do ISO 4 CAM: FPS real do programa vs alvo */
+    .bc-iso-perf {
+      font: 700 10px/1 var(--bc-font-mono, monospace);
+      color: #94a3b8;
+      margin-left: 6px;
+      align-self: center;
+      white-space: nowrap;
+    }
+    .bc-iso-perf.warn { color: #f59e0b; }
+    .bc-clip-tag {
+      position: absolute;
+      bottom: 2px;
+      left: 2px;
+      font-size: 8px;
+      font-weight: 900;
+      padding: 1px 4px;
+      border-radius: 2px;
+      background: rgba(0,0,0,0.8);
+      color: #fff;
+    }
+    .bc-clip-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .bc-clip-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .bc-clip-meta {
+      font-size: 10px;
+      color: #94a3b8;
+      font-family: var(--bc-font-mono);
+      margin-top: 3px;
+    }
+    .bc-clip-acts {
+      display: flex;
+      gap: 4px;
+    }
+    .bc-sb-foot {
+      padding: 10px;
+      background: var(--bc-panel-header);
+      border-top: 1px solid var(--bc-border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Bottom Control Deck */
+    .bc-deck {
+      grid-column: 1;
+      grid-row: 2;
+      background: var(--bc-panel);
+      border-radius: 8px;
+      border: 1px solid var(--bc-border);
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+    }
+
+    /* Quick Time Buffers: duas fileiras à esquerda + SWAP grande ocupando a altura das duas à direita */
+    .bc-quick-triggers {
+      display: grid;
+      grid-template-columns: auto auto;
+      grid-template-rows: auto auto;
+      gap: 6px;
+      flex: none;
+    }
+    .bc-quick-triggers > .bc-btn-grid { grid-column: 1; }
+    .bc-btn-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+    }
+    .bc-btn-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+    .bc-trig-btn.swap-big {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      height: auto;
+      min-width: 104px;
+      padding: 6px 14px;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 15px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      color: #04131a;
+      background: linear-gradient(180deg, #5ee7ff 0%, #00b4d8 100%);
+      border: 2px solid #8ff0ff;
+      box-shadow: 0 0 0 1px rgba(0, 210, 255, 0.35), 0 4px 16px rgba(0, 210, 255, 0.45);
+    }
+    .bc-trig-btn.swap-big svg { width: 26px; height: 26px; }
+    .bc-trig-btn.swap-big:hover {
+      background: linear-gradient(180deg, #84eeff 0%, #14c4e6 100%);
+      border-color: #c4f8ff;
+      box-shadow: 0 0 0 1px rgba(0, 210, 255, 0.5), 0 6px 22px rgba(0, 210, 255, 0.6);
+      transform: translateY(-1px);
+    }
+    .bc-trig-btn.swap-big:active { transform: translateY(1px) scale(0.98); }
+    .bc-trig-btn {
+      height: 31px;
+      padding: 0 8px;
+      border-radius: 5px;
+      border: 1px solid var(--bc-border);
+      background: linear-gradient(180deg, #231f3d 0%, #17142b 100%);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .bc-trig-btn:hover {
+      background: linear-gradient(180deg, #2d284e 0%, #201c3b 100%);
+      border-color: rgba(255,255,255,0.25);
+    }
+    .bc-trig-btn.primary {
+      background: linear-gradient(180deg, #7c5cff 0%, #5b36f5 100%);
+      border-color: #7c5cff;
+      box-shadow: 0 2px 8px rgba(124, 92, 255, 0.4);
+    }
+    .bc-trig-btn.primary:hover {
+      background: linear-gradient(180deg, #8b6dff 0%, #6845f8 100%);
+    }
+    .bc-trig-btn.var {
+      background: linear-gradient(180deg, #9333ea 0%, #7e22ce 100%);
+      border-color: #a855f7;
+    }
+    .bc-trig-btn.take-air {
+      background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+      border-color: #10b981;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+    }
+    .bc-trig-btn.live-cut {
+      background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+      border-color: #ef4444;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+    }
+
+    /* Transport & Scrub Bar */
+    .bc-transport {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+    }
+    .bc-scrub-wrap {
+      position: relative;
+      min-height: 48px;
+      background: #050508;
+      border-radius: 6px;
+      border: 1px solid var(--bc-border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 4px 12px 2px;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.8);
+    }
+    /* Trilho: slider + faixa IN→OUT + bandeiras + régua. As posições descontam meia bolinha (9 px) em cada
+       ponta para a marca cair exatamente onde o thumb do range fica naquele tempo. */
+    .bc-scrub-track {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+      padding: 15px 0 17px;
+    }
+    .bc-scrub-slider {
+      position: relative;
+      z-index: 1;
+      display: block;
+      width: 100%;
+      margin: 0;
+      -webkit-appearance: none;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.15);
+      outline: none;
+      cursor: pointer;
+    }
+    .bc-scrub-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--bc-cue);
+      cursor: pointer;
+      box-shadow: 0 0 10px var(--bc-cue);
+      border: 2px solid #fff;
+    }
+    .bc-scrub-range {
+      position: absolute;
+      top: 15px;
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(90deg, rgba(0,210,255,0.55), rgba(239,68,68,0.55));
+      box-shadow: 0 0 8px rgba(0,210,255,0.35);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .bc-scrub-range[hidden], .bc-scrub-mark[hidden] { display: none; }
+    .bc-scrub-mark {
+      position: absolute;
+      top: 0;
+      height: 27px;
+      width: 0;
+      padding: 0;
+      border: none;
+      border-left: 2px solid var(--mk);
+      background: none;
+      margin-left: -1px;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .bc-scrub-mark.in { --mk: #00d2ff; }
+    .bc-scrub-mark.out { --mk: #ef4444; }
+    .bc-scrub-mark span {
+      position: absolute;
+      top: 0;
+      left: -1px;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      font: 800 9px/12px 'JetBrains Mono', ui-monospace, monospace;
+      letter-spacing: 0.3px;
+      padding: 0 5px;
+      border-radius: 3px;
+      background: var(--mk);
+      color: #000;
+      box-shadow: 0 0 8px var(--mk);
+      pointer-events: auto;
+      cursor: pointer;
+    }
+    .bc-scrub-mark.out span { color: #fff; }
+    .bc-scrub-mark.live span { animation: bc-pulse-rec 1s infinite alternate; }
+    .bc-scrub-ticks {
+      position: absolute;
+      left: 9px;
+      right: 9px;
+      top: 24px;
+      height: 16px;
+      pointer-events: none;
+    }
+    .bc-scrub-tick {
+      position: absolute;
+      top: 0;
+    }
+    .bc-scrub-tick i {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1px;
+      height: 4px;
+      background: rgba(255,255,255,0.35);
+    }
+    .bc-scrub-tick b {
+      position: absolute;
+      top: 4px;
+      left: 0;
+      transform: translateX(-50%);
+      font: 600 9px/12px 'JetBrains Mono', ui-monospace, monospace;
+      color: #8b93a7;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .bc-scrub-time {
+      flex: 0 0 auto;
+      min-width: 104px;
+      text-align: right;
+      font: 700 12px 'JetBrains Mono', ui-monospace, monospace;
+      color: #e2e8f0;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .bc-scrub-time.live { color: #10b981; }
+    .bc-scrub-time.pending { color: #00d2ff; }
+
+    .bc-transport-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .bc-in-out-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* T-BAR with Vertical LED Ladder (EVS / vMix Replay Style) */
+    .bc-tbar-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #07070e;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--bc-border);
+      flex: none;
+      height: 74px;
+    }
+    .bc-tbar-led-ladder {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 74px;
+      width: 44px;
+    }
+    .bc-led-segment {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 8.5px;
+      font-family: var(--bc-font-mono);
+      font-weight: 700;
+      color: #64748b;
+    }
+    .bc-led-pip {
+      width: 8px;
+      height: 5px;
+      border-radius: 1px;
+      background: #1e1b33;
+      transition: background 0.1s ease, box-shadow 0.1s ease;
+    }
+    .bc-led-segment.lit .bc-led-pip {
+      background: #10b981;
+      box-shadow: 0 0 6px #10b981;
+    }
+    .bc-led-segment.lit.high .bc-led-pip {
+      background: #ef4444;
+      box-shadow: 0 0 6px #ef4444;
+    }
+    .bc-led-segment.lit.mid .bc-led-pip {
+      background: #f59e0b;
+      box-shadow: 0 0 6px #f59e0b;
+    }
+    .bc-led-segment.lit { color: #f1f0f7; }
+
+    .bc-tbar-track {
+      height: 74px;
+      display: flex;
+      align-items: center;
+    }
+    .bc-tbar-slider {
+      -webkit-appearance: none;
+      transform: rotate(270deg);
+      width: 74px;
+      height: 10px;
+      background: #181528;
+      border-radius: 5px;
+      outline: none;
+      cursor: pointer;
+      border: 1px solid var(--bc-border-bright);
+    }
+    .bc-tbar-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 3px;
+      background: linear-gradient(180deg, #e2e8f0 0%, #94a3b8 100%);
+      cursor: ns-resize;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.8);
+      border: 1px solid #fff;
+    }
+
+    /* Precision Jog Wheel (Alumínio Estilo EVS) */
+    .bc-jog-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      flex: none;
+    }
+    .bc-jog-wheel {
+      width: 66px;
+      height: 66px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #292444 0%, #100e1f 70%, #080710 100%);
+      border: 3px solid #332d56;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.8), inset 0 2px 4px rgba(255,255,255,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      position: relative;
+      touch-action: none;
+    }
+    .bc-jog-wheel:active { cursor: grabbing; }
+    .bc-jog-dimple {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #00d2ff 0%, #0284c7 100%);
+      box-shadow: 0 0 8px #00d2ff;
+      position: absolute;
+      top: 10px;
+    }
+    .bc-jog-label {
+      font-size: 9px;
+      font-weight: 800;
+      color: #64748b;
+      letter-spacing: 0.5px;
+    }
+
+    /* Standard Console Action Buttons */
+    .bc-btn {
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 5px;
+      border: 1px solid var(--bc-border);
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+    }
+    .bc-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+    .bc-btn.active {
+      background: var(--bc-accent);
+      border-color: var(--bc-accent);
+    }
+    /* On-Air Broadcast Replay Tag Bug */
+    .bc-onair-replay-bug {
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(12, 10, 20, 0.92);
+      border: 1.2px solid #ef4444;
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 10.5px;
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: 1px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+      z-index: 20;
+      pointer-events: none;
+    }
+    .bc-replay-bug-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #ef4444;
+      box-shadow: 0 0 6px #ef4444;
+      animation: pulse-live 1s infinite ease-in-out;
+    }
+
+    /* Responsividade */
+    @media (max-width: 1200px) {
+      .bc-main {
+        grid-template-columns: 1fr 270px;
+      }
+      .bc-title-group .bc-sub { display: none; }
+    }
+    @media (max-width: 980px) {
+      .bc-main {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr auto auto;
+        overflow-y: auto;
+      }
+      .bc-sidebar {
+        grid-column: 1;
+        grid-row: 3;
+        height: 280px;
+      }
+    }
+    /* Replay Settings Modal */
+    .bc-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(5px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .bc-modal-box {
+      width: 520px;
+      max-width: 95vw;
+      background: #110f22;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 10px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(124, 92, 255, 0.2);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .bc-modal-header {
+      padding: 12px 16px;
+      background: #18152e;
+      border-bottom: 1px solid var(--bc-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .bc-modal-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .bc-modal-footer {
+      padding: 12px 16px;
+      background: #18152e;
+      border-top: 1px solid var(--bc-border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .bc-cfg-section {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--bc-border);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .bc-cfg-title {
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .bc-cfg-desc {
+      font-size: 11px;
+      color: #94a3b8;
+      margin: 0 0 10px 0;
+      line-height: 1.4;
+    }
+    .bc-cfg-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 12px;
+    }
+    .bc-disk-usage-box {
+      margin-top: 10px;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--bc-border);
+    }
+    .bc-disk-usage-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #cbd5e1;
+      margin-bottom: 6px;
+      font-family: var(--bc-font-mono);
+    }
+    .bc-disk-track {
+      height: 7px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .bc-disk-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #00d2ff);
+      transition: width 0.3s ease;
+    }
+    .bc-disk-fill.warn {
+      background: linear-gradient(90deg, #f59e0b, #ef4444);
+    }
+
+    /* ===== Correções de layout: nenhum botão pode ser cortado em janelas menores ===== */
+    @media (min-width: 981px) {
+      .bc-main { grid-template-rows: minmax(0, 1fr) auto; }
+    }
+    .bc-deck {
+      flex-wrap: wrap;
+      overflow: visible;
+      align-content: center;
+      row-gap: 8px;
+      min-height: 112px;
+    }
+    .bc-quick-triggers { flex: 0 0 auto; }
+    .bc-transport { flex: 1 1 340px; }
+    .bc-transport-bar { flex-wrap: wrap; row-gap: 6px; }
+    .bc-in-out-group { flex-wrap: wrap; }
+    .bc-btn, .bc-trig-btn, .bc-var-tool-btn, .bc-tag-btn { white-space: nowrap; flex-shrink: 0; }
+
+    /* Hub central: encolhe os botões e rola em vez de cortar (safe center evita cortar o topo) */
+    .bc-transition-hub {
+      overflow-x: hidden;
+      overflow-y: auto;
+      justify-content: safe center;
+      scrollbar-width: thin;
+    }
+    .bc-hub-btn { flex: 0 1 48px; height: auto; min-height: 38px; padding: 3px 2px; }
+    @media (max-height: 640px) {
+      .bc-hub-btn { min-height: 34px; }
+      .bc-hub-shortcut { display: none; }
+    }
+
+    /* Cabeçalho do monitor A quebra em duas linhas quando falta largura */
+    .bc-scr-head { height: auto; min-height: 32px; flex-wrap: wrap; row-gap: 3px; padding: 3px 10px; }
+    .bc-scr-title { flex-wrap: wrap; min-width: 0; row-gap: 2px; }
+    .bc-cam-rack { flex-wrap: wrap; }
+
+    /* Shotbox: quantidade de colunas conforme a largura (VERMELHO/PÊNALTI não cortam) */
+    .bc-shotbox-grid { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); }
+    .bc-tag-btn { padding: 0 6px; overflow: hidden; }
+
+    /* Barra de ferramentas do VAR cabe dentro do monitor */
+    .bc-var-toolbar { max-width: calc(100% - 16px); flex-wrap: wrap; justify-content: center; }
+
+    .bc-hdr-btn.on { border-color: #10b981; color: #10b981; background: hsl(150 50% 20% / .35); }
+    .bc-hdr-btn#rp-btn-autotake span { font-size: 9.5px; font-weight: 800; letter-spacing: .04em; }
+  </style>
+</head>
+<body>
+  <div class="bc-app">
+    <!-- Top Master Broadcast Header -->
+    <header class="bc-header">
+      <div class="bc-brand">
+        <div class="bc-logo-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon></svg>
+          <span>REPLAY</span>
+        </div>
+        <div class="bc-title-group">
+          <span class="bc-title">CastDeck Instant Replay & VAR</span>
+          <span class="bc-sub">Mesa de Transmissão Esportiva</span>
+        </div>
+      </div>
+
+      <!-- Tally Output Racks & Master SMPTE Clock -->
+      <div class="bc-tally-rack">
+        <div class="bc-tally-pill cue">
+          <span class="bc-tally-dot"></span>
+          <span>OUT A (CUE)</span>
+        </div>
+        <div class="bc-tally-pill live" id="bc-tally-pgm">
+          <span class="bc-tally-dot"></span>
+          <span id="bc-tally-label">OUT B (LIVE)</span>
+        </div>
+        <div class="bc-smpte-box">
+          <span class="bc-smpte-label">MASTER TC</span>
+          <span id="bc-master-tc">00:00:00:00</span>
+        </div>
+      </div>
+
+      <!-- Signal Input Selector Rack (PGM, Screen, Camera, Media Video, Remote Cam, etc.) -->
+      <div class="bc-source-rack">
+        <div class="bc-source-rack-lbl">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 10l5 5-5 5"></path><path d="M4 4v7a4 4 0 0 0 4 4h12"></path></svg>
+          <span>VÍDEO:</span>
+        </div>
+        <select class="bc-select" id="rp-input-source" title="Selecione qual entrada de vídeo alimentar o Replay">
+          <option value="pgm">🔴 PGM (Programa Master)</option>
+        </select>
+      </div>
+
+      <!-- Audio Input Selector Rack (Qual áudio capturar no replay) -->
+      <div class="bc-source-rack">
+        <div class="bc-source-rack-lbl">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+          <span>ÁUDIO IN:</span>
+        </div>
+        <select class="bc-select" id="rp-input-audio" title="Escolha qual sinal de áudio capturar no Replay (PGM, Microfone, Vídeo, Convidado ou Mudo)">
+          <option value="pgm">🔴 Áudio PGM (Master)</option>
+          <option value="mic">🎤 Microfone do Host</option>
+          <option value="mute">🔇 Mudo (Sem Áudio)</option>
+        </select>
+      </div>
+
+      <!-- Independent Audio Rack with Selector & Output Device -->
+      <div class="bc-audio-rack">
+        <div class="bc-audio-rack-lbl">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+          <span>ÁUDIO:</span>
+        </div>
+        <select class="bc-select" id="rp-audio-route" title="Roteamento do áudio do Replay (padrão de replay/VAR: mudo)">
+          <option value="mute" selected>🔇 Mudo (padrão replay)</option>
+          <option value="cue">🎧 Fone CUE (Exclusivo)</option>
+          <option value="pgm">🔴 No Ar (PGM Master)</option>
+          <option value="both">🎧+🔴 Ambos (Fone + PGM)</option>
+        </select>
+        <select class="bc-select" id="rp-audio-device" title="Dispositivo de saída física de áudio (fone do operador, placa USB, etc.)">
+          <option value="default">Padrão do Sistema</option>
+        </select>
+        <div class="bc-audio-vol">
+          <button class="bc-btn icon" id="rp-btn-mute" style="height:24px;width:24px;padding:0;font-size:11px" title="Silenciar áudio do replay (monitor + PGM)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+          </button>
+          <button class="bc-btn icon muted" id="rp-mon-mute" style="height:24px;width:24px;padding:0;font-size:11px;color:#ef4444" title="Mudo do monitoramento local (não afeta o PGM). Começa mudo.">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+          </button>
+          <input type="range" class="bc-vol-slider" id="rp-audio-vol" min="0" max="100" value="80" title="Volume do Replay">
+          <span id="rp-vol-lbl" style="font-size:9.5px;font-family:var(--bc-font-mono);width:26px">80%</span>
+        </div>
+      </div>
+
+      <!-- Buffer Stat & Window Actions -->
+      <div class="bc-hdr-actions">
+        <button class="bc-hdr-btn on" id="rp-btn-autotake" title="Gatilho de replay vai direto ao PGM (desligável)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon></svg>
+          <span>AUTO ON</span>
+        </button>
+        <button class="bc-hdr-btn" id="rp-btn-remote" title="Abrir/copiar o controle remoto de Replay para tablet ou celular na mesma rede">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="7" y="2.5" width="10" height="19" rx="2.5"></rect><line x1="10.5" y1="18.5" x2="13.5" y2="18.5"></line></svg>
+          <span>Controle remoto</span>
+        </button>
+        <button class="bc-hdr-btn buffer-btn buffer-idle" id="rp-btn-buffer-toggle" title="Iniciar ou pausar o modo buffer circular contínuo em RAM (Atalho: B)">
+          <span class="bc-rec-dot" id="rp-buf-toggle-dot"></span>
+          <span id="rp-buf-toggle-label">Iniciar Buffer</span>
+        </button>
+        <div class="bc-buf-stat" id="rp-buf-stat-box" title="Buffer circular contínuo em RAM (Clique para Ligar/Pausar o Buffer)" style="cursor:pointer">
+          <span>BUFFER:</span>
+          <div class="bc-buf-track"><div class="bc-buf-fill" id="rp-buf-fill"></div></div>
+          <b id="rp-buf-time" style="font-family:var(--bc-font-mono)">0.0s / 45s</b>
+        </div>
+        <button class="bc-hdr-btn" id="rp-btn-rec-match" title="Gravação Contínua de Jogo/Futebol diretamente no disco selecionado (sem limite de 45s)">
+          <span class="bc-rec-dot" id="rp-rec-match-dot"></span>
+          <span id="rp-rec-match-label">REC Jogo</span>
+          <span id="rp-rec-match-timer" style="display:none;font-family:var(--bc-font-mono);font-size:10px;margin-left:2px;font-weight:700">00:00:00</span>
+        </button>
+        <span id="rp-ctrl-header" style="display:inline-flex;align-items:center"></span>
+        <button class="bc-hdr-btn" id="rp-btn-settings" title="Configurações de Buffer RAM e Limite de Disco">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          <span>Config</span>
+        </button>
+        <button class="bc-hdr-btn" id="rp-btn-pin" title="Fixar Console sempre no topo (Always on Top)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-2l-2-3V5a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v7l-2 3v2z"></path></svg>
+          <span>Fixar</span>
+        </button>
+        <button class="bc-hdr-btn" id="rp-btn-fullscreen" title="Tela cheia no 2º monitor">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+          <span>Tela Cheia</span>
+        </button>
+        <button class="bc-hdr-btn close" id="rp-btn-close" title="Encerrar console e liberar memória de buffer">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          <span>Fechar</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Studio Workspace -->
+    <main class="bc-main">
+      <!-- Screens Section (A/B Monitors) -->
+      <section class="bc-screens-box">
+        <!-- Monitor A: Preview / Cueing / VAR Analysis -->
+        <div class="bc-screen cue-active" id="rp-box-pvw">
+          <div class="bc-scr-head">
+            <div class="bc-scr-title">
+              <span class="bc-scr-badge cue">MONITOR A</span>
+              <span>CUE / PREVIEW & VAR</span>
+              <span class="bc-scr-source-tag" id="rp-active-source-badge" style="font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:4px;background:#18152b;color:#00d2ff;border:1px solid rgba(0,210,255,0.4)">SINAL: PGM</span>
+              <span class="bc-scr-source-tag pgm-mirror" id="rp-pvw-mirror-badge" style="display:none;background:#ef4444;color:#fff;border:1px solid #f87171;box-shadow:0 0 10px rgba(239,68,68,0.7);font-weight:900"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:0;margin-right:4px"><circle cx="12" cy="12" r="8"></circle></svg>NO AR (PGM LINK)</span>
+            </div>
+            <!-- Multi-Cam Selector: Modo 1 Câmera vs Modo 4 Câmeras + Ângulos -->
+            <div class="bc-cam-rack">
+              <div class="bc-mode-group">
+                <button class="bc-cam-btn active" id="rp-btn-mode-single" title="Modo 1 Câmera (Foco no ângulo ativo)">1 CÂMERA</button>
+                <button class="bc-cam-btn" id="rp-btn-mode-quad" title="Modo 4 Câmeras (Quad Multiview)">4 CÂMERAS <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" style="vertical-align:-1px"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg></button>
+              </div>
+              <div class="bc-angle-group" id="rp-angle-buttons">
+                <button class="bc-cam-btn active" data-cam-slot="1" title="Visualizar Câmera 1">CAM 1</button>
+                <button class="bc-cam-btn" data-cam-slot="2" title="Visualizar Câmera 2">CAM 2</button>
+                <button class="bc-cam-btn" data-cam-slot="3" title="Visualizar Câmera 3">CAM 3</button>
+                <button class="bc-cam-btn" data-cam-slot="4" title="Visualizar Câmera 4">CAM 4</button>
+                <button class="bc-cam-btn" id="rp-btn-iso" title="Liga o buffer ISO dos 4 ângulos (30 s em RAM) para VAR sincronizado">ISO 4 CAM</button>
+                <button class="bc-cam-btn" id="rp-btn-iso-load" style="display:none" title="Congela os 4 ângulos no mesmo instante (2 s atrás)">CONGELAR</button>
+                <span class="bc-iso-perf" id="rp-iso-perf" title="FPS real do programa vs alvo — mede o custo dos 4 buffers ISO"></span>
+              </div>
+            </div>
+            <div class="bc-scr-tc" id="rp-pvw-timecode">00:00:00:00</div>
+          </div>
+          <div class="bc-video-viewport" id="rp-viewport-pvw">
+            <video id="rp-video-pvw" autoplay muted playsinline></video>
+            <!-- Multi-Cam Quad Split (Exibido no modo 4 Câmeras) -->
+            <div class="bc-multicam-grid" id="rp-quad-grid" style="display:none">
+              <div class="bc-cam-slot active-cam" data-cam-slot="1">
+                <div class="bc-cam-slot-bar">
+                  <span class="bc-cam-slot-tag">CAM 1</span>
+                  <select class="bc-slot-select" id="rp-slot-sel-1" title="Escolha o sinal da Câmera 1"></select>
+                  <button class="bc-slot-solo-btn" data-cam-slot="1" title="Focar nesta câmera em tela cheia (Modo 1 Câmera)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" style="vertical-align:-1px;margin-right:3px"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>SOLO</button>
+                </div>
+                <video id="rp-qcam-1" autoplay muted playsinline></video>
+              </div>
+              <div class="bc-cam-slot" data-cam-slot="2">
+                <div class="bc-cam-slot-bar">
+                  <span class="bc-cam-slot-tag">CAM 2</span>
+                  <select class="bc-slot-select" id="rp-slot-sel-2" title="Escolha o sinal da Câmera 2"></select>
+                  <button class="bc-slot-solo-btn" data-cam-slot="2" title="Focar nesta câmera em tela cheia (Modo 1 Câmera)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" style="vertical-align:-1px;margin-right:3px"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>SOLO</button>
+                </div>
+                <video id="rp-qcam-2" autoplay muted playsinline></video>
+              </div>
+              <div class="bc-cam-slot" data-cam-slot="3">
+                <div class="bc-cam-slot-bar">
+                  <span class="bc-cam-slot-tag">CAM 3</span>
+                  <select class="bc-slot-select" id="rp-slot-sel-3" title="Escolha o sinal da Câmera 3"></select>
+                  <button class="bc-slot-solo-btn" data-cam-slot="3" title="Focar nesta câmera em tela cheia (Modo 1 Câmera)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" style="vertical-align:-1px;margin-right:3px"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>SOLO</button>
+                </div>
+                <video id="rp-qcam-3" autoplay muted playsinline></video>
+              </div>
+              <div class="bc-cam-slot" data-cam-slot="4">
+                <div class="bc-cam-slot-bar">
+                  <span class="bc-cam-slot-tag">CAM 4</span>
+                  <select class="bc-slot-select" id="rp-slot-sel-4" title="Escolha o sinal da Câmera 4"></select>
+                  <button class="bc-slot-solo-btn" data-cam-slot="4" title="Focar nesta câmera em tela cheia (Modo 1 Câmera)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" style="vertical-align:-1px;margin-right:3px"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>SOLO</button>
+                </div>
+                <video id="rp-qcam-4" autoplay muted playsinline></video>
+              </div>
+            </div>
+            <!-- VAR Analysis Canvas Layer -->
+            <div class="bc-var-overlay" id="rp-var-layer">
+              <canvas id="rp-var-canvas"></canvas>
+            </div>
+            <!-- VAR Live Review Indicator -->
+            <div class="bc-var-watermark">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <span>VAR — ANÁLISE OFICIAL DE LANCE</span>
+            </div>
+            <!-- VAR Floating Interactive Toolbar com Ícones de Precisão -->
+            <div class="bc-var-toolbar">
+              <button class="bc-var-tool-btn active" id="rp-var-tool-offside" title="Linha de impedimento de precisão">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="4" y1="21" x2="4" y2="3"></line><line x1="20" y1="21" x2="20" y2="3"></line><line x1="12" y1="21" x2="12" y2="3" stroke-dasharray="3 3"></line></svg>
+                <span>Impedimento</span>
+              </button>
+              <button class="bc-var-tool-btn" id="rp-var-tool-vert" title="Projeção vertical pontilhada">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="3" x2="12" y2="21" stroke-dasharray="2 2"></line><circle cx="12" cy="19" r="2.5" fill="currentColor"></circle></svg>
+                <span>Projeção Vert</span>
+              </button>
+              <button class="bc-var-tool-btn" id="rp-var-tool-zoom" title="Lupa de ampliação 4x">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                <span>Lupa 4x</span>
+              </button>
+              <button class="bc-var-tool-btn" id="rp-var-tool-stamp" title="Carimbo oficial de decisão">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
+                <span>Decisão VAR</span>
+              </button>
+              <select class="bc-select" id="rp-var-decision" title="Decisão oficial do VAR usada pelo carimbo" style="height:26px;max-width:170px;font-size:10px;padding:0 4px">
+                <option>GOL CONFIRMADO</option>
+                <option>GOL ANULADO</option>
+                <option>PÊNALTI MARCADO</option>
+                <option>CARTÃO VERMELHO</option>
+                <option>IMPEDIMENTO</option>
+                <option>NADA A MARCAR</option>
+                <option>DECISÃO MANTIDA</option>
+              </select>
+              <button class="bc-var-tool-btn" id="rp-var-tool-sendpgm" style="background:#7c5cff;color:#fff" title="Mandar carimbo do VAR para o PGM ao vivo">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="3" width="20" height="14" rx="2"></rect><polyline points="8 21 12 17 16 21"></polyline></svg>
+                <span>Exibir PGM</span>
+              </button>
+              <button class="bc-var-tool-btn" id="rp-var-tool-clear" style="color:#ef4444" title="Limpar marcações">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                <span>Limpar</span>
+              </button>
+            </div>
+            <!-- On-Screen Status Pill (PLAY / PAUSE / SPEED) -->
+            <div class="bc-pvw-status-overlay" id="rp-pvw-status" style="display:none">
+              <span id="rp-pvw-status-text">⏸ PAUSADO</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Central Transition Hub: Conecta e envia o Preview direto para o PGM -->
+        <div class="bc-transition-hub">
+          <div class="bc-hub-title">PGM OUT</div>
+          <button class="bc-hub-btn take-direct" id="rp-btn-take-pvw" title="Corte Direto: Envia o Preview no exato ponto atual direto para a saída PGM (Enter)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon><line x1="20" y1="3" x2="20" y2="21" stroke="currentColor" stroke-width="3"></line></svg>
+            <span>TAKE</span>
+            <span class="bc-hub-shortcut">ENTER</span>
+          </button>
+          <button class="bc-hub-btn take-stinger" id="rp-btn-take-air" title="Transição Stinger: Envia o Preview para o PGM com vinheta animada de TV">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            <span>STINGER</span>
+            <span class="bc-hub-shortcut">WIPE</span>
+          </button>
+          <button class="bc-hub-btn live-mirror" id="rp-btn-live-mirror" title="Live Mirror: Vincula o Preview 1:1 ao PGM em tempo real (Qualquer jog/seek sai direto no ar)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+            <span>LINK PGM</span>
+            <span class="bc-led-dot" id="rp-led-mirror"></span>
+            <span class="bc-hub-shortcut">LIVE SYNC</span>
+          </button>
+          <button class="bc-hub-btn cut-live" id="rp-btn-cut-live" title="Corte ao Vivo: Restaura a cena ao vivo e tira o replay do ar (Esc)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3" fill="currentColor"></circle><path d="M4.93 4.93a10 10 0 0 0 0 14.14M19.07 4.93a10 10 0 0 1 0 14.14M7.76 7.76a6 6 0 0 0 0 8.48M16.24 7.76a6 6 0 0 1 0 8.48"></path></svg>
+            <span>AO VIVO</span>
+            <span class="bc-hub-shortcut">ESC</span>
+          </button>
+        </div>
+
+        <!-- Monitor B: Program (On Air Live Replay) -->
+        <div class="bc-screen" id="rp-box-pgm">
+          <div class="bc-scr-head">
+            <div class="bc-scr-title">
+              <span class="bc-scr-badge live">MONITOR B</span>
+              <span id="rp-pgm-badge-text">PROGRAMA (AO VIVO)</span>
+            </div>
+            <div class="bc-scr-tc" id="rp-pgm-speed-tag" style="color:#94a3b8">ESTÚDIO LIVE</div>
+          </div>
+          <div class="bc-video-viewport">
+            <video id="rp-video-pgm" autoplay playsinline></video>
+            <!-- On-Air Broadcast Replay Bug Tag -->
+            <div class="bc-onair-replay-bug" id="rp-onair-bug" style="display:none">
+              <span class="bc-replay-bug-dot"></span>
+              <span id="rp-onair-bug-text">REPLAY</span>
+            </div>
+            <!-- Stinger Broadcast Wipe Overlay -->
+            <div class="bc-stinger-wipe" id="rp-stinger-wipe">
+              <div class="bc-stinger-blade-1"></div>
+              <div class="bc-stinger-blade-2"></div>
+              <div class="bc-stinger-streak"></div>
+              <div class="bc-stinger-badge">
+                <span class="bc-stinger-dot"></span>
+                <span class="bc-stinger-text">REPLAY</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Sidebar: Highlights Playlist & Shotbox -->
+      <aside class="bc-sidebar">
+        <div class="bc-sb-head">
+          <span>Melhores Momentos (Highlights)</span>
+          <span class="bc-scr-badge" id="rp-clip-count" style="background:#7c5cff">0 clipes</span>
+        </div>
+
+        <!-- Shotbox Quick Event Bank -->
+        <div class="bc-shotbox">
+          <div class="bc-shotbox-title">
+            <span>Classificar Lance (Shotbox)</span>
+            <span style="font-family:var(--bc-font-mono)">Atalhos 1–8</span>
+          </div>
+          <div class="bc-shotbox-grid">
+            <button class="bc-tag-btn tag-gol" data-tag="GOL" title="Atalho: 1 (Gol)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polygon points="12 7 15 9.5 14 13 10 13 9 9.5 12 7" fill="currentColor"></polygon></svg>
+              <span>GOL</span>
+            </button>
+            <button class="bc-tag-btn tag-falta" data-tag="FALTA" title="Atalho: 2 (Falta)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              <span>FALTA</span>
+            </button>
+            <button class="bc-tag-btn tag-amarelo" data-tag="CARTÃO" title="Atalho: 3 (Cartão Amarelo)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="14" height="18" rx="2"></rect></svg>
+              <span>CARTÃO</span>
+            </button>
+            <button class="bc-tag-btn tag-vermelho" data-tag="VERMELHO" title="Atalho: 4 (Cartão Vermelho)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="14" height="18" rx="2"></rect></svg>
+              <span>VERMELHO</span>
+            </button>
+            <button class="bc-tag-btn tag-penalti" data-tag="PÊNALTI" title="Atalho: 5 (Pênalti)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3" fill="currentColor"></circle></svg>
+              <span>PÊNALTI</span>
+            </button>
+            <button class="bc-tag-btn tag-var" data-tag="VAR" title="Atalho: 6 (VAR)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"></rect><circle cx="10" cy="10" r="3"></circle><line x1="12.5" y1="12.5" x2="16" y2="16"></line></svg>
+              <span>VAR</span>
+            </button>
+            <button class="bc-tag-btn tag-defesa" data-tag="DEFESA" title="Atalho: 7 (Defesa)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="currentColor" fill-opacity="0.25"></path></svg>
+              <span>DEFESA</span>
+            </button>
+            <button class="bc-tag-btn tag-trave" data-tag="TRAVE" title="Atalho: 8 (Trave)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 21V4h18v17"></path><line x1="3" y1="4" x2="21" y2="4"></line></svg>
+              <span>TRAVE</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Playlist -->
+        <div class="bc-playlist" id="rp-playlist">
+          <div style="padding:32px 14px;text-align:center;color:#64748b;font-size:12px">
+            Nenhum lance no banco.<br>Pressione <b>F12</b> ou clique em uma tag do Shotbox.
+          </div>
+        </div>
+
+        <!-- Playlist Actions -->
+        <div class="bc-sb-foot">
+          <button class="bc-trig-btn primary" id="rp-btn-playall" style="width:100%;height:34px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            <span>Reproduzir Playlist (Play All)</span>
+          </button>
+          <div style="display:flex;gap:6px">
+            <button class="bc-btn" id="rp-btn-clear-pl" style="flex:1">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              <span>Limpar</span>
+            </button>
+            <button class="bc-btn" id="rp-btn-export-pl" style="flex:1" title="Baixar compilação de lances em MP4/WebM">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              <span>Exportar MP4</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Bottom Master Control Deck -->
+      <section class="bc-deck">
+        <!-- Quick Triggers & Modes -->
+        <div class="bc-quick-triggers">
+          <div class="bc-btn-grid">
+            <button class="bc-trig-btn primary" id="rp-btn-5s" title="Atalho: F8">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+              <span>5s</span>
+            </button>
+            <button class="bc-trig-btn primary" id="rp-btn-10s" title="Atalho: F9 (Padrão de lances)">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+              <span>10s</span>
+            </button>
+            <button class="bc-trig-btn primary" id="rp-btn-15s" title="Atalho: F10">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+              <span>15s</span>
+            </button>
+            <button class="bc-trig-btn primary" id="rp-btn-30s" title="Atalho: F11">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+              <span>30s</span>
+            </button>
+          </div>
+          <div class="bc-btn-grid cols-3">
+            <button class="bc-trig-btn var" id="rp-btn-var" title="Ativar ferramentas e linhas de impedimento">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <span>VAR</span>
+            </button>
+            <button class="bc-trig-btn" id="rp-btn-save-clip" title="Atalho: F12 (Salvar na playlist)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+              <span>+ Salvar</span>
+            </button>
+            <button class="bc-trig-btn live-cut" id="rp-btn-cut-live-alt" title="Atalho: Esc (Voltar para o ao vivo)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3" fill="currentColor"></circle><path d="M4.93 4.93a10 10 0 0 0 0 14.14M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+              <span>AO VIVO</span>
+            </button>
+          </div>
+          <button class="bc-trig-btn swap-big" id="rp-btn-swap" title="Trocar PVW e PGM">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+            <span>SWAP</span>
+          </button>
+        </div>
+
+        <!-- Scrub & Transport -->
+        <div class="bc-transport">
+          <div class="bc-scrub-wrap">
+            <div class="bc-scrub-track">
+              <div class="bc-scrub-range" id="rp-scrub-range" hidden></div>
+              <input type="range" class="bc-scrub-slider" id="rp-scrub" min="0" max="100" value="100" step="0.1">
+              <button type="button" class="bc-scrub-mark in" id="rp-scrub-in" title="Ir para o IN" hidden><span>IN</span></button>
+              <button type="button" class="bc-scrub-mark out" id="rp-scrub-out" title="Ir para o OUT" hidden><span>OUT</span></button>
+              <div class="bc-scrub-ticks" id="rp-scrub-ticks"></div>
+            </div>
+            <div class="bc-scrub-time live" id="rp-scrub-time">AO VIVO</div>
+          </div>
+          <div class="bc-transport-bar">
+            <!-- Mark In / Out / Play -->
+            <div class="bc-in-out-group">
+              <button class="bc-btn" id="rp-btn-in" title="Atalho: I (Marcar Entrada)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 4H4v16h3"></path><polyline points="9 9 14 12 9 15"></polyline></svg>
+                <span>IN</span>
+              </button>
+              <button class="bc-btn" id="rp-btn-out" title="Atalho: O (Marcar Saída)">
+                <span>OUT</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 4h3v16h-3"></path><polyline points="15 9 10 12 15 15"></polyline></svg>
+              </button>
+              <button class="bc-btn" id="rp-btn-step-back" title="Recuar 1 frame (Seta Esquerda)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="2.5" height="16" rx="1"></rect><polygon points="20 4 8 12 20 20 20 4"></polygon></svg>
+                <span>-1F</span>
+              </button>
+              <button class="bc-btn" id="rp-btn-play" title="Atalho: Espaço / L (Reproduzir)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <span>PLAY</span>
+              </button>
+              <button class="bc-btn" id="rp-btn-pause" title="Atalho: Espaço / K (Pausar)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></svg>
+                <span>PAUSA</span>
+              </button>
+              <button class="bc-btn" id="rp-btn-step-fwd" title="Avançar 1 frame (Seta Direita)">
+                <span>+1F</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="4 4 16 12 4 20 4 4"></polygon><rect x="17.5" y="4" width="2.5" height="16" rx="1"></rect></svg>
+              </button>
+            </div>
+
+            <!-- Preset Speed Buttons -->
+            <div style="display:flex;gap:4px;background:#050508;padding:3px;border-radius:5px;border:1px solid var(--bc-border)">
+              <button class="bc-btn" style="height:26px;padding:0 8px;font-size:11px" data-speed="0.25">25%</button>
+              <button class="bc-btn active" style="height:26px;padding:0 8px;font-size:11px" data-speed="0.5">50%</button>
+              <button class="bc-btn" style="height:26px;padding:0 8px;font-size:11px" data-speed="0.75">75%</button>
+              <button class="bc-btn" style="height:26px;padding:0 8px;font-size:11px" data-speed="1.0">100%</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- T-BAR Slow-Motion Fader with LED Ladder -->
+        <div class="bc-tbar-container">
+          <div class="bc-tbar-led-ladder" id="bc-led-ladder">
+            <div class="bc-led-segment" data-level="1.0"><span>100%</span><div class="bc-led-pip"></div></div>
+            <div class="bc-led-segment" data-level="0.75"><span>75%</span><div class="bc-led-pip"></div></div>
+            <div class="bc-led-segment lit" data-level="0.5"><span>50%</span><div class="bc-led-pip"></div></div>
+            <div class="bc-led-segment" data-level="0.33"><span>33%</span><div class="bc-led-pip"></div></div>
+            <div class="bc-led-segment" data-level="0.25"><span>25%</span><div class="bc-led-pip"></div></div>
+            <div class="bc-led-segment" data-level="0.10"><span>10%</span><div class="bc-led-pip"></div></div>
+            <div class="bc-led-segment" data-level="0.0"><span>0%</span><div class="bc-led-pip"></div></div>
+          </div>
+          <div class="bc-tbar-track">
+            <input type="range" class="bc-tbar-slider" id="bc-tbar" min="0" max="100" value="50" step="1" title="Alavanca T-Bar de Slow-Motion">
+          </div>
+        </div>
+
+        <!-- Aluminum Jog Wheel -->
+        <div class="bc-jog-group">
+          <div class="bc-jog-wheel" id="rp-jog" title="Gire ou use o scroll para avançar/recuar quadro a quadro">
+            <div class="bc-jog-dimple"></div>
+          </div>
+          <span class="bc-jog-label">JOG / SHUTTLE</span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+    <!-- Replay Settings Modal (Buffer RAM & Cota de Disco) -->
+    <div class="bc-modal-overlay" id="rp-modal-settings" style="display:none">
+      <div class="bc-modal-box">
+        <div class="bc-modal-header">
+          <div style="display:flex;align-items:center;gap:8px">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <span style="font-weight:800;font-size:14px;letter-spacing:0.5px">Configurações de Buffer e Armazenamento</span>
+          </div>
+          <button class="bc-btn icon sm" id="rp-settings-close" style="font-size:14px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+        </div>
+        <div class="bc-modal-body">
+          <!-- 1. Buffer Circular em Memória RAM -->
+          <div class="bc-cfg-section">
+            <div class="bc-cfg-title">
+              <span style="display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="9" y="9" width="6" height="6"></rect><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"></path></svg>Buffer Circular Instantâneo (RAM)</span>
+              <span class="bc-scr-badge" id="rp-cfg-ram-est" style="background:#0284c7">~75 MB</span>
+            </div>
+            <p class="bc-cfg-desc">Buffer de Instant Replay gerado <b>continuamente em segundo plano</b>. Mantém os últimos segundos em memória RAM para corte instantâneo (-5s, -10s, -30s) sem desgastar o disco.</p>
+            <div class="bc-cfg-row">
+              <label for="rp-cfg-buf-limit">Janela do Buffer Contínuo:</label>
+              <select class="bc-select" id="rp-cfg-buf-limit">
+                <option value="10">10 segundos (Mínimo ~6 MB)</option>
+                <option value="15">15 segundos (Econômico ~8 MB)</option>
+                <option value="30">30 segundos (Equilibrado ~17 MB)</option>
+                <option value="45" selected>45 segundos (Padrão Recomendado ~25 MB)</option>
+                <option value="60">60 segundos (Extendido ~33 MB)</option>
+                <option value="90">90 segundos (Avançado ~50 MB)</option>
+                <option value="120">120 segundos (2 minutos ~66 MB)</option>
+                <option value="180">180 segundos (3 minutos ~100 MB)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 2. Local de Gravação no Disco (Replay & Partidas de Futebol) -->
+          <div class="bc-cfg-section">
+            <div class="bc-cfg-title">
+              <span style="display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>Local da Gravação de Replays e Jogos</span>
+              <span class="bc-scr-badge" id="rp-cfg-dir-badge" style="background:#6366f1">Disco Ativo</span>
+            </div>
+            <p class="bc-cfg-desc">Escolha em qual pasta ou disco (HD/SSD interno ou externo) os lances de replay e gravações contínuas de futebol serão gravados.</p>
+            <div style="display:flex;gap:6px;align-items:center;margin-top:6px">
+              <input type="text" class="bc-input" id="rp-cfg-dir-input" placeholder="Pasta de gravação dos replays..." style="flex:1;font-family:var(--bc-font-mono);font-size:11px" />
+              <button class="bc-btn" id="rp-cfg-btn-pick-dir" title="Abrir janela nativa para selecionar pasta no computador" style="white-space:nowrap"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align:-1px;margin-right:4px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>Escolher Pasta...</button>
+              <button class="bc-btn" id="rp-cfg-btn-open-dir" title="Abrir pasta no Windows Explorer / Gerenciador de Arquivos"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></button>
+              <button class="bc-btn" id="rp-cfg-btn-default-dir" title="Restaurar pasta padrão (recordings/replays/)">↺</button>
+            </div>
+          </div>
+
+          <!-- 3. Controle de Armazenamento e Cota do HD -->
+          <div class="bc-cfg-section">
+            <div class="bc-cfg-title">
+              <span style="display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"></path><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"></path></svg>Limite de Armazenamento no Disco (HD/SSD)</span>
+              <span class="bc-scr-badge" id="rp-cfg-disk-badge" style="background:#10b981">Proteção Ativa</span>
+            </div>
+            <p class="bc-cfg-desc">Para futebol e partidas longas, escolha <b>Sem Limite Fixo</b> para gravar contínuo até encher o disco selecionado, ou defina uma cota máxima.</p>
+            <div class="bc-cfg-row">
+              <label for="rp-cfg-disk-limit">Capacidade de Gravação:</label>
+              <select class="bc-select" id="rp-cfg-disk-limit">
+                <option value="0">Sem Limite Fixo (Gravar contínuo até encher o disco)</option>
+                <option value="102400">100 GB (~40 horas de futebol contínuo)</option>
+                <option value="51200">50 GB (~20 horas de futebol contínuo)</option>
+                <option value="20480">20 GB (~8 horas de futebol contínuo)</option>
+                <option value="10240">10 GB (~4 horas de lances)</option>
+                <option value="5120">5 GB (~2 horas de lances)</option>
+                <option value="2048" selected>2 GB (Padrão Recomendado ~50 min)</option>
+                <option value="1024">1 GB (~25 minutos)</option>
+                <option value="512">500 MB (~10 minutos)</option>
+              </select>
+            </div>
+            <div class="bc-disk-usage-box">
+              <div class="bc-disk-usage-header">
+                <span id="rp-disk-usage-txt">Uso do Disco: 0 MB / 2048 MB (0%)</span>
+                <span id="rp-disk-free-txt" style="color:#38bdf8;font-weight:700">Livre no HD: -- GB</span>
+              </div>
+              <div class="bc-disk-track">
+                <div class="bc-disk-fill" id="rp-disk-fill" style="width:0%"></div>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:8px">
+              <span id="rp-disk-clips-txt" style="font-size:11px;color:#94a3b8">0 clipes gravados</span>
+              <button class="bc-btn" id="rp-btn-clear-disk" style="color:#ef4444;border-color:rgba(239,68,68,0.4)" title="Apaga todos os clipes salvos no disco"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align:-1px;margin-right:4px"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>Limpar Armazenamento</button>
+            </div>
+          </div>
+        </div>
+        <div class="bc-modal-footer">
+          <button class="bc-btn" id="rp-settings-cancel">Cancelar</button>
+          <button class="bc-btn active" id="rp-settings-save" style="background:#7c5cff;color:#fff;border-color:#7c5cff">Salvar Configurações</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/js/replay.js"></script>
+</body>
+</html>
+

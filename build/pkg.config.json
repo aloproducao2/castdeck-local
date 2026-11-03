@@ -1,0 +1,13 @@
+{
+  "name": "castdeck",
+  "version": "0.1.0",
+  "bin": "../dist/castdeck.cjs",
+  "pkg": {
+    "assets": [
+      "../public/**/*"
+    ],
+    "targets": [
+      "node22-win-x64"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+/* SPDX-License-Identifier: AGPL-3.0-only
+ * Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
+ * Índice Modular de CSS do CastDeck
+ *
+ * Cada domínio está dividido em arquivos menores em public/css/modules/ (< 700 linhas)
+ * para evitar limites de contexto de IA e manter arquitetura limpa:
+ *
+ *   - base.css     -> Reset, cores, botões, formulários, modais, toasts
+ *   - studio.css   -> Palco do estúdio, preview do PGM, grade de miniaturas
+ *   - formats.css  -> Formato 9:16 vertical, editor de layouts
+ *   - widgets.css  -> Enquetes interativas, placar de esportes
+ *   - audio.css    -> Mesa de som, faders, VUs em dBFS, botões de popout
+ *   - features.css -> DSK 1/2, efeitos de vídeo, saídas OBS/vMix, drones RTMP/SRT
+ *   - social.css   -> Central de redes, chat ao vivo, mensagens do público
+ *   - onair.css    -> Central No Ar (REC/LIVE), AUTO-VOZ, janelas flutuantes
+ *   - captions.css -> Legenda ao vivo (aba Legendas)
+ */
+
+@import './modules/base.css';
+@import './modules/studio.css';
+@import './modules/formats.css';
+@import './modules/widgets.css';
+@import './modules/audio.css';
+@import './modules/features.css';
+@import './modules/social.css';
+@import './modules/onair.css';
+@import './modules/captions.css';

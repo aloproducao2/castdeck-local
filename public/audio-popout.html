@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="/icon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0a0a12">
+  <meta name="robots" content="noindex">
+  <title>Mesa de Áudio — CastDeck</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    body {
+      background: var(--bg-0, #0a0a12);
+      color: var(--text-0, #fff);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+    .pop-header {
+      padding: 10px 16px;
+      background: var(--bg-1, #131322);
+      border-bottom: 1px solid var(--line, #24243a);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex: none;
+    }
+    .pop-title {
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pop-title span.ico {
+      font-size: 16px;
+      color: var(--accent, #7c5cff);
+    }
+    .pop-audio-wrap {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 16px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .pop-audio-wrap .ax {
+      max-width: none;
+      width: 100%;
+      margin: 0 auto;
+      /* grade: canais lado a lado quando a janela é larga, uma coluna quando é estreita */
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+      gap: 10px;
+      align-items: start;
+    }
+    .pop-audio-wrap .ax > * { min-width: 0; margin: 0; }
+    .pop-audio-wrap .ax-master, .pop-audio-wrap .ax-title, .pop-audio-wrap .vu-legend, .pop-audio-wrap .ax-mon { grid-column: 1 / -1; }
+    .pop-audio-wrap { min-height: 0; }
+    .pop-audio-wrap .ax-master {
+      background: linear-gradient(180deg, #1b1622 0%, var(--bg-1) 100%);
+      border: 1px solid hsl(354 60% 40% / .55);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    }
+    .pop-audio-wrap .ch {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    .pop-audio-wrap .fader input[type=range] {
+      height: 6px;
+      cursor: pointer;
+    }
+    .pop-pin-btn.active {
+      background: var(--accent, #7c5cff) !important;
+      color: #fff !important;
+      border-color: var(--accent, #7c5cff) !important;
+    }
+  </style>
+</head>
+<body>
+  <header class="pop-header">
+    <div class="pop-title">
+      <span class="ico">🎚️</span>
+      <span>Mesa de Áudio</span>
+      <span class="pill sm ok" id="pop-status">Conectado ao Estúdio</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="btn sm ghost pop-pin-btn" id="pop-pin" title="Sempre no topo: fixa a janela sobre as outras (Picture-in-Picture)" aria-pressed="false" style="gap:5px;font-weight:600">
+        <span id="pop-pin-icon">📌</span>
+        <span id="pop-pin-lbl">Fixar no topo</span>
+      </button>
+      <span class="hint" style="font-size:11px;color:var(--text-2)">Janela Destacada</span>
+      <button class="btn sm ghost" onclick="window.close()" title="Fechar janela">Fechar</button>
+    </div>
+  </header>
+
+  <main class="pop-audio-wrap">
+    <div id="pop-audio"></div>
+  </main>
+
+  <script type="module" src="/js/audio-popout.js"></script>
+</body>
+</html>

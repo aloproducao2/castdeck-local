@@ -1,0 +1,7 @@
+﻿Whisper (modelos ggml) — componente de terceiros
+Licença: MIT (model card do repositório ggerganov/whisper.cpp)
+Fonte: https://huggingface.co/ggerganov/whisper.cpp
+Modelos usados: ggml-base-q5_1.bin, ggml-small-q8_0.bin, ggml-medium-q8_0.bin
+Copyright: OpenAI (modelo Whisper) e Georgi Gerganov/whisper.cpp (conversão ggml).
+Texto: licenses/MIT.txt
+O CastDeck baixa o modelo em runtime; não o embute no instalador.

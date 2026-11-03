@@ -1,0 +1,55 @@
+/* Página pública de mensagens do público (texto curto ou áudio). Reaproveita o visual de vote.css. */
+.mform { display: flex; flex-direction: column; gap: 12px; }
+.mform label.lbl { font: 700 12.5px/1 'Inter', sans-serif; color: var(--muted); letter-spacing: .02em; margin-bottom: -4px; }
+.mform input, .mform textarea {
+  width: 100%; border-radius: 14px; border: 1.5px solid var(--line);
+  background: rgba(255, 255, 255, .05); color: var(--text);
+  font: 500 16px/1.4 'Inter', sans-serif; padding: 12px 14px;
+  caret-color: var(--accent); outline: none; transition: border-color .2s, background .2s;
+}
+.mform textarea { resize: none; min-height: 96px; }
+.mform input:focus, .mform textarea:focus { border-color: rgba(var(--accent-rgb), .7); background: rgba(var(--accent-rgb), .07); }
+.mform input::placeholder, .mform textarea::placeholder { color: rgba(244, 244, 250, .35); }
+.count { align-self: flex-end; margin-top: -6px; font: 600 12px/1 'Inter', sans-serif; color: var(--muted); font-variant-numeric: tabular-nums; }
+.count.low { color: #fca5a5; }
+
+.or { display: flex; align-items: center; gap: 10px; color: var(--muted); font: 700 11px/1 'Inter', sans-serif; letter-spacing: .1em; }
+.or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+.rec {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  border-radius: 14px; border: 1.5px dashed rgba(var(--accent-rgb), .45);
+  background: rgba(var(--accent-rgb), .06);
+}
+.rec .rbtn {
+  flex: none; width: 48px; height: 48px; border-radius: 50%; border: 0; cursor: pointer;
+  display: grid; place-items: center; background: var(--accent); color: var(--on-accent);
+  box-shadow: 0 8px 20px -8px rgba(var(--accent-rgb), .9); transition: transform .15s;
+}
+.rec .rbtn:active { transform: scale(.94); }
+.rec .rbtn svg { width: 22px; height: 22px; }
+.rec.on { border-style: solid; border-color: rgba(239, 68, 68, .7); background: rgba(239, 68, 68, .08); }
+.rec.on .rbtn { background: #ef4444; color: #fff; animation: recpulse 1.2s infinite; }
+.rec .rtx { flex: 1; min-width: 0; font: 600 14px/1.35 'Inter', sans-serif; }
+.rec .rtx small { display: block; color: var(--muted); font-weight: 500; font-size: 12.5px; }
+.rec .rtime { font: 800 16px/1 'Outfit', sans-serif; font-variant-numeric: tabular-nums; }
+.rec audio { width: 100%; height: 40px; }
+.rec .rprev { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.rec .rdel { flex: none; border: 0; background: rgba(255, 255, 255, .08); color: var(--text); border-radius: 10px; padding: 8px 10px; font: 600 13px/1 'Inter', sans-serif; cursor: pointer; }
+.bars { display: flex; align-items: center; gap: 3px; height: 22px; }
+.bars i { width: 3px; border-radius: 2px; background: #fca5a5; height: 30%; transition: height .08s; }
+
+.send {
+  width: 100%; min-height: 54px; border: 0; border-radius: 14px; cursor: pointer;
+  background: var(--accent); color: var(--on-accent);
+  font: 800 16px/1 'Inter', sans-serif; letter-spacing: .01em;
+  box-shadow: 0 14px 30px -14px rgba(var(--accent-rgb), .95);
+  transition: transform .15s, opacity .2s, filter .2s;
+}
+.send:not(:disabled):active { transform: scale(.98); }
+.send:disabled { opacity: .5; cursor: default; box-shadow: none; }
+.sent { text-align: center; padding: 8px 4px 2px; }
+.sent .ico { font-size: 44px; animation: pop .45s; }
+.sent h2 { font: 800 21px/1.2 'Outfit', sans-serif; margin: 6px 0 4px; }
+.sent p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+@keyframes recpulse { 50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, .55); } }

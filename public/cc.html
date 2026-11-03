@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="/icon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#0b0b12">
+  <title>Legenda ao vivo — CastDeck</title>
+  <meta name="description" content="Legenda ao vivo de uma transmissão feita no CastDeck.">
+  <style>
+    :root { --fs: 26px; color-scheme: dark; }
+    html, body { margin: 0; height: 100%; background: #0b0b12; color: #f2f1f7; font-family: Inter, system-ui, "Segoe UI", Roboto, sans-serif; }
+    body.light { background: #fafafa; color: #111; }
+    /* ---------- modo Leitura (celular) ---------- */
+    .wrap { display: flex; flex-direction: column; height: 100%; height: 100dvh; }
+    header { display: flex; align-items: center; gap: 8px; padding: max(10px, env(safe-area-inset-top)) 14px 10px; border-bottom: 1px solid #ffffff14; flex: none; }
+    body.light header { border-color: #0000001a; }
+    header .dot { width: 9px; height: 9px; border-radius: 50%; background: #666; flex: none; }
+    header .dot.live { background: #ff3b4e; box-shadow: 0 0 8px #ff3b4e; animation: pulse 1.6s infinite; }
+    @keyframes pulse { 50% { opacity: .45; } }
+    header h1 { margin: 0; font-size: 15px; font-weight: 700; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    header button, header select { height: 32px; border-radius: 8px; border: 1px solid #ffffff22; background: #ffffff10; color: inherit; font: 600 13px inherit; padding: 0 9px; cursor: pointer; }
+    body.light header button, body.light header select { border-color: #00000022; background: #0000000a; }
+    main { flex: 1; overflow-y: auto; padding: 14px 16px calc(24px + env(safe-area-inset-bottom)); scroll-behavior: smooth; }
+    .line { font-size: var(--fs); line-height: 1.35; margin: 0 0 .55em; font-weight: 600; }
+    .line.old { opacity: .55; }
+    .line.partial { color: #ffd84d; font-style: italic; }
+    body.light .line.partial { color: #8a6500; }
+    .line .cc-who { color: #8be9fd; font-weight: 800; margin-right: .12em; }
+    body.light .line .cc-who { color: #075e70; }
+    .empty { color: #8f8ca3; font-size: 16px; text-align: center; margin-top: 30vh; line-height: 1.5; }
+    footer { flex: none; text-align: center; font-size: 11px; color: #77748a; padding: 6px 0 calc(6px + env(safe-area-inset-bottom)); }
+    /* ---------- modo Overlay (OBS/vMix) ---------- */
+    body.overlay { background: transparent; overflow: hidden; }
+    body.overlay .wrap { display: none; }
+    .ov { display: none; position: fixed; left: 0; right: 0; bottom: 4.5vh; text-align: center; padding: 0 8vw; }
+    body.overlay .ov { display: block; }
+    body.overlay.top .ov { top: 4.5vh; bottom: auto; }
+    body.overlay.mid .ov { top: 50%; bottom: auto; transform: translateY(-50%); }
+    body.overlay.left .ov { left: 4vw; right: auto; text-align: left; padding: 0; max-width: 62vw; }
+    body.overlay.right .ov { left: auto; right: 4vw; text-align: right; padding: 0; max-width: 62vw; }
+    .ov span { display: inline; font: 700 var(--cc-fs, 5.2vh)/1.35 Inter, system-ui, sans-serif; color: var(--cc-color, #fff); background: var(--cc-bg, rgba(0,0,0,.72)); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: .12em .45em; border-radius: .25em; }
+    .ov.hide span { visibility: hidden; }
+    body.upper .line, body.upper .ov span { text-transform: uppercase; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <i class="dot" id="dot"></i>
+      <h1 id="title">Legenda ao vivo</h1>
+      <select id="lang" hidden aria-label="Idioma"></select>
+      <button id="minus" aria-label="Diminuir letra">A−</button>
+      <button id="plus" aria-label="Aumentar letra">A+</button>
+      <button id="theme" aria-label="Tema claro/escuro">◐</button>
+    </header>
+    <main id="feed"><div class="empty" id="empty">Conectando ao estúdio…</div></main>
+    <footer>Legenda automática gerada no PC do estúdio · CastDeck</footer>
+  </div>
+  <div class="ov" id="ov"><span id="ov-text"></span></div>
+  <script type="module" src="/js/cc.js"></script>
+</body>
+</html>
+

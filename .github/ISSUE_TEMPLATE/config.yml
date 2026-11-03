@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Segurança / vulnerabilidade
+    url: https://cast.flue.live
+    about: Não abra issue pública com exploit. Use o canal privado descrito em SECURITY.md.

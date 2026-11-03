@@ -1,0 +1,9 @@
+﻿NanoHTTPD WebSocket e JSch — componentes do app Android
+Licenças: BSD-3-Clause (NanoHTTPD e JSch, conforme os projetos)
+Fontes:
+- https://github.com/NanoHttpd/nanohttpd
+- https://github.com/mwiede/jsch
+Texto: licenses/BSD-3-Clause.txt
+
+JUnit 4.13.2 — EPL-1.0 — usado apenas em testes (não vai no APK).
+org.json 20240303 — Public Domain — usado apenas em testes.

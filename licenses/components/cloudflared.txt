@@ -1,0 +1,6 @@
+﻿cloudflared — componente de terceiros
+Licença: Apache-2.0
+Copyright: Cloudflare, Inc.
+Fonte: https://github.com/cloudflare/cloudflared
+Licença: licenses/Apache-2.0.txt
+A licença comercial do CastDeck não relicencia o cloudflared.

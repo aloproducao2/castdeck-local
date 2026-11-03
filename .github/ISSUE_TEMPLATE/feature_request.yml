@@ -1,0 +1,42 @@
+name: Feature request
+description: Sugira uma melhoria ou novo recurso
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Descreva o problema antes da solução. **Não inclua dados sensíveis, chaves ou informações da VPS.**
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema / necessidade
+      description: O que você está tentando fazer e o que falta hoje?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Solução sugerida
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Estúdio / cena
+        - Convidados / WebRTC
+        - Áudio
+        - GC / templates
+        - Replay / VAR
+        - Multistream
+        - Android
+        - Instalador / launcher
+        - Documentação
+    validations:
+      required: true

@@ -1,0 +1,63 @@
+// E2E no celular: grava H+V pelo estúdio no WebView e confere os MP4.
+// Pré: adb forward tcp:9222 localabstract:webview_devtools_remote_<pid> ; adb forward tcp:3100 tcp:3000
+import { createRequire } from 'node:module';
+const require = createRequire('d:/REA/package.json');
+const WebSocket = require('ws');
+const base = 'http://127.0.0.1:3100';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const list = await (await fetch('http://127.0.0.1:9222/json')).json();
+const page = list.find((p) => p.type === 'page');
+const ws = new WebSocket(page.webSocketDebuggerUrl);
+await new Promise((r) => ws.on('open', r));
+let id = 0;
+const pend = new Map();
+const logs = [];
+ws.on('message', (d) => {
+  const m = JSON.parse(d);
+  if (m.id && pend.has(m.id)) { pend.get(m.id)(m); pend.delete(m.id); }
+  if (m.method === 'Runtime.exceptionThrown') logs.push('EXC ' + (m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text));
+  if (m.method === 'Runtime.consoleAPICalled' && ['error', 'warning'].includes(m.params.type)) logs.push(m.params.type + ' ' + m.params.args.map((a) => a.value ?? a.description).join(' '));
+});
+const send = (method, params = {}) => new Promise((r) => { const i = ++id; pend.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
+const ev = async (expr) => { const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true, userGesture: true }); if (r.result.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || 'eval'); return r.result.result.value; };
+const waitFor = async (expr, ms = 15000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (await ev(expr)) return true; } catch {} await sleep(300); } return false; };
+let fails = 0;
+const check = (n, ok, extra = '') => { console.log(ok ? 'OK   ' : 'FALHA', n, ok ? '' : extra); if (!ok) fails++; };
+await send('Runtime.enable');
+await send('Page.enable');
+
+const studio = await (await fetch(base + '/api/studios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Teste Android' }) })).json();
+check('API pelo adb (estúdio criado)', !!studio.id);
+await send('Page.navigate', { url: `http://127.0.0.1:3000/studio/${studio.id}` });
+check('pré-entrada carregou', await waitFor(`!!document.querySelector('#lb-go')`, 20000));
+await sleep(2500);
+await ev(`document.querySelector('#lb-go').click()`);
+check('estúdio abriu', await waitFor(`!!window.__castdeck?.extras`, 20000));
+await sleep(2500);
+const cam = await ev(`[...document.querySelectorAll('video')].map(v=>v.videoWidth+'x'+v.videoHeight+':'+v.readyState).join(' ')`);
+console.log('vídeos:', cam);
+await ev(`(()=>{if(window.__autoOk)return true;window.__autoOk=new MutationObserver(()=>document.querySelector(".modal-back [data-ok]")?.click());window.__autoOk.observe(document,{childList:true,subtree:true});return true})()`);
+await ev(`document.querySelector('#btn-record').click()`);
+check('modal H / H+V', await waitFor(`document.querySelectorAll('input[name=glv]').length===2`));
+await ev(`(()=>{const i=document.querySelector('input[name=glv][value=hv]');i.checked=true;i.dispatchEvent(new Event('change',{bubbles:true}))})()`);
+await ev(`document.querySelector('#gl-go').click()`);
+check('horizontal gravando', await waitFor(`!!__castdeck.S.live`, 20000));
+check('vertical gravando', await waitFor(`!!__castdeck.S.vlive`, 20000));
+await sleep(9000);
+const sys = await (await fetch(base + '/api/system')).json();
+const mine = sys.broadcasts.filter((b) => b.studioId === studio.id);
+console.log('status:', JSON.stringify(mine.map((b) => ({ v: b.vertical, fps: b.fps, br: b.bitrate, out: b.outputs.map((o) => o.state + ' ' + o.bytes + (o.error ? ' ' + o.error : '')) }))));
+check('2 saídas no servidor', mine.length === 2);
+check('quadros saindo do encoder', mine.every((b) => b.fps > 0), JSON.stringify(mine.map((b) => b.fps)));
+await ev(`document.querySelector('#btn-live').click()`);
+check('parou', await waitFor(`!__castdeck.S.live && !__castdeck.S.vlive`, 20000));
+await sleep(2500);
+const recs = await (await fetch(base + '/api/recordings')).json();
+const files = recs.filter((r) => /Teste-Android/.test(r.name));
+console.log('arquivos:', JSON.stringify(files.map((f) => f.name + ' ' + f.size)));
+check('MP4 horizontal', files.some((f) => !/_vertical/.test(f.name) && f.size > 100000));
+check('MP4 vertical', files.some((f) => /_vertical/.test(f.name) && f.size > 100000));
+console.log('logs:', logs.slice(-15).join('\n'));
+console.log(fails ? `${fails} falha(s)` : 'TUDO OK');
+ws.close();
+process.exit(fails ? 1 : 0);

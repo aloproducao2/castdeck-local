@@ -1,0 +1,4 @@
+﻿yt-dlp — componente de terceiros
+Licença: Unlicense
+Fonte: https://github.com/yt-dlp/yt-dlp
+Texto: licenses/Unlicense.txt

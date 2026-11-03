@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-6B798YQVS1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-6B798YQVS1');
+</script>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="/icon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d0d14">
+  <title>Votação ao vivo — CastDeck</title>
+  <meta name="description" content="Vote na enquete da transmissão ao vivo direto pelo celular.">
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="/css/vote.css">
+  <script src="/js/i18n.js"></script>
+</head>
+<body>
+  <div class="bg" aria-hidden="true"></div>
+  <main class="wrap" id="app">
+    <header class="top">
+      <span class="live"><i></i>AO VIVO</span>
+      <span class="studio" id="studio-name"></span>
+    </header>
+    <section class="card" id="card" aria-live="polite">
+      <div class="loading"><span class="spin"></span>Carregando enquete…</div>
+    </section>
+    <footer class="foot">Votação pelo <b>CastDeck</b></footer>
+  </main>
+  <script type="module" src="/js/vote.js"></script>
+</body>
+</html>

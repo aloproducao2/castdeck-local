@@ -1,0 +1,16 @@
+﻿FFmpeg — componente de terceiros
+Licença: GPLv3 (build usada no Windows: gyan.dev "release essentials"; demais: ffmpeg-static)
+Copyright: FFmpeg developers.
+
+O CastDeck redistribui um binário do FFmpeg. A licença GPLv3 exige:
+- disponibilizar o texto da GPLv3 (licenses/GPL-3.0.txt);
+- disponibilizar a fonte correspondente do FFmpeg e a configuração de build, ou oferta escrita válida;
+- preservar avisos de copyright.
+
+Fonte oficial: https://ffmpeg.org/
+Fonte/build correspondente: https://cast.flue.live/downloads/source/ (a publicar)
+Build Windows: https://www.gyan.dev/ffmpeg/builds/
+Build estática: https://github.com/eugeneware/ffmpeg-static
+
+O CastDeck chama o FFmpeg como processo separado; isso não elimina as obrigações da GPL sobre o binário
+redistribuído. A licença comercial do CastDeck não relicencia o FFmpeg.

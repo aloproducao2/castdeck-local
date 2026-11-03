@@ -1,0 +1,5 @@
+﻿MediaMTX — componente de terceiros
+Licença: MIT
+Copyright: bluenviron / MediaMTX contributors
+Fonte: https://github.com/bluenviron/mediamtx
+Texto: licenses/components/MediaMTX-MIT.txt

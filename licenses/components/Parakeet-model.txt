@@ -1,0 +1,7 @@
+﻿Parakeet pt-BR ONNX — componente de terceiros
+Licença: CC-BY-4.0
+Modelo: calneymgp/parakeet-tdt-0.6b-v3-ptBR-TAGARELA-onnx-int8
+Fonte: https://huggingface.co/calneymgp/parakeet-tdt-0.6b-v3-ptBR-TAGARELA-onnx-int8
+Atribuição: modelo disponibilizado por calneymgp; modelo base Parakeet (NVIDIA) e conversão ONNX.
+Texto: licenses/CC-BY-4.0.txt
+O CastDeck baixa o modelo em runtime; não o embute no instalador. A atribuição deve aparecer no app/site.

@@ -1,0 +1,84 @@
+plugins {
+    id 'com.android.application'
+}
+
+// A interface web ÃƒÂ© a MESMA do PC: a pasta ../../public ÃƒÂ© copiada para dentro do APK em todo build.
+def webOut = layout.buildDirectory.dir('generated/castdeck-assets')
+tasks.register('copyWebAssets', Sync) {
+    from(rootProject.file('../public')) {
+        // Replay & VAR e exclusivo do desktop: a tela do console nao vai para o APK
+        // (js/studio/replay-engine.js fica: o studio.js importa o modulo, mas nao o cria no Android)
+        exclude 'replay.html', 'js/replay.js'
+    }
+    into(webOut.map { it.dir('web') })
+}
+
+// Link externo: o cloudflared (Go estÃƒÂ¡tico, linux-arm64) vai no APK como "biblioteca nativa".
+// O Android sÃƒÂ³ permite executar binÃƒÂ¡rios extraÃƒÂ­dos em nativeLibraryDir (W^X a partir do Android 10).
+def jniOut = layout.buildDirectory.dir('generated/castdeck-jni')
+tasks.register('copyCloudflared', Copy) {
+    from(rootProject.file('../build/vendor/linux-arm64/cloudflared'))
+    into(jniOut.map { it.dir('arm64-v8a') })
+    rename { 'libcloudflared.so' }
+}
+
+android {
+    namespace 'com.castdeck.studio'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.castdeck.studio'
+        minSdk 26
+        targetSdk 34
+        // versao unica: vem do package.json (a mesma da release publicada na landing page)
+        def appVersion = new groovy.json.JsonSlurper().parse(rootProject.file('../package.json')).version
+        def vp = appVersion.tokenize('.').collect { it as int }
+        versionCode vp[0] * 10000 + vp[1] * 100 + vp[2]
+        versionName appVersion
+    }
+
+    sourceSets {
+        main.assets.srcDir(webOut)
+        main.jniLibs.srcDir(jniOut)
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // APK instalÃƒÂ¡vel direto (sideload). Para a Play Store, troque por uma chave prÃƒÂ³pria.
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+
+    packaging {
+        resources {
+            excludes += ['META-INF/*.kotlin_module', 'META-INF/versions/9/OSGI-INF/MANIFEST.MF']
+        }
+        jniLibs {
+            // extraÃƒÂ­do na instalaÃƒÂ§ÃƒÂ£o (precisa existir como arquivo para ser executado)
+            useLegacyPackaging true
+            keepDebugSymbols += ['**/libcloudflared.so']
+        }
+    }
+}
+
+tasks.named('preBuild') { dependsOn 'copyWebAssets', 'copyCloudflared' }
+
+dependencies {
+    implementation 'org.nanohttpd:nanohttpd-websocket:2.3.1'
+    // localhost.run (provedor reserva do link externo) via SSH puro em Java
+    implementation 'com.github.mwiede:jsch:0.2.20'
+    // Mesmo contrato de estado de câmera do Node, testado na JVM (sem precisar de aparelho).
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+}

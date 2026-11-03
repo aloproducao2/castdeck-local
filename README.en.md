@@ -22,7 +22,7 @@ and multistream without a cloud subscription.
 
 </div>
 
-![CastDeck Local — studio with guests and switcher](docs/assets/studio.png)
+![CastDeck Local — studio with guests and switcher](https://cast.flue.live/assets/img/estudio-grade.png)
 
 ## Why CastDeck
 

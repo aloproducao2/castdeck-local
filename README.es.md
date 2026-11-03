@@ -22,7 +22,7 @@ y multistream sin depender de una suscripción en la nube.
 
 </div>
 
-![CastDeck Local — estudio con invitados y mesa de corte](docs/assets/studio.png)
+![CastDeck Local — estudio con invitados y mesa de corte](https://cast.flue.live/assets/img/estudio-grade.png)
 
 ## Por qué CastDeck
 

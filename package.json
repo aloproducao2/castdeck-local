@@ -46,7 +46,7 @@
   "dependencies": {
     "@whiskeysockets/baileys": "6.7.24",
     "express": "^5.3.0",
-    "pino": "^9.14.0",
+    "pino": "^10.4.0",
     "selfsigned": "^5.5.0",
     "ws": "^8.22.0"
   },

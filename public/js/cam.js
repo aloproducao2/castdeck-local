@@ -16,7 +16,9 @@ import { toggleFull, isFull, onFullChange } from './fullscreen.js';
 const studioId = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '');
 const app = $('#app');
 const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile|Silk/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
-const QUALITY = { 720: { w: 1280, h: 720, bps: 2_500_000 }, 1080: { w: 1920, h: 1080, bps: 4_500_000 } };
+// Bitrate de envio generoso para a câmera remota: a imagem chega nítida e sem o encoder
+// reduzir resolução a cada oscilação de rede. O celular ainda pode escolher 720p no Aparelhos.
+const QUALITY = { 720: { w: 1280, h: 720, bps: 5_000_000 }, 1080: { w: 1920, h: 1080, bps: 9_000_000 } };
 const FPS = [30, 60];
 // ajustes de imagem genéricos (webcams no PC costumam ter; celulares quase nunca)
 const PICTURE = [
@@ -67,6 +69,13 @@ try {
   if (typeof p.videoId === 'string') C.videoId = p.videoId;
   if (typeof p.audioId === 'string') C.audioId = p.audioId;
   if (FPS.includes(p.fps)) C.fps = p.fps;
+} catch {}
+// O link gerado pelo estúdio pode definir a qualidade inicial: /cam/<id>?q=1080&fps=30
+try {
+  const params = new URLSearchParams(location.search);
+  if (QUALITY[params.get('q')]) C.quality = params.get('q');
+  const fps = Number(params.get('fps'));
+  if (FPS.includes(fps)) C.fps = fps;
 } catch {}
 const savePrefs = () => {
   try {
@@ -273,7 +282,13 @@ function applyBitrate() {
   // 60 fps precisa de mais bits para não borrar o movimento (mesma imagem, o dobro de quadros)
   const go = () => {
     const snd = C.peer?.pc.getSenders().find((x) => x.track?.kind === 'video');
-    if (snd) C.peer.setMaxBitrate(snd, Math.round(QUALITY[C.quality].bps * (C.fps === 60 ? 1.4 : 1)));
+    if (snd) {
+      C.peer.setMaxBitrate(snd, Math.round(QUALITY[C.quality].bps * (C.fps === 60 ? 1.35 : 1)), {
+        // A rede pode limitar o fps, mas não deve trocar a resolução no meio da transmissão.
+        degradationPreference: 'maintain-resolution',
+        maxFramerate: C.fps,
+      });
+    }
   };
   go();
   setTimeout(go, 1500);

@@ -6190,32 +6190,166 @@ async function showRemoteCam() {
   try {
     sys = await api('/system');
   } catch {}
-  const t = sys.tunnel || {};
-  const lan = (sys.lan || [])[0]; // o servidor já põe Wi‑Fi/Ethernet antes dos adaptadores virtuais
-  const lanUrl = lan ? `${lan.url}/cam/${studioId}` : '';
-  const netUrl = t.url ? `${t.url}/cam/${studioId}` : '';
-  const netMsg = {
-    downloading: `Preparando o link de internet (baixando ${t.download?.progress || 0}%)… reabra esta janela em instantes.`,
-    starting: 'Abrindo o link de internet… reabra esta janela em alguns segundos.',
-    off: 'O link de internet está desligado. Ative em Painel → Conexão.',
-    error: `Link de internet indisponível: ${t.error || 'erro'}`,
-  }[t.status || 'off'];
+  let lans = (Array.isArray(sys.lan) ? sys.lan : []).filter((x) => x?.url);
+  let lanIndex = 0;
+  try {
+    const saved = Number(localStorage.getItem('castdeck.cam.lan'));
+    if (Number.isInteger(saved) && saved >= 0 && saved < lans.length) lanIndex = saved;
+  } catch {}
+  let grid = null;
+  let live = null;
+  let toolbar = null;
+  let timer = null;
+  let refreshing = false;
+  let quality = '1080';
+  try {
+    const savedQ = localStorage.getItem('castdeck.cam.q');
+    if (savedQ === '720' || savedQ === '1080') quality = savedQ;
+  } catch {}
+  const base = (u) => String(u || '').replace(/\/+$/, '');
+  const linkFor = (u) => (u ? `${base(u)}/cam/${studioId}?q=${quality}&fps=30` : '');
+  const lanUrl = () => linkFor(lans[lanIndex]?.url);
+  const netUrl = () => linkFor(sys.tunnel?.url);
+  const netMessage = () => {
+    const t = sys.tunnel || {};
+    return {
+      downloading: `Preparando o link de internet (baixando ${t.download?.progress || 0}%)…`,
+      starting: 'Abrindo o link de internet… aguarde alguns segundos.',
+      off: 'Link de internet desligado. Ative em Painel → Conexão.',
+      error: `Link de internet indisponível: ${t.error || 'erro'}`,
+    }[t.status || 'off'] || 'Link de internet indisponível.';
+  };
   const card = (ico, title, sub, url, empty) => `
     <div class="camqr-card">
-      <div class="camqr-head"><span>${ico}</span><div><strong>${title}</strong><small>${sub}</small></div></div>
-      ${url ? `<div class="camqr-code">${qrSvg(url)}</div><code class="camqr-url">${esc(url)}</code><button class="btn sm" data-copy="${esc(url)}">${icons.copy} Copiar link</button>` : `<div class="camqr-empty">${esc(empty)}</div>`}
+      <div class="camqr-head"><span>${ico}</span><div><strong>${esc(title)}</strong><small>${esc(sub)}</small></div></div>
+      ${url
+        ? `<div class="camqr-qr"><div class="camqr-code">${qrSvg(url)}</div></div>
+           <code class="camqr-url" title="${esc(url)}">${esc(url)}</code>
+           <div class="camqr-actions">
+             <button class="btn sm" data-copy="${esc(url)}">${icons.copy} Copiar link</button>
+             <a class="btn sm ghost" href="${esc(url)}" target="_blank" rel="noopener">Abrir</a>
+           </div>`
+        : `<div class="camqr-empty">${esc(empty)}</div>`}
     </div>`;
+  const renderToolbar = () => {
+    if (!toolbar || !toolbar.isConnected) return;
+    toolbar.innerHTML =
+      `<label class="camqr-opt"><span>Qualidade</span><select class="input" id="camqr-quality">
+        <option value="1080" ${quality === '1080' ? 'selected' : ''}>Full HD · 1080p</option>
+        <option value="720" ${quality === '720' ? 'selected' : ''}>HD · 720p</option>
+      </select></label>` +
+      (lans.length > 1
+        ? `<label class="camqr-opt"><span>Rede deste PC</span><select class="input" id="camqr-lan">${lans.map((l, i) => `<option value="${i}" ${i === lanIndex ? 'selected' : ''}>${esc(l.label || 'Rede local')} — ${esc(l.address || `Rede ${i + 1}`)}</option>`).join('')}</select></label>`
+        : '');
+    const q = $('#camqr-quality', toolbar);
+    if (q) {
+      q.onchange = () => {
+        quality = q.value === '720' ? '720' : '1080';
+        try { localStorage.setItem('castdeck.cam.q', quality); } catch {}
+        renderCards();
+      };
+    }
+    const pick = $('#camqr-lan', toolbar);
+    if (pick) {
+      pick.onchange = () => {
+        lanIndex = Math.max(0, Math.min(lans.length - 1, Number(pick.value) || 0));
+        try { localStorage.setItem('castdeck.cam.lan', String(lanIndex)); } catch {}
+        renderCards();
+      };
+    }
+  };
+  const renderCards = () => {
+    if (!grid || !grid.isConnected) return;
+    grid.innerHTML =
+      card('📶', 'Mesma rede (Wi‑Fi)', 'Melhor qualidade, sem usar internet', lanUrl(), 'Nenhuma rede local encontrada. Use a Internet ou conecte o PC ao Wi‑Fi.') +
+      card('🌐', 'Internet', 'De qualquer lugar (4G/5G ou outra rede)', netUrl(), netMessage());
+    grid.querySelectorAll('[data-copy]').forEach((b) => {
+      b.onclick = () => copyText(b.dataset.copy);
+    });
+  };
+  const renderLive = () => {
+    if (!live || !live.isConnected) return;
+    const cams = [...S.guests.values()].filter((g) => g.cam && !g.removed);
+    if (!cams.length) {
+      live.innerHTML = '<div class="camqr-wait"><span class="camqr-dot"></span><div><b>Aguardando o celular…</b><small>Escaneie um QR Code; a câmera aparece aqui quando conectar.</small></div></div>';
+      return;
+    }
+    const rows = cams.map((g) => {
+      const src = S.sources.get(`${g.id}:cam`);
+      const onStage = !!(src && S.stage.includes(src.id));
+      const onAir = !!(src && S.take === src.id);
+      const where = onAir ? 'No ar' : onStage ? 'No palco' : 'Conectada';
+      return `<div class="camqr-live-item">
+        <span class="camqr-dot on"></span>
+        <div class="camqr-live-txt"><b>${esc(g.name || 'Celular')}</b><small>${where}</small></div>
+        ${src && !onStage ? `<button class="btn sm" data-cam-stage="${esc(g.id)}">Pôr no palco</button>` : ''}
+      </div>`;
+    }).join('');
+    live.innerHTML = `<div class="camqr-live-title"><b>${cams.length} celular${cams.length === 1 ? '' : 'es'} conectado${cams.length === 1 ? '' : 's'}</b><small>A câmera está conectada ao estúdio.</small></div>${rows}`;
+    live.querySelectorAll('[data-cam-stage]').forEach((b) => {
+      b.onclick = () => {
+        const src = S.sources.get(`${b.dataset.camStage}:cam`);
+        if (src) {
+          toggleStage(src.id);
+          renderLive();
+        }
+      };
+    });
+  };
+  const refresh = async (notify) => {
+    if (refreshing) return;
+    refreshing = true;
+    try {
+      const next = await api('/system');
+      sys = next;
+      lans = (Array.isArray(sys.lan) ? sys.lan : []).filter((x) => x?.url);
+      if (lanIndex >= lans.length) lanIndex = 0;
+      renderToolbar();
+      renderCards();
+      renderLive();
+      if (notify) toast('Links atualizados.', 'ok');
+    } catch (e) {
+      if (notify) toast('Não foi possível atualizar os links: ' + e.message, 'err');
+    } finally {
+      refreshing = false;
+    }
+  };
+  let ticks = 0;
   await modal(
     `<h3>Celular como câmera</h3>
     <p class="sub">Aponte a câmera do celular para o QR Code (ou mande o link). A imagem aparece nos bastidores como <b>Câmera remota</b>.</p>
-    <div class="camqr">
-      ${card('📶', 'Mesma rede (Wi‑Fi)', 'Melhor qualidade, sem usar internet', lanUrl, 'Nenhuma rede local encontrada.')}
-      ${card('🌐', 'Internet', 'De qualquer lugar (4G/5G ou outra rede)', netUrl, netMsg || 'Link de internet indisponível.')}
-    </div>
-    <p class="hint">No link da rede local o navegador mostra um aviso de certificado: toque em <b>Avançado → Continuar</b>. O microfone do celular começa desligado (pode ser ligado no próprio aparelho). Mantenha a tela do celular ligada.</p>
-    <div class="modal-actions"><button class="btn primary" data-close>Pronto</button></div>`,
-    { onMount: (m) => m.querySelectorAll('[data-copy]').forEach((b) => (b.onclick = () => copyText(b.dataset.copy))) },
+    <div class="camqr-toolbar" id="camqr-toolbar"></div>
+    <div class="camqr" id="camqr-grid"></div>
+    <div class="camqr-live" id="camqr-live" aria-live="polite"></div>
+    <p class="hint">No link local o navegador mostra um aviso de certificado: toque em <b>Avançado → Continuar</b>. O microfone do celular começa desligado (ligue no próprio aparelho). Mantenha a tela ligada.</p>
+    <div class="modal-actions">
+      <button class="btn" id="camqr-refresh">↻ Atualizar links</button>
+      <button class="btn primary" data-close>Pronto</button>
+    </div>`,
+    {
+      onMount: (m) => {
+        grid = $('#camqr-grid', m);
+        live = $('#camqr-live', m);
+        toolbar = $('#camqr-toolbar', m);
+        renderToolbar();
+        renderCards();
+        renderLive();
+        $('#camqr-refresh', m).onclick = () => refresh(true);
+        timer = setInterval(() => {
+          if (!live?.isConnected) {
+            clearInterval(timer);
+            timer = null;
+            return;
+          }
+          ticks++;
+          renderLive();
+          const status = sys.tunnel?.status;
+          if (ticks % 3 === 0 && (status === 'downloading' || status === 'starting')) refresh(false);
+        }, 1000);
+      },
+    },
   );
+  clearInterval(timer);
 }
 
 // Botão "Ajustes" da barra de baixo: abre Ajustes → Dispositivos no painel (no celular, abre o painel por cima).

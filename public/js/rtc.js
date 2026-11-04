@@ -267,14 +267,24 @@ export class Peer extends EventTarget {
     }
   }
 
-  // Ajusta bitrate máximo de envio de vídeo (ex.: programa de volta aos convidados)
-  async setMaxBitrate(sender, bps) {
-    try {
+  // Ajusta bitrate máximo de envio de vídeo (ex.: programa de volta aos convidados).
+  // Opções opcionais evitam que o encoder reduza a resolução quando a rede oscila.
+  async setMaxBitrate(sender, bps, opts = {}) {
+    const apply = async (advanced) => {
       const p = sender.getParameters();
       if (!p.encodings?.length) p.encodings = [{}];
       p.encodings[0].maxBitrate = bps;
+      if (advanced && opts.maxFramerate) p.encodings[0].maxFramerate = opts.maxFramerate;
+      if (advanced && opts.degradationPreference) p.degradationPreference = opts.degradationPreference;
       await sender.setParameters(p);
-    } catch {}
+    };
+    try {
+      await apply(true);
+    } catch {
+      // Safari/versões antigas podem recusar maxFramerate/degradationPreference.
+      // O bitrate é o essencial; tenta de novo só com ele antes de desistir.
+      try { await apply(false); } catch {}
+    }
   }
 
   close() {

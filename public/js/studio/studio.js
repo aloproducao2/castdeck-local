@@ -84,7 +84,7 @@ const S = {
   status: null,
   local: { cam: null, mic: null, camOn: true, micOn: true, screen: null, name: 'Host' },
   mediaCount: 0,
-  playlist: { on: false, loop: false },
+  playlist: { on: false, loop: false, follow: true },
 };
 
 let comp, mixer, sig, programStream, broadcaster, ticker, social, news, gcDesigner, audioPanel, vfx;
@@ -331,6 +331,7 @@ async function buildStudio() {
     <footer class="bottombar">
       <button class="ctrl" id="c-mic"><span class="ctrl-ico"></span><span>Microfone</span></button>
       <button class="ctrl" id="c-cam"><span class="ctrl-ico"></span><span>Câmera</span></button>
+      <button class="ctrl cam-recover" id="c-cam-recover" hidden title="A câmera parou. Clique para tentar reabrir sem perder o áudio."><span class="ctrl-ico">${icons.camOff}</span><span>Reabrir câmera</span></button>
       <button class="ctrl" id="c-invite" title="Chamar convidados para o estúdio"><span class="ctrl-ico">${icons.invite}</span><span>Convidar</span></button>
       <i class="ctrl-sep"></i>
       <button class="ctrl" id="c-media" title="Vídeos, áudios e imagens"><span class="ctrl-ico">${icons.film}</span><span>Mídia</span></button>
@@ -496,7 +497,8 @@ async function buildStudio() {
   const spk = loadPrefs().speakerId;
   if (spk) mixer.setSpeaker(spk).catch(() => {});
   startRenderLoop();
-  startCamWatchdog();
+  // Sem watchdog automático: a câmera nunca é parada sozinha. Se o track terminar/mutar,
+  // o usuário recebe o botão "Reabrir câmera" e o áudio continua.
   programStream = new MediaStream([comp.canvas.captureStream().getVideoTracks()[0], mixer.programTrack]);
   vview = new VerticalView(comp, S.system.presets[vPresetId()]);
   vview.layout = S.brand.vlayout || 'auto';
@@ -871,70 +873,131 @@ function applyPreset() {
   const p = S.system.presets[S.preset];
   comp.setSize(p.width, p.height);
   if (ticker) ticker.postMessage(1000 / p.fps);
+  // A prévia da mesa acompanha o mesmo fps do PGM (30/60), não fica em 15.
+  switcher?.setPreviewFps(p.fps);
+  // O retorno acompanha o preset da mesa (mínimo 30) sem recriar track/peer.
+  for (const g of S.guests.values()) {
+    g.view?.setFps(p.fps);
+    if (g.videoSender) {
+      const target = guestReturnTarget(g.quality?.quality ?? 3);
+      if (target !== g.returnBps) {
+        g.returnBps = target;
+        g.peer.setMaxBitrate(g.videoSender, target);
+      }
+    }
+  }
 }
 
 function startRenderLoop() {
-  // Timer em Worker: não é estrangulado quando a janela perde o foco (rAF seria)
-  const src = 'let t;onmessage=e=>{clearInterval(t);t=setInterval(()=>postMessage(0),e.data)}';
+  // Timer em Worker: não é estrangulado quando a janela perde o foco (rAF seria).
+  // O próximo quadro só é agendado depois do ACK do anterior: se o render atrasar,
+  // a fila não cresce e o app não acumula frames para "explodir" depois.
+  const src = `let t=null,ms=33,waiting=false;
+    const arm=()=>{clearTimeout(t);t=setTimeout(()=>{waiting=true;postMessage(0)},ms)};
+    onmessage=e=>{const d=e.data;if(d==='ack'){waiting=false;arm()}else{ms=Math.max(1,Number(d)||33);if(!waiting)arm()}};`;
   ticker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
   ticker.onmessage = () => {
-    comp.render();
-    if (vview && (S.brand.vOn || S.vlive || S.vstarting || S.vOut)) vview.render(); // só renderiza com o painel aberto, a saída vertical ativa ou o sinal vertical em uso no OBS/vMix
-    for (const g of S.guests.values()) g.view?.render(); // retorno individual do programa (PGM real com convidado no palco, estilo StreamYard)
-    switcher?.render(); // monitor de prévia da mesa de corte (~15 fps, só com o modo ligado)
-    autoVoice?.tick(); // AUTO-VOZ se limita a 10x/s internamente
-    renderFrames++;
-    const now = performance.now();
-    if (!renderWindowStart) renderWindowStart = now;
-    if (now - renderWindowStart >= 1000) {
-      renderFps = Math.round((renderFrames * 1000) / (now - renderWindowStart));
-      renderFrames = 0;
-      renderWindowStart = now;
+    try {
+      // Isola cada subsistema: um erro no DSK/convidado/vertical não impede o PGM de desenhar.
+      const safe = (label, fn) => {
+        try {
+          fn();
+        } catch (e) {
+          console.warn('[render]', label, e);
+        }
+      };
+      safe('pgm', () => comp.render());
+      if (vview && (S.brand.vOn || S.vlive || S.vstarting || S.vOut)) safe('vertical', () => vview.render());
+      for (const g of S.guests.values()) safe(`guest:${g.id}`, () => g.view?.render());
+      safe('switcher', () => switcher?.render());
+      safe('auto', () => autoVoice?.tick());
+      renderFrames++;
+      const now = performance.now();
+      if (!renderWindowStart) renderWindowStart = now;
+      if (now - renderWindowStart >= 1000) {
+        renderFps = Math.round((renderFrames * 1000) / (now - renderWindowStart));
+        renderFrames = 0;
+        renderWindowStart = now;
+      }
+    } finally {
+      // Mesmo se o PGM falhar, libera o próximo quadro; o erro fica no log e a UI não congela.
+      ticker.postMessage('ack');
     }
   };
   ticker.postMessage(1000 / S.system.presets[S.preset].fps);
 }
 
-// O Android pode fechar a câmera do app (tela apagada, desbloqueio facial, outro app usando a câmera)
-// sem encerrar o track: a imagem congela no último quadro. Se não chegarem quadros novos, reabre a câmera.
-function startCamWatchdog() {
-  let last = -1;
-  let stale = 0;
-  let busy = false;
-  let nextTry = 0;
-  const frames = (t) =>
-    t.stats?.totalFrames ?? (document.hidden ? -1 : S.sources.get('host:cam')?.el.getVideoPlaybackQuality?.().totalVideoFrames ?? -1);
-  setInterval(async () => {
-    const t = S.local.cam?.getVideoTracks()[0];
-    if (busy || !S.local.camOn || !S.local.cam || !t?.enabled) {
-      stale = 0;
-      last = -1;
-      return;
+// Recuperação não destrutiva da câmera do host: nada de parar o track sozinho.
+// Se o track terminar ou mutar, mostra "Reabrir câmera"; o áudio continua no ar.
+let camWatchCleanup = null;
+let camWatchTimer = null;
+function setCamRecovery(on) {
+  const btn = $('#c-cam-recover');
+  if (!btn) return;
+  const wasHidden = btn.hidden;
+  btn.hidden = !on;
+  $('#c-cam')?.classList.toggle('cam-warning', !!on);
+  if (on && wasHidden) toast('A câmera parou de enviar imagem. O áudio continua; use "Reabrir câmera" quando quiser.', 'err');
+}
+function watchHostCamera() {
+  camWatchCleanup?.();
+  const tracks = S.local.cam?.getVideoTracks?.() || [];
+  const refresh = () => {
+    const t = tracks[0];
+    const bad = !!S.local.camOn && (!t || t.readyState === 'ended' || t.muted);
+    setCamRecovery(bad);
+  };
+  const onChange = () => refresh();
+  for (const t of tracks) {
+    t.addEventListener('ended', onChange);
+    t.addEventListener('mute', onChange);
+    t.addEventListener('unmute', onChange);
+  }
+  camWatchCleanup = () => {
+    clearInterval(camWatchTimer);
+    camWatchTimer = null;
+    for (const t of tracks) {
+      t.removeEventListener('ended', onChange);
+      t.removeEventListener('mute', onChange);
+      t.removeEventListener('unmute', onChange);
     }
-    const n = t.readyState === 'ended' ? last : frames(t);
-    if (n < 0 && t.readyState !== 'ended') return;
-    stale = n === last ? stale + 1 : 0;
-    last = n;
-    if (stale < 3 || Date.now() < nextTry) return; // ~3s sem quadros
-    busy = true;
+  };
+  // track.stop() não dispara "ended" em todos os navegadores; polling leve só para
+  // mostrar o aviso, sem tocar no stream. Nunca reinicia a câmera sozinho.
+  clearInterval(camWatchTimer);
+  camWatchTimer = setInterval(refresh, 1500);
+  refresh();
+}
+async function reopenHostCamera() {
+  const btn = $('#c-cam-recover');
+  if (btn) btn.disabled = true;
+  const old = S.local.cam;
+  try {
+    let cam;
     try {
-      // libera antes: no celular só um cliente abre a mesma câmera
-      S.local.cam.getVideoTracks().forEach((x) => x.stop());
-      const cam = await getCamera(loadPrefs().camId, loadPrefs().quality);
-      cam.getVideoTracks().forEach((x) => (x.enabled = S.local.camOn));
-      S.local.cam = cam;
-      addVideoSource('host:cam', cam, { camOff: !S.local.camOn });
-      console.warn('[cam] câmera parou de enviar imagem; reaberta');
-      nextTry = 0;
-    } catch (e) {
-      console.warn('[cam] reabrir falhou:', e.message);
-      nextTry = Date.now() + 4000; // ex.: tela ainda apagada; tenta de novo em instantes
-    } finally {
-      stale = 0;
-      last = -1;
-      busy = false;
+      cam = await getCamera(loadPrefs().camId, loadPrefs().quality);
+    } catch (first) {
+      // Se o track antigo está morto/mudo, libera e tenta uma vez; se ainda está vivo, não o derruba.
+      const oldLive = old?.getVideoTracks?.().some((t) => t.readyState === 'live' && !t.muted);
+      if (oldLive) throw first;
+      old?.getTracks?.().forEach((t) => t.stop());
+      S.local.cam = null;
+      cam = await getCamera(loadPrefs().camId, loadPrefs().quality);
     }
-  }, 1000);
+    S.local.camOn = true;
+    S.local.cam = cam;
+    cam.getVideoTracks().forEach((t) => (t.enabled = true));
+    addVideoSource('host:cam', cam, { kind: 'camera', label: S.local.name, ownerId: 'host', camOff: false });
+    old?.getTracks?.().forEach((t) => t.stop());
+    savePrefs({ camOn: true });
+    renderControls();
+    toast('Câmera reaberta.', 'ok');
+  } catch (e) {
+    setCamRecovery(true);
+    toast('Não foi possível reabrir a câmera: ' + e.message, 'err');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 // =====================================================================
@@ -973,6 +1036,7 @@ function addVideoSource(id, stream, meta) {
     if (stream) s.el.play().catch(() => {});
   }
   comp.upsertSource(id, { kind: s.kind, label: s.label, el: s.el, camOff: s.camOff, adjust: s.adjust || null });
+  if (id === 'host:cam') watchHostCamera();
   renderTiles();
   renderControls();
   cameras?.refresh();
@@ -1583,11 +1647,10 @@ function uiTick() {
   const inSwitcher = !!S.switcher;
   const showBackstage = !inSwitcher || !!document.querySelector('.studio.sw-bs');
   const now = performance.now();
-  // Quando em mesa de corte, atualiza as miniaturas dos bastidores a ~7-8 fps (~135ms) para máxima economia de CPU
-  const canDrawThumb = !inSwitcher || (showBackstage && now - lastBsThumbT >= 135);
-  if (canDrawThumb && inSwitcher && showBackstage) {
-    lastBsThumbT = now;
-  }
+  // Miniaturas são monitoração, não programa: ~6-8 fps e só quando o bastidor está visível.
+  const thumbGap = inSwitcher ? 135 : 160;
+  const canDrawThumb = showBackstage && now - lastBsThumbT >= thumbGap;
+  if (canDrawThumb) lastBsThumbT = now;
 
   for (const [id, el] of tileEls) {
     const s = S.sources.get(id);
@@ -2031,6 +2094,7 @@ function bindUI() {
     savePrefs({ camOn: S.local.camOn });
     renderControls();
   };
+  $('#c-cam-recover').onclick = () => reopenHostCamera();
   // Atalhos globais de Replay & VAR: funcionam com o foco no estúdio e mandam o comando para o console.
   window.addEventListener('keydown', (e) => {
     if (e.target?.closest?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('.modal-back')) return;
@@ -2498,7 +2562,7 @@ function addMediaFile(file, opts = {}) {
   el.onended = () => {
     renderTiles();
     if (tabOpen('media')) updateMediaRows();
-    if (S.playlist.on && !el.loop) playlistStep(id, 1);
+    if (S.playlist.on && !el.loop) playlistStep(id, 1, { auto: true });
   };
   renderTiles();
   // só carrega: não entra no palco nem reproduz sozinho. O host usa "Palco" ou Tocar (ou a playlist)
@@ -2533,9 +2597,115 @@ async function deleteMediaFile(s) {
 // ---- Playlist: toca os vídeos em sequência (ordem da lista), com repetição opcional da lista ----
 const mediaList = () => [...S.sources.values()].filter((x) => x.kind === 'media');
 
-function playMedia(id) {
+// Contexto do vídeo que está no ar. Estúdio usa Solo/palco; Mesa usa take/Cena/prévia.
+// A playlist só "segue" se este contexto ainda for o mesmo quando o vídeo termina.
+let mediaAirSeq = 0;
+let mediaAir = null;
+function mediaAirContext(id, bump = false) {
+  const mode = S.switcher ? 'mesa' : 'studio';
+  let air = 'off';
+  if (mode === 'studio') {
+    if (S.solo === id && S.stage.includes(id)) air = 'solo';
+    else if (S.stage.includes(id)) air = 'scene';
+  } else {
+    if (S.take === id) air = 'take';
+    // Com take em câmera, o vídeo na prévia é só prévia, mesmo que também esteja no palco.
+    else if (S.take !== null && S.pvw === id) air = 'preview';
+    else if (S.take === null && S.solo === id && S.stage.includes(id)) air = 'soloScene';
+    else if (S.take === null && S.stage.includes(id)) air = 'scene';
+    else if (S.pvw === id) air = 'preview';
+  }
+  return { id, mode, air, take: S.take, solo: S.solo, stage: [...S.stage], seq: bump ? ++mediaAirSeq : mediaAirSeq };
+}
+function armMediaAir(id) {
+  mediaAir = mediaAirContext(id, true);
+}
+function mediaContextMatches(ctx, id) {
+  if (!ctx || ctx.id !== id) return false;
+  const now = mediaAirContext(id);
+  return (
+    now.mode === ctx.mode &&
+    now.air === ctx.air &&
+    now.take === ctx.take &&
+    now.solo === ctx.solo &&
+    now.stage.join('|') === ctx.stage.join('|')
+  );
+}
+function canFollowMedia(ctx, id) {
+  return !!ctx && ctx.id === id && S.playlist.on && S.playlist.follow !== false && mediaContextMatches(ctx, id);
+}
+// Vídeo que está efetivamente no ar agora, para o "seguir" também valer quando
+// o operador inicia o próximo vídeo manualmente (não só no fim automático).
+function activeMediaOnAir(excludeId = null) {
+  if (mediaAir && mediaAir.id !== excludeId && mediaContextMatches(mediaAir, mediaAir.id)) return mediaAir;
+  const media = mediaList();
+  const pick = (id) => id && id !== excludeId && S.sources.get(id)?.kind === 'media' && !S.sources.get(id)?.camOff ? mediaAirContext(id) : null;
+  if (!S.switcher) {
+    const solo = pick(S.solo);
+    if (solo) return solo;
+    const inStage = S.stage.filter((x) => media.some((m) => m.id === x));
+    return inStage.length === 1 ? pick(inStage[0]) : null;
+  }
+  const take = pick(S.take);
+  if (take) return take;
+  if (S.take === null) {
+    const solo = pick(S.solo);
+    if (solo) return solo;
+    const inStage = S.stage.filter((x) => media.some((m) => m.id === x));
+    if (inStage.length === 1) return pick(inStage[0]);
+  }
+  if (S.pvw && S.pvw !== excludeId) return pick(S.pvw);
+  return null;
+}
+function followMedia(ctx, nextId) {
+  const next = S.sources.get(nextId);
+  if (!next || next.kind !== 'media' || nextId === ctx.id) return;
+  // Um vídeo por vez: o anterior e os demais pausam.
+  for (const o of mediaList()) if (o.id !== nextId && !o.el.paused) o.el.pause();
+  // O próximo ocupa o mesmo slot de mídia do anterior, em qualquer modo.
+  if (ctx.air !== 'preview') {
+    const at = S.stage.indexOf(ctx.id);
+    const arr = S.stage.filter((x) => x !== ctx.id);
+    if (!arr.includes(nextId)) arr.splice(at >= 0 ? Math.min(at, arr.length) : 0, 0, nextId);
+    setStage(arr);
+  }
+  if (ctx.mode === 'studio') {
+    if (ctx.air === 'solo' && !next.camOff) setSolo(nextId);
+    // scene: o palco já foi trocado acima; não força Solo.
+    return;
+  }
+  if (!S.switcher) return;
+  if (ctx.air === 'take' && !next.camOff) {
+    const prevPvw = S.pvw;
+    switcher?.cutTo(nextId);
+    // cutTo usa a prévia para entrar; devolve a prévia que o operador tinha escolhido.
+    if (prevPvw && prevPvw !== ctx.id && prevPvw !== nextId) switcher?.setPreview(prevPvw);
+    else switcher?.setPreview(null);
+  } else if (ctx.air === 'soloScene' && !next.camOff) {
+    setSolo(nextId);
+  } else if (ctx.air === 'preview') {
+    switcher?.setPreview(nextId);
+  }
+  // scene: o palco já foi atualizado; o PGM continua Cena.
+}
+function endPlaylist(ctx) {
+  if (!ctx) return;
+  const mode = S.switcher ? 'mesa' : 'studio';
+  if (mode !== ctx.mode) return;
+  if (ctx.mode === 'studio' && ctx.air === 'solo' && S.solo === ctx.id) setSolo(null);
+  else if (ctx.mode === 'mesa') {
+    if (ctx.air === 'take' && S.take === ctx.id) {
+      switcher?.cutTo(null);
+      switcher?.setPreview(null);
+    } else if (ctx.air === 'soloScene' && S.take === null && S.solo === ctx.id) setSolo(null);
+  }
+  toast('Playlist terminou; o PGM voltou para a Cena.', 'info');
+}
+
+function playMedia(id, { followOnPlay = true } = {}) {
   const s = S.sources.get(id);
   if (!s) return;
+  const prev = followOnPlay && !s.camOff ? activeMediaOnAir(id) : null;
   if (S.playlist.on) for (const o of mediaList()) if (o.id !== id && !o.el.paused) o.el.pause();
   if (!s.camOff) {
     if (S.playlist.on) {
@@ -2548,18 +2718,31 @@ function playMedia(id) {
   }
   if (s.el.ended) s.el.currentTime = 0;
   s.el.play().catch(() => {});
+  if (prev) followMedia(prev, id);
+  armMediaAir(id);
 }
 
-function playlistStep(fromId, dir = 1) {
+function playlistStep(fromId, dir = 1, { auto = false } = {}) {
   const list = mediaList();
   if (!list.length) return;
+  const ctx = mediaAir;
+  const follow = auto && canFollowMedia(ctx, fromId);
   let n = list.findIndex((x) => x.id === fromId) + dir;
   if (n >= list.length || n < 0) {
-    if (!S.playlist.loop) return toast('Playlist terminou');
+    if (!S.playlist.loop) {
+      if (auto) endPlaylist(ctx);
+      else toast('Playlist terminou');
+      return;
+    }
     n = (n + list.length) % list.length;
   }
+  const nextId = list[n].id;
   list[n].el.currentTime = 0;
-  playMedia(list[n].id);
+  playMedia(nextId, { followOnPlay: false });
+  if (follow) {
+    followMedia(ctx, nextId);
+    armMediaAir(nextId);
+  }
 }
 
 function playlistStart() {
@@ -2568,7 +2751,7 @@ function playlistStart() {
   S.playlist.on = true;
   const first = list[0];
   first.el.currentTime = 0;
-  playMedia(first.id);
+  playMedia(first.id, { followOnPlay: false });
   renderMediaPanel();
 }
 
@@ -3042,6 +3225,7 @@ function renderMediaPanel() {
     <div class="pl-box">
       <div class="row" style="gap:6px"><button class="btn sm" id="pl-prev" title="Anterior">⏮</button><button class="btn sm primary grow" id="pl-start">▶ Tocar playlist</button><button class="btn sm" id="pl-next" title="Próximo">⏭</button></div>
       <label class="check pl-opt"><span>Tocar um após o outro</span><span class="switch"><input type="checkbox" id="pl-on" ${S.playlist.on ? 'checked' : ''}><span></span></span></label>
+      <label class="check pl-opt" title="No modo Estúdio segue o Solo/palco; no modo Mesa segue o take do PGM"><span>Seguir vídeo no ar</span><span class="switch"><input type="checkbox" id="pl-follow" ${S.playlist.follow !== false ? 'checked' : ''}><span></span></span></label>
       <label class="check pl-opt"><span>Repetir a lista</span><span class="switch"><input type="checkbox" id="pl-loop" ${S.playlist.loop ? 'checked' : ''}><span></span></span></label>
     </div>`;
   // vídeos primeiro: é a seção que o operador mais usa ao vivo
@@ -3091,6 +3275,7 @@ function renderMediaPanel() {
   };
   $('#m-names', p).onchange = (e) => setBrand({ showMediaNames: e.target.checked });
   $('#pl-on', p).onchange = (e) => (S.playlist.on = e.target.checked);
+  $('#pl-follow', p).onchange = (e) => (S.playlist.follow = e.target.checked);
   $('#pl-loop', p).onchange = (e) => (S.playlist.loop = e.target.checked);
   $('#pl-start', p).onclick = playlistStart;
   const cur = () => mediaList().find((x) => !x.el.paused)?.id || mediaList()[0]?.id;
@@ -3422,6 +3607,21 @@ function connectSignaling() {
   sig.connect({ type: 'join', room: studioId, role: 'host', name: S.local.name });
 }
 
+// Retorno: acompanha o fps da mesa (mínimo 30), em 540p e com bitrate moderado.
+// O fps nunca cai para 15; se a rede piorar, o bitrate cede antes da fluidez.
+function guestReturnFps() {
+  return Math.max(30, Number(S.system?.presets?.[S.preset]?.fps) || 30);
+}
+function guestReturnBase() {
+  return guestReturnFps() >= 50 ? 3_200_000 : 2_200_000;
+}
+function guestReturnTarget(quality = 3) {
+  const n = Number(quality);
+  const q = Number.isFinite(n) ? Math.max(0, Math.min(3, n)) : 3;
+  const factor = [0.55, 0.68, 0.82, 1][q]; // ruim → bom
+  return Math.round((guestReturnBase() * factor) / 50_000) * 50_000;
+}
+
 function addGuest(info) {
   if (S.guests.has(info.id)) return S.guests.get(info.id);
   const g = { id: info.id, name: info.name || 'Convidado', state: info.state || {}, streams: new Map(), cohost: !!info.cohost };
@@ -3430,7 +3630,8 @@ function addGuest(info) {
   g.cam = !!g.state.cam;
   g.peer = new Peer({ id: g.id, polite: false, signal: (data) => sig.send({ type: 'signal', to: g.id, data }) });
   if (!g.cam) {
-    g.view = new GuestView(comp, g.id);
+    g.view = new GuestView(comp, g.id, { fps: guestReturnFps() });
+    g.returnBps = guestReturnBase();
     const vt = g.view.track;
     const mm = mixer.addGuestOutput(g.id);
     const out = new MediaStream([vt, mm]);
@@ -3451,7 +3652,8 @@ function addGuest(info) {
     if (e.detail === 'connected') {
       S.stuckTries = 0;
       if (!g.videoSender) return; // câmera remota: o host não envia nada para ela
-      g.peer.setMaxBitrate(g.videoSender, 1_500_000);
+      g.returnBps = guestReturnBase();
+      g.peer.setMaxBitrate(g.videoSender, g.returnBps);
       g.peer.setMaxBitrate(g.audioSender, 128_000);
       try {
         const p = g.videoSender.getParameters();
@@ -3474,7 +3676,6 @@ function addGuest(info) {
     sig.send({ type: 'control', to: g.id, action: 'reconnect' });
     removeGuest(g.id, true);
   });
-  let returnBps = 1_500_000;
   g.peer.monitor((q) => {
     g.quality = q;
     const el = document.querySelector(`[data-qdot="${g.id}"]`);
@@ -3482,14 +3683,13 @@ function addGuest(info) {
       el.className = `qdot q${q.quality}`;
       el.title = `${Math.round(q.rtt ?? 0)} ms · perda ${q.lossPct.toFixed(1)}% · ↑${Math.round(q.sendKbps)} ↓${Math.round(q.recvKbps)} kbps`;
     }
-    // Adaptação de retorno: em redes ruins ou com perda/RTT alto, reduz o bitrate do retorno
-    // para não congelar o vídeo do programa nem engasgar a conexão do convidado.
+    // A rede define o bitrate, não o fps: o retorno continua fluido no preset da mesa.
+    // A escada é proporcional ao preset (2,2/3,2 Mbps no topo) e nunca cai para 350 kbps.
     if (g.videoSender) {
-      const target = q.quality <= 0 ? 350_000 : q.quality === 1 ? 650_000 : q.quality === 2 ? 1_100_000 : 1_500_000;
-      const next = q.quality <= 1 ? target : Math.max(returnBps, target);
-      if (Math.abs(next - returnBps) >= 50_000) {
-        returnBps = next;
-        g.peer.setMaxBitrate(g.videoSender, returnBps);
+      const target = guestReturnTarget(q.quality);
+      if (Math.abs(target - (g.returnBps || 0)) >= 50_000) {
+        g.returnBps = target;
+        g.peer.setMaxBitrate(g.videoSender, target);
       }
     }
   });

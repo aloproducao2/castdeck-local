@@ -140,7 +140,8 @@ incorporar o código em produto fechado. Componentes de terceiros mantêm suas l
 
 ## Status
 
-Versão **1.3.27** — Overlays sobre o DSK, seletor global e Template Studio de GC, acordeões, RSS separado,
-alças de redimensionamento e undo coalescido. Veja os [releases](https://github.com/aloproducao2/castdeck-local/releases).
+Versão **1.3.28** — Câmera sem desligamento automático, retorno 30/60 fps, prévia da mesa no fps do PGM,
+playlist seguindo o vídeo no ar e overlays sobre o DSK. Veja os
+[releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Feito por **Miguel Kallemback / flue.live**, de brasileiros para o mundo. 🌎

@@ -8,6 +8,10 @@ const MIME_CANDIDATES = [
   'video/webm;codecs=vp9,opus',
   'video/webm',
 ];
+// Acima disso o navegador estaria guardando vídeo demais em memória. Pausa o MediaRecorder
+// e retoma quando o WebSocket drenar; o servidor também pausa a leitura do socket.
+const MAX_WS_BUFFER = 24 * 1024 * 1024;
+const RESUME_WS_BUFFER = 8 * 1024 * 1024;
 
 export function pickMime() {
   return MIME_CANDIDATES.find((m) => window.MediaRecorder?.isTypeSupported(m)) || '';
@@ -19,6 +23,7 @@ export class Broadcaster extends EventTarget {
     this.ws = null;
     this.recorder = null;
     this.active = false;
+    this._resumeT = null;
   }
 
   on(type, fn) {
@@ -82,9 +87,7 @@ export class Broadcaster extends EventTarget {
     this.recorder = rec;
     rec.ondataavailable = (e) => {
       if (!e.data.size || this.ws?.readyState !== 1) return;
-      if (this.ws.bufferedAmount > 48 * 1024 * 1024) {
-        this.emit('error', 'Servidor local não está acompanhando o envio (CPU alta?).');
-      }
+      if (this.ws.bufferedAmount > MAX_WS_BUFFER) this._pauseRecorder();
       this.ws.send(e.data); // Blobs são enviados em ordem
     };
     rec.onstop = () => {
@@ -94,8 +97,36 @@ export class Broadcaster extends EventTarget {
     rec.start(200);
   }
 
+  _pauseRecorder() {
+    const rec = this.recorder;
+    if (!rec || rec.state !== 'recording' || this._resumeT) return;
+    try {
+      rec.pause();
+    } catch {
+      return;
+    }
+    this.emit('error', 'Servidor local não está acompanhando; pausando o envio para não travar.');
+    const tick = () => {
+      this._resumeT = null;
+      if (!this.recorder || this.recorder.state === 'inactive') return;
+      if ((this.ws?.bufferedAmount || 0) <= RESUME_WS_BUFFER) {
+        try {
+          this.recorder.resume();
+        } catch {}
+        return;
+      }
+      this._resumeT = setTimeout(tick, 250);
+    };
+    this._resumeT = setTimeout(tick, 250);
+  }
+
   stopRecorder() {
+    clearTimeout(this._resumeT);
+    this._resumeT = null;
     if (this.recorder && this.recorder.state !== 'inactive') {
+      try {
+        if (this.recorder.state === 'paused') this.recorder.resume();
+      } catch {}
       try {
         this.recorder.stop();
       } catch {}

@@ -32,6 +32,7 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
   S.ftb = false;
   let preview = null;
   let sceneView = null; // miniatura da "Cena" (palco + layout)
+  let fadeWas = false; // para reabilitar CUT/AUTO quando a transição termina
   let busKey = '';
   let thumbT = 0;
   const thumbs = new Map(); // id -> canvas da miniatura
@@ -52,7 +53,12 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
     const pos = (s) => { const i = (S.bsOrder || []).indexOf(s.id); return i < 0 ? Infinity : i; };
     return [...S.sources.values()].filter((s) => BUS_KINDS.has(s.kind)).sort((a, b) => pos(a) - pos(b) || rank(a) - rank(b));
   }
-  const label = (id) => (id ? S.sources.get(id)?.label || 'Fonte' : 'Cena (palco)');
+  const label = (id) => {
+    if (id) return S.sources.get(id)?.label || 'Fonte';
+    const solo = S.solo ? S.sources.get(S.solo)?.label : '';
+    return solo ? `Cena (solo: ${solo})` : 'Cena (palco)';
+  };
+  const programFps = () => Math.max(1, Number(S.system?.presets?.[S.preset]?.fps) || 30);
 
   function mount() {
     // monitor de PRÉVIA, à esquerda do PROGRAMA (mesmo tamanho, como no vMix e no Studio Mode do OBS)
@@ -83,10 +89,11 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
         <button class="btn sm ghost" id="sw-bs" aria-pressed="false" title="Mostrar os bastidores completos (ajustes de cada câmera, mudo, efeitos)">Bastidores</button>
       </div>
       <div class="sw-bus" id="sw-bus" role="toolbar" aria-label="Fontes da mesa de corte"></div>`;
-    preview = new PreviewView(comp, $('#sw-pvw-canvas'));
+    preview = new PreviewView(comp, $('#sw-pvw-canvas'), { fps: programFps() });
     sceneView = new PreviewView(comp, document.createElement('canvas'), { width: THUMB_W * 2, height: THUMB_H * 2, fps: 8 });
-    $('#sw-cut').onclick = () => take('cut');
-    $('#sw-auto').onclick = () => take('mix');
+    // e.detail > 0 = clique/ponteiro; teclado mantém o foco para a ativação nativa.
+    $('#sw-cut').onclick = (e) => { take('cut'); if (e.detail) e.currentTarget.blur(); };
+    $('#sw-auto').onclick = (e) => { take('mix'); if (e.detail) e.currentTarget.blur(); };
     $('#sw-ftb').onclick = () => setBlack(!S.ftb);
     $('#sw-ms').onclick = (e) => {
       const b = e.target.closest('[data-ms]');
@@ -117,7 +124,10 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
         return toggleStage?.(st.dataset.stage);
       }
       const b = e.target.closest('[data-src]');
-      if (b) setPreview(b.dataset.src === SCENE ? null : b.dataset.src);
+      if (b) {
+        setPreview(b.dataset.src === SCENE ? null : b.dataset.src);
+        if (e.detail) b.blur(); // devolve o foco ao documento para Espaço/Enter continuarem atalhos
+      }
     };
     bus.ondblclick = (e) => {
       if (e.target.closest('[data-stage], [data-tool], #sw-add')) return;
@@ -131,8 +141,12 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
 
   function onKey(e) {
     if (!S.switcher || tb.drag || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.repeat) return; // segurar Espaço/Enter/T não pode alternar o PGM repetidamente
     const el = e.target;
     if (el?.closest?.('input, textarea, select, [contenteditable="true"], .modal-back')) return;
+    // Deixa botões/links receberem Espaço/Enter nativos (AUTO, cartões, Adicionar câmera).
+    // Os cliques de mouse dão blur nesses controles para os atalhos globais continuarem valendo.
+    if (el?.closest?.('button, a, [role="button"], [role="link"]')) return;
     if (document.querySelector('.modal-back')) return;
     const m = /^Digit(\d)$/.exec(e.code) || /^Numpad(\d)$/.exec(e.code);
     if (m) {
@@ -169,8 +183,12 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
       comp.take = null;
       comp.endMix();
       tb.drag = tb.started = tb.anim = false;
+      tb.pos = tb.rest;
       if (S.ftb) setBlack(false);
       onAir(prev);
+      if (prev && !silent) {
+        toast(`Mesa desligada: "${label(prev)}" saiu do ar; o PGM voltou para a ${label(null)}.`, 'ok');
+      }
     } else {
       S.pvw = S.pvw ?? busList().find((s) => s.id !== S.take && s.kind === 'camera')?.id ?? null;
       preview.set({ take: S.pvw });
@@ -191,7 +209,14 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
     syncTally();
   }
 
-  const canTake = () => S.switcher && !(comp.fade && comp.fade.manual) && S.pvw !== S.take && (!S.pvw || S.sources.has(S.pvw));
+  function setPreviewFps(fps) {
+    preview?.setFps(fps);
+  }
+
+  // Nenhuma troca nova enquanto qualquer transição (AUTO ou T-bar) estiver em andamento.
+  // Antes só o fade manual era bloqueado; um segundo AUTO/CUT reiniciava a mistura e podia
+  // devolver o PGM para a Cena.
+  const canTake = () => S.switcher && !comp.fade && S.pvw !== S.take && (!S.pvw || S.sources.has(S.pvw));
 
   // prévia vai ao ar e o que estava no ar volta para a prévia
   function swap(kind, ms = 0) {
@@ -246,6 +271,12 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
       tb.pos = posAt(e);
       const p = Math.abs(tb.pos - tb.rest);
       if (!tb.started) {
+        // Já existe uma transição manual parada no meio: continua dela, sem trocar PGM/prévia de novo.
+        if (comp.fade?.manual) {
+          tb.started = true;
+          comp.setMix(p);
+          return;
+        }
         if (p < 0.03 || !canTake()) return;
         tb.started = true;
         swap('manual');
@@ -272,14 +303,8 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
         comp.endMix();
         tb.rest = tb.pos = 1 - tb.rest;
       } else if (p <= 0.08) revert();
-      else {
-        // soltou no meio: termina sozinho no tempo do AUTO (vMix faz o mesmo com o T-bar do teclado)
-        comp.resumeMix(S.transMs);
-        tb.from = tb.rest;
-        tb.to = 1 - tb.rest;
-        tb.rest = tb.to;
-        tb.anim = true;
-      }
+      // Soltou no meio: o T-bar FICA onde o operador deixou, como numa mesa física.
+      // A transição manual continua parada nessa posição; o próximo arrasto retoma dali.
     };
     bar.onpointerup = up;
     bar.onpointercancel = up;
@@ -371,7 +396,7 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
         </button>`;
       };
       bus.innerHTML =
-        card(SCENE, 0, 'Cena (palco)', 'layout', null) +
+        card(SCENE, 0, label(null), 'layout', null) +
         list.map((s, i) => card(s.id, i < 9 ? i + 1 : '', s.label || 'Fonte', kindTag(s), s)).join('') +
         `<button class="sw-card add" id="sw-add" title="Adicionar câmera: USB/captura deste computador ou celular pelo QR Code"><span class="sw-thumb"><span class="add-ico">＋</span></span><span class="sw-name">Câmera</span></button>`;
       thumbs.clear();
@@ -383,6 +408,17 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
     const pn = $('#sw-pgm-name');
     if (pn) pn.textContent = label(S.take);
     for (const b of document.querySelectorAll('#sw-ms [data-ms]')) b.classList.toggle('active', +b.dataset.ms === S.transMs);
+    const ready = canTake();
+    const cut = $('#sw-cut');
+    const auto = $('#sw-auto');
+    if (cut) {
+      cut.disabled = !ready;
+      cut.title = ready ? 'Corte seco: a prévia entra no ar na hora (Espaço ou Enter)' : 'Corte indisponível durante a transição ou sem prévia diferente';
+    }
+    if (auto) {
+      auto.disabled = !ready;
+      auto.title = ready ? 'Transição suave (dissolve) da prévia para o ar (T)' : 'AUTO indisponível durante a transição ou sem prévia diferente';
+    }
   }
 
   // luz de "no ar"/"prévia" no celular das câmeras remotas (também funciona no modo Estúdio: no palco = no ar)
@@ -428,18 +464,30 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
 
   function render() {
     if (!S.switcher) return;
+    // canTake() fica false durante toda transição; quando ela termina (AUTO ou T-bar),
+    // é preciso atualizar os botões, senão CUT/AUTO continuam desabilitados.
+    const fadeNow = !!comp.fade;
+    if (fadeNow !== fadeWas) {
+      fadeWas = fadeNow;
+      refresh();
+    }
     preview?.render();
     const now = performance.now();
     // T-bar: segue a mão, o AUTO ou fica parada na ponta
     const prog = comp.mixProgress(now);
-    if (tb.anim && prog === null) tb.anim = false;
-    const pos = tb.drag ? tb.pos : tb.anim ? tb.from + (tb.to - tb.from) * prog : tb.rest;
+    if (tb.anim && prog === null) {
+      tb.anim = false;
+      tb.pos = tb.rest; // AUTO terminou: a alavanca fica na nova ponta
+    }
+    const base = tb.anim ? tb.from : tb.rest;
+    const pos = tb.drag ? tb.pos : tb.anim ? tb.from + (tb.to - tb.from) * prog : tb.pos;
     const h = $('#sw-tbar-handle');
     if (h) {
       h.style.top = `${pos * 100}%`;
+      h.setAttribute('aria-valuenow', String(Math.round(pos * 100)));
       const f = $('#sw-tbar-fill');
-      const p = tb.drag || tb.anim ? Math.abs(pos - (tb.anim ? tb.from : tb.rest)) : 0;
-      f.style.top = `${Math.min(pos, tb.anim ? tb.from : tb.rest) * 100}%`;
+      const p = Math.abs(pos - base);
+      f.style.top = `${Math.min(pos, base) * 100}%`;
       f.style.height = `${p * 100}%`;
     }
     $('.studio')?.classList.toggle('sw-mixing', prog !== null);
@@ -457,5 +505,5 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
     }
   }
 
-  return { mount, setMode, take, cutTo, setPreview, sourceGone, refresh, syncTally, guestReset, render, setBlack, toggle: () => setMode(!S.switcher) };
+  return { mount, setMode, take, cutTo, setPreview, setPreviewFps, sourceGone, refresh, syncTally, guestReset, render, setBlack, toggle: () => setMode(!S.switcher) };
 }

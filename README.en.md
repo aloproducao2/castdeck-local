@@ -140,8 +140,8 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.3.27** — overlays above the DSK, a global selector, GC Template Studio, accordions, separated RSS,
-resize handles and coalesced undo.
-See the [releases](https://github.com/aloproducao2/castdeck-local/releases).
+Version **1.3.28** — camera no longer auto-disables, 30/60 fps guest return, preview follows PGM fps,
+playlist follow on air and overlays above the DSK. See the
+[releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

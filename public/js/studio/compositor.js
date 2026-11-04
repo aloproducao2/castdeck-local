@@ -1312,54 +1312,72 @@ export class Compositor {
   }
 }
 
-// Retorno de vídeo por convidado: a cena real do programa (PGM) exatamente como o público e o estúdio veem (estilo StreamYard).
+// Mantém o dissolve nas saídas derivadas (retorno do convidado e vertical). Elas têm tamanho
+// próprio, então cada uma copia a cena anterior para o seu `fromView()` e sincroniza o progresso
+// com o fade do PGM. Sem isso, o PGM dissolve mas a saída derivada corta seco.
+function syncDerivedTransition(v, main, owner) {
+  const mf = main.fade;
+  if (owner.cutSeq !== main.cutSeq) {
+    owner.cutSeq = main.cutSeq;
+    if (mf) {
+      v.transition(mf.manual ? 'manual' : 'mix', mf.ms || 1);
+    } else {
+      v.endMix();
+      v.snap = true;
+    }
+  }
+  if (mf) {
+    if (!v.fade) v.transition(mf.manual ? 'manual' : 'mix', mf.ms || 1);
+    if (v.fade) {
+      v.fade.t0 = mf.t0;
+      v.fade.ms = mf.ms;
+      v.fade.manual = !!mf.manual;
+      v.fade.linear = !!mf.linear;
+      v.fade.p = mf.p;
+    }
+  } else if (v.fade) {
+    v.endMix();
+  }
+}
+
+// Retorno de vídeo por convidado: espelha o quadro final do PGM, já composto.
+// Antes cada convidado tinha um Compositor completo e recompunha a cena inteira a 30 fps.
+// Agora o retorno é um drawImage do canvas do programa para 960×540: mesmo conteúdo (DSK,
+// GC, banner, transição), muito menos CPU e pronto para acompanhar 30 ou 60 fps do preset.
 export class GuestView {
-  constructor(main, guestId, { width = 960, height = 540, fps = 30 } = {}) {
+  constructor(main, guestId, { width = 960, height = 540, fps = 60 } = {}) {
     this.main = main;
     this.guestId = guestId;
-    // O loop do estúdio bate a cada 1000/fps do preset (33,3 ms a 30 fps) e o timer do Worker oscila alguns ms.
-    // Com folga de só 4 ms (e 24 fps) o retorno pulava uma volta sim, outra não, e saía a ~15 fps. Com 8 ms de folga
-    // ele acompanha cada volta a 30 fps; num preset de 60 fps continua limitado a ~30 (desenha a cada 2 voltas).
-    this.minGap = 1000 / fps - 8;
+    this.width = width;
+    this.height = height;
+    this.fps = Math.max(30, Number(fps) || 30);
+    // O ticker pode entregar 60 fps; uma folga pequena evita perder o quadro por oscilação do timer.
+    this.minGap = 1000 / this.fps - 4;
     this.lastT = 0;
-    this.tickOffset = 0;
-    this.view = new Compositor(document.createElement('canvas'));
-    this.view.setSize(width, height);
-    this.view.sources = main.sources;
-    this.view.images = main.images;
-    this.view.socialImgs = main.socialImgs;
-    this.stream = this.view.canvas.captureStream(fps);
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = width;
+    this.canvas.height = height;
+    this.ctx = this.canvas.getContext('2d', { alpha: false });
+    // captureStream(60) permite subir para 60 quando o preset mudar, sem recriar o track.
+    this.stream = this.canvas.captureStream(60);
   }
 
   get track() {
     return this.stream.getVideoTracks()[0];
   }
 
+  setFps(fps) {
+    this.fps = Math.max(30, Number(fps) || 30);
+    this.minGap = 1000 / this.fps - 4;
+  }
+
   render() {
     const now = performance.now();
     if (now - this.lastT < this.minGap) return;
     this.lastT = now;
-    const { main: m, view: v } = this;
-    v.brand = m.brand;
-    v.vfx = m.vfx;
-    v.layout = m.layout;
-    v.banner = m.banner;
-    v.social = m.social;
-    v.wg = m.wg;
-    v.solo = m.solo;
-    // mesa de corte: o convidado vê o mesmo corte exato do PGM
-    v.take = m.take;
-    if (this.cutSeq !== m.cutSeq) {
-      this.cutSeq = m.cutSeq;
-      v.snap = true;
-    }
-    // o letreiro rola com deslocamento próprio (senão avançaria duas vezes por quadro)
-    v.ticker = m.ticker ? { ...m.ticker, offset: this.tickOffset } : null;
-    v.stage = m.stage;
-    v.dsk = m.dsk; // o retorno do convidado mostra os mesmos DSKs do programa
-    v.cc = m.cc; // legenda ao vivo: mesma camada no retorno, no vertical e na prévia
-    v.render();
-    if (v.ticker) this.tickOffset = v.ticker.offset;
+    const src = this.main?.canvas;
+    if (!src?.width) return;
+    this.ctx.drawImage(src, 0, 0, this.width, this.height);
   }
 
   close() {
@@ -1405,6 +1423,7 @@ export class VerticalView {
 
   render() {
     const { main: m, view: v } = this;
+    syncDerivedTransition(v, m, this);
     v.brand = m.brand;
     v.vfx = m.vfx;
     v.layout = this.layout;
@@ -1416,10 +1435,6 @@ export class VerticalView {
     v.ftb = m.ftb; // FTB vale para as duas saídas (horizontal e vertical)
     v.dsk = m.dsk; // DSKs marcados "também no vertical" (com posição/corte próprios, ver dsk.js)
     v.cc = m.cc; // legenda ao vivo: mesma camada no retorno, no vertical e na prévia
-    if (this.cutSeq !== m.cutSeq) {
-      this.cutSeq = m.cutSeq;
-      v.snap = true;
-    }
     v.stage = m.stage;
     v.ticker = m.ticker ? { ...m.ticker, offset: this.tickOffset } : null;
     v.render();
@@ -1432,11 +1447,12 @@ export class VerticalView {
 }
 
 // Monitor de PRÉVIA da mesa de corte: mesma marca/GC do programa, com a cena escolhida para entrar no ar.
-// Só desenha na tela (sem captureStream/encoder) e a ~15 fps, para pesar pouco no PC do host.
+// A prévia acompanha o fps do PGM (30/60) — não é mais um monitor de 15 fps.
 export class PreviewView {
-  constructor(main, canvas, { width = 640, height = 360, fps = 15 } = {}) {
+  constructor(main, canvas, { width = 640, height = 360, fps = 60 } = {}) {
     this.main = main;
-    this.minGap = 1000 / fps - 8;
+    this.fps = Math.max(1, Number(fps) || 30);
+    this.minGap = 1000 / this.fps - 4;
     this.lastT = 0;
     this.tickOffset = 0;
     this.scene = { take: null, stage: null, layout: null }; // take = fonte em tela cheia; senão o palco
@@ -1445,6 +1461,11 @@ export class PreviewView {
     this.view.sources = main.sources;
     this.view.images = main.images;
     this.view.socialImgs = main.socialImgs;
+  }
+
+  setFps(fps) {
+    this.fps = Math.max(1, Number(fps) || 30);
+    this.minGap = 1000 / this.fps - 4;
   }
 
   set(scene) {

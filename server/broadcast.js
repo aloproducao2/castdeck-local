@@ -330,9 +330,19 @@ export class Broadcast extends EventEmitter {
   }
 
   write(chunk) {
-    if (this.ended || !this.enc?.stdin.writable) return;
+    if (this.ended || !this.enc?.stdin.writable) return false;
+    // O socket já foi pausado no primeiro false; não aceita mais até o drain.
+    if (this._drainPending) return false;
     this.inBytes += chunk.length;
-    this.enc.stdin.write(chunk);
+    const ok = this.enc.stdin.write(chunk);
+    if (!ok && !this._drainPending) {
+      this._drainPending = true;
+      this.enc.stdin.once('drain', () => {
+        this._drainPending = false;
+        this.emit('drain');
+      });
+    }
+    return ok;
   }
 
   get backlog() {
@@ -390,11 +400,29 @@ export class BroadcastManager {
   handleIngest(ws) {
     let bc = null;
     let statusTimer = null;
+    let wsPaused = false;
     const send = (m) => ws.readyState === 1 && ws.send(JSON.stringify(m));
+    const resumeIngest = () => {
+      if (!wsPaused) return;
+      wsPaused = false;
+      try {
+        ws._socket?.resume();
+      } catch {}
+    };
 
     ws.on('message', (data, isBinary) => {
       if (isBinary) {
-        bc?.write(data);
+        if (!bc) return;
+        const ok = bc.write(data);
+        if (!ok && !wsPaused) {
+          // FFmpeg não acompanhou: para de ler o WebSocket até o stdin drenar.
+          // Sem isso, o Node acumulava todo o vídeo em memória e podia travar/OOM.
+          wsPaused = true;
+          try {
+            ws._socket?.pause();
+          } catch {}
+          bc.once('drain', resumeIngest);
+        }
         return;
       }
       let msg;

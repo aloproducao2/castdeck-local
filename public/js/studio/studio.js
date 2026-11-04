@@ -245,6 +245,8 @@ async function boot() {
   // Camada global dos overlays em relação ao DSK (estúdios antigos assumem "atrás").
   S.brand.overlayLayers = { ...DEFAULT_BRAND.overlayLayers, ...(S.brand.overlayLayers || {}) };
   S.brand.overlayLayers.aboveDsk = !!S.brand.overlayLayers.aboveDsk;
+  // Ligado por padrão para preservar o comportamento anterior; pode ser desligado no topo.
+  S.brand.autoPlayMedia = S.brand.autoPlayMedia !== false;
   S.banners = S.studio.banners || [];
   S.gcTemplates = S.studio.gcTemplates || [];
   S.layout = S.brand.layout || 'grid';
@@ -291,6 +293,7 @@ async function buildStudio() {
         ${IS_MOBILE || S.system.platform === 'android' ? '' : `<button class="btn" id="btn-replay" title="Abrir Console de Replay & VAR em janela separada (Shift+R)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:2px"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8" fill="currentColor"></polygon></svg><span>Replay & VAR</span></button>`}
         <button class="btn mode-pill" id="btn-vertical" title="Painel de vídeo vertical 9:16 (Instagram, TikTok, Reels, Shorts) ao lado do preview" aria-pressed="false">${VERT_ICON}<span>9:16 Vertical</span></button>
       </div>
+      <button class="btn autoplay" id="btn-autoplay" type="button" aria-pressed="true" title="Auto play de vídeos ao entrar no PGM ou ao colocar no palco">${icons.play}<span class="auto-dot"></span><span class="lbl">Auto play</span><span class="auto-state">ON</span></button>
       <div class="spacer"></div>
       ${window.CDi18n ? window.CDi18n.selectHTML({ className: 'btn', short: true, id: 'studio-lang' }) : ''}
       ${S.system.platform === 'android' ? '' : `<button class="btn icon" id="btn-whatsapp" title="WhatsApp local: QR, caixa de entrada e fila do programa" aria-label="WhatsApp">${icons.whatsapp}</button>`}
@@ -1243,9 +1246,17 @@ function setStage(ids) {
   }
   for (const id of S.stage) {
     const m = S.sources.get(id);
-    if (m?.kind === 'media' && m.resume && !prev.includes(id)) {
+    if (m?.kind === 'media' && !m.camOff && !prev.includes(id)) {
+      // Colocar no palco é entrada no ar no modo Estúdio (ou na Cena sem take na Mesa).
+      // Um vídeo por vez evita duas reproduções e mistura de áudio.
+      const stageIsPgm = !S.switcher || S.take === null;
+      const shouldPlay = autoPlayMediaEnabled() && stageIsPgm;
       m.resume = false;
-      m.el.play().catch(() => {});
+      if (shouldPlay) {
+        if (m.el.ended) m.el.currentTime = 0;
+        pauseOtherVideos(id);
+        m.el.play().catch(() => {});
+      }
     }
   }
   if (S.solo && !S.stage.includes(S.solo)) S.solo = null;
@@ -1270,7 +1281,11 @@ function airKeys() {
 function applyAir(prevTake) {
   mixer.setStage(airKeys());
   const now = S.take ? S.sources.get(S.take) : null;
-  if (now?.kind === 'media' && now.el.paused && !now.el.ended) now.el.play().catch(() => {});
+  if (now?.kind === 'media' && !now.camOff && now.el.paused && autoPlayMediaEnabled()) {
+    if (now.el.ended) now.el.currentTime = 0;
+    pauseOtherVideos(S.take);
+    now.el.play().catch(() => {});
+  }
   const old = prevTake && prevTake !== S.take ? S.sources.get(prevTake) : null;
   if (old?.kind === 'media' && !S.stage.includes(prevTake) && !dsk?.uses(prevTake) && !old.el.paused) old.el.pause();
   renderTiles();
@@ -1280,7 +1295,10 @@ function applyAir(prevTake) {
 function applyDskAir({ on, sourceId, prev, ms = 0 } = {}) {
   mixer.setStage(airKeys());
   const m = sourceId ? S.sources.get(sourceId) : null;
-  if (on && m?.kind === 'media' && m.el.paused && !m.el.ended) m.el.play().catch(() => {});
+  if (on && m?.kind === 'media' && !m.camOff && m.el.paused && !m.el.ended) {
+    pauseOtherVideos(sourceId);
+    m.el.play().catch(() => {});
+  }
   // ao sair, pausa depois do fade (se a fonte não estiver no palco/no ar por outro caminho)
   const idle = (id) => {
     const x = id ? S.sources.get(id) : null;
@@ -1639,7 +1657,10 @@ function renderTiles() {
     if (s.id === 'host:screen') add(icons.stop, 'Parar compartilhamento', stopScreen, 'danger');
     if (s.kind === 'media') {
       add(s.el.paused ? icons.play : icons.stop, s.el.paused ? 'Reproduzir' : 'Pausar', () => {
-        s.el.paused ? (S.playlist.on ? playMedia(s.id) : s.el.play().catch(() => {})) : s.el.pause();
+        if (s.el.paused) {
+          pauseOtherVideos(s.id);
+          s.el.play().catch(() => {});
+        } else s.el.pause();
         renderTiles();
       });
     }
@@ -2249,6 +2270,17 @@ function bindUI() {
   const btnModeStudio = $('#btn-mode-studio');
   if (btnModeStudio) btnModeStudio.onclick = () => { if (S.switcher) switcher.toggle(); };
   $('#btn-switcher').onclick = () => switcher.toggle();
+  const btnAutoPlay = $('#btn-autoplay');
+  if (btnAutoPlay) {
+    btnAutoPlay.onclick = () => {
+      const next = !autoPlayMediaEnabled();
+      setBrand({ autoPlayMedia: next });
+      toast(next
+        ? 'Auto play ligado — vídeos começam ao entrar no PGM/palco (um por vez).'
+        : 'Auto play desligado — use Tocar manualmente.', 'info');
+    };
+    renderAutoPlayBtn();
+  }
   bindFullscreen();
   $('.studio').addEventListener('click', (ev) => {
     if (ev.target === ev.currentTarget) { ev.currentTarget.classList.remove('panel-open'); syncPanelState(); }
@@ -2689,6 +2721,16 @@ const queueList = () => {
   return S.playlist.order.map((id) => S.sources.get(id)).filter(Boolean);
 };
 const mediaList = () => queueList();
+// Auto play opcional: ligado por padrão. Desligado, entrar no PGM/palco não inicia vídeo.
+function autoPlayMediaEnabled() {
+  return S.brand?.autoPlayMedia !== false;
+}
+// Um vídeo por vez: ao iniciar/entrar no ar, pausa os outros vídeos (áudio-only fica livre).
+function pauseOtherVideos(id = null) {
+  for (const o of mediaList()) {
+    if (o.id !== id && o.kind === 'media' && !o.camOff && !o.el.paused) o.el.pause();
+  }
+}
 const queuePosition = (id) => normalizeQueue().indexOf(id) + 1;
 function queueNext(id, dir = 1) {
   const ids = normalizeQueue();
@@ -2816,7 +2858,7 @@ function playMedia(id, { followOnPlay = true } = {}) {
     deckPickT = Date.now();
   }
   const prev = followOnPlay && !s.camOff ? activeMediaOnAir(id) : null;
-  if (S.playlist.on) for (const o of mediaList()) if (o.id !== id && !o.el.paused) o.el.pause();
+  pauseOtherVideos(id);
   if (!s.camOff) {
     if (S.playlist.on) {
       // o próximo ocupa o lugar do anterior no palco
@@ -3773,6 +3815,7 @@ async function openMediaMenu(s) {
         $('#mm-vol', m).oninput = (e) => mixer.setVolume(s.id, +e.target.value);
         $('.mm-restart', m).onclick = () => {
           el.currentTime = 0;
+          pauseOtherVideos(s.id);
           el.play().catch(() => {});
           close();
         };
@@ -4279,6 +4322,23 @@ function setBrand(patch) {
   comp.setBrand(S.brand);
   saveStudio();
   if ('showNames' in patch || 'showMediaNames' in patch) renderControls();
+  if ('autoPlayMedia' in patch) renderAutoPlayBtn();
+}
+
+function renderAutoPlayBtn() {
+  const btn = $('#btn-autoplay');
+  if (!btn) return;
+  const on = autoPlayMediaEnabled();
+  btn.classList.toggle('on', on);
+  btn.classList.toggle('off', !on);
+  btn.setAttribute('aria-pressed', String(on));
+  const msg = on
+    ? 'Auto play ligado: ao entrar no PGM ou no palco, o vídeo começa a tocar (um vídeo por vez).'
+    : 'Auto play desligado: entrar no PGM ou no palco não inicia o vídeo; use Tocar manualmente.';
+  btn.title = msg;
+  btn.setAttribute('aria-label', msg);
+  const state = btn.querySelector('.auto-state');
+  if (state) state.textContent = on ? 'ON' : 'OFF';
 }
 
 function readImage(file, maxSide, type = 'image/png') {

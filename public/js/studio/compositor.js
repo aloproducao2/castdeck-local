@@ -22,6 +22,8 @@ export const DEFAULT_BRAND = {
   overlay: null, // legado: dataURL único (PNG transparente 16:9)
   overlays: [], // vários PNGs/WebPs empilhados, na ordem
   showNames: true,
+  // Auto play de vídeos ao entrar no PGM (Mesa) ou ao colocar no palco (Estúdio).
+  autoPlayMedia: true,
   nameStyle: 'bubble', // bubble | block | minimal
   corner: 14,
   padding: 'normal', // tight | normal | wide

@@ -3,6 +3,7 @@
 // Overlays do programa: banners (lower thirds) com estilos e posições, e o chat de redes sociais
 // (cartão de destaque + feed rolante). Tudo é desenhado no canvas, então vai ao ar na transmissão.
 import { hexToRgb, rgb, mix, luminance, roundRectPath } from './gfx.js';
+import { renderQr } from './widgets-draw.js';
 
 export const PLATFORMS = {
   twitch: { c: '#9146ff', l: 'Twitch' },
@@ -284,8 +285,12 @@ function drawNews(c, b, bc, p, e, tickerH, lift) {
 function drawCustom(c, b, bc, p, e, tickerH, lift) {
   const { ctx, W, H } = c;
   const data = b.data || {};
-  const sx = W / 1920;
-  const sy = H / 1080;
+  const vertical = !!c.vertical || H > W;
+  const sourceW = vertical ? 1080 : 1920;
+  const sourceH = vertical ? 1920 : 1080;
+  const layers = vertical && Array.isArray(b.verticalLayers) && b.verticalLayers.length ? b.verticalLayers : b.layers;
+  const sx = W / sourceW;
+  const sy = H / sourceH;
   const brand = `rgb(${bc[0]},${bc[1]},${bc[2]})`;
   const pick = (v) => (v === 'brand' ? brand : v || '#7c5cff');
 
@@ -294,7 +299,7 @@ function drawCustom(c, b, bc, p, e, tickerH, lift) {
   ctx.translate(0, (1 - e) * H * 0.04 + (lift || 0));
   ctx.scale(sx, sy);
 
-  for (const l of b.layers) {
+  for (const l of layers) {
     if (!l || l.hidden) continue;
     const x = Number(l.x) || 0;
     const y = Number(l.y) || 0;
@@ -320,6 +325,7 @@ function drawCustom(c, b, bc, p, e, tickerH, lift) {
       const raw = data[l.key] ?? l.text ?? '';
       const text = l.uppercase ? String(raw).toUpperCase() : String(raw);
       if (!text) continue;
+      ctx.globalAlpha = Math.max(0, Math.min(1, e)) * (l.opacity ?? 1);
       let size = Number(l.size) || 32;
       const weight = l.weight || 700;
       ctx.font = `${weight} ${size}px Inter, system-ui, sans-serif`;
@@ -336,13 +342,22 @@ function drawCustom(c, b, bc, p, e, tickerH, lift) {
         const tw = Math.min(w, ctx.measureText(text).width + size * 1.2);
         ctx.fillStyle = pick(l.bg || '#ef4444');
         ctx.fillRect(x, y, tw, h);
-        ctx.fillStyle = l.color || '#fff';
+        ctx.fillStyle = pick(l.color || '#fff');
         ctx.fillText(fitText(ctx, text, tw - size * 0.8), x + size * 0.55, y + h / 2 + size * 0.04);
       } else {
-        ctx.fillStyle = l.color || '#fff';
+        ctx.fillStyle = pick(l.color || '#fff');
         const label = l.nowrap ? fitText(ctx, text, w) : fitText(ctx, text, w);
         ctx.fillText(label, tx, y + h / 2 + size * 0.04);
       }
+      continue;
+    }
+    if (l.type === 'qr') {
+      const url = String(data[l.key] || l.url || '').trim();
+      if (!url) continue;
+      const qr = renderQr({ url, useBrand: false, color: l.qrColor || '#ffffff', showTitle: false }, c.image);
+      if (!qr) continue;
+      ctx.globalAlpha = Math.max(0, Math.min(1, e)) * (l.opacity ?? 1);
+      ctx.drawImage(qr, x, y, w, h);
       continue;
     }
     if (l.type === 'image') {

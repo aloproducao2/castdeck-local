@@ -485,6 +485,7 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
     if (h) {
       h.style.top = `${pos * 100}%`;
       h.setAttribute('aria-valuenow', String(Math.round(pos * 100)));
+      h.setAttribute('aria-valuetext', `${Math.round(pos * 100)}%`);
       const f = $('#sw-tbar-fill');
       const p = Math.abs(pos - base);
       f.style.top = `${Math.min(pos, base) * 100}%`;

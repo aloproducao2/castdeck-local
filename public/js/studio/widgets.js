@@ -340,6 +340,7 @@ export function createWidgets({ S, comp, $, $$, esc, h, toast, icons, modal, sav
               submit();
             }
           };
+          ok.onclick = submit;
           const timer = setInterval(paint, 500); // imagens carregam de forma assíncrona
           const stop = new MutationObserver(() => {
             if (!document.body.contains(m)) {

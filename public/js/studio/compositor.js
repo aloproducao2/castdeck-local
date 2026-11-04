@@ -672,7 +672,12 @@ export class Compositor {
     };
     const drawSocialAndBanner = () => {
       const socialH = this.scoped(this.social.opts.pos === 'top', () => drawSocial(this, color, now, tickerH)) || 0;
-      this.scoped(((this.banner && this.banner.pos) || 'bl')[0] === 't', () => this.drawBanner(color, now, tickerH, socialH));
+      const b = this.banner;
+      const fullVertical = this.vertical && b?.style === 'custom' && Array.isArray(b.verticalLayers) && b.verticalLayers.length;
+      // Templates com variante 9:16 ocupam a tela vertical inteira; os GCs antigos
+      // continuam na faixa 16:9 segura do compositor.
+      if (fullVertical) this.drawBanner(color, now, tickerH, socialH);
+      else this.scoped(((b && b.pos) || 'bl')[0] === 't', () => this.drawBanner(color, now, tickerH, socialH));
       return socialH;
     };
     const drawCaptionsNow = (socialH) => {

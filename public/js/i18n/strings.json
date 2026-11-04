@@ -8326,5 +8326,29 @@
   "O que aparece na tela: mídias, Playout, GCs, jornal e esportes": [
     "What appears on screen: media, Playout, GCs, news and sports",
     "Lo que aparece en pantalla: medios, Playout, GC, noticias y deportes"
+  ],
+  "Mesa vertical": [
+    "Vertical desk",
+    "Mesa vertical"
+  ],
+  "Mesa horizontal": [
+    "Horizontal desk",
+    "Mesa horizontal"
+  ],
+  "Colocar os controles na vertical, como uma mesa": [
+    "Put the controls in vertical mode, like a mixing desk",
+    "Poner los controles en vertical, como una mesa de mezclas"
+  ],
+  "Voltar aos controles horizontais": [
+    "Back to horizontal controls",
+    "Volver a los controles horizontales"
+  ],
+  "Destacar em mesa vertical": [
+    "Detach as vertical desk",
+    "Separar como mesa vertical"
+  ],
+  "Destacar o painel já em modo de mesa vertical": [
+    "Detach the panel already in vertical desk mode",
+    "Separar el panel ya en modo de mesa vertical"
   ]
 }

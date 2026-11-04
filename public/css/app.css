@@ -14,6 +14,7 @@
  *   - social.css   -> Central de redes, chat ao vivo, mensagens do público
  *   - onair.css    -> Central No Ar (REC/LIVE), AUTO-VOZ, janelas flutuantes
  *   - captions.css -> Legenda ao vivo (aba Legendas)
+ *   - grafismo.css -> Hub Grafismo, biblioteca de templates, dados e saídas
  */
 
 @import './modules/base.css';
@@ -25,3 +26,4 @@
 @import './modules/social.css';
 @import './modules/onair.css';
 @import './modules/captions.css';
+@import './modules/grafismo.css';

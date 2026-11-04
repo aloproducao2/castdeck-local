@@ -59,6 +59,34 @@ export function createAudioPanel({
   const masterSum = () => `${fmtDb(mixer.master ?? 1)} dB${mixer.masterMuted ? ' · MUTE' : ''}${mixer.dim ? ' · DIM' : ''}`;
   const monSum = () => `${Math.round((mixer.monitorVol ?? 1) * 100)}%${mixer.listenProgram ? ' · PGM' : ''}${mixer.anySolo ? ' · SOLO' : ''}`;
   const getRoot = () => (typeof container === 'string' ? $(container) : container);
+  const VIEW_KEY = 'castdeck.audio.view';
+  let audioView = (() => {
+    try {
+      return localStorage.getItem(VIEW_KEY) === 'vertical' ? 'vertical' : 'horizontal';
+    } catch {
+      return 'horizontal';
+    }
+  })();
+  function applyAudioView(view, { save = true } = {}) {
+    audioView = view === 'vertical' ? 'vertical' : 'horizontal';
+    const root = getRoot();
+    const ax = root?.querySelector('.ax');
+    ax?.classList.toggle('ax-vertical', audioView === 'vertical');
+    const btn = root?.querySelector('#ax-btn-view');
+    if (btn) {
+      const vertical = audioView === 'vertical';
+      btn.textContent = vertical ? 'Mesa horizontal' : 'Mesa vertical';
+      btn.title = vertical ? 'Voltar aos controles horizontais' : 'Colocar os controles na vertical, como uma mesa';
+      btn.setAttribute('aria-pressed', String(vertical));
+    }
+    root?.querySelectorAll('.fader-rail input[type=range]').forEach((r) => {
+      r.setAttribute('aria-orientation', audioView === 'vertical' ? 'vertical' : 'horizontal');
+      r.setAttribute('orient', audioView === 'vertical' ? 'vertical' : 'horizontal');
+    });
+    if (save) {
+      try { localStorage.setItem(VIEW_KEY, audioView); } catch {}
+    }
+  }
 
   const scaleHtml = () =>
     `<div class="vu-scale">${TICKS.map((t) => `<span style="left:${dbPos(t) * 100}%">${t === 0 ? '0' : -t}</span>`).join('')}<span class="ref" style="left:${dbPos(REF_DB) * 100}%" title="Nível de referência: −18 dBFS (0 VU)">▼</span></div>`;
@@ -92,7 +120,7 @@ export function createAudioPanel({
   function faderHtml(key, v, max = 200) {
     const pct = Math.round(v * 100);
     return `<div class="fader" data-fader="${esc(key)}">
-        <input type="range" min="0" max="${max}" step="1" value="${pct}" title="Duplo clique: volta para 100%">
+        <span class="fader-rail"><input type="range" min="0" max="${max}" step="1" value="${pct}" title="Duplo clique: volta para 100%" aria-orientation="${audioView === 'vertical' ? 'vertical' : 'horizontal'}" orient="${audioView === 'vertical' ? 'vertical' : 'horizontal'}"></span>
         <label class="pct"><input type="number" min="0" max="${max}" step="1" value="${pct}" aria-label="Volume em porcentagem">%</label>
         <span class="fdb">${fmtDb(v)} dB</span>
       </div>`;
@@ -123,7 +151,7 @@ export function createAudioPanel({
         <span class="ax-bus-id">${b}</span>
         <div class="ax-bus-meter"><i data-bus-vu="${b}"></i></div>
         <button class="ch-mute ${bus.mute ? 'on' : ''}" data-bus-mute="${b}" title="Mute do bus ${b}">M</button>
-        <input type="range" min="0" max="150" step="1" value="${pct}" data-bus-level="${b}" title="Nível do bus ${b}">
+        <span class="fader-rail bus-rail"><input type="range" min="0" max="150" step="1" value="${pct}" data-bus-level="${b}" title="Nível do bus ${b}" aria-orientation="${audioView === 'vertical' ? 'vertical' : 'horizontal'}" orient="${audioView === 'vertical' ? 'vertical' : 'horizontal'}"></span>
         <span class="ax-bus-pct" data-bus-pct="${b}">${pct}%</span>
         <select class="input sm" data-bus-dev="${b}" title="Dispositivo de saída do bus ${b}"><option value="">Sem saída</option></select>
         <button class="ax-mini" data-bus-test="${b}" title="Tom de teste na saída do bus ${b}">TESTE</button>
@@ -131,17 +159,21 @@ export function createAudioPanel({
     };
     const isFloating = !!p.closest?.('.fw') || !!p.closest?.('.fw-popout-root') || p.classList.contains('fw-panel') || !!window.__castdeck?.floatWins?.has?.('audio');
     p.innerHTML = `
-      <div class="ax">
-        ${
-          !isPopout && !isFloating
-            ? `<div class="ax-top-bar" style="display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <div class="ax ${audioView === 'vertical' ? 'ax-vertical' : ''}">
+        <div class="ax-top-bar" style="display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+          <button class="ax-popout-btn" id="ax-btn-view" aria-pressed="${audioView === 'vertical'}" title="${audioView === 'vertical' ? 'Voltar aos controles horizontais' : 'Colocar os controles na vertical, como uma mesa'}">${audioView === 'vertical' ? 'Mesa horizontal' : 'Mesa vertical'}</button>
+          ${
+            !isPopout && !isFloating
+              ? `<button class="ax-popout-btn" id="ax-btn-detach-vertical" title="Destacar o painel já em modo de mesa vertical">
+                  <span>Destacar em mesa vertical</span>
+                </button>
                 <button class="ax-popout-btn" id="ax-btn-float" title="Destacar este painel em uma janela flutuante com botão de fixar no topo (📌)">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                   <span>Destacar painel</span>
-                </button>
-              </div>`
-            : ''
-        }
+                </button>`
+              : ''
+          }
+        </div>
         <div class="ax-acc-tools">
           <button class="ax-mini" id="ax-expand-all" title="Abrir todas as seções">Expandir tudo</button>
           <button class="ax-mini" id="ax-collapse-all" title="Recolher todas as seções">Recolher tudo</button>
@@ -166,6 +198,7 @@ export function createAudioPanel({
           ${secHeadHtml('channels', 'Canais', `${rows.length} fonte${rows.length === 1 ? '' : 's'}`)}
           <div class="ax-sec-body" data-body="channels" ${isSecOpen('channels') ? '' : 'hidden'}>
         <div class="ax-title"><span>Canais</span><span class="ax-sub">${rows.length} fonte${rows.length === 1 ? '' : 's'}</span></div>
+        <div class="ax-channels">
         ${
           rows
             .map((r) => {
@@ -239,6 +272,7 @@ export function createAudioPanel({
             })
             .join('') || '<div class="hint">Nenhuma fonte de áudio.</div>'
         }
+        </div>
         <div class="vu-legend"><i class="g"></i>até −18 dBFS (nível ideal de fala) <i class="y"></i>−18 a −6 <i class="r"></i>acima de −6 (perto de distorcer)</div>
         </div>
         </section>
@@ -333,6 +367,21 @@ export function createAudioPanel({
     const masterDev = $('#ax-master-dev', p);
     if (masterDev) {
       masterDev.onchange = () => mixer.setMasterDevice(masterDev.value).catch((e) => toast(e.message, 'err'));
+    }
+    const btnView = $('#ax-btn-view', p);
+    if (btnView) btnView.onclick = () => applyAudioView(audioView === 'vertical' ? 'horizontal' : 'vertical');
+    const btnDetachVertical = $('#ax-btn-detach-vertical', p);
+    if (btnDetachVertical) {
+      btnDetachVertical.onclick = () => {
+        applyAudioView('vertical');
+        const fw = window.__castdeck?.floatWins;
+        if (fw?.open) {
+          const ok = fw.open('audio');
+          if (!ok) openAudioPopout();
+        } else {
+          openAudioPopout();
+        }
+      };
     }
     const btnFloat = $('#ax-btn-float', p);
     if (btnFloat) {
@@ -575,11 +624,12 @@ export function createAudioPanel({
   function paint(el, m, now, text) {
     if (!el) return;
     const pos = dbPos(m.disp);
+    const vertical = !!el.closest('.ax-vertical .ax-channels');
     el._mask ||= el.querySelector('.vu-mask');
     el._pk ||= el.querySelector('.vu-pk');
-    if (el._mask) el._mask.style.transform = `scaleX(${(1 - pos).toFixed(4)})`;
+    if (el._mask) el._mask.style.transform = vertical ? `scaleY(${(1 - pos).toFixed(4)})` : `scaleX(${(1 - pos).toFixed(4)})`;
     if (el._pk) {
-      el._pk.style.transform = `translateX(${(dbPos(m.hold) * 100).toFixed(2)}%)`;
+      el._pk.style.transform = vertical ? `translateY(${((1 - dbPos(m.hold)) * 100).toFixed(2)}%)` : `translateX(${(dbPos(m.hold) * 100).toFixed(2)}%)`;
       el._pk.style.opacity = m.hold > MIN_DB ? '1' : '0';
     }
     const clip = now - m.clipT < 2000;
@@ -626,7 +676,14 @@ export function createAudioPanel({
     if (isSecOpen('buses')) {
       for (const el of p.querySelectorAll('[data-bus-vu]')) {
         const b = el.dataset.busVu;
-        el.style.width = `${(dbPos(mixer.busDb(b).peak) * 100).toFixed(1)}%`;
+        const pct = `${(dbPos(mixer.busDb(b).peak) * 100).toFixed(1)}%`;
+        if (el.closest('.ax-vertical')) {
+          el.style.width = '100%';
+          el.style.height = pct;
+        } else {
+          el.style.height = '100%';
+          el.style.width = pct;
+        }
       }
     }
 
@@ -663,7 +720,8 @@ export function createAudioPanel({
         if (el && el.textContent !== val) el.textContent = val;
       };
       setSum('master', masterSum());
-      setSum('channels', `${p.querySelectorAll('[data-ch]').length} fontes`);
+      const channelCount = p.querySelectorAll('[data-ch]').length;
+      setSum('channels', `${channelCount} ${channelCount === 1 ? 'fonte' : 'fontes'}`);
       setSum('buses', `${activeBusCount()} ativo${activeBusCount() === 1 ? '' : 's'}`);
       setSum('mon', monSum());
     }

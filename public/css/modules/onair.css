@@ -856,6 +856,7 @@ body:has(.studio) #toasts { bottom: 112px; }
   }
   .lobby-form h2 { font-size: 17px; }
   .lobby-form .field { margin-bottom: 4px; }
+  .lobby-form .btn.primary { position: sticky; bottom: 0; z-index: 2; }
 }
 
 /* 2. Monitor PGM 16:9 + Selo PGM - AO VIVO */

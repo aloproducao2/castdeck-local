@@ -131,7 +131,7 @@ const TAB_GROUPS = [
     tabs: [
       ['media', 'Mídia', 'film', 'Vídeos, áudios e imagens'],
       ['playout', 'Playout', 'play', 'Fila, mini player e o que está no ar'],
-      ['banners', 'GCs & Letreiro', 'banner', 'GCs salvos, letreiro manual e notícias RSS'],
+      ['banners', 'Grafismo', 'banner', 'Grafismo: GC ao vivo, templates, dados e saídas'],
       ['journal', 'Jornal', 'news', 'GC de jornalismo, logo e etiquetas'],
       ['sports', 'Esportes', 'ball', 'Placar, cronômetro e GCs de futebol'],
     ],
@@ -354,14 +354,14 @@ async function buildStudio() {
         <button class="side-mini-btn" id="btn-detach" aria-pressed="false" title="Destacar este painel em uma janela flutuante (também: duplo clique na aba)">⧉</button>
         <button class="side-mini-btn" id="btn-side-mini" aria-pressed="false" title="Recolher o painel em ícones (economiza espaço)">${SIDE_ICON}</button>
       </div>
-      <nav class="grp-tabs" aria-label="Seções do painel">${TAB_GROUPS.map((g) => `<button class="grp" data-group="${g.id}" title="${esc(g.label)} — ${esc(g.hint)}">${icons[g.icon]}<span>${g.label}</span>${g.id === 'audience' ? '<i class="count chat-count" hidden></i>' : g.id === 'interaction' ? '<i class="count msg-count" hidden></i>' : ''}</button>`).join('')}</nav>
+      <nav class="grp-tabs" aria-label="Seções do painel">${TAB_GROUPS.map((g) => `<button class="grp" data-group="${g.id}" title="${esc(g.label)} — ${esc(g.hint)}">${icons[g.icon]}<span>${g.label}</span>${g.id === 'audience' ? '<i class="count chat-count" hidden></i>' : g.id === 'interaction' ? '<i class="count msg-count" hidden></i>' : g.id === 'content' ? '<i class="count gf-live-count" hidden></i>' : ''}</button>`).join('')}</nav>
       <div class="side-body" id="side-body">
       <div class="side-fly-head">
         <strong id="side-fly-title"></strong>
         <button class="btn sm ghost" id="side-pin" title="Deixar o painel aberto ao lado (sair do modo ícones)">Fixar</button>
         <button class="btn sm ghost icon" id="side-fly-close" title="Fechar (Esc)" aria-label="Fechar">✕</button>
       </div>
-      <nav class="tabs subtabs" aria-label="Itens da seção">${TAB_GROUPS.map((g) => g.tabs.map(([id, label, icon, hint]) => `<button class="tab" data-tab="${id}" data-group="${g.id}" title="${hint}" hidden>${icons[icon]}<span>${label}</span>${id === 'chat' ? '<i class="count chat-count" hidden></i>' : id === 'messages' ? '<i class="count msg-count" hidden></i>' : ''}</button>`).join('')).join('')}</nav>
+      <nav class="tabs subtabs" aria-label="Itens da seção">${TAB_GROUPS.map((g) => g.tabs.map(([id, label, icon, hint]) => `<button class="tab" data-tab="${id}" data-group="${g.id}" title="${hint}" hidden>${icons[icon]}<span>${label}</span>${id === 'chat' ? '<i class="count chat-count" hidden></i>' : id === 'messages' ? '<i class="count msg-count" hidden></i>' : id === 'banners' ? '<i class="count gf-live-count" hidden></i>' : ''}</button>`).join('')).join('')}</nav>
       <div class="panel" id="panel-media"></div>
       <div class="panel" id="panel-playout"></div>
       <div class="panel" id="panel-banners"></div>
@@ -424,6 +424,7 @@ async function buildStudio() {
     onAir: () => renderGcBar(),
     getGuest: () => [...S.guests.values()][0] || null,
     getHeadline: () => news.latestHeadline?.() || '',
+    allowPopout: !IS_MOBILE && S.system?.platform !== 'android',
   });
   widgets = createWidgets({ S, comp, $, $$, esc, h, toast, icons, modal, saveStudio, readImage, pickFile, api, studioId, copyText, onAir: () => renderGcBar() });
   // mensagens do público (texto/áudio pelo QR Code); o mixer é criado logo abaixo, por isso o getter
@@ -4583,6 +4584,33 @@ function initAccordions() {
     new MutationObserver(() => accordionize(p)).observe(p, { childList: true });
   }
 }
+// Lista "No ar" do Grafismo: mostra GC, banner/placar e letreiro ativos no menu.
+function renderGcAirList() {
+  const items = [];
+  if (S.activeBanner) {
+    const id = String(S.activeBanner);
+    const kind = id === 'gc:air' ? 'GC' : id.startsWith('sp:') ? 'Placar' : 'Banner';
+    items.push({ kind, title: S.activeBannerTitle || kind, id });
+  }
+  if (S.brand.tickerOn && S.brand.tickerText) items.push({ kind: 'Letreiro', title: S.brand.tickerText, id: 'ticker' });
+
+  const badges = $$('.gf-live-count');
+  for (const b of badges) {
+    b.textContent = String(items.length);
+    b.hidden = items.length === 0;
+  }
+  const box = $('#gf-air-list');
+  if (!box) return;
+  box.innerHTML = items.length
+    ? items.map((it) => `<div class="gf-air-item">
+        <span class="pill live">NO AR</span>
+        <b>${esc(it.kind)}</b>
+        <span class="gf-air-title" title="${esc(it.title)}">${esc(it.title)}</span>
+        <button type="button" class="btn ghost sm" data-air-off="${esc(it.id)}" title="Tirar do ar">✕ Tirar</button>
+      </div>`).join('')
+    : '<div class="gf-air-empty">Nada no ar.</div>';
+}
+
 function renderBannersPanel() {
   const p = $('#panel-banners');
   const rot = S.brand.bannerRotate || { on: false, secs: 10 };
@@ -4651,6 +4679,140 @@ function renderBannersPanel() {
       </details>
     </div>
   `;
+
+  // Hub Grafismo: substitui o antigo painel "GCs & Letreiro" por uma única área
+  // com operação, biblioteca, dados e saídas. Os IDs antigos continuam no DOM
+  // para preservar compatibilidade com binds/testes e com o restante do estúdio.
+  const gfHub = document.createElement('div');
+  gfHub.className = 'gf-hub';
+  const gfPane = (id) => {
+    const sec = document.createElement('section');
+    sec.className = 'gf-pane';
+    sec.dataset.gfsec = id;
+    return sec;
+  };
+  const gfTemplates = gfPane('templates');
+  const gfData = gfPane('data');
+  const gfOutputs = gfPane('outputs');
+  const gfStack = $('.gc-acc-stack', p);
+  const gfStudio = gfStack?.querySelector('details[data-sec="studio"]');
+  const gfOperator = document.createDocumentFragment();
+  if (gfStudio) {
+    const gfStudioBody = gfStudio.querySelector('.gc-acc-body');
+    if (gfStudioBody) gfOperator.append(...gfStudioBody.childNodes);
+  }
+  const gfAirBox = document.createElement('div');
+  gfAirBox.className = 'gf-air-box';
+  gfAirBox.innerHTML = `<div class="gf-pane-head"><b>No ar agora</b><button type="button" class="btn ghost sm" id="gf-air-clear">Limpar tudo</button></div><div id="gf-air-list"></div>`;
+  const gfLayerbar = $('.gc-layerbar', p);
+  if (gfLayerbar) gfOutputs.append(gfLayerbar);
+  let gfBannersBody = null;
+  let gfTickerBody = null;
+  gfStack?.querySelectorAll('details.gc-acc').forEach((d) => {
+    if (d.dataset.sec === 'studio') return;
+    const body = d.querySelector('.gc-acc-body');
+    if (d.dataset.sec === 'banners') gfBannersBody = body;
+    else if (d.dataset.sec === 'letreiro') gfTickerBody = body;
+    else { d.classList.add('acc'); gfOutputs.append(d); }
+  });
+  if (gcDesigner) {
+    gfTemplates.innerHTML = gcDesigner.galleryHtml();
+  } else {
+    gfTemplates.innerHTML = '<div class="hint">Template Studio indisponível.</div>';
+  }
+  const gfSched = Array.isArray(S.brand.gcSchedule) ? S.brand.gcSchedule : [];
+  const gfGuestCount = S.guests instanceof Map ? S.guests.size : 0;
+  const gfSchedRows = gfSched.length
+    ? gfSched.map((s) => {
+      const t = S.gcTemplates.find((x) => x.id === s.templateId);
+      return `<div class="gf-sched-item"><b>${esc(s.at)}</b><span>${esc(t?.name || 'Template removido')}</span><small>${s.dur || 0}s</small><button type="button" class="btn ghost sm" data-gf-unsched="${esc(s.id)}" title="Cancelar agendamento">×</button></div>`;
+    }).join('')
+    : '<div class="hint">Nenhum GC agendado.</div>';
+  gfData.innerHTML = `
+    <div class="gf-pane-head"><b>Dados</b><span class="hint">fontes que alimentam o GC</span></div>
+    <div class="gf-data-grid">
+      <div class="gf-data-card">
+        <span class="gf-data-kicker">Convidado</span>
+        <b>${gfGuestCount} no backstage</b>
+        <p>Puxa nome e função de quem está no palco/backstage.</p>
+        <button type="button" class="btn ghost sm" id="gf-fill-guest">Preencher do convidado</button>
+      </div>
+      <div class="gf-data-card">
+        <span class="gf-data-kicker">RSS</span>
+        <b>Manchete do Jornal</b>
+        <p>Preenche o campo de manchete com a última notícia disponível.</p>
+        <button type="button" class="btn ghost sm" id="gf-fill-rss">Preencher do RSS</button>
+      </div>
+    </div>
+    <div class="gf-data-block">
+      <div class="gf-pane-head"><b>Agendamentos</b><button type="button" class="btn ghost sm" id="gf-open-live">Abrir Ao vivo</button></div>
+      <div class="gf-sched-list">${gfSchedRows}</div>
+      <p class="hint">Para criar um agendamento, use o bloco “Agendar GC” em Ao vivo.</p>
+    </div>`;
+  gfOutputs.prepend(Object.assign(document.createElement('div'), {
+    className: 'gf-pane-head',
+    innerHTML: '<b>Saídas e legado</b><span class="hint">overlays, banners e letreiro</span>',
+  }));
+  gfOutputs.insertAdjacentHTML('beforeend', `<details class="gc-acc acc gf-help">
+    <summary>Como o Grafismo funciona</summary>
+    <div class="gc-acc-body">
+      <p class="hint" style="margin:0">Use <b>Banners</b> para lower thirds salvos, <b>Grafismo ao vivo</b>
+      para escolher o template e colocar no ar. <b>Templates</b> abre a biblioteca visual.
+      Em <b>Saídas</b> ficam overlays/legado. Jornal e Esportes continuam em abas próprias nesta fase.</p>
+    </div>
+  </details>`);
+  const gfAcc = (id, title, open, content) => {
+    const d = document.createElement('details');
+    d.className = 'gf-acc acc';
+    d.id = `gf-acc-${id}`;
+    try { d.open = localStorage.getItem(`castdeck.grafismo.acc.${id}`) === '1' || (localStorage.getItem(`castdeck.grafismo.acc.${id}`) === null && open); } catch { d.open = open; }
+    d.innerHTML = `<summary>${esc(title)}</summary><div class="gf-acc-body"></div>`;
+    if (content) d.querySelector('.gf-acc-body').append(content);
+    d.addEventListener('toggle', () => {
+      try { localStorage.setItem(`castdeck.grafismo.acc.${id}`, d.open ? '1' : '0'); } catch {}
+    });
+    return d;
+  };
+  gfHub.append(
+    gfAirBox,
+    gfAcc('banners', 'Banners', true, gfBannersBody),
+    gfAcc('live', 'Grafismo ao vivo', true, gfOperator),
+    gfAcc('letreiro', 'Letreiro & RSS', false, gfTickerBody),
+    gfAcc('templates', 'Templates', false, gfTemplates),
+    gfAcc('data', 'Dados e agendamentos', false, gfData),
+    gfAcc('outputs', 'Saídas e legado', false, gfOutputs)
+  );
+  p.replaceChildren(gfHub);
+
+  const gfSetView = (view = 'live') => {
+    const id = ['templates', 'data', 'outputs', 'letreiro', 'banners', 'live'].includes(view) ? view : 'live';
+    const d = gfHub.querySelector(`#gf-acc-${id}`);
+    if (!d) return;
+    d.open = true;
+    try { d.scrollIntoView({ block: 'nearest' }); } catch {}
+  };
+  renderGcAirList();
+  $('#gf-air-list', p)?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-air-off]');
+    if (!b) return;
+    const id = b.dataset.airOff;
+    if (id === 'ticker') {
+      S.brand.tickerOn = false;
+      news?.apply?.();
+      saveStudio();
+      renderGcBar();
+    } else if (id) toggleBanner(id);
+  });
+  $('#gf-air-clear', p)?.addEventListener('click', () => {
+    if (S.activeBanner) toggleBanner(S.activeBanner);
+    if (S.brand.tickerOn) {
+      S.brand.tickerOn = false;
+      news?.apply?.();
+      saveStudio();
+      renderGcBar();
+    }
+  });
+
   const gclFront = $('#gcl-front', p);
   if (gclFront) {
     gclFront.onchange = () => {
@@ -4734,6 +4896,25 @@ function renderBannersPanel() {
   // RSS/notícias do letreiro agora vivem junto de GCs & Letreiro (antes ficavam escondidos em Jornal).
   news?.bind(p, renderBannersPanel);
   gcDesigner?.bind(p);
+  gcDesigner?.bindGallery?.(p, {
+    onUse: () => {
+      gfSetView('live');
+      renderBannersPanel();
+    },
+  });
+  $('#gf-fill-guest', p)?.addEventListener('click', () => {
+    if (gcDesigner?.fillGuest()) gfSetView('live');
+  });
+  $('#gf-fill-rss', p)?.addEventListener('click', () => {
+    if (gcDesigner?.fillHeadline()) gfSetView('live');
+  });
+  $('#gf-open-live', p)?.addEventListener('click', () => gfSetView('live'));
+  p.querySelectorAll('[data-gf-unsched]').forEach((b) => b.addEventListener('click', () => {
+    S.brand.gcSchedule = (S.brand.gcSchedule || []).filter((s) => s.id !== b.dataset.gfUnsched);
+    saveStudio();
+    gfSetView('data');
+    renderBannersPanel();
+  }));
 }
 
 async function editBanner(id) {
@@ -4799,6 +4980,7 @@ function toggleBanner(id, data) {
 // Barra de controle (sempre visível sob o programa), compacta em uma linha:
 // GC (tirar do ar, salvos, rápido, jornal) + Mídia (escolher, tocar/pausar, anterior/próximo, posição, palco, volume) + Limpar tela
 function renderGcBar() {
+  renderGcAirList();
   const bar = $('#gcbar');
   if (!bar) return;
   const on = !!S.activeBanner;

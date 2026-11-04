@@ -36,6 +36,7 @@ function init() {
     loadPrefs,
     savePrefs,
     toggleHostMic,
+    applySpeakerMode,
     createAudioPanel,
   } = studio;
 
@@ -55,6 +56,7 @@ function init() {
     loadPrefs,
     savePrefs,
     toggleHostMic,
+    onSpeakerMode: (safe) => applySpeakerMode?.(safe),
     captureScreenAudioLoopback: () => studio.captureScreenAudioLoopback?.(),
     attachDeviceAudioToScreen: (id) => studio.attachDeviceAudioToScreen?.(id),
     detachScreenAudio: () => studio.detachScreenAudio?.(),

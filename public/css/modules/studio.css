@@ -340,6 +340,14 @@ body { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   .section-head { flex-wrap: wrap; gap: 8px; }
 }
 
+@media (max-width: 700px) and (orientation: portrait) {
+  /* Lobby em retrato: formulário rola e o CTA fica sempre visível, sem empurrar a página inteira. */
+  .lobby-card { height: 100dvh; min-height: 0; overflow: hidden; }
+  .lobby-preview { max-height: 34dvh; }
+  .lobby-form { min-height: 0; overflow-y: auto; }
+  .lobby-form .btn.primary { position: sticky; bottom: 0; z-index: 2; }
+}
+
 @media (orientation: landscape) and (max-height: 640px) and (pointer: coarse) {
   /* celular deitado: programa ao lado, controles compactos */
   .guest { grid-template-rows: 40px minmax(0, 1fr) auto; }
@@ -581,6 +589,26 @@ body { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 }
 
 @media (orientation: landscape) and (max-height: 640px) and (max-width: 1000px) {
+  /* A gaveta tem pouca altura: menu de seções em uma linha de ícones para sobrar conteúdo. */
+  .studio.is-mobile .side .grp-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 4px 4px 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .studio.is-mobile .side .grp-tabs::-webkit-scrollbar { display: none; }
+  .studio.is-mobile .side .grp {
+    flex: 1 0 56px;
+    min-width: 56px;
+    min-height: 32px;
+    padding: 3px 2px;
+    gap: 1px;
+  }
+  .studio.is-mobile .side .grp svg { width: 16px; height: 16px; }
+  .studio.is-mobile .side .grp span { display: none; }
+  .studio.is-mobile .side .subtabs { padding: 2px 4px 4px; }
+  .studio.is-mobile .side .subtabs .tab { min-height: 32px; padding: 4px 5px; font-size: 10px; }
   .studio.is-mobile .topbar #btn-whatsapp,
   .studio.is-mobile .topbar #btn-cameras,
   .studio.is-mobile .topbar #btn-remote,

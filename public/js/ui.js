@@ -94,9 +94,9 @@ export function toast(text, kind = '') {
   }, kind === 'err' ? 6000 : 3200);
 }
 
-export function modal(html, { onMount, sticky = false } = {}) {
+export function modal(html, { onMount, sticky = false, screen = false } = {}) {
   return new Promise((resolve) => {
-    const back = h(`<div class="modal-back"><div class="modal card" role="dialog" aria-modal="true">${html}</div></div>`);
+    const back = h(`<div class="modal-back${screen ? ' modal-screen-back' : ''}"><div class="modal card${screen ? ' modal-screen' : ''}" role="dialog" aria-modal="true">${html}</div></div>`);
     const card = back.firstElementChild;
     const prevFocus = document.activeElement;
     const close = (v) => {

@@ -35,7 +35,7 @@ export function createScenes({ S, comp, $, esc, toast, modal, promptDialog, conf
     return null;
   }
 
-  function apply(i) {
+  function apply(i, { cut = false } = {}) {
     const sc = list()[i];
     if (!sc) return;
     const used = new Set();
@@ -63,7 +63,8 @@ export function createScenes({ S, comp, $, esc, toast, modal, promptDialog, conf
     }
     if (offAir) {
       sw?.setPreview(null);
-      toast(t('Cena na PRÉVIA: CORTE ou AUTO põe no ar.'), 'ok');
+      if (cut) sw?.cutTo(null); // Shift+F1..F6: aplica a cena direto no PGM
+      else toast(t('Cena na PRÉVIA: CORTE ou AUTO põe no ar (Shift+F1..F6 corta a cena).'), 'ok');
     }
     if (missing > 0) toast(`${sc.name}: ${missing} ${missing > 1 ? t('fontes não estão no estúdio agora') : t('fonte não está no estúdio agora')}`);
     flash(i);
@@ -204,12 +205,12 @@ export function createScenes({ S, comp, $, esc, toast, modal, promptDialog, conf
     });
     window.addEventListener('keydown', (e) => {
       const m = /^F([1-6])$/.exec(e.key);
-      if (!m || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      if (!m || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
       if (e.target?.closest?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('.modal-back')) return;
       const i = +m[1] - 1;
       if (!list()[i]) return;
       e.preventDefault(); // F5 não recarrega a página no meio da live quando há cena nesse botão
-      apply(i);
+      apply(i, { cut: e.shiftKey });
     });
     render();
   }

@@ -84,7 +84,7 @@ const S = {
   status: null,
   local: { cam: null, mic: null, camOn: true, micOn: true, screen: null, name: 'Host' },
   mediaCount: 0,
-  playlist: { on: false, loop: false, follow: true },
+  playlist: { on: false, loop: false, follow: true, order: [] },
 };
 
 let comp, mixer, sig, programStream, broadcaster, ticker, social, news, gcDesigner, audioPanel, vfx;
@@ -127,9 +127,10 @@ const TAB_GROUPS = [
     id: 'content',
     label: 'Conteúdo',
     icon: 'film',
-    hint: 'O que aparece na tela: mídias, GCs, jornal e esportes',
+    hint: 'O que aparece na tela: mídias, Playout, GCs, jornal e esportes',
     tabs: [
       ['media', 'Mídia', 'film', 'Vídeos, áudios e imagens'],
+      ['playout', 'Playout', 'play', 'Fila, mini player e o que está no ar'],
       ['banners', 'GCs & Letreiro', 'banner', 'GCs salvos, letreiro manual e notícias RSS'],
       ['journal', 'Jornal', 'news', 'GC de jornalismo, logo e etiquetas'],
       ['sports', 'Esportes', 'ball', 'Placar, cronômetro e GCs de futebol'],
@@ -280,7 +281,7 @@ async function buildStudio() {
       <div class="brand"><span class="brand-mark">${icons.logo}</span><span class="brand-txt">CastDeck <small>Local</small></span></div>
       <div>
         <div class="title" translate="no">${esc(S.studio.name)}</div>
-        <div class="hint"><span id="guest-count">Nenhum convidado</span> <span class="save-state" id="save-state" data-state="saved" title="Todas as alterações foram salvas">Salvo</span></div>
+        <div class="hint"><span id="guest-count">Nenhum convidado</span> <span class="mode-hint" id="mode-hint" aria-live="polite"></span> <span class="save-state" id="save-state" data-state="saved" title="Todas as alterações foram salvas">Salvo</span></div>
       </div>
       <div class="live-stats" id="live-stats"></div>
       <div class="spacer"></div>
@@ -362,6 +363,7 @@ async function buildStudio() {
       </div>
       <nav class="tabs subtabs" aria-label="Itens da seção">${TAB_GROUPS.map((g) => g.tabs.map(([id, label, icon, hint]) => `<button class="tab" data-tab="${id}" data-group="${g.id}" title="${hint}" hidden>${icons[icon]}<span>${label}</span>${id === 'chat' ? '<i class="count chat-count" hidden></i>' : id === 'messages' ? '<i class="count msg-count" hidden></i>' : ''}</button>`).join('')).join('')}</nav>
       <div class="panel" id="panel-media"></div>
+      <div class="panel" id="panel-playout"></div>
       <div class="panel" id="panel-banners"></div>
         <div class="panel" id="panel-journal"></div>
       <div class="panel" id="panel-sports"></div>
@@ -481,6 +483,7 @@ async function buildStudio() {
     loadPrefs,
     savePrefs,
     toggleHostMic: () => $('#c-mic').onclick(),
+    onSpeakerMode: (safe) => applySpeakerMode(safe),
     captureScreenAudioLoopback: () => captureScreenAudioLoopback(),
     attachDeviceAudioToScreen: (id) => attachDeviceAudioToScreen(id),
     detachScreenAudio: () => detachScreenAudio(),
@@ -554,6 +557,7 @@ async function buildStudio() {
     S,
     comp,
     mixer,
+    applySpeakerMode: (safe) => applySpeakerMode(safe),
     social,
     vview,
     replayEngine,
@@ -625,6 +629,7 @@ async function buildStudio() {
     addCamera: () => openAddCamera(),
     onMode: (on) => {
       applySideForMode(on);
+      updateModeHint(on);
       autoVoice?.onMode(on);
     },
   });
@@ -695,6 +700,11 @@ async function buildStudio() {
     modal,
   });
   window.__castdeck.remote = remote;
+  // O painel do Diretor é remontado ao trocar de idioma; o bloco de controle remoto
+  // também usa t() e precisa ser recolocado depois da remontagem.
+  window.CDi18n?.onChange?.(() => {
+    if (S.tab === 'director') remote?.mountPanel();
+  });
   $('#btn-whatsapp')?.addEventListener('click', () => whatsapp?.open());
   $('#btn-cameras').onclick = () => cameras.open();
   $('#btn-remote').onclick = () => remote.openModal();
@@ -850,6 +860,31 @@ function applySideForMode(sw) {
   const v = sidePrefs()[sw ? 'switcher' : 'studio'];
   setSideMini(v ?? !!sw, { save: false });
 }
+function updateModeHint(on) {
+  const hint = $('#mode-hint');
+  if (hint) {
+    hint.textContent = on ? 'Mesa PGM · take/Cena · prévia' : 'Estúdio · palco/Solo';
+    hint.title = on
+      ? 'Mesa de corte: o PGM é o take; sem take, é a Cena (palco/Solo); a prévia é independente.'
+      : 'Modo Estúdio: o PGM é o palco/layout; tela cheia é o Solo; não existe take.';
+    hint.classList.toggle('on', !!on);
+  }
+  const studioBtn = $('#btn-mode-studio');
+  const swBtn = $('#btn-switcher');
+  studioBtn?.classList.toggle('active', !on);
+  swBtn?.classList.toggle('active', !!on);
+  studioBtn?.setAttribute('aria-pressed', String(!on));
+  swBtn?.setAttribute('aria-pressed', String(!!on));
+  // Se o painel de mídia estiver aberto, o rótulo do follow acompanha o modo sem re-renderizar tudo.
+  const follow = $('#pl-follow');
+  const followLabel = follow?.closest('label')?.querySelector('span');
+  if (followLabel) followLabel.textContent = on ? 'Seguir no PGM' : 'Seguir no palco';
+  if (follow?.closest('label')) {
+    follow.closest('label').title = on
+      ? 'Mesa: o próximo vídeo assume o take do PGM quando o atual termina'
+      : 'Estúdio: o próximo vídeo assume o Solo ou o slot do palco quando o atual termina';
+  }
+}
 // abre uma seção no painel flutuante (modo ícones) ou só troca a aba (painel fixo)
 function openSideTab(tab) {
   switchTab(tab);
@@ -885,6 +920,30 @@ function applyPreset() {
         g.peer.setMaxBitrate(g.videoSender, target);
       }
     }
+  }
+}
+
+let speakerModeBusy = false;
+async function applySpeakerMode(safe) {
+  if (speakerModeBusy) return;
+  speakerModeBusy = true;
+  try {
+    if (safe) mixer.setListenProgram(false);
+    if (S.local.mic) {
+      const mic = await getMic(loadPrefs().micId, { echoSafe: !!safe });
+      const old = S.local.mic;
+      S.local.mic = mic;
+      mixer.addStream('host:mic', mic, { ownerId: 'host', stageKey: 'host:cam', monitor: false });
+      mixer.setMuted('host:mic', !S.local.micOn, { save: false });
+      old?.getTracks?.().forEach((t) => t.stop());
+    }
+    toast(safe
+      ? 'Modo caixa de som: AEC forçado e “Ouvir programa” desligado.'
+      : 'Modo caixa desligado. O microfone volta à configuração normal.', 'ok');
+  } catch (e) {
+    toast('Não foi possível aplicar o modo caixa: ' + e.message, 'err');
+  } finally {
+    speakerModeBusy = false;
   }
 }
 
@@ -1111,6 +1170,10 @@ function removeSource(id) {
     if (s.url) URL.revokeObjectURL(s.url);
   }
   S.sources.delete(id);
+  if (s.kind === 'media') {
+    normalizeQueue();
+    if (deckSel === id) deckSel = null;
+  }
   if (S.brand.background?.type === 'video' && S.brand.background.value === id) {
     S.brand.background = { type: 'gradient', value: '' };
     comp.setBrand(S.brand);
@@ -1123,6 +1186,7 @@ function removeSource(id) {
   if (S.stage.includes(id)) setStage(S.stage.filter((x) => x !== id));
   renderTiles();
   cameras?.refresh();
+  if (tabOpen('playout')) renderPlayoutPanel();
 }
 
 // aplica um nome personalizado (usado ao restaurar a sessão)
@@ -2552,6 +2616,7 @@ function addMediaFile(file, opts = {}) {
   const s = { id, el, url, kind: 'media', label: (isAudio ? '♪ ' : '') + label, ownerId: 'host', camOff: isAudio, recordingName: opts.recordingName || '' };
   applySourceAdjust(s);
   S.sources.set(id, s);
+  normalizeQueue();
   comp.upsertSource(id, { kind: 'media', label: s.label, el, url, camOff: isAudio, adjust: s.adjust || null });
   mixer.addElement(id, el, { ownerId: 'host', stageKey: id, monitor: true });
   el.preload = 'auto';
@@ -2573,6 +2638,7 @@ function addMediaFile(file, opts = {}) {
   if (opts.silent) return s;
   if (tabOpen('media')) renderMediaPanel();
   else switchTab('media');
+  if (tabOpen('playout')) renderPlayoutPanel();
   toast(isAudio ? 'Áudio carregado — aperte Tocar' : 'Vídeo carregado — coloque no palco e aperte Tocar', 'ok');
   return s;
 }
@@ -2595,7 +2661,46 @@ async function deleteMediaFile(s) {
 }
 
 // ---- Playlist: toca os vídeos em sequência (ordem da lista), com repetição opcional da lista ----
-const mediaList = () => [...S.sources.values()].filter((x) => x.kind === 'media');
+// Fila canônica do Playout: somente vídeos/áudios, independente da ordem do Map.
+// Imagens, câmeras, telas e vídeo de fundo ficam fora dela.
+function normalizeQueue() {
+  const ids = [...S.sources.values()].filter((x) => x.kind === 'media').map((x) => x.id);
+  const valid = new Set(ids);
+  const seen = new Set();
+  const out = [];
+  for (const id of Array.isArray(S.playlist.order) ? S.playlist.order : []) {
+    if (valid.has(id) && !seen.has(id)) {
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  for (const id of ids) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  S.playlist.order = out;
+  return out;
+}
+const queueList = () => {
+  normalizeQueue();
+  return S.playlist.order.map((id) => S.sources.get(id)).filter(Boolean);
+};
+const mediaList = () => queueList();
+const queuePosition = (id) => normalizeQueue().indexOf(id) + 1;
+function queueNext(id, dir = 1) {
+  const ids = normalizeQueue();
+  if (!ids.length) return null;
+  let i = ids.indexOf(id);
+  if (i < 0) i = 0;
+  else i += dir;
+  if (i < 0 || i >= ids.length) {
+    if (!S.playlist.loop) return null;
+    i = (i + ids.length) % ids.length;
+  }
+  return S.sources.get(ids[i]) || null;
+}
 
 // Contexto do vídeo que está no ar. Estúdio usa Solo/palco; Mesa usa take/Cena/prévia.
 // A playlist só "segue" se este contexto ainda for o mesmo quando o vídeo termina.
@@ -2705,6 +2810,10 @@ function endPlaylist(ctx) {
 function playMedia(id, { followOnPlay = true } = {}) {
   const s = S.sources.get(id);
   if (!s) return;
+  if (s.kind === 'media') {
+    deckSel = id;
+    deckPickT = Date.now();
+  }
   const prev = followOnPlay && !s.camOff ? activeMediaOnAir(id) : null;
   if (S.playlist.on) for (const o of mediaList()) if (o.id !== id && !o.el.paused) o.el.pause();
   if (!s.camOff) {
@@ -2749,25 +2858,23 @@ function playlistStart() {
   const list = mediaList();
   if (!list.length) return toast('Adicione vídeos primeiro');
   S.playlist.on = true;
-  const first = list[0];
+  const selected = deckSel && S.sources.get(deckSel)?.kind === 'media' ? S.sources.get(deckSel) : null;
+  const first = selected || list[0];
   first.el.currentTime = 0;
   playMedia(first.id, { followOnPlay: false });
   renderMediaPanel();
+  if (tabOpen('playout')) renderPlayoutPanel();
 }
 
 function moveMedia(id, dir) {
-  const entries = [...S.sources.entries()];
-  const ids = entries.map(([k, v]) => (v.kind === 'media' ? k : null));
-  const media = ids.filter(Boolean);
-  const i = media.indexOf(id);
+  const ids = normalizeQueue().slice();
+  const i = ids.indexOf(id);
   const j = i + dir;
-  if (i < 0 || j < 0 || j >= media.length) return;
-  const a = entries.findIndex(([k]) => k === media[i]);
-  const b = entries.findIndex(([k]) => k === media[j]);
-  [entries[a], entries[b]] = [entries[b], entries[a]];
-  S.sources.clear();
-  for (const [k, v] of entries) S.sources.set(k, v);
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  S.playlist.order = ids;
   renderMediaPanel();
+  if (tabOpen('playout')) renderPlayoutPanel();
 }
 
 // O Chromium/Edge não decodifica alguns áudios (AC3/E-AC3/DTS) nem HEVC: se o arquivo toca sem decodificar áudio,
@@ -3133,7 +3240,7 @@ let mediaDragId = null;
 
 function renderMediaPanel() {
   const p = $('#panel-media');
-  const items = [...S.sources.values()].filter((s) => s.kind === 'media');
+  const items = mediaList();
   const imgs = [...S.sources.values()].filter((s) => s.kind === 'image');
   const yt = ytInfo();
   p.innerHTML = `
@@ -3187,7 +3294,8 @@ function renderMediaPanel() {
         <option value="audio" ${mediaFilter === 'audio' ? 'selected' : ''}>Áudio</option>
       </select>
     </div>
-    <div class="m-section-head"><h4>Biblioteca</h4><span class="hint">ordem = playlist</span></div>
+    <div class="m-section-head"><h4>Biblioteca</h4><span class="hint">ordem = fila do Playout</span></div>
+    <div class="row" style="gap:8px;align-items:center;margin:0 0 10px"><button class="btn sm primary" id="pl-open">▶ Abrir Playout</button><span class="hint">Fila, mini player e automação ficam no Playout.</span></div>
     <div id="m-list" class="m-list ${mediaView}">${
       items.length
         ? items
@@ -3221,13 +3329,7 @@ function renderMediaPanel() {
             .join('')
         : '<div class="m-empty"><b>Nenhum arquivo ainda</b><span>Adicione vídeos, áudios ou importe do YouTube.</span></div>'
     }</div>
-    <h4>Playlist</h4>
-    <div class="pl-box">
-      <div class="row" style="gap:6px"><button class="btn sm" id="pl-prev" title="Anterior">⏮</button><button class="btn sm primary grow" id="pl-start">▶ Tocar playlist</button><button class="btn sm" id="pl-next" title="Próximo">⏭</button></div>
-      <label class="check pl-opt"><span>Tocar um após o outro</span><span class="switch"><input type="checkbox" id="pl-on" ${S.playlist.on ? 'checked' : ''}><span></span></span></label>
-      <label class="check pl-opt" title="No modo Estúdio segue o Solo/palco; no modo Mesa segue o take do PGM"><span>Seguir vídeo no ar</span><span class="switch"><input type="checkbox" id="pl-follow" ${S.playlist.follow !== false ? 'checked' : ''}><span></span></span></label>
-      <label class="check pl-opt"><span>Repetir a lista</span><span class="switch"><input type="checkbox" id="pl-loop" ${S.playlist.loop ? 'checked' : ''}><span></span></span></label>
-    </div>`;
+    <p class="hint" style="margin:8px 0 0">A biblioteca acima é a fila. Para operar, abra o Playout.</p>`;
   // vídeos primeiro: é a seção que o operador mais usa ao vivo
   moveMediaSectionFirst(p);
   $('#m-add', p).onclick = () => $('#media-file').click();
@@ -3274,13 +3376,7 @@ function renderMediaPanel() {
     [...(e.dataTransfer?.files || [])].filter((f) => /^(image|video|audio)\//.test(f.type)).forEach(addMediaFile);
   };
   $('#m-names', p).onchange = (e) => setBrand({ showMediaNames: e.target.checked });
-  $('#pl-on', p).onchange = (e) => (S.playlist.on = e.target.checked);
-  $('#pl-follow', p).onchange = (e) => (S.playlist.follow = e.target.checked);
-  $('#pl-loop', p).onchange = (e) => (S.playlist.loop = e.target.checked);
-  $('#pl-start', p).onclick = playlistStart;
-  const cur = () => mediaList().find((x) => !x.el.paused)?.id || mediaList()[0]?.id;
-  $('#pl-next', p).onclick = () => cur() && playlistStep(cur(), 1);
-  $('#pl-prev', p).onclick = () => cur() && playlistStep(cur(), -1);
+  $('#pl-open', p).onclick = () => openSideTab('playout');
   // visualização grade/lista
   $$('#m-view button', p).forEach((b) => {
     b.onclick = () => {
@@ -3372,23 +3468,273 @@ function renderMediaPanel() {
   updateMediaRows();
 }
 
+// ---- Playout: fila canônica + mini player estável (painel separado de Mídia) ----
+var playoutSig = null;
+
+function playoutCurrent() {
+  const list = mediaList();
+  if (deckSel && list.some((x) => x.id === deckSel)) return deckSel;
+  const playing = list.find((x) => !x.el.paused && !x.el.ended);
+  deckSel = playing?.id || list[0]?.id || null;
+  return deckSel;
+}
+
+function paintPlayoutThumb(cv, s) {
+  if (!cv || !s) return;
+  const ctx = cv.getContext('2d');
+  const W = cv.width;
+  const H = cv.height;
+  const el = s.el;
+  if (!s.camOff && el?.videoWidth) {
+    const sc = Math.max(W / el.videoWidth, H / el.videoHeight);
+    const dw = el.videoWidth * sc;
+    const dh = el.videoHeight * sc;
+    ctx.drawImage(el, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    return;
+  }
+  const g = ctx.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, '#191a2b');
+  g.addColorStop(1, '#0c0d16');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(160,150,255,.8)';
+  ctx.font = '700 34px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('♪', W / 2, H / 2 + 2);
+}
+
+function playoutAdvance(dir = 1) {
+  const list = mediaList();
+  if (!list.length) return;
+  const curId = playoutCurrent();
+  const cur = S.sources.get(curId);
+  if (!cur) return;
+  const next = queueNext(curId, dir);
+  if (!next) return toast(dir > 0 ? 'Fim da fila' : 'Início da fila');
+  const wasPlaying = !cur.el.paused || cur.el.ended;
+  next.el.currentTime = 0;
+  deckSel = next.id;
+  if (wasPlaying) playMedia(next.id);
+  else {
+    tickDeck();
+    if (tabOpen('playout')) renderPlayoutPanel();
+  }
+}
+
+function renderPlayoutPanel() {
+  const p = $('#panel-playout');
+  if (!p) return;
+  const list = mediaList();
+  if (!list.length) {
+    playoutSig = '';
+    p.innerHTML = `<div class="pl-empty"><b>Nenhum vídeo ou áudio na fila</b><span>Adicione arquivos na aba Mídia para começar.</span><button class="btn primary" id="pl-open-media">Abrir Mídia</button></div>`;
+    $('#pl-open-media', p).onclick = () => openSideTab('media');
+    return;
+  }
+  const curId = playoutCurrent();
+  const cur = S.sources.get(curId);
+  const next = queueNext(curId, 1);
+  const sig = list.map((x) => x.id + '|' + x.label).join(',');
+  playoutSig = sig;
+  const duration = fmtClock(cur?.el?.duration);
+  const pos = queuePosition(curId);
+  p.innerHTML = `
+    <div class="pl-title-row">
+      <div><h3>${icons.play} Playout</h3><p class="hint">Fila, mini player e automação. A biblioteca fica em Mídia.</p></div>
+      <button class="btn sm" id="pl-open-media">Mídia</button>
+    </div>
+    <section class="pl-now" id="pl-now">
+      <div class="pl-now-thumb"><canvas id="pl-thumb" width="320" height="180"></canvas><span class="pl-now-badge" id="pl-now-badge"></span></div>
+      <div class="pl-now-body">
+        <div class="pl-eyebrow">Agora</div>
+        <b id="pl-now-title">${esc(cur?.label || '')}</b>
+        <small id="pl-now-sub">#${pos || 1}/${list.length} · ${duration}</small>
+        <div class="pl-prog" id="pl-prog" title="Clique para buscar"><i></i></div>
+        <div class="pl-now-row">
+          <span id="pl-now-time">0:00 / ${duration}</span>
+          <span class="grow"></span>
+          <button class="btn sm icon" id="pl-prev" title="Anterior na fila">⏮</button>
+          <button class="btn sm icon primary" id="pl-play" title="Tocar/Pausar">▶</button>
+          <button class="btn sm icon" id="pl-next" title="Próximo na fila">⏭</button>
+          <input type="range" class="pl-vol" id="pl-vol" min="0" max="1" step="0.01" title="Volume" aria-label="Volume">
+          <button class="btn sm" id="pl-stage" title="Colocar/tirar do palco">Palco</button>
+        </div>
+      </div>
+    </section>
+    <div class="pl-nextup"><span>Próximo</span><b id="pl-nextup-title">${next ? esc(next.label) : 'Fim da fila'}</b></div>
+    <section class="pl-queue">
+      <div class="pl-queue-head"><b>Fila</b><span class="hint">${list.length} ${list.length === 1 ? 'item' : 'itens'} · arraste para ordenar</span></div>
+      <div class="pl-list" id="pl-list">${list.map((s, i) => {
+        const onAir = S.take === s.id;
+        const onStage = S.stage.includes(s.id);
+        const playing = !s.el.paused && !s.el.ended;
+        return `<div class="pl-item ${s.id === curId ? 'current' : ''} ${onAir ? 'on-air' : onStage ? 'on-stage' : ''} ${playing ? 'playing' : ''}" data-plid="${esc(s.id)}" draggable="true">
+          <span class="pl-idx">${i + 1}</span>
+          <canvas class="pl-item-thumb" width="128" height="72" data-plthumb></canvas>
+          <div class="pl-item-info"><b>${esc(String(s.label).replace(/^[^\p{L}\p{N}]+/u, ''))}</b><small>${onAir ? 'No ar' : onStage ? 'No palco' : playing ? 'Tocando' : fmtClock(s.el.duration)}</small></div>
+          <button class="btn sm icon" data-plcue title="Selecionar sem tocar">•</button>
+          <button class="btn sm icon" data-plmore title="Mais ações">⋯</button>
+        </div>`;
+      }).join('')}</div>
+    </section>
+    <section class="pl-auto">
+      <label class="check pl-opt"><span>Tocar um após o outro</span><span class="switch"><input type="checkbox" id="pl-on" ${S.playlist.on ? 'checked' : ''}><span></span></span></label>
+      <label class="check pl-opt" title="${S.switcher ? 'Mesa: o próximo vídeo assume o take do PGM quando o atual termina' : 'Estúdio: o próximo vídeo assume o Solo ou o slot do palco quando o atual termina'}"><span>${S.switcher ? 'Seguir no PGM' : 'Seguir no palco'}</span><span class="switch"><input type="checkbox" id="pl-follow" ${S.playlist.follow !== false ? 'checked' : ''}><span></span></span></label>
+      <label class="check pl-opt"><span>Repetir a lista</span><span class="switch"><input type="checkbox" id="pl-loop" ${S.playlist.loop ? 'checked' : ''}><span></span></span></label>
+      <button class="btn sm primary" id="pl-start">▶ Tocar playlist</button>
+    </section>`;
+  $('#pl-open-media', p).onclick = () => openSideTab('media');
+  $('#pl-play', p).onclick = () => {
+    const s = S.sources.get(playoutCurrent());
+    if (!s) return;
+    if (s.el.ended) {
+      s.el.currentTime = 0;
+      playMedia(s.id);
+    } else if (s.el.paused) playMedia(s.id);
+    else s.el.pause();
+    renderPlayoutPanel();
+  };
+  $('#pl-prev', p).onclick = () => playoutAdvance(-1);
+  $('#pl-next', p).onclick = () => playoutAdvance(1);
+  $('#pl-stage', p).onclick = () => {
+    const s = S.sources.get(playoutCurrent());
+    if (s) toggleStage(s.id);
+    renderPlayoutPanel();
+  };
+  $('#pl-vol', p).oninput = (e) => {
+    const s = S.sources.get(playoutCurrent());
+    if (s) mixer.setVolume(s.id, +e.target.value);
+  };
+  $('#pl-prog', p).onclick = (e) => {
+    const s = S.sources.get(playoutCurrent());
+    if (!s?.el?.duration) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    s.el.currentTime = ((e.clientX - r.left) / r.width) * s.el.duration;
+  };
+  $('#pl-start', p).onclick = () => {
+    playlistStart();
+    renderPlayoutPanel();
+  };
+  for (const [id, key] of [['pl-on', 'on'], ['pl-follow', 'follow'], ['pl-loop', 'loop']]) {
+    const el = $('#' + id, p);
+    if (el) el.onchange = (e) => {
+      S.playlist[key] = e.target.checked;
+      tickDeck();
+    };
+  }
+  p.querySelectorAll('[data-plid]').forEach((row) => {
+    const s = S.sources.get(row.dataset.plid);
+    if (!s) return;
+    row.querySelector('canvas[data-plthumb]') && paintPlayoutThumb(row.querySelector('canvas[data-plthumb]'), s);
+    row.onclick = (e) => {
+      if (e.target.closest('button[data-plmore]')) return;
+      if (e.target.closest('button[data-plcue]')) {
+        deckSel = s.id;
+        tickDeck();
+        renderPlayoutPanel();
+        return;
+      }
+      deckSel = s.id;
+      tickDeck();
+      renderPlayoutPanel();
+    };
+    row.ondblclick = () => {
+      s.el.currentTime = 0;
+      playMedia(s.id);
+      renderPlayoutPanel();
+    };
+    $('[data-plmore]', row).onclick = (e) => {
+      e.stopPropagation();
+      openMediaMenu(s).then(() => {
+        if (tabOpen('playout')) renderPlayoutPanel();
+      });
+    };
+    row.ondragstart = (e) => {
+      if (e.target.closest('button')) return e.preventDefault();
+      mediaDragId = s.id;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    };
+    row.ondragend = () => {
+      mediaDragId = null;
+      p.querySelectorAll('.pl-item').forEach((x) => x.classList.remove('dragging', 'drop-before', 'drop-after'));
+    };
+    row.ondragover = (e) => {
+      if (!mediaDragId || mediaDragId === s.id) return;
+      e.preventDefault();
+      const r = row.getBoundingClientRect();
+      row.classList.toggle('drop-before', e.clientY < r.top + r.height / 2);
+      row.classList.toggle('drop-after', e.clientY >= r.top + r.height / 2);
+    };
+    row.ondragleave = () => row.classList.remove('drop-before', 'drop-after');
+    row.ondrop = (e) => {
+      e.preventDefault();
+      const before = row.classList.contains('drop-before');
+      row.classList.remove('drop-before', 'drop-after');
+      if (mediaDragId && mediaDragId !== s.id) reorderMedia(mediaDragId, s.id, before);
+    };
+  });
+  updatePlayout();
+}
+
+function updatePlayout() {
+  if (!tabOpen('playout')) return;
+  const p = $('#panel-playout');
+  if (!p || !$('#pl-now', p)) return;
+  const list = mediaList();
+  const curId = playoutCurrent();
+  const cur = S.sources.get(curId);
+  if (!cur) return renderPlayoutPanel();
+  const sig = list.map((x) => x.id + '|' + x.label).join(',');
+  if (sig !== playoutSig) return renderPlayoutPanel();
+  const el = cur.el;
+  const pos = queuePosition(curId);
+  const cv = $('#pl-thumb', p);
+  if (cv) paintPlayoutThumb(cv, cur);
+  $('#pl-now-title', p).textContent = cur.label || '';
+  $('#pl-now-sub', p).textContent = `#${pos || 1}/${list.length} · ${fmtClock(el.duration)}`;
+  $('#pl-now-time', p).textContent = `${fmtClock(el.currentTime)} / ${fmtClock(el.duration)}`;
+  $('#pl-now-badge', p).textContent = S.take === cur.id ? 'NO AR' : S.stage.includes(cur.id) ? 'NO PALCO' : '';
+  $('#pl-now-badge', p).className = 'pl-now-badge' + (S.take === cur.id ? ' live' : S.stage.includes(cur.id) ? ' stage' : '');
+  const prog = $('#pl-prog i', p);
+  if (prog) prog.style.width = el.duration ? `${Math.min(100, (el.currentTime / el.duration) * 100)}%` : '0%';
+  const play = $('#pl-play', p);
+  if (play) play.textContent = el.ended ? '↻' : el.paused ? '▶' : '⏸';
+  const vol = $('#pl-vol', p);
+  if (vol && document.activeElement !== vol) vol.value = mixer.sources.get(cur.id)?.volume ?? 1;
+  const stage = $('#pl-stage', p);
+  if (stage) stage.textContent = S.take === cur.id ? 'No ar' : S.stage.includes(cur.id) ? 'No palco' : 'Palco';
+  const nxt = queueNext(curId, 1);
+  $('#pl-nextup-title', p).textContent = nxt ? nxt.label : 'Fim da fila';
+  const rows = p.querySelectorAll('[data-plid]');
+  rows.forEach((row) => {
+    const s = S.sources.get(row.dataset.plid);
+    if (!s) return;
+    row.classList.toggle('current', s.id === curId);
+    row.classList.toggle('on-air', S.take === s.id);
+    row.classList.toggle('on-stage', S.stage.includes(s.id));
+    row.classList.toggle('playing', !s.el.paused && !s.el.ended);
+    const st = $('small', row);
+    if (st) st.textContent = S.take === s.id ? 'No ar' : S.stage.includes(s.id) ? 'No palco' : !s.el.paused && !s.el.ended ? 'Tocando' : fmtClock(s.el.duration);
+  });
+}
+
 function moveMediaSectionFirst(p) {
   const hs = [...p.children].filter((n) => n.tagName === 'H4');
   const v = hs.find((n) => n.textContent.includes('Vídeos e áudios'));
-  const pl = hs.find((n) => n.textContent.trim().startsWith('Playlist'));
   const img = hs.find((n) => n.textContent.includes('Imagens'));
-  if (!v || !pl || !img) return;
+  if (!v || !img) return;
   if (!(img.compareDocumentPosition(v) & Node.DOCUMENT_POSITION_FOLLOWING)) return;
   const r = document.createRange();
   r.setStartBefore(v);
-  r.setEndBefore(pl);
+  r.setEndBefore(img);
   const frag = r.extractContents();
   p.insertBefore(frag, p.querySelector('.ytdl-box') || img);
 }
 
 function reorderMedia(fromId, toId, before = true) {
-  const list = mediaList();
-  const ids = list.map((s) => s.id);
+  const ids = normalizeQueue().slice();
   const from = ids.indexOf(fromId);
   const to = ids.indexOf(toId);
   if (from < 0 || to < 0 || from === to) return;
@@ -3396,12 +3742,10 @@ function reorderMedia(fromId, toId, before = true) {
   let at = ids.indexOf(toId);
   if (!before) at++;
   ids.splice(Math.max(0, at), 0, fromId);
-  const entries = [...S.sources.entries()];
-  let mi = 0;
-  const rebuilt = entries.map(([k, v]) => (v.kind === 'media' ? [ids[mi], S.sources.get(ids[mi++])] : [k, v]));
-  S.sources.clear();
-  for (const [k, v] of rebuilt) S.sources.set(k, v);
+  S.playlist.order = ids;
+  // A ordem da fila mudou: o cursor continua no mesmo ID; as duas telas são leves.
   renderMediaPanel();
+  if (tabOpen('playout')) renderPlayoutPanel();
   updateMediaRows();
 }
 
@@ -3802,7 +4146,7 @@ function tabOpen(t) {
   return S.tab === t || !!floatWins?.has(t);
 }
 function renderTabContent(tab) {
-  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, audio: renderAudioPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, outputs: () => outputs.open() })[tab]?.();
+  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, outputs: () => outputs.open() })[tab]?.();
 }
 
 // marca nas abas da lateral quais estão destacadas e cuida do botão ⧉
@@ -4462,7 +4806,7 @@ function renderGcBar() {
   if (!$('.deck-gc', bar)) {
     bar.innerHTML = `
       <div class="deck-sec deck-gc"><span class="deck-lbl">GC / Lower Thirds</span><div class="deck-gc-body"></div></div>
-      <div class="deck-sec deck-media" id="deck-media"><span class="deck-lbl">Mídia Player</span><div class="deck-media-body"></div></div>
+      <div class="deck-sec deck-media" id="deck-media"><span class="deck-lbl" role="button" tabindex="0" title="Abrir o painel Playout">Playout</span><div class="deck-media-body"></div></div>
       <div class="deck-sec deck-dsk" id="deck-dsk"></div>
       <div class="deck-sec deck-dir" id="deck-dir"></div>
       <button class="btn sm deck-clear" id="deck-clear" title="Limpar tela: tira o GC/placar/widgets do ar e pausa todas as mídias">⏹<span class="deck-txt"> Limpar Tela</span></button>`;
@@ -4476,6 +4820,17 @@ function renderGcBar() {
       toast('GC, placar e widgets fora do ar e mídias pausadas');
     };
     deckSig = null;
+    const dmLabel = $('#deck-media .deck-lbl', bar);
+    if (dmLabel) {
+      const openPlayout = () => openSideTab('playout');
+      dmLabel.onclick = openPlayout;
+      dmLabel.onkeydown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openPlayout();
+        }
+      };
+    }
   }
   const all = S.banners;
   const spItems = sports?.gcItems() || [];
@@ -4535,8 +4890,8 @@ function tickDeck() {
   if (!box) return;
   const list = mediaList();
   const playing = list.find((x) => !x.el.paused);
-  // Foco inteligente: o mini player segue o que está NA TELA MAIOR. Se não houver um take de mídia,
-  // olha o palco (Cena no ar); se o palco tiver mídia, ela manda — mesmo pausada. Só depois vem a prévia.
+  // Operabilidade: o mini player segue o que está NA TELA MAIOR, como antes.
+  // Take de mídia > palco (Cena) > prévia. A fila define a ordem; a tela define a seleção.
   const mediaId = (id) => (id && S.sources.get(id)?.kind === 'media' ? id : null);
   let focused = mediaId(S.take);
   if (!focused && S.take === null) {
@@ -4551,7 +4906,7 @@ function tickDeck() {
   if (sig !== deckSig) {
     deckSig = sig;
     box.innerHTML = list.length
-      ? `<select class="input deck-sel" id="dm-sel" title="Escolher vídeo/áudio">${list.map((x, i) => `<option value="${x.id}">${list.length > 1 ? `${i + 1}. ` : ''}${esc(String(x.label).replace(/^[^\p{L}\p{N}]+/u, ''))}</option>`).join('')}</select>
+      ? `<select class="input deck-sel" id="dm-sel" title="Fila do Playout — escolher vídeo/áudio">${list.map((x, i) => `<option value="${x.id}">${`${i + 1}/${list.length}`} · ${esc(String(x.label).replace(/^[^\p{L}\p{N}]+/u, ''))}</option>`).join('')}</select>
          <button class="btn sm icon" id="dm-prev" title="Anterior">⏮</button>
          <button class="btn sm icon primary" id="dm-play" title="Tocar/Pausar"></button>
          <button class="btn sm icon" id="dm-next" title="Próximo">⏭</button>
@@ -4636,6 +4991,7 @@ function tickDeck() {
   const vol = $('#dm-vol', box);
   if (document.activeElement !== vol) vol.value = mixer.sources.get(s.id)?.volume ?? 1;
   $('#deck-media').classList.toggle('playing', !el.paused);
+  if (tabOpen('playout')) updatePlayout();
 }
 
 async function gcQuick() {

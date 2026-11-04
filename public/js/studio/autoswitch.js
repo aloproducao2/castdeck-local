@@ -94,39 +94,76 @@ export function createAutoVoice({ S, comp, mixer, switcher, $, toast, setSolo, o
   function mountPanel() {
     const root = $('#panel-director');
     if (!root || $('#dir-panel')) return;
+    const secOpen = (k, def) => {
+      try {
+        const v = localStorage.getItem('castdeck.dirsec.' + k);
+        return v === null ? def : v === '1';
+      } catch {
+        return def;
+      }
+    };
     root.innerHTML = `<div class="dir-panel" id="dir-panel">
         <div class="dp-head"><b>${t('Diretor automático')}</b></div>
-        <section class="dp-sec dp-cut">
-          <label class="check dp-row"><span><b>${t('Corte inteligente')}</b><small id="dp-mode">&nbsp;</small></span><span class="switch"><input type="checkbox" id="dp-cut"><span></span></span></label>
-          <div class="dp-lbl">${t('Perfil')}</div>
-          <div class="sw-prof dp-prof" id="sw-prof">${Object.entries(PROFILES).map(([k, p]) => `<button data-prof="${k}" title="${t(p.hint)}">${t(p.label)}</button>`).join('')}</div>
-          <div class="dp-lbl">${t('Sensibilidade da voz')}</div>
-          <div class="dp-seg" id="sw-sens" role="group">
-            <button data-sens="low" title="${t('Só voz forte (ambiente barulhento)')}">${t('Baixa')}</button><button data-sens="mid" title="${t('Média')}">${t('Média')}</button><button data-sens="high" title="${t('Pega voz baixa (ambiente silencioso)')}">${t('Alta')}</button>
+
+        <details class="gc-acc dir-acc" data-dsec="cut" ${secOpen('cut', true) ? 'open' : ''}>
+          <summary>${t('Corte inteligente')}</summary>
+          <div class="gc-acc-body">
+            <section class="dp-sec dp-cut">
+              <label class="check dp-row"><span><b>${t('Ativar corte automático')}</b><small id="dp-mode">&nbsp;</small></span><span class="switch"><input type="checkbox" id="dp-cut"><span></span></span></label>
+              <div class="dp-lbl">${t('Perfil')}</div>
+              <div class="sw-prof dp-prof" id="sw-prof">${Object.entries(PROFILES).map(([k, p]) => `<button data-prof="${k}" title="${t(p.hint)}">${t(p.label)}</button>`).join('')}</div>
+              <div class="dp-lbl">${t('Sensibilidade da voz')}</div>
+              <div class="dp-seg" id="sw-sens" role="group">
+                <button data-sens="low" title="${t('Só voz forte (ambiente barulhento)')}">${t('Baixa')}</button><button data-sens="mid" title="${t('Média')}">${t('Média')}</button><button data-sens="high" title="${t('Pega voz baixa (ambiente silencioso)')}">${t('Alta')}</button>
+              </div>
+              <div id="dp-ritmo-row"><div class="dp-lbl">${t('Velocidade do Ritmo')}</div>
+              ${seg('dp-ritmo-spd', 'rs', [['calm', 'Calmo', 'Troca de cena a cada ~12-22 s'], ['mid', 'Normal', 'Troca de cena a cada ~7-14 s'], ['fast', 'Agitado', 'Troca de cena a cada ~4-8 s']])}</div>
+            </section>
           </div>
-          <div id="dp-ritmo-row"><div class="dp-lbl">${t('Velocidade do Ritmo')}</div>
-          ${seg('dp-ritmo-spd', 'rs', [['calm', 'Calmo', 'Troca de cena a cada ~12-22 s'], ['mid', 'Normal', 'Troca de cena a cada ~7-14 s'], ['fast', 'Agitado', 'Troca de cena a cada ~4-8 s']])}</div>
-        </section>
-        <section class="dp-sec dp-duck">
-          <label class="check dp-row"><span><b>${t('Áudio inteligente')}</b><small>${t('Quem fala abaixa música e vídeos; volta quando termina')}</small></span><span class="switch"><input type="checkbox" id="dp-duck"><span></span></span></label>
-          <div class="dp-lbl">${t('Quanto abaixar')}</div>
-          ${seg('dp-duck-lvl', 'dl', [['soft', 'Leve −8 dB', 'Música ainda audível'], ['mid', 'Média −14 dB', 'Equilibrado'], ['hard', 'Forte −22 dB', 'Quase some']])}
-          <div class="dp-lbl">${t('Demora para voltar')}</div>
-          ${seg('dp-duck-rel', 'dr', [['fast', 'Rápida', 'Volta em ~0,6 s'], ['mid', 'Normal', 'Volta em ~1,4 s'], ['slow', 'Lenta', 'Volta em ~2,8 s']])}
-          <div class="dp-st" id="dp-duck-st"></div>
-        </section>
-        <section class="dp-sec dp-help">
-          <b>${t('Como funciona')}</b>
-          <ul>
-            <li>${t('Mesa de corte ligada: o Diretor corta o programa para quem fala (ou vídeo/tela com som).')}</li>
-            <li>${t('Modo normal: quem fala fica em tela cheia; silêncio ou conversa volta ao layout.')}</li>
-            <li>${t('Perfil Ritmo: alterna layouts, tira do palco quem não fala por um tempo e reage a quem começa a falar. Ao desligar, o palco volta como estava.')}</li>
-            <li>${t('Um corte manual seu pausa o Diretor por 10 s.')}</li>
-            <li>${t('O áudio inteligente funciona nos dois modos, com o corte ligado ou não.')}</li>
-          </ul>
-        </section>
+        </details>
+
+        <details class="gc-acc dir-acc" data-dsec="duck" ${secOpen('duck', true) ? 'open' : ''}>
+          <summary>${t('Áudio inteligente')}</summary>
+          <div class="gc-acc-body">
+            <section class="dp-sec dp-duck">
+              <label class="check dp-row"><span><b>${t('Ativar áudio inteligente')}</b><small>${t('Quem fala abaixa música e vídeos; volta quando termina')}</small></span><span class="switch"><input type="checkbox" id="dp-duck"><span></span></span></label>
+              <div class="dp-lbl">${t('Quanto abaixar')}</div>
+              ${seg('dp-duck-lvl', 'dl', [['soft', 'Leve −8 dB', 'Música ainda audível'], ['mid', 'Média −14 dB', 'Equilibrado'], ['hard', 'Forte −22 dB', 'Quase some']])}
+              <div class="dp-lbl">${t('Demora para voltar')}</div>
+              ${seg('dp-duck-rel', 'dr', [['fast', 'Rápida', 'Volta em ~0,6 s'], ['mid', 'Normal', 'Volta em ~1,4 s'], ['slow', 'Lenta', 'Volta em ~2,8 s']])}
+              <div class="dp-st" id="dp-duck-st"></div>
+            </section>
+          </div>
+        </details>
+
+        <details class="gc-acc dir-acc" data-dsec="remote" ${secOpen('remote', false) ? 'open' : ''}>
+          <summary>${t('Controle remoto')}</summary>
+          <div class="gc-acc-body" id="dir-remote-slot"></div>
+        </details>
+
+        <details class="gc-acc dir-acc" data-dsec="help" ${secOpen('help', false) ? 'open' : ''}>
+          <summary>${t('Como funciona')}</summary>
+          <div class="gc-acc-body">
+            <section class="dp-sec dp-help">
+              <ul>
+                <li>${t('Mesa de corte ligada: o Diretor corta o programa para quem fala (ou vídeo/tela com som).')}</li>
+                <li>${t('Modo normal: quem fala fica em tela cheia; silêncio ou conversa volta ao layout.')}</li>
+                <li>${t('Perfil Ritmo: alterna layouts, tira do palco quem não fala por um tempo e reage a quem começa a falar. Ao desligar, o palco volta como estava.')}</li>
+                <li>${t('Um corte manual seu pausa o Diretor por 10 s.')}</li>
+                <li>${t('O áudio inteligente funciona nos dois modos, com o corte ligado ou não.')}</li>
+              </ul>
+            </section>
+          </div>
+        </details>
       </div>`;
     const p = $('#dir-panel');
+    p.querySelectorAll('details.dir-acc').forEach((d) => {
+      d.addEventListener('toggle', () => {
+        try {
+          localStorage.setItem('castdeck.dirsec.' + d.dataset.dsec, d.open ? '1' : '0');
+        } catch {}
+      });
+    });
     $('#dp-cut').onchange = (e) => setOn(e.target.checked);
     $('#dp-duck').onchange = (e) => setDuck(e.target.checked);
     p.addEventListener('click', (e) => {
@@ -486,6 +523,33 @@ export function createAutoVoice({ S, comp, mixer, switcher, $, toast, setSolo, o
     expect = curTake();
     paint();
   }
+
+  // O painel usa t() no HTML; ao trocar o idioma, remonta para não ficar preso no idioma anterior.
+  window.CDi18n?.onChange?.(() => {
+    const panel = $('#dir-panel');
+    if (panel) {
+      panel.remove();
+      mountPanel();
+      paint();
+    }
+    const deckLabel = document.querySelector('#deck-dir .deck-lbl');
+    if (deckLabel) deckLabel.textContent = t('Diretor Auto-Voz');
+    const swVoice = $('#sw-voice');
+    if (swVoice) {
+      swVoice.title = t('DIRETOR AUTO: corta sozinho para quem fala, para vídeos/telas com som e (Show) para quem se mexe. No modo normal, destaca em tela cheia quem fala. Um corte manual pausa por 10 s');
+      for (const n of swVoice.childNodes) {
+        if (n.nodeType === 3 && n.textContent.trim()) {
+          n.textContent = t('DIRETOR AUTO');
+          break;
+        }
+      }
+    }
+    const swDuck = $('#sw-duck');
+    if (swDuck) swDuck.title = t('Áudio inteligente: quando alguém fala, música e vídeos abaixam sozinhos');
+    const dirOpen = $('#dir-open');
+    if (dirOpen) dirOpen.title = t('Painel do Diretor');
+    paint();
+  });
 
   return { mount, mountPanel, paint, tick, onMode, setOn, setDuck, get on() { return on; }, get sens() { return sens; }, get duckOn() { return duckOn; }, get ducking() { return duckState; } };
 }

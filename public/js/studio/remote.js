@@ -464,7 +464,15 @@ export function createRemote({ S, comp, mixer, getSig, studioId, getSwitcher, ge
       box = document.createElement('section');
       box.id = 'remote-box';
       box.className = 'dp-sec dp-remote';
-      dp.insertBefore(box, dp.querySelector('.dp-help') || null);
+    }
+    // O controle remoto é uma seção do acordeão do Diretor.
+    const slot = dp.querySelector('#dir-remote-slot');
+    if (slot) {
+      if (box.parentElement !== slot) slot.appendChild(box);
+    } else if (!box.isConnected) {
+      const anchor = dp.querySelector('details.dir-acc[data-dsec="help"]') || dp.querySelector(':scope > .dp-help');
+      if (anchor) dp.insertBefore(box, anchor);
+      else dp.appendChild(box);
     }
     paintInto(box);
   }

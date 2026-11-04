@@ -140,8 +140,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.3.28** — camera no longer auto-disables, 30/60 fps guest return, preview follows PGM fps,
-playlist follow on air and overlays above the DSK. See the
+Version **1.3.29** — Playout with queue and mini player, automatic director accordions, PT/EN/ES translations and echo help. See the
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

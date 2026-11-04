@@ -141,8 +141,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **1.3.28** — cámara sin desactivación automática, retorno 30/60 fps, previa al fps del PGM,
-playlist siguiendo el vídeo al aire y overlays sobre el DSK. Consulta los
+Versión **1.3.29** — Playout con cola y mini player, Director automático en acordeón, traducciones PT/EN/ES y ayuda de eco. Consulta los
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

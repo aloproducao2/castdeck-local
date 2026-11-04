@@ -183,6 +183,7 @@ check('renomear: aparece na barra do palco', await host.ev(`[...document.querySe
 await host.ev(`(async()=>{const c=document.createElement('canvas');c.width=320;c.height=180;const x=c.getContext('2d');const st=c.captureStream(30);const rec=new MediaRecorder(st,{mimeType:'video/webm;codecs=vp8'});const ch=[];rec.ondataavailable=e=>ch.push(e.data);const iv=setInterval(()=>{x.fillStyle='#'+Math.floor(Math.random()*0xffffff).toString(16).padStart(6,'0');x.fillRect(0,0,320,180)},33);rec.start();await new Promise(r=>setTimeout(r,1500));rec.stop();await new Promise(r=>rec.onstop=r);clearInterval(iv);const dt=new DataTransfer();dt.items.add(new File(ch,'segundo.webm',{type:'video/webm'}));const inp=document.querySelector('#media-file');inp.files=dt.files;inp.dispatchEvent(new Event('change'))})()`);
 check('2o video adicionado sem tocar', await waitFor(host, `!!__castdeck.S.sources.get('media:2') && __castdeck.S.sources.get('media:2').el.paused`));
 await host.ev(`document.querySelector('.tab[data-tab=media]').click()`); await sleep(300);
+await host.ev(`document.querySelector('#pl-open').click()`); await sleep(300);
 await host.ev(`(()=>{const m=__castdeck.S.sources.get('media:1').el;m.loop=false;m.pause();document.querySelector('#pl-on').click();document.querySelector('#pl-start').click()})()`); await sleep(600);
 check('playlist: comeca pelo primeiro', await host.ev(`!__castdeck.S.sources.get('media:1').el.paused`));
 await host.ev(`__castdeck.S.sources.get('media:1').el.dispatchEvent(new Event('ended'))`); await sleep(600);

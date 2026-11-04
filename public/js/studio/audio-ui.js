@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
 // Mesa de áudio do estúdio (aba Áudio): estilo console de broadcast simples.
+import { openEchoHelp } from '../audio-help.js';
 //  - Master do programa com medidores L/R em dBFS (escala -60…0, referência -18 dBFS = 0 VU),
 //    retenção de pico, LED de clip e indicador do limitador.
 //  - Canais com fader em % (e dB), mudo e redução de ruído (RNNoise) liga/desliga + intensidade.
@@ -27,6 +28,7 @@ export function createAudioPanel({
   loadPrefs,
   savePrefs,
   toggleHostMic,
+  onSpeakerMode,
   captureScreenAudioLoopback,
   attachDeviceAudioToScreen,
   detachScreenAudio,
@@ -258,9 +260,12 @@ export function createAudioPanel({
             <div class="ax-head"><span class="ax-badge">MON</span><b>Retorno</b><span class="ax-sub">o que você ouve</span></div>
             <div class="ax-row"><span class="ax-lbl">Volume</span>${faderHtml('__mon', mixer.monitorVol ?? 1, 150)}</div>
             <label class="check" style="justify-content:space-between;margin:6px 0"><span>Ouvir a saída do programa (o que vai ao ar)</span><span class="switch"><input type="checkbox" id="mon-prog" ${mixer.listenProgram ? 'checked' : ''}><span></span></span></label>
+            <label class="check" style="justify-content:space-between;margin:6px 0"><span>Estou usando caixa de som</span><span class="switch"><input type="checkbox" id="mon-speaker" ${loadPrefs().speakerMode ? 'checked' : ''}><span></span></span></label>
+            <p class="hint" id="mon-echo-hint" style="margin:2px 0 8px"></p>
+            <button class="btn sm ghost" id="mon-echo-help" type="button" style="margin:0 0 8px">? Como evitar eco</button>
             <div class="row" style="gap:8px;align-items:flex-end">
               <label class="field" style="flex:1;margin:0"><span>Saída de áudio</span><select class="input" id="spk"></select></label>
-              <button class="btn sm" id="mon-beep">${icons.play} Testar</button>
+              <button class="btn sm" id="mon-beep" title="Tocar um tom curto na saída escolhida">${icons.play} Testar saída</button>
             </div>
             <p class="hint">Use fones para evitar microfonia. Seu microfone nunca volta para você; cada convidado recebe um mix sem a própria voz (mix-minus).</p>
           </section>
@@ -461,10 +466,34 @@ export function createAudioPanel({
         toast(e.target.checked ? 'Você está ouvindo a saída do programa (inclui seu microfone: use fones).' : 'Voltou ao retorno normal.');
       };
     }
+    const monSpeaker = $('#mon-speaker', p);
+    const echoHint = $('#mon-echo-hint', p);
+    const paintEchoHint = () => {
+      if (!echoHint) return;
+      const label = $('#spk', p)?.selectedOptions?.[0]?.textContent || '';
+      const headset = /headphone|headset|fone|earbud|auricular/i.test(label);
+      if (monSpeaker?.checked) echoHint.innerHTML = '<b>Modo caixa de som ativo:</b> AEC forçado e “Ouvir programa” desligado. Use fone para a melhor qualidade.';
+      else if (label && !/padrão do sistema|default/i.test(label) && !headset) echoHint.innerHTML = '<b>Caixa de som selecionada:</b> ative “Estou usando caixa de som” ou use fone para evitar eco.';
+      else echoHint.textContent = 'Se estiver usando caixa de som, ative o modo acima. Fone continua sendo a melhor opção.';
+    };
+    if (monSpeaker) {
+      monSpeaker.onchange = () => {
+        if (monSpeaker.checked) {
+          mixer.setListenProgram(false);
+          const prog = $('#mon-prog', p);
+          if (prog) prog.checked = false;
+        }
+        savePrefs({ speakerMode: monSpeaker.checked });
+        paintEchoHint();
+        onSpeakerMode?.(monSpeaker.checked);
+      };
+    }
     const monBeep = $('#mon-beep', p);
     if (monBeep) {
       monBeep.onclick = () => mixer.beep();
     }
+    const echoHelp = $('#mon-echo-help', p);
+    if (echoHelp) echoHelp.onclick = () => openEchoHelp();
     for (const row of $$('[data-bus-row]', p)) {
       const b = row.dataset.busRow;
       const mute = $('[data-bus-mute]', row);
@@ -502,7 +531,9 @@ export function createAudioPanel({
         sel.onchange = () => {
           mixer.setSpeaker(sel.value).catch((e) => toast(e.message, 'err'));
           savePrefs({ speakerId: sel.value });
+          paintEchoHint();
         };
+        paintEchoHint();
       }
       const busOpts = '<option value="">Sem saída</option>' + speakers.map((d) => `<option value="${d.deviceId}">${esc(d.label || 'Saída')}</option>`).join('');
       for (const dev of $$('[data-bus-dev]', p)) {

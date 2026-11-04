@@ -2176,7 +2176,7 @@
     "Doble clic o F para pantalla completa"
   ],
   "Duplo clique: volta para 100%": [
-    "Double-click: back to 100%",
+    "Double-click: reset to 100%",
     "Doble clic: vuelve al 100%"
   ],
   "Duração do AUTO": [
@@ -3597,7 +3597,7 @@
   ],
   "ligado": [
     "on",
-    "encendido"
+    "activado"
   ],
   "Ligar o link para convidados": [
     "Turn on the guest link",
@@ -5021,7 +5021,7 @@
   ],
   "pausado": [
     "paused",
-    "en pausa"
+    "pausado"
   ],
   "Pausar": [
     "Pause",
@@ -6188,7 +6188,7 @@
     "Texto de la etiqueta"
   ],
   "Texto que rola na parte inferior da tela": [
-    "Text that scrolls along the bottom of the screen",
+    "Text that scrolls at the bottom of the screen",
     "Texto que se desplaza en la parte inferior de la pantalla"
   ],
   "Texto sobre o programa": [
@@ -6834,5 +6834,1497 @@
   "MODO VAR": [
     "VAR MODE",
     "MODO VAR"
+  ],
+  "DIRETOR AUTO: corta sozinho para quem fala, para vídeos/telas com som e (Show) para quem se mexe. No modo normal, destaca em tela cheia quem fala. Um corte manual pausa por 10 s": [
+    "AUTO DIRECTOR: cuts automatically to whoever speaks, to videos/screens with sound and (Show) to whoever moves. In normal mode, puts the speaker full screen. A manual cut pauses it for 10 s",
+    "DIRECTOR AUTO: corta solo a quien habla, a vídeos/pantallas con sonido y (Show) a quien se mueve. En modo normal, pone al hablante a pantalla completa. Un corte manual lo pausa 10 s"
+  ],
+  "DIRETOR AUTO": [
+    "AUTO DIRECTOR",
+    "DIRECTOR AUTO"
+  ],
+  "Áudio inteligente: quando alguém fala, música e vídeos abaixam sozinhos": [
+    "Smart audio: when someone speaks, music and videos duck automatically",
+    "Audio inteligente: cuando alguien habla, la música y los vídeos bajan solos"
+  ],
+  "Painel do Diretor": [
+    "Director Panel",
+    "Panel del Director"
+  ],
+  "Diretor automático": [
+    "Automatic director",
+    "Director automático"
+  ],
+  "Corte inteligente": [
+    "Smart switching",
+    "Corte inteligente"
+  ],
+  "Perfil": [
+    "Profile",
+    "Perfil"
+  ],
+  "Sensibilidade da voz": [
+    "Voice sensitivity",
+    "Sensibilidad de voz"
+  ],
+  "Só voz forte (ambiente barulhento)": [
+    "Loud voice only (noisy room)",
+    "Solo voz fuerte (ambiente ruidoso)"
+  ],
+  "Baixa": [
+    "Low",
+    "Baja"
+  ],
+  "Média": [
+    "Medium",
+    "Media"
+  ],
+  "Alta": [
+    "High",
+    "Alta"
+  ],
+  "Pega voz baixa (ambiente silencioso)": [
+    "Picks up quiet voices (silent room)",
+    "Capta voz baja (ambiente silencioso)"
+  ],
+  "Velocidade do Ritmo": [
+    "Rhythm speed",
+    "Velocidad de Ritmo"
+  ],
+  "Áudio inteligente": [
+    "Smart audio",
+    "Audio inteligente"
+  ],
+  "Quem fala abaixa música e vídeos; volta quando termina": [
+    "Speech lowers music and videos; returns when it ends",
+    "Quien habla baja música y vídeos; vuelve al terminar"
+  ],
+  "Quanto abaixar": [
+    "Duck amount",
+    "Cuánto bajar"
+  ],
+  "Demora para voltar": [
+    "Return delay",
+    "Demora en volver"
+  ],
+  "Como funciona": [
+    "How it works",
+    "Cómo funciona"
+  ],
+  "Mesa de corte ligada: o Diretor corta o programa para quem fala (ou vídeo/tela com som).": [
+    "Cutting mode: the Director cuts the program to whoever speaks (or video/screen with sound).",
+    "Modo de corte: el Director corta el programa a quien habla (o vídeo/pantalla con sonido)."
+  ],
+  "Modo normal: quem fala fica em tela cheia; silêncio ou conversa volta ao layout.": [
+    "Normal mode: the speaker goes full screen; silence or conversation returns to the layout.",
+    "Modo normal: quien habla va a pantalla completa; el silencio o la conversación vuelve al diseño."
+  ],
+  "Perfil Ritmo: alterna layouts, tira do palco quem não fala por um tempo e reage a quem começa a falar. Ao desligar, o palco volta como estava.": [
+    "Rhythm profile: switches layouts, removes non-speaking sources from the stage temporarily and reacts when someone starts speaking. Turning it off restores the previous stage.",
+    "Perfil Ritmo: alterna diseños, quita temporalmente del escenario a quien no habla y reacciona cuando alguien empieza a hablar. Al apagarlo, el escenario vuelve como estaba."
+  ],
+  "Um corte manual seu pausa o Diretor por 10 s.": [
+    "A manual cut pauses the Director for 10 s.",
+    "Un corte manual pausa el Director 10 s."
+  ],
+  "O áudio inteligente funciona nos dois modos, com o corte ligado ou não.": [
+    "Smart audio works in both modes, whether switching is on or off.",
+    "El audio inteligente funciona en ambos modos, con el corte activado o no."
+  ],
+  "DIRETOR AUTO ligado: quem fala (ou vídeo com som) vai para o ar. Corte manual pausa por 10 s.": [
+    "AUTO DIRECTOR on: the speaker (or video with sound) goes on air. Manual cut pauses for 10 s.",
+    "DIRECTOR AUTO activo: quien habla (o vídeo con sonido) sale al aire. Un corte manual pausa 10 s."
+  ],
+  "DIRETOR AUTO ligado: quem fala fica em tela cheia; silêncio ou conversa volta ao layout normal.": [
+    "AUTO DIRECTOR on: the speaker goes full screen; silence or conversation returns to the normal layout.",
+    "DIRECTOR AUTO activo: quien habla va a pantalla completa; el silencio o la conversación vuelve al diseño normal."
+  ],
+  "Áudio inteligente ligado: música e vídeos abaixam quando alguém fala.": [
+    "Smart audio on: music and videos duck when someone speaks.",
+    "Audio inteligente activo: la música y los vídeos bajan cuando alguien habla."
+  ],
+  "Mesa de corte: corta para quem fala": [
+    "Cutting mode: cuts to the speaker",
+    "Modo de corte: corta a quien habla"
+  ],
+  "Modo normal: quem fala vai para tela cheia": [
+    "Normal mode: the speaker goes full screen",
+    "Modo normal: quien habla va a pantalla completa"
+  ],
+  "Reduzindo música e vídeos": [
+    "Ducking music and videos",
+    "Bajando música y vídeos"
+  ],
+  "Aguardando fala": [
+    "Waiting for speech",
+    "Esperando voz"
+  ],
+  "Podcast": [
+    "Podcast",
+    "Podcast"
+  ],
+  "Show": [
+    "Show",
+    "Show"
+  ],
+  "Ritmo": [
+    "Rhythm",
+    "Ritmo"
+  ],
+  "Igreja": [
+    "Church",
+    "Iglesia"
+  ],
+  "Calmo": [
+    "Calm",
+    "Tranquilo"
+  ],
+  "Normal": [
+    "Normal",
+    "Normal"
+  ],
+  "Agitado": [
+    "Lively",
+    "Agitado"
+  ],
+  "Leve −8 dB": [
+    "Light −8 dB",
+    "Suave −8 dB"
+  ],
+  "Média −14 dB": [
+    "Medium −14 dB",
+    "Media −14 dB"
+  ],
+  "Forte −22 dB": [
+    "Strong −22 dB",
+    "Fuerte −22 dB"
+  ],
+  "Rápida": [
+    "Fast",
+    "Rápida"
+  ],
+  "Lenta": [
+    "Slow",
+    "Lenta"
+  ],
+  "Troca de cena a cada ~12-22 s": [
+    "Scene change every ~12–22 s",
+    "Cambio de escena cada ~12–22 s"
+  ],
+  "Troca de cena a cada ~7-14 s": [
+    "Scene change every ~7–14 s",
+    "Cambio de escena cada ~7–14 s"
+  ],
+  "Troca de cena a cada ~4-8 s": [
+    "Scene change every ~4–8 s",
+    "Cambio de escena cada ~4–8 s"
+  ],
+  "Música ainda audível": [
+    "Music still audible",
+    "Música aún audible"
+  ],
+  "Equilibrado": [
+    "Balanced",
+    "Equilibrado"
+  ],
+  "Quase some": [
+    "Almost gone",
+    "Casi desaparece"
+  ],
+  "Volta em ~0,6 s": [
+    "Returns in ~0.6 s",
+    "Vuelve en ~0,6 s"
+  ],
+  "Volta em ~1,4 s": [
+    "Returns in ~1.4 s",
+    "Vuelve en ~1,4 s"
+  ],
+  "Volta em ~2,8 s": [
+    "Returns in ~2.8 s",
+    "Vuelve en ~2,8 s"
+  ],
+  "Conversa: corta rápido para quem fala; gestos aceleram o corte; dois falando = Cena": [
+    "Conversation: cuts quickly to the speaker; gestures speed up the cut; two speaking = Scene",
+    "Conversación: corta rápido a quien habla; los gestos aceleran el corte; dos hablando = Escena"
+  ],
+  "Dinâmico: cortes rápidos, varia os planos e busca a câmera com mais movimento": [
+    "Dynamic: fast cuts, varies shots and seeks the camera with more movement",
+    "Dinámico: cortes rápidos, varía planos y busca la cámara con más movimiento"
+  ],
+  "Dinâmico: alterna layouts (solo, dupla, PiP, destaque, grade), tira do palco quem não fala e traz de volta, e reage a quem começa a falar": [
+    "Dynamic: switches layouts (solo, duo, PiP, highlight, grid), removes non-speakers from the stage and brings them back, and reacts when someone starts speaking",
+    "Dinámico: alterna diseños (solo, dúo, PiP, destacado, cuadrícula), quita del escenario a quien no habla y lo trae de vuelta, y reacciona cuando alguien empieza a hablar"
+  ],
+  "Calmo: fica na Cena (plano aberto) e só corta para falas longas, com cortes lentos": [
+    "Calm: stays on the Scene (wide shot) and only cuts for long speech, with slow cuts",
+    "Tranquilo: permanece en la Escena (plano abierto) y solo corta para hablas largas, con cortes lentos"
+  ],
+  "Seguir no palco": [
+    "Follow on stage",
+    "Seguir en el escenario"
+  ],
+  "Seguir no PGM": [
+    "Follow on PGM",
+    "Seguir en PGM"
+  ],
+  "Estúdio · palco/Solo": [
+    "Studio · stage/Solo",
+    "Estudio · escenario/Solo"
+  ],
+  "Mesa PGM · take/Cena · prévia": [
+    "PGM switcher · take/Scene · preview",
+    "Mesa PGM · take/Escena · previa"
+  ],
+  "Reabrir câmera": [
+    "Reopen camera",
+    "Reabrir cámara"
+  ],
+  "A câmera parou. Clique para tentar reabrir sem perder o áudio.": [
+    "The camera stopped. Click to try reopening it without losing audio.",
+    "La cámara se detuvo. Haz clic para intentar reabrirla sin perder el audio."
+  ],
+  "A câmera parou de enviar imagem. O áudio continua; use \"Reabrir câmera\" quando quiser.": [
+    "The camera stopped sending video. Audio continues; use \"Reopen camera\" when you want.",
+    "La cámara dejó de enviar imagen. El audio continúa; usa \"Reabrir cámara\" cuando quieras."
+  ],
+  "Testar alto-falante": [
+    "Test speaker",
+    "Probar altavoz"
+  ],
+  "? Como evitar eco": [
+    "? How to avoid echo",
+    "? Cómo evitar el eco"
+  ],
+  "Testar saída": [
+    "Test output",
+    "Probar salida"
+  ],
+  "Estou usando caixa de som": [
+    "I am using speakers",
+    "Estoy usando altavoces"
+  ],
+  "Como evitar eco": [
+    "How to avoid echo",
+    "Cómo evitar el eco"
+  ],
+  "Fone de ouvido (melhor)": [
+    "Headphones (best)",
+    "Auriculares (mejor)"
+  ],
+  "AEC não é garantia": [
+    "AEC is not a guarantee",
+    "La AEC no es una garantía"
+  ],
+  "Teste com o convidado": [
+    "Test with your guest",
+    "Prueba con tu invitado"
+  ],
+  "Mix-minus não é AEC:": [
+    "Mix-minus is not AEC:",
+    "El mix-minus no es AEC:"
+  ],
+  "Áudio puro / música:": [
+    "Raw audio / music:",
+    "Audio puro / música:"
+  ],
+  "Rede: será verificada ao entrar.": [
+    "Network: checked when you join.",
+    "Red: se comprobará al entrar."
+  ],
+  "Prefira fone. Com caixa de som, o microfone pode captar o programa e gerar eco para todos.": [
+    "Prefer headphones. With speakers, the microphone can pick up the program and cause echo for everyone.",
+    "Prefiere auriculares. Con altavoces, el micrófono puede captar el programa y generar eco para todos."
+  ],
+  "Eco acontece quando o áudio que sai pela caixa de som volta pelo microfone. O app tenta ajudar, mas a acústica e o navegador mandam mais que qualquer botão.": [
+    "Echo happens when audio from the speakers comes back through the microphone. The app tries to help, but acoustics and the browser matter more than any button.",
+    "El eco ocurre cuando el audio de los altavoces vuelve por el micrófono. La app intenta ayudar, pero la acústica y el navegador mandan más que cualquier botón."
+  ],
+  "O fone impede o som de chegar ao microfone. É a solução mais confiável para host e convidados.": [
+    "Headphones keep sound from reaching the microphone. It is the most reliable solution for host and guests.",
+    "Los auriculares impiden que el sonido llegue al micrófono. Es la solución más fiable para anfitrión e invitados."
+  ],
+  "Ative “Estou usando caixa de som” no painel de áudio, abaixe o volume e afaste o microfone da caixa. Evite ligar “Ouvir programa”.": [
+    "Turn on “I am using speakers” in the audio panel, lower the volume and move the microphone away from the speakers. Avoid “Listen to program”.",
+    "Activa “Estoy usando altavoces” en el panel de audio, baja el volumen y aleja el micrófono de los altavoces. Evita “Escuchar programa”."
+  ],
+  "O cancelamento de eco do navegador pode reduzir o problema, mas falha com volume alto, Bluetooth, atraso ou double-talk. O modo caixa força AEC, mas não promete silêncio absoluto.": [
+    "Browser echo cancellation can reduce the problem, but it fails with loud volume, Bluetooth, delay or double-talk. Speaker mode forces AEC, but does not promise absolute silence.",
+    "La cancelación de eco del navegador puede reducir el problema, pero falla con volumen alto, Bluetooth, retraso o double-talk. El modo altavoces fuerza AEC, pero no promete silencio absoluto."
+  ],
+  "Use Testar alto-falante e peça ao convidado para confirmar se ouve a própria voz atrasada. Se ouvir, o eco pode estar no host ou no convidado.": [
+    "Use Test speaker and ask the guest to confirm whether they hear their own delayed voice. If so, echo may be on the host or the guest.",
+    "Usa Probar altavoz y pide al invitado que confirme si oye su propia voz con retraso. Si es así, el eco puede estar en el anfitrión o en el invitado."
+  ],
+  "o convidado não ouve a própria voz no retorno do CastDeck. Isso evita uma parte do eco, mas não impede o microfone do host de captar a caixa de som.": [
+    "the guest does not hear their own voice in the CastDeck return. This avoids part of the echo, but does not stop the host microphone from picking up the speakers.",
+    "el invitado no oye su propia voz en el retorno de CastDeck. Esto evita parte del eco, pero no impide que el micrófono del anfitrión capte los altavoces."
+  ],
+  "desliga AEC/NS/AGC. Com caixa de som, isso pode piorar o eco; use fone.": [
+    "turns off AEC/NS/AGC. With speakers, this can make echo worse; use headphones.",
+    "desactiva AEC/NS/AGC. Con altavoces, esto puede empeorar el eco; usa auriculares."
+  ],
+  "Se o eco continuar, o caminho mais seguro é fone com cabo/USB. O modo caixa e o AEC são ajuda, não substituto de uma boa acústica.": [
+    "If echo continues, the safest path is wired/USB headphones. Speaker mode and AEC are helpers, not a replacement for good acoustics.",
+    "Si el eco continúa, el camino más seguro son auriculares con cable/USB. El modo altavoces y AEC son ayudas, no un sustituto de una buena acústica."
+  ],
+  "Wi-Fi / rede local": [
+    "Wi-Fi / local network",
+    "Wi-Fi / red local"
+  ],
+  "Este computador (só teste)": [
+    "This computer (test only)",
+    "Este equipo (solo prueba)"
+  ],
+  "Testando…": [
+    "Testing…",
+    "Probando…"
+  ],
+  "Criando um link público temporário…": [
+    "Creating a temporary public link…",
+    "Creando un enlace público temporal…"
+  ],
+  "Link público pronto. Use-o se o celular não alcançar a rede local.": [
+    "Public link ready. Use it if the phone cannot reach the local network.",
+    "Enlace público listo. Úsalo si el móvil no alcanza la red local."
+  ],
+  "O túnel não ficou pronto. Verifique sua internet ou use a rede local.": [
+    "The tunnel is not ready. Check your internet or use the local network.",
+    "El túnel no está listo. Revisa tu internet o usa la red local."
+  ],
+  "Falha ao criar o túnel: ": [
+    "Failed to create the tunnel: ",
+    "Error al crear el túnel: "
+  ],
+  "controle(s) conectado(s)": [
+    "controller(s) connected",
+    "control(es) conectado(s)"
+  ],
+  "com vídeo": [
+    "with video",
+    "con vídeo"
+  ],
+  "Nenhum controle conectado": [
+    "No controllers connected",
+    "Ningún control conectado"
+  ],
+  "Controle remoto no celular": [
+    "Remote control on your phone",
+    "Control remoto en el móvil"
+  ],
+  "Mesa de corte completa no celular, sem enviar câmera nem microfone.": [
+    "Full switching desk on your phone, without sending camera or microphone.",
+    "Mesa de corte completa en el móvil, sin enviar cámara ni micrófono."
+  ],
+  "Aponte a câmera do celular": [
+    "Point your phone camera",
+    "Apunta la cámara del móvil"
+  ],
+  "Rede": [
+    "Network",
+    "Red"
+  ],
+  "Link de acesso": [
+    "Access link",
+    "Enlace de acceso"
+  ],
+  "Abrir o controle neste computador (teste)": [
+    "Open the controller on this computer (test)",
+    "Abrir el control en este equipo (prueba)"
+  ],
+  "Abrir no PC": [
+    "Open on PC",
+    "Abrir en PC"
+  ],
+  "Ocultar QR": [
+    "Hide QR",
+    "Ocultar QR"
+  ],
+  "Mostrar QR": [
+    "Show QR",
+    "Mostrar QR"
+  ],
+  "Testar rede": [
+    "Test network",
+    "Probar red"
+  ],
+  "Usar link da Internet": [
+    "Use internet link",
+    "Usar enlace de Internet"
+  ],
+  "Criar link pela Internet": [
+    "Create internet link",
+    "Crear enlace por Internet"
+  ],
+  "Permitir vídeo no controle": [
+    "Allow video on controller",
+    "Permitir vídeo en el control"
+  ],
+  "Mostra o PGM no celular (gasta rede). Cada controle liga ou desliga o seu.": [
+    "Shows PGM on your phone (uses network). Each controller turns it on or off.",
+    "Muestra el PGM en el móvil (usa red). Cada control lo activa o desactiva."
+  ],
+  "Se o celular não abrir: confirme que está na mesma rede Wi-Fi, desligue os dados móveis e permita o CastDeck no firewall do Windows.": [
+    "If the phone does not open: confirm it is on the same Wi-Fi, turn off mobile data and allow CastDeck through Windows Firewall.",
+    "Si el móvil no abre: confirma que está en la misma Wi-Fi, desactiva datos móviles y permite CastDeck en el firewall de Windows."
+  ],
+  "Cena na PRÉVIA: CORTE ou AUTO põe no ar (Shift+F1..F6 corta a cena).": [
+    "Scene in PREVIEW: CUT or AUTO puts it on air (Shift+F1..F6 cuts the scene).",
+    "Escena en PREVIEW: CORTE o AUTO la pone al aire (Shift+F1..F6 corta la escena)."
+  ],
+  "fontes não estão no estúdio agora": [
+    "sources are not in the studio now",
+    "fuentes no están en el estudio ahora"
+  ],
+  "fonte não está no estúdio agora": [
+    "source is not in the studio now",
+    "fuente no está en el estudio ahora"
+  ],
+  "Expandir barra de cenas (F1–F6)": [
+    "Expand scene bar (F1–F6)",
+    "Expandir barra de escenas (F1–F6)"
+  ],
+  "Recolher barra de cenas (economiza espaço)": [
+    "Collapse scene bar (saves space)",
+    "Contraer barra de escenas (ahorra espacio)"
+  ],
+  "Visualização da mídia": [
+    "Media view",
+    "Vista de medios"
+  ],
+  "Grade com miniaturas": [
+    "Thumbnail grid",
+    "Cuadrícula de miniaturas"
+  ],
+  "Buscar vídeo por nome…": [
+    "Search video by name…",
+    "Buscar vídeo por nombre…"
+  ],
+  "Filtrar mídia": [
+    "Filter media",
+    "Filtrar medios"
+  ],
+  "Adicione vídeos, áudios ou importe do YouTube.": [
+    "Add videos, audio or import from YouTube.",
+    "Añade vídeos, audios o importa de YouTube."
+  ],
+  "baixa e junta áudio + vídeo": [
+    "downloads and combines audio + video",
+    "descarga y combina audio + vídeo"
+  ],
+  "Baixar e adicionar": [
+    "Download and add",
+    "Descargar y añadir"
+  ],
+  "Cole o link do vídeo do YouTube": [
+    "Paste the YouTube video link",
+    "Pega el enlace del vídeo de YouTube"
+  ],
+  "Cole um link do YouTube para baixar e adicionar à playlist.": [
+    "Paste a YouTube link to download and add it to the playlist.",
+    "Pega un enlace de YouTube para descargarlo y añadirlo a la lista."
+  ],
+  "Use apenas conteúdo que você tem direito de baixar.": [
+    "Only use content you have the right to download.",
+    "Usa solo contenido que tengas derecho a descargar."
+  ],
+  "Importar vídeos do YouTube que já estão na pasta Gravações": [
+    "Import YouTube videos already in the Recordings folder",
+    "Importar vídeos de YouTube que ya están en la carpeta Grabaciones"
+  ],
+  "Tocar um após o outro": [
+    "Play one after another",
+    "Reproducir uno tras otro"
+  ],
+  "Estúdio: o próximo vídeo assume o Solo ou o slot do palco quando o atual termina": [
+    "Studio: the next video takes over Solo or the stage slot when the current one ends",
+    "Estudio: el siguiente vídeo toma el Solo o el espacio del escenario cuando termina el actual"
+  ],
+  "Comentários, enquetes e banners: atrás ou acima do DSK 1/2": [
+    "Comments, polls and banners: behind or above DSK 1/2",
+    "Comentarios, encuestas y banners: detrás o encima del DSK 1/2"
+  ],
+  "Comentários, enquetes e banners: atrás (padrão) ou acima do DSK.": [
+    "Comments, polls and banners: behind (default) or above the DSK.",
+    "Comentarios, encuestas y banners: detrás (predeterminado) o encima del DSK."
+  ],
+  "Colocar comentários, enquetes e banners acima do DSK": [
+    "Put comments, polls and banners above the DSK",
+    "Poner comentarios, encuestas y banners encima del DSK"
+  ],
+  "Buscar template…": [
+    "Search template…",
+    "Buscar plantilla…"
+  ],
+  "Crédito": [
+    "Credit",
+    "Crédito"
+  ],
+  "Só favoritos": [
+    "Favorites only",
+    "Solo favoritos"
+  ],
+  "Do convidado": [
+    "From guest",
+    "Del invitado"
+  ],
+  "Duração": [
+    "Duration",
+    "Duración"
+  ],
+  "Nenhum template com esse filtro.": [
+    "No templates match this filter.",
+    "Ninguna plantilla coincide con este filtro."
+  ],
+  "Cargo / função": [
+    "Role / position",
+    "Cargo / función"
+  ],
+  "✎ Editar design": [
+    "✎ Edit design",
+    "✎ Editar diseño"
+  ],
+  "Cadastre feeds de notícias (ou a página do site). As manchetes rolam no letreiro inferior; ligue um ou vários.": [
+    "Add news feeds (or the site page). Headlines scroll in the lower third; turn on one or more.",
+    "Añade fuentes de noticias (o la página del sitio). Los titulares se desplazan en el rótulo inferior; activa una o varias."
+  ],
+  "Escolha o time mandante": [
+    "Choose the home team",
+    "Elige el equipo local"
+  ],
+  "— escolher time —": [
+    "— choose team —",
+    "— elegir equipo —"
+  ],
+  "Editar dados e elenco do Mandante": [
+    "Edit home team data and roster",
+    "Editar datos y plantilla del local"
+  ],
+  "Cadastrar novo time para Mandante": [
+    "Register a new home team",
+    "Registrar un nuevo equipo local"
+  ],
+  "Inverter mandante e visitante": [
+    "Swap home and away",
+    "Invertir local y visitante"
+  ],
+  "Escolha o time visitante": [
+    "Choose the away team",
+    "Elige el equipo visitante"
+  ],
+  "Editar dados e elenco do Visitante": [
+    "Edit away team data and roster",
+    "Editar datos y plantilla del visitante"
+  ],
+  "Cadastrar novo time para Visitante": [
+    "Register a new away team",
+    "Registrar un nuevo equipo visitante"
+  ],
+  "Cadastrar novo time": [
+    "Register new team",
+    "Registrar nuevo equipo"
+  ],
+  "Período da partida": [
+    "Match period",
+    "Período del partido"
+  ],
+  "Posição do placar na tela": [
+    "Scoreboard position on screen",
+    "Posición del marcador en pantalla"
+  ],
+  "O minuto vem do cronômetro; edite se precisar.": [
+    "The minute comes from the timer; edit if needed.",
+    "El minuto viene del cronómetro; edita si es necesario."
+  ],
+  "Escalação em campo": [
+    "Lineup on field",
+    "Alineación en campo"
+  ],
+  "Relógio e regras da partida": [
+    "Match clock and rules",
+    "Reloj y reglas del partido"
+  ],
+  "Contagem do cronômetro": [
+    "Timer count",
+    "Cuenta del cronómetro"
+  ],
+  "Vídeo de fundo": [
+    "Background video",
+    "Vídeo de fondo"
+  ],
+  "Vídeo mudo em loop atrás da cena": [
+    "Muted looping video behind the scene",
+    "Vídeo mudo en bucle detrás de la escena"
+  ],
+  "Enviar vídeo": [
+    "Upload video",
+    "Subir vídeo"
+  ],
+  "O vídeo de fundo fica mudo e em loop atrás da cena; ele também entra na playlist.": [
+    "The background video is muted and loops behind the scene; it also goes into the playlist.",
+    "El vídeo de fondo está silenciado y en bucle detrás de la escena; también entra en la lista."
+  ],
+  "＋ Adicionar overlay": [
+    "＋ Add overlay",
+    "＋ Añadir superposición"
+  ],
+  "Dá para empilhar vários overlays; a ordem da lista é a ordem de desenho.": [
+    "You can stack several overlays; list order is drawing order.",
+    "Puedes apilar varias superposiciones; el orden de la lista es el orden de dibujo."
+  ],
+  "Exibição": [
+    "Display",
+    "Visualización"
+  ],
+  "O público escaneia o QR Code e manda um texto curto (até 200 caracteres) ou um áudio de até 30 s. As mensagens chegam na lista abaixo e você escolhe o que vai ao ar.": [
+    "The audience scans the QR Code and sends a short text (up to 200 characters) or audio up to 30 s. Messages arrive in the list below and you choose what goes on air.",
+    "El público escanea el QR y envía un texto corto (hasta 200 caracteres) o un audio de hasta 30 s. Los mensajes llegan a la lista de abajo y tú eliges qué sale al aire."
+  ],
+  "Ninguém consegue mandar mensagens agora.": [
+    "No one can send messages right now.",
+    "Nadie puede enviar mensajes ahora."
+  ],
+  "Chamada (aparece no QR do vídeo e na página)": [
+    "Call to action (appears in the video QR and on the page)",
+    "Llamada (aparece en el QR del vídeo y en la página)"
+  ],
+  "Ex.: Mande sua pergunta para o programa": [
+    "E.g.: Send your question to the show",
+    "Ej.: Envía tu pregunta al programa"
+  ],
+  "Aceitar áudio": [
+    "Accept audio",
+    "Aceptar audio"
+  ],
+  "(até 30 s)": [
+    "(up to 30 s)",
+    "(hasta 30 s)"
+  ],
+  "(cada mensagem nova, sem moderação)": [
+    "(each new message, unmoderated)",
+    "(cada mensaje nuevo, sin moderación)"
+  ],
+  "▦ Link": [
+    "▦ Link",
+    "▦ Enlace"
+  ],
+  "Link e QR Code para mandar no chat": [
+    "Link and QR Code to send in chat",
+    "Enlace y código QR para enviar en el chat"
+  ],
+  "Aparência no vídeo": [
+    "Appearance on video",
+    "Apariencia en el vídeo"
+  ],
+  "Mensagem": [
+    "Message",
+    "Mensaje"
+  ],
+  "Tempo da mensagem no ar": [
+    "Message time on air",
+    "Tiempo del mensaje al aire"
+  ],
+  "Áudios ficam no ar enquanto tocam e saem 2 s depois (exceto no modo Manual).": [
+    "Audio stays on air while it plays and leaves 2 s later (except in Manual mode).",
+    "El audio permanece al aire mientras suena y sale 2 s después (excepto en modo Manual)."
+  ],
+  "Não exibidas": [
+    "Not shown",
+    "No mostradas"
+  ],
+  "Texto": [
+    "Text",
+    "Texto"
+  ],
+  "Apagar todas as mensagens da lista": [
+    "Delete all messages in the list",
+    "Borrar todos los mensajes de la lista"
+  ],
+  "Abra o recebimento para o público começar a mandar mensagens.": [
+    "Open submissions so the audience can start sending messages.",
+    "Abre la recepción para que el público empiece a enviar mensajes."
+  ],
+  "Abrir painel": [
+    "Open panel",
+    "Abrir panel"
+  ],
+  "⧉ Outra janela": [
+    "⧉ Another window",
+    "⧉ Otra ventana"
+  ],
+  "Abrir em outra janela/monitor": [
+    "Open in another window/monitor",
+    "Abrir en otra ventana/monitor"
+  ],
+  "Apagar mensagens recebidas do WhatsApp": [
+    "Delete received WhatsApp messages",
+    "Borrar mensajes recibidos de WhatsApp"
+  ],
+  "Buscar mensagem ou contato": [
+    "Search message or contact",
+    "Buscar mensaje o contacto"
+  ],
+  "Áudios": [
+    "Audio",
+    "Audios"
+  ],
+  "Filtrar por conversa": [
+    "Filter by conversation",
+    "Filtrar por conversación"
+  ],
+  "Nenhuma mensagem ainda.": [
+    "No messages yet.",
+    "Aún no hay mensajes."
+  ],
+  "As mensagens aparecem aqui quando chegarem.": [
+    "Messages appear here when they arrive.",
+    "Los mensajes aparecen aquí cuando lleguen."
+  ],
+  "Mensagem do chat": [
+    "Chat message",
+    "Mensaje del chat"
+  ],
+  "Enviar mensagem": [
+    "Send message",
+    "Enviar mensaje"
+  ],
+  "Clique para ver ou conectar redes": [
+    "Click to view or connect networks",
+    "Haz clic para ver o conectar redes"
+  ],
+  "Conectar transmissão do YouTube ou Twitch": [
+    "Connect YouTube or Twitch stream",
+    "Conectar transmisión de YouTube o Twitch"
+  ],
+  "Opções de velocidade, anti-flood, carrossel e limpeza": [
+    "Speed, anti-flood, carousel and cleanup options",
+    "Opciones de velocidad, anti-flood, carrusel y limpieza"
+  ],
+  "Alternar densidade padrão ou compacta": [
+    "Toggle standard or compact density",
+    "Alternar densidad estándar o compacta"
+  ],
+  "● NO AR NO PROGRAMA (PGM)": [
+    "● ON AIR IN PROGRAM (PGM)",
+    "● AL AIRE EN EL PROGRAMA (PGM)"
+  ],
+  "Tirar mensagem do ar imediatamente (Esc)": [
+    "Remove message from air immediately (Esc)",
+    "Quitar mensaje del aire inmediatamente (Esc)"
+  ],
+  "🌐 Redes ao Vivo (Zero Cota)": [
+    "🌐 Live Networks (Zero Quota)",
+    "🌐 Redes en Vivo (Cero Cuota)"
+  ],
+  "Nenhuma rede ativa. Adicione abaixo para iniciar a captura.": [
+    "No active network. Add one below to start capturing.",
+    "Ninguna red activa. Añade una abajo para iniciar la captura."
+  ],
+  "Link da live ou nome do canal...": [
+    "Live link or channel name...",
+    "Enlace de la live o nombre del canal..."
+  ],
+  "Você pode conectar YouTube e Twitch simultaneamente sem gastar cota de API.": [
+    "You can connect YouTube and Twitch simultaneously without using API quota.",
+    "Puedes conectar YouTube y Twitch simultáneamente sin gastar cuota de API."
+  ],
+  "⚙️ Opções do Chat & Moderação": [
+    "⚙️ Chat & Moderation Options",
+    "⚙️ Opciones de Chat y Moderación"
+  ],
+  "⏳ Máx. 1 msg a cada 1 segundo": [
+    "⏳ Max 1 msg every 1 second",
+    "⏳ Máx. 1 mensaje cada 1 segundo"
+  ],
+  "⏳ Máx. 1 msg a cada 2 segundos": [
+    "⏳ Max 1 msg every 2 seconds",
+    "⏳ Máx. 1 mensaje cada 2 segundos"
+  ],
+  "⏳ Máx. 1 msg a cada 3 segundos": [
+    "⏳ Max 1 msg every 3 seconds",
+    "⏳ Máx. 1 mensaje cada 3 segundos"
+  ],
+  "⏳ Máx. 1 msg a cada 5 segundos": [
+    "⏳ Max 1 msg every 5 seconds",
+    "⏳ Máx. 1 mensaje cada 5 segundos"
+  ],
+  "⭐ Apenas Super Chats & Doações": [
+    "⭐ Super Chats & Donations only",
+    "⭐ Solo Super Chats y Donaciones"
+  ],
+  "🔄 Carrossel de mensagens contínuo no PGM": [
+    "🔄 Continuous message carousel on PGM",
+    "🔄 Carrusel continuo de mensajes en PGM"
+  ],
+  "Tempo de tela:": [
+    "Screen time:",
+    "Tiempo en pantalla:"
+  ],
+  "▶ Próxima": [
+    "▶ Next",
+    "▶ Siguiente"
+  ],
+  "Avançar imediatamente para a próxima mensagem da sequência": [
+    "Advance immediately to the next message in the sequence",
+    "Avanzar inmediatamente al siguiente mensaje de la secuencia"
+  ],
+  "Simular mensagem": [
+    "Simulate message",
+    "Simular mensaje"
+  ],
+  "Cria uma mensagem de exemplo com Super Chat": [
+    "Creates a sample message with Super Chat",
+    "Crea un mensaje de ejemplo con Super Chat"
+  ],
+  "Filtrar por nome, texto ou doação...": [
+    "Filter by name, text or donation...",
+    "Filtrar por nombre, texto o donación..."
+  ],
+  "Aguardando comentários das redes": [
+    "Waiting for social comments",
+    "Esperando comentarios de las redes"
+  ],
+  "Conecte sua live do YouTube ou Twitch para receber comentários do público em tempo real e destacar na tela.": [
+    "Connect your YouTube or Twitch live to receive audience comments in real time and highlight them on screen.",
+    "Conecta tu live de YouTube o Twitch para recibir comentarios del público en tiempo real y destacarlos en pantalla."
+  ],
+  "Abrir todas as seções": [
+    "Open all sections",
+    "Abrir todas las secciones"
+  ],
+  "Recolher todas as seções": [
+    "Collapse all sections",
+    "Contraer todas las secciones"
+  ],
+  "Mute do Master (não perde o nível do fader)": [
+    "Master mute (keeps the fader level)",
+    "Silencio del Master (no pierde el nivel del fader)"
+  ],
+  "Dispositivo físico para o Master (opcional; stream/gravação não mudam)": [
+    "Physical device for Master (optional; stream/recording unchanged)",
+    "Dispositivo físico para el Master (opcional; stream/grabación no cambian)"
+  ],
+  "Sem saída": [
+    "No output",
+    "Sin salida"
+  ],
+  "1 fonte": [
+    "1 source",
+    "1 fuente"
+  ],
+  "Este canal está no ar (palco/take/DSK)": [
+    "This channel is on air (stage/take/DSK)",
+    "Este canal está al aire (escenario/take/DSK)"
+  ],
+  "Áudio ativo": [
+    "Active audio",
+    "Audio activo"
+  ],
+  "Legenda: escolha se este áudio vai para a legenda. Ligue a legenda na aba Legendas do painel.": [
+    "Captions: choose whether this audio goes to captions. Turn captions on in the Captions tab.",
+    "Subtítulos: elige si este audio va a los subtítulos. Actívalos en la pestaña Subtítulos."
+  ],
+  "Solo no fone: ouve este canal sem mudar o programa (funciona até mudo)": [
+    "Headphone solo: hear this channel without changing the program (works even when muted)",
+    "Solo en auriculares: escucha este canal sin cambiar el programa (funciona incluso silenciado)"
+  ],
+  "Enviar este canal para os buses de saída (A–G)": [
+    "Send this channel to output buses (A–G)",
+    "Enviar este canal a los buses de salida (A–G)"
+  ],
+  "Enviar para o bus {0}": [
+    "Send to bus {0}",
+    "Enviar al bus {0}"
+  ],
+  "Redução de ruído RNNoise nesta fonte": [
+    "RNNoise noise reduction on this source",
+    "Reducción de ruido RNNoise en esta fuente"
+  ],
+  "Redução de ruído": [
+    "Noise reduction",
+    "Reducción de ruido"
+  ],
+  "Saídas auxiliares": [
+    "Auxiliary outputs",
+    "Salidas auxiliares"
+  ],
+  "cada bus vira um par estéreo no dispositivo escolhido": [
+    "each bus becomes a stereo pair on the chosen device",
+    "cada bus se convierte en un par estéreo en el dispositivo elegido"
+  ],
+  "Nível do bus {0}": [
+    "Bus {0} level",
+    "Nivel del bus {0}"
+  ],
+  "Dispositivo de saída do bus {0}": [
+    "Bus {0} output device",
+    "Dispositivo de salida del bus {0}"
+  ],
+  "Tom de teste na saída do bus {0}": [
+    "Test tone on bus {0} output",
+    "Tono de prueba en la salida del bus {0}"
+  ],
+  "Recolher Retorno / Fone": [
+    "Collapse Return / Headphones",
+    "Contraer Retorno / Auriculares"
+  ],
+  "Retorno / Fone": [
+    "Return / Headphones",
+    "Retorno / Auriculares"
+  ],
+  "Monitor": [
+    "Monitor",
+    "Monitor"
+  ],
+  "Volume": [
+    "Volume",
+    "Volumen"
+  ],
+  "Se estiver usando caixa de som, ative o modo acima. Fone continua sendo a melhor opção.": [
+    "If you are using speakers, turn on the mode above. Headphones are still the best option.",
+    "Si usas altavoces, activa el modo de arriba. Los auriculares siguen siendo la mejor opción."
+  ],
+  "Tocar um tom curto na saída escolhida": [
+    "Play a short tone on the selected output",
+    "Reproducir un tono corto en la salida elegida"
+  ],
+  "Use fones para evitar microfonia. Seu microfone nunca volta para você; cada convidado recebe um mix sem a própria voz (mix-minus).": [
+    "Use headphones to avoid feedback. Your microphone never returns to you; each guest gets a mix without their own voice (mix-minus).",
+    "Usa auriculares para evitar acoplamiento. Tu micrófono nunca vuelve a ti; cada invitado recibe una mezcla sin su propia voz (mix-minus)."
+  ],
+  "Reconhece a fala no próprio PC (sem internet)": [
+    "Recognizes speech on your PC (offline)",
+    "Reconoce el habla en tu PC (sin internet)"
+  ],
+  "Acende quando alguém está falando": [
+    "Lights up when someone is speaking",
+    "Se enciende cuando alguien habla"
+  ],
+  "A última frase reconhecida aparece aqui.": [
+    "The last recognized sentence appears here.",
+    "La última frase reconocida aparece aquí."
+  ],
+  "Saídas": [
+    "Outputs",
+    "Salidas"
+  ],
+  "① Mostrar na tela (PGM, vertical e retorno)": [
+    "① Show on screen (PGM, vertical and return)",
+    "① Mostrar en pantalla (PGM, vertical y retorno)"
+  ],
+  "② Link ao vivo (página só com a legenda)": [
+    "② Live link (captions-only page)",
+    "② Enlace en vivo (página solo con subtítulos)"
+  ],
+  "Ligue o link para gerar o endereço e o QR Code.": [
+    "Turn on the link to generate the address and QR Code.",
+    "Activa el enlace para generar la dirección y el código QR."
+  ],
+  "Aparência": [
+    "Appearance",
+    "Apariencia"
+  ],
+  "Cor do texto": [
+    "Text color",
+    "Color del texto"
+  ],
+  "Transparência do fundo": [
+    "Background transparency",
+    "Transparencia del fondo"
+  ],
+  "Sem fundo (só texto)": [
+    "No background (text only)",
+    "Sin fondo (solo texto)"
+  ],
+  "Sólido": [
+    "Solid",
+    "Sólido"
+  ],
+  "Ao vivo (padrão, texto parcial)": [
+    "Live (default, partial text)",
+    "En vivo (predeterminado, texto parcial)"
+  ],
+  "Delay de consolidação": [
+    "Consolidation delay",
+    "Retardo de consolidación"
+  ],
+  "TUDO EM MAIÚSCULAS": [
+    "ALL UPPERCASE",
+    "TODO EN MAYÚSCULAS"
+  ],
+  "Posição na tela": [
+    "Position on screen",
+    "Posición en pantalla"
+  ],
+  "Programa 16:9": [
+    "Program 16:9",
+    "Programa 16:9"
+  ],
+  "Legenda em cima, à esquerda": [
+    "Captions top left",
+    "Subtítulos arriba a la izquierda"
+  ],
+  "Legenda em cima, à direita": [
+    "Captions top right",
+    "Subtítulos arriba a la derecha"
+  ],
+  "Legenda no meio, à esquerda": [
+    "Captions middle left",
+    "Subtítulos al centro a la izquierda"
+  ],
+  "Legenda no meio, à direita": [
+    "Captions middle right",
+    "Subtítulos al centro a la derecha"
+  ],
+  "Legenda embaixo, à esquerda": [
+    "Captions bottom left",
+    "Subtítulos abajo a la izquierda"
+  ],
+  "Legenda embaixo, à direita": [
+    "Captions bottom right",
+    "Subtítulos abajo a la derecha"
+  ],
+  "Clique no ponto da tela onde a legenda deve ficar. Embaixo e em cima ela desvia sozinha do GC e do letreiro.": [
+    "Click the point on screen where captions should go. At the bottom and top it automatically avoids the GC and lower third.",
+    "Haz clic en el punto de la pantalla donde deben ir los subtítulos. Abajo y arriba evita automáticamente el GC y el rótulo."
+  ],
+  "Idioma e tradução": [
+    "Language and translation",
+    "Idioma y traducción"
+  ],
+  "Português": [
+    "Portuguese",
+    "Portugués"
+  ],
+  "Inglês": [
+    "English",
+    "Inglés"
+  ],
+  "Tradução": [
+    "Translation",
+    "Traducción"
+  ],
+  "Só o idioma falado": [
+    "Spoken language only",
+    "Solo el idioma hablado"
+  ],
+  "Traduzir para inglês (no lugar do original)": [
+    "Translate to English (instead of original)",
+    "Traducir al inglés (en lugar del original)"
+  ],
+  "Original na tela + inglês também no link": [
+    "Original on screen + English also on link",
+    "Original en pantalla + inglés también en el enlace"
+  ],
+  "Palavras do programa": [
+    "Show words",
+    "Palabras del programa"
+  ],
+  "(nomes, marcas, termos — ajuda a acertar a grafia)": [
+    "(names, brands, terms — helps spelling)",
+    "(nombres, marcas, términos — ayuda con la ortografía)"
+  ],
+  "Preciso (modelo médio, mais lento) · 1420 MB": [
+    "Accurate (medium model, slower) · 1420 MB",
+    "Preciso (modelo medio, más lento) · 1420 MB"
+  ],
+  "Básico (PC fraco, menos preciso) · 57 MB": [
+    "Basic (weak PC, less accurate) · 57 MB",
+    "Básico (PC débil, menos preciso) · 57 MB"
+  ],
+  "Parakeet pt-BR (alta precisão) · 890 MB": [
+    "Parakeet pt-BR (high accuracy) · 890 MB",
+    "Parakeet pt-BR (alta precisión) · 890 MB"
+  ],
+  "Mostrar quem fala": [
+    "Show who is speaking",
+    "Mostrar quién habla"
+  ],
+  "Desligado (padrão)": [
+    "Off (default)",
+    "Desactivado (predeterminado)"
+  ],
+  "Automático (2+ fontes)": [
+    "Automatic (2+ sources)",
+    "Automático (2+ fuentes)"
+  ],
+  "Sempre": [
+    "Always",
+    "Siempre"
+  ],
+  "Quando rotular": [
+    "When to label",
+    "Cuándo etiquetar"
+  ],
+  "Só no final": [
+    "Final only",
+    "Solo al final"
+  ],
+  "Só no parcial": [
+    "Partial only",
+    "Solo en parcial"
+  ],
+  "Será baixado na primeira vez (~252 MB).": [
+    "Downloaded on first use (~252 MB).",
+    "Se descargará la primera vez (~252 MB)."
+  ],
+  "Quem vai para a legenda: botão": [
+    "Who goes to captions: button",
+    "Quién va a subtítulos: botón"
+  ],
+  "em cada canal do painel": [
+    "on each channel in the panel",
+    "en cada canal del panel"
+  ],
+  ". Por padrão, só as pessoas (microfones e convidados); mídias e tela ficam de fora para música não virar texto.": [
+    ". By default, only people (microphones and guests); media and screen are left out so music does not become text.",
+    ". Por defecto, solo personas (micrófonos e invitados); medios y pantalla quedan fuera para que la música no se convierta en texto."
+  ],
+  "Cada saída tem um link próprio, limpo (sem a interface), para usar como fonte de navegador no OBS ou vMix.": [
+    "Each output has its own clean link (no UI) to use as a browser source in OBS or vMix.",
+    "Cada salida tiene su propio enlace limpio (sin interfaz) para usar como fuente de navegador en OBS o vMix."
+  ],
+  "Automática (local alto · internet moderado)": [
+    "Automatic (loud local · moderate internet)",
+    "Automática (local alto · internet moderada)"
+  ],
+  "Máxima (rede local)": [
+    "Maximum (local network)",
+    "Máxima (red local)"
+  ],
+  "Ativo agora: Máxima (rede local) — 25 Mbps (programa) · 16 Mbps (fontes) · 30 fps · áudio 320 kbps.": [
+    "Active now: Maximum (local network) — 25 Mbps (program) · 16 Mbps (sources) · 30 fps · 320 kbps audio.",
+    "Activo ahora: Máxima (red local) — 25 Mbps (programa) · 16 Mbps (fuentes) · 30 fps · audio 320 kbps."
+  ],
+  "Copiar o link desta saída": [
+    "Copy this output link",
+    "Copiar el enlace de esta salida"
+  ],
+  "Diagnóstico": [
+    "Diagnostics",
+    "Diagnóstico"
+  ],
+  "Baixe versão, sistema, memória, FFmpeg, túnel e estado das salas para anexar no suporte.": [
+    "Download version, system, memory, FFmpeg, tunnel and room state to attach to support.",
+    "Descarga versión, sistema, memoria, FFmpeg, túnel y estado de salas para adjuntar a soporte."
+  ],
+  "1. Fone de ouvido (melhor)": [
+    "1. Headphones (best)",
+    "1. Auriculares (mejor)"
+  ],
+  "2. Se estiver usando caixa": [
+    "2. If you are using speakers",
+    "2. Si usas altavoces"
+  ],
+  "3. AEC não é garantia": [
+    "3. AEC is not a guarantee",
+    "3. La AEC no es una garantía"
+  ],
+  "4. Teste com o convidado": [
+    "4. Test with your guest",
+    "4. Prueba con tu invitado"
+  ],
+  "Ative": [
+    "Turn on",
+    "Activa"
+  ],
+  "no painel de áudio, abaixe o volume e afaste o microfone da caixa. Evite ligar": [
+    "in the audio panel, lower the volume and move the microphone away from the speakers. Avoid turning on",
+    "en el panel de audio, baja el volumen y aleja el micrófono de los altavoces. Evita activar"
+  ],
+  "“Estou usando caixa de som”": [
+    "“I am using speakers”",
+    "“Estoy usando altavoces”"
+  ],
+  "“Ouvir programa”": [
+    "“Listen to program”",
+    "“Escuchar programa”"
+  ],
+  "e peça ao convidado para confirmar se ouve a própria voz atrasada. Se ouvir, o eco pode estar no host ou no convidado.": [
+    "and ask the guest to confirm whether they hear their own delayed voice. If so, echo may be on the host or the guest.",
+    "y pide al invitado que confirme si oye su propia voz con retraso. Si es así, el eco puede estar en el anfitrión o en el invitado."
+  ],
+  "Partida e times": [
+    "Match and teams",
+    "Partido y equipos"
+  ],
+  "Confronto da partida": [
+    "Match matchup",
+    "Enfrentamiento del partido"
+  ],
+  "Idioma da fala": [
+    "Speech language",
+    "Idioma del habla"
+  ],
+  "Automático (padrão do perfil)": [
+    "Automatic (profile default)",
+    "Automático (predeterminado del perfil)"
+  ],
+  "2.5 Mbps (Conexão modesta)": [
+    "2.5 Mbps (modest connection)",
+    "2,5 Mbps (conexión modesta)"
+  ],
+  "4.5 Mbps (HD padrão · YouTube/Twitch)": [
+    "4.5 Mbps (standard HD · YouTube/Twitch)",
+    "4,5 Mbps (HD estándar · YouTube/Twitch)"
+  ],
+  "10.0 Mbps (Muito alta · estúdio)": [
+    "10.0 Mbps (very high · studio)",
+    "10,0 Mbps (muy alta · estudio)"
+  ],
+  "15.0 Mbps (Qualidade máxima)": [
+    "15.0 Mbps (maximum quality)",
+    "15,0 Mbps (calidad máxima)"
+  ],
+  "20.0 Mbps (Gravação master)": [
+    "20.0 Mbps (master recording)",
+    "20,0 Mbps (grabación master)"
+  ],
+  "Ativar corte automático": [
+    "Enable automatic switching",
+    "Activar corte automático"
+  ],
+  "Ativar áudio inteligente": [
+    "Enable smart audio",
+    "Activar audio inteligente"
+  ],
+  "Modo Estúdio: o PGM é o palco/layout; tela cheia é o Solo; não existe take.": [
+    "Studio mode: PGM is the stage/layout; full screen is Solo; there is no take.",
+    "Modo Estudio: el PGM es el escenario/diseño; pantalla completa es Solo; no existe take."
+  ],
+  "Modos de operação": [
+    "Operating modes",
+    "Modos de operación"
+  ],
+  "Modo Estúdio: palco principal, cenas e bastidores": [
+    "Studio mode: main stage, scenes and backstage",
+    "Modo Estudio: escenario principal, escenas y backstage"
+  ],
+  "Painel de câmeras: preview e ajustes de zoom, foco, ISO, exposição e lanterna": [
+    "Camera panel: preview and zoom, focus, ISO, exposure and flashlight controls",
+    "Panel de cámaras: vista previa y ajustes de zoom, enfoque, ISO, exposición y linterna"
+  ],
+  "Câmeras": [
+    "Cameras",
+    "Cámaras"
+  ],
+  "Tela cheia do estúdio": [
+    "Studio full screen",
+    "Pantalla completa del estudio"
+  ],
+  "Layout: Automático": [
+    "Layout: Automatic",
+    "Diseño: Automático"
+  ],
+  "Mídia Player": [
+    "Media Player",
+    "Reproductor de medios"
+  ],
+  "Limpar tela: tira o GC/placar/widgets do ar e pausa todas as mídias": [
+    "Clear screen: removes GC/scoreboard/widgets from air and pauses all media",
+    "Limpiar pantalla: quita GC/marcador/widgets del aire y pausa todos los medios"
+  ],
+  "Cenas rápidas": [
+    "Quick scenes",
+    "Escenas rápidas"
+  ],
+  "Clique = prévia · duplo clique = corte direto": [
+    "Click = preview · double-click = direct cut",
+    "Clic = vista previa · doble clic = corte directo"
+  ],
+  "Atalhos: Shift+número = corte direto · Espaço corta · T dissolve · Shift+F tela cheia": [
+    "Shortcuts: Shift+number = direct cut · Space cuts · T dissolve · Shift+F full screen",
+    "Atajos: Shift+número = corte directo · Espacio corta · T disuelve · Shift+F pantalla completa"
+  ],
+  "Ajustar posição, zoom e corte desta fonte": [
+    "Adjust this source position, zoom and crop",
+    "Ajustar posición, zoom y recorte de esta fuente"
+  ],
+  "Mostrar/ocultar TODOS os nomes na tela (pessoas e vídeos)": [
+    "Show/hide ALL names on screen (people and videos)",
+    "Mostrar/ocultar TODOS los nombres en pantalla (personas y vídeos)"
+  ],
+  "Exibição: nomes das pessoas, nomes dos vídeos e cursor do mouse": [
+    "Display: people names, video names and mouse cursor",
+    "Visualización: nombres de personas, nombres de vídeos y cursor del ratón"
+  ],
+  "Opções de exibição": [
+    "Display options",
+    "Opciones de visualización"
+  ],
+  "Este navegador não permite ocultar o cursor da captura de tela; compartilhe uma aba/janela ou use o OBS": [
+    "This browser cannot hide the cursor in screen capture; share a tab/window or use OBS",
+    "Este navegador no permite ocultar el cursor en la captura de pantalla; comparte una pestaña/ventana o usa OBS"
+  ],
+  "Dispositivos: nome, câmera, microfone e gravações": [
+    "Devices: name, camera, microphone and recordings",
+    "Dispositivos: nombre, cámara, micrófono y grabaciones"
+  ],
+  "Destacar este painel em uma janela flutuante (também: duplo clique na aba)": [
+    "Detach this panel into a floating window (also: double-click the tab)",
+    "Separar este panel en una ventana flotante (también: doble clic en la pestaña)"
+  ],
+  "Conteúdo — O que aparece na tela: mídias, GCs, jornal e esportes": [
+    "Content — What appears on screen: media, GCs, news and sports",
+    "Contenido — Qué aparece en pantalla: medios, GC, noticias y deportes"
+  ],
+  "Visual — Identidade visual (cores, fundo, logo, overlay) e como as pessoas aparecem no vídeo": [
+    "Visual — Brand identity (colors, background, logo, overlay) and how people appear on video",
+    "Visual — Identidad visual (colores, fondo, logo, superposición) y cómo aparecen las personas en el vídeo"
+  ],
+  "Interatividade — Enquetes com votação, códigos QR e mensagens do público no ar": [
+    "Interactivity — Polls with voting, QR codes and audience messages on air",
+    "Interactividad — Encuestas con votación, códigos QR y mensajes del público al aire"
+  ],
+  "Pessoas — Chat privado com convidados e comentários das redes sociais": [
+    "People — Private chat with guests and social media comments",
+    "Personas — Chat privado con invitados y comentarios de redes sociales"
+  ],
+  "Diretor — Diretor automático: corta ou destaca quem fala e abaixa a música quando alguém fala": [
+    "Director — Automatic director: cuts or highlights speakers and ducks music when someone speaks",
+    "Director — Director automático: corta o destaca a quien habla y baja la música cuando alguien habla"
+  ],
+  "Áudio — Mixer: volume de cada microfone, convidado e mídia": [
+    "Audio — Mixer: volume for each microphone, guest and media",
+    "Audio — Mezclador: volumen de cada micrófono, invitado y medio"
+  ],
+  "Legendas — Legenda ao vivo da fala: na tela (PGM) e por link, com tradução opcional": [
+    "Captions — Live speech captions: on screen (PGM) and via link, with optional translation",
+    "Subtítulos — Subtítulos en vivo del habla: en pantalla (PGM) y por enlace, con traducción opcional"
+  ],
+  "Sinais — Sinais para OBS/vMix: programa horizontal, vertical e cada pessoa, com qualidade ajustável": [
+    "Signals — Outputs for OBS/vMix: horizontal program, vertical and each person, with adjustable quality",
+    "Señales — Señales para OBS/vMix: programa horizontal, vertical y cada persona, con calidad ajustable"
+  ],
+  "Ajustes — Destinos e qualidade, câmera e microfone": [
+    "Settings — Destinations and quality, camera and microphone",
+    "Ajustes — Destinos y calidad, cámara y micrófono"
+  ],
+  "GCs salvos, letreiro manual e notícias RSS": [
+    "Saved GCs, manual lower third and RSS news",
+    "GC guardados, rótulo manual y noticias RSS"
+  ],
+  "Nomes na tela, espaçamento e cantos dos vídeos": [
+    "On-screen names, spacing and video corners",
+    "Nombres en pantalla, espaciado y esquinas de los vídeos"
+  ],
+  "O público manda texto curto ou áudio pelo QR Code; você escolhe o que vai ao ar": [
+    "The audience sends short text or audio via QR Code; you choose what goes on air",
+    "El público envía texto corto o audio por QR; tú eliges qué sale al aire"
+  ],
+  "Bridge local: receba mensagens e áudios do WhatsApp e escolha o que vai ao ar": [
+    "Local bridge: receive WhatsApp messages and audio and choose what goes on air",
+    "Puente local: recibe mensajes y audios de WhatsApp y elige qué sale al aire"
+  ],
+  "Corte automático e áudio inteligente": [
+    "Automatic switching and smart audio",
+    "Corte automático y audio inteligente"
+  ],
+  "Destinos da transmissão, qualidade e gravação": [
+    "Stream destinations, quality and recording",
+    "Destinos de transmisión, calidad y grabación"
+  ],
+  "Diretor Auto-Voz": [
+    "Auto Director",
+    "Director Auto"
+  ],
+  "Controle remoto": [
+    "Remote control",
+    "Control remoto"
+  ],
+  "Playout": [
+    "Playout",
+    "Playout"
+  ],
+  "Fila, mini player e o que está no ar": [
+    "Queue, mini player and what is on air",
+    "Cola, mini player y lo que está al aire"
+  ],
+  "Fila, mini player e automação. A biblioteca fica em Mídia.": [
+    "Queue, mini player and automation. The library stays in Media.",
+    "Cola, mini player y automatización. La biblioteca queda en Medios."
+  ],
+  "Agora": [
+    "Now",
+    "Ahora"
+  ],
+  "Fim da fila": [
+    "End of queue",
+    "Fin de la cola"
+  ],
+  "Início da fila": [
+    "Start of queue",
+    "Inicio de la cola"
+  ],
+  "▶ Tocar playlist": [
+    "▶ Play playlist",
+    "▶ Reproducir lista"
+  ],
+  "Abrir Mídia": [
+    "Open Media",
+    "Abrir Medios"
+  ],
+  "A biblioteca acima é a fila. Para operar, abra o Playout.": [
+    "The library above is the queue. To operate, open Playout.",
+    "La biblioteca de arriba es la cola. Para operar, abre Playout."
+  ],
+  "ordem = fila do Playout": [
+    "order = Playout queue",
+    "orden = cola de Playout"
+  ],
+  "Abrir o painel Playout": [
+    "Open the Playout panel",
+    "Abrir el panel Playout"
+  ],
+  "Selecionar sem tocar": [
+    "Select without playing",
+    "Seleccionar sin reproducir"
+  ],
+  "Mais ações": [
+    "More actions",
+    "Más acciones"
+  ],
+  "Nenhum vídeo ou áudio na fila": [
+    "No video or audio in the queue",
+    "Ningún vídeo o audio en la cola"
+  ],
+  "Adicione arquivos na aba Mídia para começar.": [
+    "Add files in the Media tab to start.",
+    "Añade archivos en la pestaña Medios para empezar."
+  ],
+  "Fila": [
+    "Queue",
+    "Cola"
+  ],
+  "item": [
+    "item",
+    "elemento"
+  ],
+  "itens": [
+    "items",
+    "elementos"
+  ],
+  "▶ Abrir Playout": [
+    "▶ Open Playout",
+    "▶ Abrir Playout"
+  ],
+  "Abrir Playout": [
+    "Open Playout",
+    "Abrir Playout"
+  ],
+  "Fila, mini player e automação ficam no Playout.": [
+    "Queue, mini player and automation are in Playout.",
+    "La cola, el mini player y la automatización están en Playout."
+  ],
+  "{0} item · arraste para ordenar": [
+    "{0} item · drag to reorder",
+    "{0} elemento · arrastra para ordenar"
+  ],
+  "{0} itens · arraste para ordenar": [
+    "{0} items · drag to reorder",
+    "{0} elementos · arrastra para ordenar"
+  ],
+  "O que aparece na tela: mídias, Playout, GCs, jornal e esportes": [
+    "What appears on screen: media, Playout, GCs, news and sports",
+    "Lo que aparece en pantalla: medios, Playout, GC, noticias y deportes"
   ]
 }

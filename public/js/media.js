@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
 // Captura de mídia e lobby (pré-entrada) compartilhado entre host e convidado.
 import { $, h, esc, icons } from './ui.js';
+import { openEchoHelp } from './audio-help.js';
 
 const PREFS_KEY = 'castdeck.devices';
 export const loadPrefs = () => {
@@ -43,8 +44,9 @@ export async function getCamera(deviceId, quality = '720') {
 
 // Áudio puro: desliga redução de ruído, cancelamento de eco e ganho automático (preferência salva)
 export const rawMic = () => !!loadPrefs().rawMic;
-export async function getMic(deviceId) {
-  const p = !rawMic();
+export async function getMic(deviceId, { echoSafe = false } = {}) {
+  // echoSafe / modo caixa: força AEC/NS/AGC mesmo que rawMic esteja ligado.
+  const p = echoSafe || !!loadPrefs().speakerMode ? true : !rawMic();
   return navigator.mediaDevices.getUserMedia({
     audio: { deviceId: deviceId ? { exact: deviceId } : undefined, echoCancellation: p, noiseSuppression: p, autoGainControl: p, channelCount: 1 },
     video: false,
@@ -123,6 +125,29 @@ export async function listDevices() {
   };
 }
 
+// Teste curto de saída: toca um tom suave no dispositivo padrão. Usado no lobby do host/convidado
+// para a pessoa confirmar que está ouvindo pela caixa/fone antes de entrar.
+export async function testSpeaker() {
+  try {
+    const ctx = new AudioContext();
+    await ctx.resume();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 660;
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.06, ctx.currentTime + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.55);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.6);
+    osc.onended = () => ctx.close().catch(() => {});
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Medidor de nível de áudio simples (RMS) para um MediaStream.
 export function levelMeter(stream, onLevel) {
   const ctx = new AudioContext();
@@ -181,7 +206,10 @@ export function lobby({ mount, title, subtitle, askName = true, defaultName = ''
             <label class="field"><span>Câmera</span><select class="input" id="lb-camsel"></select></label>
             <label class="field"><span>Microfone</span><select class="input" id="lb-micsel"></select></label>
             <div class="meter" style="margin:-4px 0 8px"><i id="lb-level"></i></div>
-            <label class="switch-row" style="display:flex;gap:8px;align-items:center;margin:0 0 12px;font-size:13px"><input type="checkbox" id="lb-raw" ${prefs.rawMic ? 'checked' : ''}> Áudio puro (sem redução de ruído e sem cancelamento de eco)</label>
+            <label class="switch-row" style="display:flex;gap:8px;align-items:center;margin:0 0 8px;font-size:13px"><input type="checkbox" id="lb-raw" ${prefs.rawMic ? 'checked' : ''}> Áudio puro (sem redução de ruído e sem cancelamento de eco)</label>
+            <div class="row" style="gap:8px;align-items:center;margin:0 0 6px"><button class="btn sm" id="lb-spk" type="button" title="Tocar um tom curto para confirmar que você está ouvindo">${icons.play} Testar alto-falante</button><button class="btn sm ghost" id="lb-echo-help" type="button" title="Explicação de eco, fone, caixa e AEC">? Como evitar eco</button></div>
+            <p class="hint" style="margin:0 0 12px">Prefira <b>fone</b>. Com caixa de som, o microfone pode captar o programa e gerar eco para todos.</p>
+            <p class="hint" id="lb-net" style="margin:0 0 12px">Rede: será verificada ao entrar.</p>
             <label class="field"><span>Qualidade da câmera</span>
               <select class="input" id="lb-quality"><option value="720">HD 720p</option><option value="1080">Full HD 1080p</option><option value="480">SD 480p (economia)</option></select>
             </label>
@@ -345,6 +373,13 @@ export function lobby({ mount, title, subtitle, askName = true, defaultName = ''
     };
 
     // Handlers ativos desde já: o host pode entrar sem esperar a câmera carregar.
+    const conn = navigator.connection;
+    const netHint = $('#lb-net', el);
+    if (netHint && conn) {
+      const type = conn.effectiveType ? String(conn.effectiveType).toUpperCase() : '';
+      const mbps = Number(conn.downlink);
+      netHint.textContent = `Rede: ${type || 'conectada'}${Number.isFinite(mbps) ? ` · ~${mbps.toFixed(1)} Mbps` : ''}${conn.rtt ? ` · ${conn.rtt} ms` : ''}`;
+    }
     let entered = false;
     camSel.onchange = () => ((camRetries = 0), startCam());
     qSel.onchange = () => ((camRetries = 0), startCam());
@@ -353,6 +388,17 @@ export function lobby({ mount, title, subtitle, askName = true, defaultName = ''
       savePrefs({ rawMic: e.target.checked });
       startMic();
     };
+    $('#lb-spk', el).onclick = async (e) => {
+      const b = e.currentTarget;
+      b.disabled = true;
+      const ok = await testSpeaker();
+      b.disabled = false;
+      if (!ok) {
+        const err = $('#lb-err', el);
+        if (err) err.textContent = 'Não foi possível tocar o teste de áudio neste navegador.';
+      }
+    };
+    $('#lb-echo-help', el).onclick = () => openEchoHelp();
     $('#lb-cam', el).onclick = () => {
       camOn = !camOn;
       paint();

@@ -18,7 +18,7 @@ and multistream without a cloud subscription.
 [**Download**](https://cast.flue.live/downloads.html) ·
 [**StreamYard alternative**](docs/streamyard-alternative.en.md) ·
 [**Documentation**](docs/DOCUMENTACAO.md) ·
-[**Português**](README.md) · [**Español**](README.es.md)
+[**Português**](README.pt.md) · [**Support the project**](https://apoia.se/casdecklocal) · [**Español**](README.es.md)
 
 <a href="https://www.producthunt.com/products/castdeck-local?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-castdeck-local" target="_blank" rel="noopener noreferrer"><img alt="CastDeck Local - Your free, open-source alternative to StreamYard | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1301120&amp;theme=light&amp;t=1793684308962"></a>
 
@@ -126,6 +126,11 @@ Studio video and audio stay on your device. The app contacts the website only to
 not send your live content to CastDeck. Read [`SECURITY.md`](SECURITY.md) and [`PRIVACY.md`](PRIVACY.md).
 For vulnerabilities, use the private channel — do not open a public exploit issue.
 
+## Support the project
+
+CastDeck is free and independent. If it helps your live production, you can support the project on
+[Apoia.se](https://apoia.se/casdecklocal) — it helps cover servers, devices and development time.
+
 ## License and community
 
 CastDeck is **free software under AGPL-3.0-only**, with an optional **commercial license** for embedding the
@@ -140,7 +145,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.3.29** — Playout with queue and mini player, automatic director accordions, PT/EN/ES translations and echo help. See the
+Version **1.3.32** — Remote camera with centered QR, 1080p/720p and high bitrate, plus autoplay and a one-video-at-a-time policy. See the
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

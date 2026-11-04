@@ -18,7 +18,7 @@ y multistream sin depender de una suscripción en la nube.
 [**Descargar**](https://cast.flue.live/downloads.html) ·
 [**Alternativa a StreamYard**](docs/streamyard-alternative.es.md) ·
 [**Documentación**](docs/DOCUMENTACAO.md) ·
-[**Português**](README.md) · [**English**](README.en.md)
+[**Português**](README.pt.md) · [**Apoya el proyecto**](https://apoia.se/casdecklocal) · [**English**](README.md)
 
 <a href="https://www.producthunt.com/products/castdeck-local?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-castdeck-local" target="_blank" rel="noopener noreferrer"><img alt="CastDeck Local - Your free, open-source alternative to StreamYard | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1301120&amp;theme=light&amp;t=1793684308962"></a>
 
@@ -127,6 +127,11 @@ El vídeo y el audio del estudio permanecen en tu dispositivo. La app consulta e
 actualizaciones; no envía el contenido del directo a CastDeck. Lee [`SECURITY.md`](SECURITY.md) y
 [`PRIVACY.md`](PRIVACY.md). Para vulnerabilidades, usa el canal privado — no abras un issue público.
 
+## Apoya el proyecto
+
+CastDeck es gratuito e independiente. Si te ayuda en tu producción, puedes apoyar el proyecto en
+[Apoia.se](https://apoia.se/casdecklocal) — ayuda a cubrir servidores, dispositivos y tiempo de desarrollo.
+
 ## Licencia y comunidad
 
 CastDeck es **software libre bajo AGPL-3.0-only**, con una **licencia comercial opcional** para incorporar
@@ -141,7 +146,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **1.3.29** — Playout con cola y mini player, Director automático en acordeón, traducciones PT/EN/ES y ayuda de eco. Consulta los
+Versión **1.3.32** — Cámara remota con QR centrado, 1080p/720p y bitrate alto, además de autoplay y un solo vídeo a la vez. Consulta los
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

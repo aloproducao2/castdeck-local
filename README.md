@@ -4,143 +4,148 @@
 
 # CastDeck Local
 
-**Seu estúdio de live no seu computador — com a videochamada no centro.**
+**Your live studio on your own computer — with the video call at the center.**
 
-Uma alternativa ao StreamYard para quem quer convidados por link, cenas profissionais, gravação local e
-multistream sem depender de uma assinatura na nuvem.
+A StreamYard alternative for creators who want browser-based guests, professional scenes, local recording
+and multistream without a cloud subscription.
 
-[![Licença: AGPL-3.0](https://img.shields.io/badge/licen%C3%A7a-AGPL--3.0-7c5cff)](LICENSE)
-[![Plataformas](https://img.shields.io/badge/plataformas-Windows%20%C2%B7%20Linux%20%C2%B7%20macOS%20%C2%B7%20Android-6f42c1)](#downloads)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-7c5cff)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-Windows%20%C2%B7%20Linux%20%C2%B7%20macOS%20%C2%B7%20Android-6f42c1)](#downloads)
 [![Node](https://img.shields.io/badge/Node-%E2%89%A520-339933)](package.json)
 [![CI](https://github.com/aloproducao2/castdeck-local/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/aloproducao2/castdeck-local/actions/workflows/ci.yml)
-[![PRs](https://img.shields.io/badge/PRs-bem--vindos-22c55e)](CONTRIBUTING.md)
+[![PRs](https://img.shields.io/badge/PRs-welcome-22c55e)](CONTRIBUTING.md)
 
-[**Baixar**](https://cast.flue.live/downloads.html) ·
-[**Alternativa ao StreamYard**](docs/streamyard-alternative.pt-BR.md) ·
-[**Documentação**](docs/DOCUMENTACAO.md) ·
-[**English**](README.en.md) · [**Español**](README.es.md)
+[**Download**](https://cast.flue.live/downloads.html) ·
+[**StreamYard alternative**](docs/streamyard-alternative.en.md) ·
+[**Documentation**](docs/DOCUMENTACAO.md) ·
+[**Português**](README.pt.md) · [**Support the project**](https://apoia.se/casdecklocal) · [**Español**](README.es.md)
 
 <a href="https://www.producthunt.com/products/castdeck-local?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-castdeck-local" target="_blank" rel="noopener noreferrer"><img alt="CastDeck Local - Your free, open-source alternative to StreamYard | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1301120&amp;theme=light&amp;t=1793684308962"></a>
 
 </div>
 
-![CastDeck Local — estúdio com convidados e mesa de corte](https://cast.flue.live/assets/img/estudio-grade.png)
+![CastDeck Local — studio with guests and switcher](https://cast.flue.live/assets/img/estudio-grade.png)
 
-## Por que o CastDeck
+## Why CastDeck
 
-O CastDeck nasceu de uma ideia simples: **a videochamada é o coração da live**, mas o estúdio não precisa
-estar na nuvem. Você abre o CastDeck no seu PC, convida as pessoas por um link e opera tudo — câmeras,
-áudio, cenas, GC, replay e transmissão — no mesmo lugar.
+CastDeck starts from a simple idea: **the video call is the heart of a live show**, but the studio does not
+need to live in the cloud. Open CastDeck on your PC, invite people with a link, and run everything —
+cameras, audio, scenes, graphics, replay and streaming — from one place.
 
-| | Estúdios na nuvem | **CastDeck Local** |
+| | Cloud studios | **CastDeck Local** |
 |---|---|---|
-| Onde o vídeo é composto | servidor do fornecedor | **no seu computador** |
-| Convidados | conta/app do serviço | **navegador, sem instalar** |
-| Gravação | conforme o plano | **local, em MP4** |
-| Saídas | plataformas do plano | **RTMP/RTMPS/SRT para onde quiser** |
-| Vertical 9:16 | add-on/plano | **simultâneo e independente** |
-| Custo | assinatura | **gratuito e aberto (AGPL-3.0)** |
-| Código | fechado | **auditável e modificável** |
+| Where video is composited | vendor servers | **your computer** |
+| Guests | vendor account/app | **browser, nothing to install** |
+| Recording | plan-dependent | **local MP4** |
+| Outputs | vendor platforms | **RTMP/RTMPS/SRT anywhere** |
+| Vertical 9:16 | add-on/plan | **simultaneous and independent** |
+| Cost | subscription | **free and open (AGPL-3.0)** |
+| Source code | closed | **auditable and modifiable** |
 
-> StreamYard é uma marca de seus respectivos donos. Esta é uma comparação independente, sem afiliação.
+> StreamYard is a trademark of its respective owners. This is an independent comparison, not affiliated.
 
-## Videochamada em primeiro lugar
+## Video call first
 
-- **Convide por link.** O convidado entra pelo Chrome/Edge no celular ou PC, sem criar conta e sem instalar.
-- **Mix-minus de verdade.** Cada pessoa ouve o programa sem ouvir a própria voz; o host conversa naturalmente.
-- **O convidado vê o programa.** Ele acompanha a cena no ar, não só a própria câmera.
-- **Host e convidados no palco**, com layouts de 1 a 4+ e troca por clique, prévia/PGM e mesa de corte com T-bar.
-- **Compartilhamento de tela, aba e mídia** para entrevistas, aulas, podcasts e coberturas.
-- **Modo vertical 9:16** com layout próprio e gravação separada, para TikTok/Reels/Shorts.
+- **Invite by link.** Guests join from Chrome/Edge on phone or desktop — no account, no install.
+- **Real mix-minus.** Each person hears the program without hearing their own voice, so conversation flows.
+- **Guests see the program.** They follow the live scene, not just their own camera.
+- **Host + guests on stage**, with layouts from 1 to 4+ and one-click switching.
+- **Screen, tab and media sharing** for interviews, classes, podcasts and coverage.
+- **Vertical 9:16 mode** with its own layout and separate recording for TikTok/Reels/Shorts.
 
-## No ar em 1 minuto
+## Live in one minute
 
-1. **Baixe e abra** o CastDeck (Windows, Linux, macOS ou Android).
-2. Crie um estúdio e clique em **Convidar** — copie o link e envie.
-3. Cadastre seus destinos (YouTube, Twitch, Facebook, RTMP/SRT) e clique em **Transmitir**.
+1. **Download and open** CastDeck (Windows, Linux, macOS or Android).
+2. Create a studio and click **Invite** — copy the link and send it.
+3. Add your destinations (YouTube, Twitch, Facebook, RTMP/SRT) and click **Go live**.
 
-Sem login, sem cartão e sem mensalidade. FFmpeg e cloudflared já vêm embutidos no executável.
+No login, no credit card, no monthly fee. FFmpeg and cloudflared are bundled in the executable.
 
-## Recursos que fazem diferença
+## Features that matter
 
-| 🎥 **Produção** | 🎙️ **Áudio** | 📺 **Entrega** |
+| 🎥 **Production** | 🎙️ **Audio** | 📺 **Delivery** |
 |---|---|---|
-| Cenas, layouts e transições | Mixer com faders e VU em dBFS | Multistream RTMP/RTMPS/SRT |
-| Prévia e PGM independentes | Mix-minus e redução de ruído | Gravação MP4 local ilimitada |
-| GC de telejornal e banners | Buses A–G e monitoramento | 16:9 e 9:16 ao mesmo tempo |
-| Replay & VAR com IN/OUT | Música, mídia e jingles | Replay, stinger e câmera lenta |
-| Overlays e galeria de imagens | Talkback e convidados | Controle remoto pelo celular |
-| Legendas ao vivo (Whisper/Parakeet) | Áudio do sistema e convidados | Android como câmera/controle |
+| Scenes, layouts and transitions | Mixer with faders and dBFS meters | Multistream RTMP/RTMPS/SRT |
+| Independent preview and PGM | Mix-minus and noise reduction | Unlimited local MP4 recording |
+| News-style lower thirds and banners | Buses A–G and monitoring | 16:9 and 9:16 at the same time |
+| Replay & VAR with IN/OUT | Music, media and jingles | Replay, stinger and slow motion |
+| Overlays and image gallery | Talkback and guests | Phone remote control |
+| Live captions (Whisper/Parakeet) | System and guest audio | Android as camera/remote |
 
-## Comparativo honesto
+## Honest comparison
 
-**StreamYard** é uma ótima escolha quando você quer uma sala na nuvem, com zero instalação e suporte do
-fornecedor. O **CastDeck** é para quem quer outra coisa:
+**StreamYard** is a great choice when you want a fully managed cloud room, zero installation and vendor
+support. **CastDeck** is for a different trade-off:
 
-| Pergunta | StreamYard (SaaS) | CastDeck Local |
+| Question | StreamYard (SaaS) | CastDeck Local |
 |---|---|---|
-| Quero processar e gravar no meu PC | não | **sim** |
-| Quero convidados sem conta/app | sim | **sim** |
-| Quero multistream sem depender de plano | plano | **sim** |
-| Quero código aberto e auditável | não | **sim** |
-| Quero suporte oficial 24/7 | sim | **comunidade** |
-| Quero abrir e usar sem instalar nada | sim | **app local (ou Android)** |
+| I want to process and record on my PC | no | **yes** |
+| I want guests without an account/app | yes | **yes** |
+| I want multistream without plan limits | plan | **yes** |
+| I want open, auditable source | no | **yes** |
+| I want official 24/7 support | yes | **community** |
+| I want to use it without installing anything | yes | **local app (or Android)** |
 
-**Escolha o CastDeck se** privacidade, custo previsível, gravação local, vertical simultâneo e controle do
-código importam. **Escolha o StreamYard se** você precisa de uma operação 100% gerenciada, suporte
-contratual e não quer administrar um computador.
+**Choose CastDeck if** privacy, predictable cost, local recording, simultaneous vertical output and code
+ownership matter. **Choose StreamYard if** you need a fully managed operation, contracted support and do
+not want to manage a computer.
 
-Leia o estudo completo: [**CastDeck como alternativa ao StreamYard**](docs/streamyard-alternative.pt-BR.md)
-(também em [English](docs/streamyard-alternative.en.md) e [Español](docs/streamyard-alternative.es.md)).
+Read the full breakdown: [**CastDeck as a StreamYard alternative**](docs/streamyard-alternative.en.md)
+(also in [Português](docs/streamyard-alternative.pt-BR.md) and [Español](docs/streamyard-alternative.es.md)).
 
 ## Downloads
 
-| Sistema | Como obter |
+| System | How to get it |
 |---|---|
 | **Windows 10/11 x64** | [cast.flue.live/downloads.html](https://cast.flue.live/downloads.html) |
-| **Android 8+** | APK oficial no site |
-| **Linux x64/arm64** | binário/AppImage no site |
-| **macOS Intel/Apple Silicon** | binário no site |
+| **Android 8+** | Official APK on the site |
+| **Linux x64/arm64** | binary/AppImage on the site |
+| **macOS Intel/Apple Silicon** | binary on the site |
 
-> macOS não assinado: na primeira abertura use **clique direito → Abrir**.
-> Requisitos: Windows 10/11, Linux ou macOS; Chrome/Edge para a interface; 8 GB de RAM recomendados.
+> macOS is unsigned: on first launch use **right-click → Open**.
+> Requirements: Windows 10/11, Linux or macOS; Chrome/Edge for the UI; 8 GB RAM recommended.
 
-## Como funciona
+## How it works
 
 ```text
-Navegador do host ──HTTP/WS──► Servidor local (Node) ──► FFmpeg ──► YouTube/Twitch/RTMP
-        │                               │
-        │ WebRTC                        ├─ convidados (navegador, mix-minus)
-        ▼                               ├─ MediaMTX (RTMP/SRT de drones/câmeras)
-   Canvas/Compositor ◄── cenas, GC, overlays, replay
+Host browser ──HTTP/WS──► Local server (Node) ──► FFmpeg ──► YouTube/Twitch/RTMP
+      │                            │
+      │ WebRTC                     ├─ guests (browser, mix-minus)
+      ▼                            ├─ MediaMTX (RTMP/SRT from drones/cameras)
+ Canvas/Compositor ◄── scenes, graphics, overlays, replay
 ```
 
-- **Servidor local** Express/WebSocket em `127.0.0.1`/LAN.
-- **WebRTC** para convidados, com TURN opcional para NAT difícil.
-- **FFmpeg** para composição/gravação/RTMP; **MediaMTX** para ingestão.
-- **Interface web sem framework**, servida pelo próprio app.
+- **Local server** Express/WebSocket on `127.0.0.1`/LAN.
+- **WebRTC** for guests, with optional TURN for difficult NAT.
+- **FFmpeg** for compositing/recording/RTMP; **MediaMTX** for ingest.
+- **Framework-free web UI**, served by the app itself.
 
-## Privacidade e segurança
+## Privacy and security
 
-O vídeo e o áudio do estúdio ficam no seu dispositivo. O app consulta o site apenas para verificar
-atualizações; não envia o conteúdo da live para o CastDeck. Leia [`SECURITY.md`](SECURITY.md) e
-[`PRIVACY.md`](PRIVACY.md). Para vulnerabilidades, use o canal privado — não abra issue pública.
+Studio video and audio stay on your device. The app contacts the website only to check for updates; it does
+not send your live content to CastDeck. Read [`SECURITY.md`](SECURITY.md) and [`PRIVACY.md`](PRIVACY.md).
+For vulnerabilities, use the private channel — do not open a public exploit issue.
 
-## Licença e comunidade
+## Support the project
 
-O CastDeck é **software livre sob AGPL-3.0-only**, com **licença comercial opcional** para quem precisa
-incorporar o código em produto fechado. Componentes de terceiros mantêm suas licenças; consulte
-[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) e [`licenses/`](licenses/).
+CastDeck is free and independent. If it helps your live production, you can support the project on
+[Apoia.se](https://apoia.se/casdecklocal) — it helps cover servers, devices and development time.
 
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — CLA e regras de contribuição
-- [`CLA.md`](CLA.md) — acordo de contribuição
-- [`TRADEMARK.md`](TRADEMARK.md) — uso da marca
-- [`SOURCE-OFFER.md`](SOURCE-OFFER.md) — código-fonte correspondente
-- [`COMMERCIAL-LICENSE.md`](COMMERCIAL-LICENSE.md) — licença comercial
+## License and community
+
+CastDeck is **free software under AGPL-3.0-only**, with an optional **commercial license** for embedding the
+code in closed products. Third-party components keep their own licenses; see
+[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) and [`licenses/`](licenses/).
+
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — CLA and contribution rules
+- [`CLA.md`](CLA.md) — contributor agreement
+- [`TRADEMARK.md`](TRADEMARK.md) — brand usage
+- [`SOURCE-OFFER.md`](SOURCE-OFFER.md) — corresponding source
+- [`COMMERCIAL-LICENSE.md`](COMMERCIAL-LICENSE.md) — commercial license
 
 ## Status
 
-Versão **1.3.29** — Playout com fila e mini player, Diretor automático em acordeão, traduções PT/EN/ES e ajuda de eco. Veja os
+Version **1.3.32** — Remote camera with centered QR, 1080p/720p and high bitrate, plus autoplay and a one-video-at-a-time policy. See the
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
-Feito por **Miguel Kallemback / flue.live**, de brasileiros para o mundo. 🌎
+Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

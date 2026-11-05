@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { $, createRoom, copy, qrSvg, esc } from './common.js?v=11';
+import { $, createRoom, copy, qrSvg, esc } from './common.js?v=12';
 
 const form = $('#create-form');
 const err = $('#err');

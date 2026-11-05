@@ -186,6 +186,10 @@ async function micOn() {
     try {
       const stream = await getMic(loadPrefs().micId || '');
       C.mic = stream.getAudioTracks()[0];
+      if (C.mic && !C.devicesRefreshed) {
+        C.devicesRefreshed = true;
+        initAudioDevices();
+      }
       if (C.peer) C.peer.pc.addTrack(C.mic, new MediaStream([C.mic]));
       else C.stream = new MediaStream([C.mic]);
       C.mic.onended = () => { C.mic = null; C.micOn = false; };

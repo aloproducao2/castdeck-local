@@ -6,7 +6,7 @@
 
 | | |
 | --- | --- |
-| **Projeto** | CastDeck Local (`castdeck-local` v1.3.26, 2026-10-29) |
+| **Projeto** | CastDeck Local (`castdeck-local` v1.3.33, 2026-11-04) |
 | **Licença** | AGPL-3.0 (código aberto) + licença comercial |
 | **Autoria / desenvolvimento** | **Miguel Kallemback** (desenvolvedor e idealizador) |
 | **Desenvolvimento assistido por IA** | Claude (Anthropic), Gemini / Antigravity (Google DeepMind) e DeepSeek |
@@ -20,19 +20,20 @@
 1. [Visão e premissa](#1-visão-e-premissa)
 2. [Comparativo com plataformas na nuvem](#2-comparativo-com-plataformas-na-nuvem)
 3. [Funcionalidades](#3-funcionalidades)
-4. [Arquitetura](#4-arquitetura)
-5. [Fluxos principais](#5-fluxos-principais)
-6. [Protocolo de sinalização](#6-protocolo-de-sinalização)
-7. [Servidor e API HTTP](#7-servidor-e-api-http)
-8. [Versão Android](#8-versão-android)
-9. [Segurança](#9-segurança)
-10. [Instalação e uso](#10-instalação-e-uso)
-11. [Build e distribuição](#11-build-e-distribuição)
-12. [Testes](#12-testes)
-13. [Solução de problemas](#13-solução-de-problemas)
-14. [Limitações conhecidas](#14-limitações-conhecidas)
-15. [Roadmap sugerido](#15-roadmap-sugerido)
-16. [Autoria e créditos](#16-autoria-e-créditos)
+4. [Intercom de produção (EGM)](#4-intercom-de-produção-egm)
+5. [Arquitetura](#5-arquitetura)
+6. [Fluxos principais](#6-fluxos-principais)
+7. [Protocolo de sinalização](#7-protocolo-de-sinalização)
+8. [Servidor e API HTTP](#8-servidor-e-api-http)
+9. [Versão Android](#9-versão-android)
+10. [Segurança](#10-segurança)
+11. [Instalação e uso](#11-instalação-e-uso)
+12. [Build e distribuição](#12-build-e-distribuição)
+13. [Testes](#13-testes)
+14. [Solução de problemas](#14-solução-de-problemas)
+15. [Limitações conhecidas](#15-limitações-conhecidas)
+16. [Roadmap sugerido](#16-roadmap-sugerido)
+17. [Autoria e créditos](#17-autoria-e-créditos)
 
 ---
 
@@ -177,7 +178,239 @@ Duas camadas fixas acima de tudo (GC, letreiro, logo), independentes da cena e d
 
 ---
 
-## 4. Arquitetura
+## 4. Intercom de produção (EGM)
+
+> **Disponível na 1.3.33** no estúdio, na página `/cam` e na página independente `/intercom/:id`.
+> Guia completo: [`docs/INTERCOM.md`](https://github.com/aloproducao2/castdeck-local/blob/main/docs/INTERCOM.md)
+> e página do site [`intercom.html`](https://cast.flue.live/intercom.html).
+
+O intercom é a via de áudio de produção entre o diretor e a equipe. Ele não é uma chamada de vídeo
+e não vai ao programa por padrão:
+
+```text
+DIRETOR  ── fala/ouve ──  CÂMERA 1
+         ── fala/ouve ──  CÂMERA 2
+         ── fala/ouve ──  REPÓRTER
+         ── envia ──────  PROGRAMA (IFB)
+```
+
+### 4.1 Papéis
+
+| Papel | Onde entra | Ouve | Fala |
+|---|---|---|---|
+| **Diretor / host** | Estúdio → Áudio → Intercom | câmeras, repórteres e programa | todos, grupos ou pessoa |
+| **Cinegrafista** | `/cam` | diretor e, opcionalmente, programa | diretor |
+| **Repórter** | `/intercom/:id` | diretor e, opcionalmente, programa | diretor |
+| **Convidado comum** | link de convidado | retorno do programa | programa |
+
+### 4.2 EGM — seis lentes
+
+#### Operação
+
+- PTT geral, por grupo e individual.
+- Teclas **TODOS**, **CÂMERAS**, **REPORTAGEM** e **PGM**.
+- **Mic Unlatch** e **Silenciar todos**.
+- Mini painel opcional com PTT e corte de câmeras juntos.
+
+#### Criação
+
+1. Abrir **Áudio → Intercom**.
+2. Clicar em **Link/QR**.
+3. Escolher link da mesma rede ou Internet.
+4. Enviar para o celular da equipe.
+5. Usar fone e liberar o microfone.
+
+#### Automação
+
+- PTT com rampa curta, sem clique.
+- Retorno pessoal sem a própria voz.
+- Mesmo peer WebRTC da câmera.
+- Mini painel atualiza quando alguém entra ou sai.
+- IFB do programa em volume separado.
+- O microfone nunca abre sozinho.
+
+#### Cognição
+
+| Estado | Sinal visual |
+|---|---|
+| Conectado | ponto verde |
+| Ouvindo | botão “Ouvindo” |
+| Falando | PTT azul/ciano |
+| Travado | **MIC TRAVADO** em âmbar |
+| PGM / PVW | tally vermelho / verde |
+| Sem participantes | **SEM PARTICIPANTES** |
+| Tela ativa | indicador na página mobile |
+
+Vermelho e verde são reservados ao tally. O intercom usa azul/ciano para falar e âmbar para
+travar ou chamar atenção.
+
+#### Performance
+
+- Áudio mono, sem vídeo no canal de repórter.
+- Mesmo peer da câmera: o vídeo não é interrompido.
+- Um destino WebAudio por participante.
+- Áudio de intercom separado do encoder RTMP.
+- A latência depende da rede, do túnel e do TURN.
+
+#### Confiança
+
+- Intercom fora do programa por padrão.
+- PTT travado com **Mic Unlatch**.
+- Link independente com chave do estúdio.
+- Host somente no PC local.
+- Nenhum áudio de intercom é gravado.
+- Fone é obrigatório para evitar eco.
+
+### 4.3 Fluxo do host
+
+![Painel do host no estúdio](/assets/img/intercom-host.png)
+
+```text
+Áudio → Intercom
+  ├─ PTT GERAL ................ fala com todos
+  ├─ TODOS .................... tecla de grupo
+  ├─ CÂMERAS .................. fala/ouve cinegrafistas
+  ├─ REPORTAGEM ............... fala/ouve repórteres
+  ├─ PGM ...................... só escuta o programa
+  ├─ Participantes ............ PTT e escuta por pessoa
+  ├─ Travar PTT ............... microfone aberto até fechar
+  ├─ IFB ...................... programa no retorno
+  ├─ Link/QR .................. convite local/Internet
+  └─ Mini ..................... painel flutuante + corte
+```
+
+### 4.4 PTT momentâneo e travado
+
+| Modo | Ação | Uso |
+|---|---|---|
+| **Momentâneo** | segure para falar | operação normal |
+| **Travado** | ative **Travar PTT** e clique no PTT | mãos ocupadas / direção contínua |
+
+No modo travado:
+
+- um clique abre o microfone;
+- outro clique fecha;
+- o botão fica em âmbar;
+- **Mic Unlatch** fecha imediatamente.
+
+### 4.5 Página da câmera (`/cam`)
+
+- Faixa de intercom com PTT grande.
+- **Travar** mantém o microfone aberto.
+- **Ouvindo** controla o retorno do diretor.
+- O microfone começa desligado.
+- O vídeo continua no mesmo peer.
+- O tally continua vermelho no ar e verde na prévia.
+
+![Intercom na página da câmera](/assets/img/intercom-camera.png)
+
+### 4.6 Página independente (`/intercom/:id`)
+
+Para repórter ou cinegrafista que só precisa de áudio:
+
+- PTT grande;
+- escuta do diretor;
+- volume;
+- **Travar PTT**;
+- indicador **Tela ativa**;
+- notificação de mídia do Chrome;
+- reconexão ao voltar.
+
+Link:
+
+```text
+https://<servidor>/intercom/<id-do-estúdio>?k=<chave>&role=reporter
+```
+
+![Intercom no celular](/assets/img/intercom-mobile.png)
+
+### 4.7 Mini painel Intercom + Corte
+
+O mini painel é opcional:
+
+- abre pelo ícone de microfone da barra superior ou pelo botão **Mini**;
+- fica flutuante e arrastável;
+- compartilha o PTT e o travamento com o painel principal;
+- mostra **CORTE RÁPIDO** com as câmeras;
+- clicar numa câmera corta a fonte para o programa;
+- o botão **Painel** abre a lateral do Intercom;
+- a posição fica salva no navegador.
+
+![Mini painel Intercom + Corte](/assets/img/intercom-mini.png)
+
+### 4.8 IFB do programa
+
+O IFB leva o programa ao fone de quem está na rua ou atrás da câmera:
+
+- volume do programa independente do volume da voz do diretor;
+- o participante não ouve a própria voz;
+- o programa não entra no programa;
+- use fone para evitar realimentação.
+
+### 4.9 Celular e tela desligada
+
+A página mobile usa:
+
+- **Screen Wake Lock** para manter a tela ativa;
+- **Media Session** com o título “Intercom — CastDeck”;
+- **áudio de manutenção silencioso**;
+- reconexão ao voltar para a aba.
+
+Isso é o máximo que uma página web consegue fazer. O Android ainda pode suspender a aba quando o
+aparelho é bloqueado. Para background garantido seria necessário um serviço em primeiro plano no
+aplicativo Android nativo.
+
+### 4.10 Segurança
+
+- O link de intercom exige `k=<chave>`.
+- A chave é a mesma do link de saída nesta versão.
+- O host só abre no PC local.
+- O intercom não entra no programa por padrão.
+- Use **Silenciar todos** em emergência.
+- Não compartilhe o link fora da equipe.
+
+### 4.11 Diagnóstico rápido
+
+| Sintoma | O que fazer |
+|---|---|
+| Link não abre | gerar novo Link/QR no host |
+| Chave inválida | gerar novo link |
+| Não ouço | tocar em Ouvir e liberar o áudio no navegador |
+| Não falo | liberar microfone; segurar o PTT ou ativar Travar |
+| Eco | usar fone |
+| Mini PTT sem reação | conectar um participante; ver **SEM PARTICIPANTES** |
+| Painel não abre pelo mini | atualizar para 1.3.33; o botão abre a lateral |
+| Tela apaga | manter ativa; background web é melhor esforço |
+
+### 4.12 Limites desta versão
+
+- Sem sidetone ajustável.
+- Sem call/cue sem voz.
+- Sem ducking automático do IFB.
+- Grupos fixos.
+- Sem chave separada da chave de saída.
+- Sem gravação de intercom.
+- Teste em aparelhos reais ainda recomendado.
+
+### 4.13 Critérios de aceite
+
+- [ ] Host fala com todos, grupo e pessoa.
+- [ ] Câmera ouve o diretor e fala de volta.
+- [ ] Repórter entra pelo link com chave.
+- [ ] PTT travado abre/fecha com um clique.
+- [ ] Mic Unlatch funciona.
+- [ ] Intercom não vai ao programa por padrão.
+- [ ] IFB tem volume próprio.
+- [ ] Câmera não perde vídeo ao usar intercom.
+- [ ] Mini painel abre, arrasta e corta câmera.
+- [ ] Mini PTT atualiza quando alguém entra/sai.
+- [ ] Página mobile mostra “Tela ativa”.
+- [ ] Link sem chave é recusado.
+- [ ] Funciona em LAN e Internet.
+
+---
+
+## 5. Arquitetura
 
 ```mermaid
 flowchart LR
@@ -228,9 +461,9 @@ O host é o centro. Cada convidado envia câmera/microfone ao host e **recebe de
 
 ---
 
-## 5. Fluxos principais
+## 6. Fluxos principais
 
-### 5.1 Entrada de um convidado
+### 6.1 Entrada de um convidado
 
 ```mermaid
 sequenceDiagram
@@ -249,14 +482,14 @@ sequenceDiagram
   Note over G,H: ICE (STUN/TURN) → mídia WebRTC conectada
 ```
 
-### 5.2 Transmissão
+### 6.2 Transmissão
 
 1. O estúdio compõe a cena em um `canvas` e mixa o áudio no Web Audio.
 2. `MediaRecorder` gera WebM e envia pelo WebSocket `/ingest` (somente local).
 3. O servidor lança **um processo FFmpeg por destino** (PC) ou usa `Broadcast.java` (Android) para codificar em H.264/AAC e publicar em RTMP/RTMPS.
 4. Falhas de destino disparam reconexão sem derrubar os demais.
 
-### 5.3 Recuperação de conexão do convidado
+### 6.3 Recuperação de conexão do convidado
 
 - `Peer.recover()` reinicia o ICE em quedas; após falhas repetidas dispara o evento `stuck`.
 - O convidado reentra na sala (`forceRejoin`) com **backoff exponencial** (2 s → 4 s → … até 30 s) e **para após 4 tentativas**, exibindo a causa em vez de entrar em loop.
@@ -264,7 +497,7 @@ sequenceDiagram
 
 ---
 
-## 6. Protocolo de sinalização
+## 7. Protocolo de sinalização
 
 WebSocket em `/ws`, mensagens JSON. O hub (`server/signaling.js`, e `SignalingHub.java` no Android) mantém salas em estrela.
 
@@ -301,7 +534,7 @@ O servidor envia *ping* a cada 15 s e encerra clientes que não respondem.
 
 ---
 
-## 7. Servidor e API HTTP
+## 8. Servidor e API HTTP
 
 Porta padrão **3000** (HTTP, local) e **3443** (HTTPS com certificado autoassinado para a LAN).
 
@@ -340,7 +573,7 @@ Inclui, entre outras: `/system`, `/tunnel` (+ `/start`, `/restart`, `/stop`), co
 
 ---
 
-## 8. Versão Android
+## 9. Versão Android
 
 O estúdio completo roda no celular ou tablet. O servidor Node foi **portado para Java** e roda em um serviço em primeiro plano.
 
@@ -378,7 +611,7 @@ Depuração do WebView: `adb forward tcp:9222 localabstract:webview_devtools_rem
 
 ---
 
-## 9. Segurança
+## 10. Segurança
 
 | Risco | Mitigação |
 | --- | --- |
@@ -396,7 +629,7 @@ Depuração do WebView: `adb forward tcp:9222 localabstract:webview_devtools_rem
 
 ---
 
-## 10. Instalação e uso
+## 11. Instalação e uso
 
 ### Usuário final (PC)
 
@@ -425,7 +658,7 @@ Instale `dist/CastDeck.apk` (permita apps desconhecidos). Conceda câmera, micro
 
 ---
 
-## 11. Build e distribuição
+## 12. Build e distribuição
 
 ```bash
 npm install
@@ -468,7 +701,7 @@ npm run release -- --notes "novidade 1;novidade 2"   # versão nova + todos os b
 
 ---
 
-## 12. Testes
+## 13. Testes
 
 Com o CastDeck em execução:
 
@@ -483,7 +716,7 @@ A pasta `test/` contém ainda roteiros E2E de layout, co-host, vertical, notíci
 
 ---
 
-## 13. Solução de problemas
+## 14. Solução de problemas
 
 | Sintoma | Causa provável | Ação |
 | --- | --- | --- |
@@ -506,7 +739,7 @@ A pasta `test/` contém ainda roteiros E2E de layout, co-host, vertical, notíci
 
 ---
 
-## 14. Limitações conhecidas
+## 15. Limitações conhecidas
 
 - O link público muda a cada reinicialização (sem conta Cloudflare).
 - O upload do host cresce com o número de convidados (topologia estrela, programa devolvido a cada um).
@@ -521,7 +754,7 @@ A pasta `test/` contém ainda roteiros E2E de layout, co-host, vertical, notíci
 
 ---
 
-## 15. Roadmap sugerido
+## 16. Roadmap sugerido
 
 - Servidor TURN próprio opcional (empacotado/instalável) e credenciais efêmeras.
 - SFU leve para reduzir o upload do host com muitos convidados.
@@ -535,7 +768,7 @@ A pasta `test/` contém ainda roteiros E2E de layout, co-host, vertical, notíci
 
 ---
 
-## 16. Autoria e créditos
+## 17. Autoria e créditos
 
 ### Desenvolvedor
 

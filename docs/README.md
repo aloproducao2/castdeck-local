@@ -2,14 +2,24 @@
 
 | Caminho | Papel |
 |---|---|
-| [`DOCUMENTACAO.md`](DOCUMENTACAO.md) | Documentação funcional do CastDeck. |
-| [`streamyard-alternative.pt-BR.md`](streamyard-alternative.pt-BR.md) | Comparativo e guia: CastDeck como alternativa ao StreamYard (PT). |
-| [`streamyard-alternative.en.md`](streamyard-alternative.en.md) | Same guide in English. |
-| [`streamyard-alternative.es.md`](streamyard-alternative.es.md) | La misma guía en español. |
-| [`assets/studio.png`](assets/studio.png) | Captura do estúdio usada no README. |
+| `DOCUMENTACAO.md` | Documentação funcional do CastDeck. |
+| `INTERCOM.md` | Guia EGM do intercom: operação, PTT, IFB, mini painel, mobile e diagnóstico. |
+| `PLANO-MELHORIAS.md` | Plano geral de melhorias. |
+| `artigo-imprensa.md` | Texto de divulgação. |
+| `ai/ESTADO.md` | Estado atual, versões e diário de trabalho. |
+| `ai/HISTORICO.md` | Histórico longo. |
+| `ai/PLANO-*.md` | Planos de features e estudos. |
+| `ai/ANALISE-*.md` | Análises técnicas. |
+| `designs/SITEMAP.md` | Índice de designs (fluxo EGM). |
 
 ## Invariantes
 
-- Documentação pública não inclui dados de VPS, landing page ou chaves.
-- Textos em português têm versões em inglês/espanhol quando são material de apresentação.
-- Planos internos de release/segurança ficam fora do repositório público.
+- `ESTADO.md` é a fonte de verdade do estado atual (versão local × publicada).
+- Planos novos seguem `PLANO-<ASSUNTO>.md` em `docs/ai/`.
+- Textos em pt-BR.
+
+## Subdiretórios
+
+- [`ai/`](ai/README.md) — estado, histórico e planos
+- [`designs/`](designs/README.md) — designs EGM
+- [`INTERCOM.md`](INTERCOM.md) — guia EGM do intercom

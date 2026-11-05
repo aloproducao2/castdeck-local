@@ -179,6 +179,8 @@ app.get(['/replay', '/replay.html'], localOnly, (req, res) => res.sendFile(path.
 app.get('/join/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'join.html')));
 // câmera remota: celular/aparelho que só envia vídeo para o estúdio (link/QR em "＋ Câmera")
 app.get('/cam/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'cam.html')));
+// intercom de produção (câmeras/repórteres): página própria, áudio bidirecional
+app.get('/intercom/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'intercom.html')));
 // página pública de votação (QR Code da enquete)
 app.get('/vote/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'vote.html')));
 // página pública de mensagens do público (QR Code da caixa de mensagens: texto curto ou áudio)

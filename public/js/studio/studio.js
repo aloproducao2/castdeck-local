@@ -85,6 +85,8 @@ const S = {
   local: { cam: null, mic: null, camOn: true, micOn: true, screen: null, name: 'Host' },
   mediaCount: 0,
   playlist: { on: false, loop: false, follow: true, order: [] },
+  outKey: '',
+  intercom: { talk: {}, listen: {}, ifb: true, ifbLevel: 0.18, ptt: false, latch: false },
 };
 
 let comp, mixer, sig, programStream, broadcaster, ticker, social, news, gcDesigner, audioPanel, vfx;
@@ -168,7 +170,7 @@ const TAB_GROUPS = [
     ],
   },
   { id: 'director', label: 'Diretor', icon: 'auto', hint: 'Diretor automático: corta ou destaca quem fala e abaixa a música quando alguém fala', tabs: [['director', 'Diretor', 'auto', 'Corte automático e áudio inteligente']] },
-  { id: 'audio', label: 'Áudio', icon: 'mixer', hint: 'Mixer: volume de cada microfone, convidado e mídia', tabs: [['audio', 'Mixer', 'mixer', 'Volume de cada fonte']] },
+  { id: 'audio', label: 'Áudio', icon: 'mixer', hint: 'Mixer e intercom de produção', tabs: [['audio', 'Mixer', 'mixer', 'Volume de cada fonte'], ['intercom', 'Intercom', 'mic', 'Intercom do diretor com câmeras e repórteres']] },
   { id: 'captions', label: 'Legendas', icon: 'cc', hint: 'Legenda ao vivo da fala: na tela (PGM) e por link, com tradução opcional', tabs: [['captions', 'Legendas', 'cc', 'Legenda ao vivo: na tela e por link']] },
   { id: 'outputs', label: 'Sinais', icon: 'signal', hint: 'Sinais para OBS/vMix: programa horizontal, vertical e cada pessoa, com qualidade ajustável', tabs: [['outputs', 'Sinais', 'signal', 'Sinais separados para OBS e vMix: programa horizontal, vertical e cada pessoa']] },
   {
@@ -298,6 +300,7 @@ async function buildStudio() {
       ${window.CDi18n ? window.CDi18n.selectHTML({ className: 'btn', short: true, id: 'studio-lang' }) : ''}
       ${S.system.platform === 'android' ? '' : `<button class="btn icon" id="btn-whatsapp" title="WhatsApp local: QR, caixa de entrada e fila do programa" aria-label="WhatsApp">${icons.whatsapp}</button>`}
       <button class="btn icon" id="btn-cameras" title="Painel de câmeras: preview e ajustes de zoom, foco, ISO, exposição e lanterna" aria-label="Câmeras">${icons.cam}</button>
+      <button class="btn icon" id="btn-intercom-mini" title="Mini intercom: PTT e corte de câmeras juntos" aria-label="Mini intercom" aria-pressed="false">${icons.mic}</button>
       <button class="btn icon" id="btn-remote" title="Controle remoto no celular: leia o QR e comande a mesa de corte" aria-label="Controle remoto">${REMOTE_ICON}</button>
       <button class="btn icon" data-fs="studio" data-tip="Tela cheia do estúdio" title="Tela cheia do estúdio" aria-label="Tela cheia do estúdio">${icons.expand}</button>
       <button class="btn" id="btn-panel" title="Abrir painel de controle (mídia, banners, jornal...)" aria-expanded="false">Painel</button>
@@ -377,6 +380,7 @@ async function buildStudio() {
       <div class="panel" id="panel-chat"></div>
       <div class="panel" id="panel-social"></div>
       <div class="panel" id="panel-audio"></div>
+      <div class="panel" id="panel-intercom"></div>
       <div class="panel" id="panel-captions"></div>
       <div class="panel" id="panel-director"></div>
       <div class="panel" id="panel-output"></div>
@@ -704,6 +708,18 @@ async function buildStudio() {
     modal,
   });
   window.__castdeck.remote = remote;
+  // API curta usada pelo painel Câmeras e por integrações locais.
+  window.__castdeck.intercom = {
+    talk: (id, on) => intercomSetTalk([id], on),
+    listen: (id, on) => {
+      S.intercom.listen[id] = !!on;
+      mixer.setIntercomListen(`${id}:cam:audio`, !!on);
+    },
+    isListening: (id) => S.intercom.listen[id] !== false,
+    isTalking: (id) => !!S.intercom.talk[id],
+    link: () => showIntercomLink(),
+    open: () => switchTab('intercom'),
+  };
   // O painel do Diretor é remontado ao trocar de idioma; o bloco de controle remoto
   // também usa t() e precisa ser recolocado depois da remontagem.
   window.CDi18n?.onChange?.(() => {
@@ -711,6 +727,7 @@ async function buildStudio() {
   });
   $('#btn-whatsapp')?.addEventListener('click', () => whatsapp?.open());
   $('#btn-cameras').onclick = () => cameras.open();
+  $('#btn-intercom-mini').onclick = () => toggleIntercomMini();
   $('#btn-remote').onclick = () => remote.openModal();
   floatWins = createFloatWins({
     $,
@@ -3946,6 +3963,7 @@ function connectSignaling() {
   sig.on('welcome', (m) => {
     for (const id of [...S.guests.keys()]) removeGuest(id, true);
     for (const g of m.guests) addGuest(g);
+    S.outKey = m.outKey || '';
     outputs.setKey(m.outKey);
     remote?.setKey(m.outKey);
     outputs.reset(m.outputs || []);
@@ -3958,6 +3976,8 @@ function connectSignaling() {
     addGuest(m.guest);
     gcDesigner?.onGuestJoin?.(m.guest);
     cameras?.refresh();
+    if (tabOpen('intercom')) renderIntercomPanel();
+    if (!intercomMiniEl?.hidden) paintIntercomMini();
     toast(`${m.guest.name} entrou no backstage`, 'ok');
   });
   sig.on('guest-left', (m) => {
@@ -3965,6 +3985,8 @@ function connectSignaling() {
     if (g) toast(`${g.name} saiu`);
     removeGuest(m.id);
     cameras?.refresh();
+    if (tabOpen('intercom')) renderIntercomPanel();
+    if (!intercomMiniEl?.hidden) paintIntercomMini();
   });
   sig.on('guest-state', (m) => {
     const g = S.guests.get(m.id);
@@ -3975,6 +3997,8 @@ function connectSignaling() {
     if (!hadScreen && g.state.screenStreamId) toast(`${g.name} está compartilhando a tela`);
     resolveGuest(g);
     cameras?.refresh();
+    if (tabOpen('intercom')) renderIntercomPanel();
+    if (!intercomMiniEl?.hidden) paintIntercomMini();
   });
   sig.on('signal', (m) => {
     if (outputs.handleSignal(m)) return; // página de saída (OBS/vMix)
@@ -4017,6 +4041,16 @@ function addGuest(info) {
   // no PC do host e sem gastar bateria/dados do celular.
   g.cam = !!g.state.cam;
   g.peer = new Peer({ id: g.id, polite: false, signal: (data) => sig.send({ type: 'signal', to: g.id, data }) });
+  // Câmera remota e página de intercom usam o mesmo peer: um retorno de áudio pessoal
+  // para o PTT do diretor/IFB, sem criar uma segunda conexão.
+  if (g.cam) {
+    const track = mixer.addIntercomOutput(g.id);
+    if (track) {
+      g.intercomTrack = track;
+      g.intercomSender = g.peer.pc.addTrack(track, new MediaStream([track]));
+      mixer.setIntercomProgram(g.id, S.intercom.ifb !== false, S.intercom.ifbLevel ?? 0.18);
+    }
+  }
   if (!g.cam) {
     g.view = new GuestView(comp, g.id, { fps: guestReturnFps() });
     g.returnBps = guestReturnBase();
@@ -4104,6 +4138,15 @@ function resolveGuest(g) {
     if (st.screenStreamId && sid === st.screenStreamId) scrStream = stream;
     else if (!st.camStreamId || sid === st.camStreamId) camStream ||= stream;
   }
+  // Alguns navegadores entregam a faixa de áudio do PTT antes do evento `track` virar
+  // um MediaStream em g.streams. Usa o receiver vivo como fallback para o intercom.
+  if (!camStream) {
+    const audio = (g.peer?.pc?.getReceivers?.() || []).find((r) => r.track?.kind === 'audio' && r.track.readyState === 'live');
+    if (audio) {
+      camStream = new MediaStream([audio.track]);
+      g.streams.set(camStream.id, camStream);
+    }
+  }
   addVideoSource(camId, camStream, {
     kind: 'camera',
     label: g.name,
@@ -4141,6 +4184,7 @@ function removeGuest(id, silent) {
   g.peer.close();
   g.view?.close();
   mixer.removeGuestOutput(id);
+  mixer.removeIntercomOutput(id);
   removeSource(`${id}:cam`);
   removeSource(`${id}:screen`);
   S.guests.delete(id);
@@ -4190,7 +4234,7 @@ function tabOpen(t) {
   return S.tab === t || !!floatWins?.has(t);
 }
 function renderTabContent(tab) {
-  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, outputs: () => outputs.open() })[tab]?.();
+  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, outputs: () => outputs.open(), intercom: renderIntercomPanel })[tab]?.();
 }
 
 // marca nas abas da lateral quais estão destacadas e cuida do botão ⧉
@@ -5331,6 +5375,340 @@ function updateUnread() {
     c.hidden = !S.unread;
     c.textContent = S.unread;
   });
+}
+
+function intercomGuests() {
+  return [...S.guests.values()].filter((g) => g.cam && !g.removed);
+}
+
+function intercomGroupOf(g) {
+  return g.state?.intercomRole === 'reporter' ? 'rep' : 'cam';
+}
+
+function intercomSourceId(g) {
+  return `${g.id}:cam:audio`;
+}
+
+function intercomTalkIds(key) {
+  const all = intercomGuests();
+  if (key === 'all') return all.map((g) => g.id);
+  return all.filter((g) => intercomGroupOf(g) === key).map((g) => g.id);
+}
+
+function intercomSetTalk(ids, on) {
+  for (const id of ids) {
+    if (on) S.intercom.talk[id] = true;
+    else delete S.intercom.talk[id];
+    mixer.setIntercomTalk(id, on);
+  }
+}
+
+function intercomReleaseAll() {
+  intercomSetTalk(Object.keys(S.intercom.talk), false);
+  document.querySelectorAll('#panel-intercom .ic-key.on, #panel-intercom .ic-ptt.on, #panel-intercom .ic-person-ptt.on').forEach((b) => b.classList.remove('on'));
+  document.querySelectorAll('#panel-intercom .ic-person.ic-talking').forEach((b) => b.classList.remove('ic-talking'));
+}
+
+window.addEventListener('blur', intercomReleaseAll);
+document.addEventListener('visibilitychange', () => { if (document.hidden) intercomReleaseAll(); });
+setInterval(() => {
+  const bar = $('#ic-mic-bar');
+  if (!bar || !tabOpen('intercom')) return;
+  const db = mixer?.levelDb?.('host:mic')?.peak ?? -90;
+  const pct = Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
+  bar.style.width = `${pct}%`;
+}, 120);
+
+async function showIntercomLink() {
+  let sys = S.system;
+  try { sys = await api('/system'); } catch {}
+  const key = encodeURIComponent(S.outKey || '');
+  const lan = (sys.lan || [])[0];
+  const tunnel = sys.tunnel?.url;
+  const urls = [
+    lan ? { title: 'Mesma rede (Wi‑Fi)', sub: 'Melhor qualidade, sem internet', url: `${lan.url}/intercom/${studioId}?k=${key}` } : null,
+    tunnel ? { title: 'Internet', sub: 'De qualquer lugar (4G/5G)', url: `${tunnel}/intercom/${studioId}?k=${key}` } : null,
+  ].filter(Boolean);
+  await modal(
+    `<h3>Link do intercom</h3>
+     <p class="sub">Quem receber este link entra como câmera/repórter de áudio. A chave do estúdio é obrigatória.</p>
+     <div class="camqr">${urls.length ? urls.map((x) => `<div class="camqr-card">
+       <div class="camqr-head"><span>${x.title === 'Internet' ? '🌐' : '📶'}</span><div><strong>${esc(x.title)}</strong><small>${esc(x.sub)}</small></div></div>
+       <div class="camqr-code">${qrSvg(x.url)}</div><code class="camqr-url" title="${esc(x.url)}">${esc(x.url)}</code>
+       <div class="camqr-actions"><button class="btn sm" data-ic-copy="${esc(x.url)}">${icons.copy} Copiar</button><a class="btn sm ghost" href="${esc(x.url)}" target="_blank" rel="noopener">Abrir</a></div>
+     </div>`).join('') : '<p class="hint">Nenhum link disponível. Verifique a rede local e o túnel em Painel → Conexão.</p>'}</div>
+     <p class="hint">No celular, use fone. O microfone começa fechado; segure o PTT para falar.</p>
+     <div class="modal-actions"><button class="btn primary" data-close>Pronto</button></div>`,
+    { onMount: (m) => m.querySelectorAll('[data-ic-copy]').forEach((b) => (b.onclick = () => copyText(b.dataset.icCopy))) },
+  );
+}
+
+let intercomMiniEl = null;
+
+function intercomMiniCams() {
+  return [...S.sources.values()].filter((s) => s.kind === 'camera').slice(0, 8);
+}
+
+function intercomMiniTalk(ids, on) {
+  intercomSetTalk(ids, on);
+  const btn = intercomMiniEl?.querySelector('#icm-ptt');
+  if (btn) btn.classList.toggle('on', Object.keys(S.intercom.talk || {}).length > 0);
+}
+
+function ensureIntercomMini() {
+  if (intercomMiniEl) return intercomMiniEl;
+  const el = document.createElement('div');
+  el.id = 'intercom-mini';
+  el.className = 'ic-mini';
+  el.hidden = true;
+  el.innerHTML = `<div class="ic-mini-head" id="icm-drag" title="Arraste para mover"><span class="ic-mini-dot"></span><b>INTERCOM + CORTE</b><button type="button" class="ic-mini-x" data-icm-close aria-label="Fechar mini intercom">×</button></div>
+    <button type="button" class="ic-mini-ptt" id="icm-ptt">SEGURE PARA FALAR</button>
+    <div class="ic-mini-row"><button type="button" class="ic-mini-btn" id="icm-latch">Travar PTT</button><button type="button" class="ic-mini-btn" id="icm-open">Painel</button></div>
+    <div class="ic-mini-label">CORTE RÁPIDO</div><div class="ic-mini-cams" id="icm-cams"></div>`;
+  document.body.append(el);
+  intercomMiniEl = el;
+  const ptt = el.querySelector('#icm-ptt');
+  const off = () => {
+    if (S.intercom.latch) return;
+    intercomMiniTalk(Object.keys(S.intercom.talk || {}), false);
+  };
+  ptt.addEventListener('pointerdown', (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    const list = intercomTalkIds('all');
+    if (!list.length) {
+      toast('Nenhum participante conectado no intercom. Abra o Link/QR para chamar a equipe.', 'info');
+      return;
+    }
+    if (S.intercom.latch) {
+      const on = !Object.keys(S.intercom.talk || {}).length;
+      intercomMiniTalk(list, on);
+    } else {
+      try { ptt.setPointerCapture(e.pointerId); } catch {}
+      intercomMiniTalk(list, true);
+    }
+  });
+  ptt.addEventListener('pointerup', off);
+  ptt.addEventListener('pointercancel', off);
+  ptt.addEventListener('lostpointercapture', off);
+  el.querySelector('#icm-latch').onclick = () => {
+    S.intercom.latch = !S.intercom.latch;
+    if (!S.intercom.latch) intercomReleaseAll();
+    paintIntercomMini();
+    if (tabOpen('intercom')) renderIntercomPanel();
+  };
+  el.querySelector('#icm-open').onclick = () => {
+    const st = $('.studio');
+    if (st && !st.classList.contains('side-mini') && !st.classList.contains('panel-open')) $('#btn-panel')?.click();
+    openSideTab('intercom');
+    if (window.innerWidth < 900) toggleIntercomMini(false);
+  };
+  el.querySelector('[data-icm-close]').onclick = () => toggleIntercomMini(false);
+  el.querySelector('#icm-cams').onclick = (e) => {
+    const b = e.target.closest('[data-mini-cut]');
+    if (!b || !S.sources.has(b.dataset.miniCut)) return;
+    if (!S.switcher) switcher?.toggle();
+    switcher?.cutTo(b.dataset.miniCut);
+    paintIntercomMini();
+  };
+  // posição arrastável
+  try {
+    const pos = JSON.parse(localStorage.getItem('castdeck.intercomMiniPos') || 'null');
+    if (pos && Number.isFinite(pos.left) && Number.isFinite(pos.top)) {
+      el.style.left = `${Math.max(0, Math.min(innerWidth - 260, pos.left))}px`;
+      el.style.top = `${Math.max(0, Math.min(innerHeight - 160, pos.top))}px`;
+      el.style.bottom = 'auto';
+      el.style.right = 'auto';
+    }
+  } catch {}
+  const head = el.querySelector('#icm-drag');
+  let drag = null;
+  const moveDrag = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    e.preventDefault();
+    const left = Math.max(0, Math.min(innerWidth - el.offsetWidth, drag.left + e.clientX - drag.x));
+    const top = Math.max(0, Math.min(innerHeight - el.offsetHeight, drag.top + e.clientY - drag.y));
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+    el.style.bottom = 'auto';
+    el.style.right = 'auto';
+  };
+  const stopDrag = (e) => {
+    if (!drag || (e?.pointerId !== undefined && e.pointerId !== drag.id)) return;
+    drag = null;
+    try { localStorage.setItem('castdeck.intercomMiniPos', JSON.stringify({ left: Math.round(el.offsetLeft), top: Math.round(el.offsetTop) })); } catch {}
+  };
+  // Os listeners ficam na window: o ponteiro pode sair do cabeçalho (ou do painel)
+  // durante o arraste; pointerup no próprio cabeçalho deixava o drag "colado" no mouse.
+  head.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button')) return;
+    e.preventDefault();
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, left: el.getBoundingClientRect().left, top: el.getBoundingClientRect().top };
+  });
+  window.addEventListener('pointermove', moveDrag, { passive: false });
+  window.addEventListener('pointerup', stopDrag);
+  window.addEventListener('pointercancel', stopDrag);
+  window.addEventListener('blur', () => stopDrag());
+  return el;
+}
+
+function paintIntercomMini() {
+  if (!intercomMiniEl || intercomMiniEl.hidden) return;
+  const cams = intercomMiniCams();
+  const list = intercomMiniEl.querySelector('#icm-cams');
+  list.innerHTML = cams.length
+    ? cams.map((s, i) => `<button type="button" class="ic-mini-cut ${S.take === s.id ? 'pgm' : S.pvw === s.id ? 'pvw' : ''}" data-mini-cut="${esc(s.id)}"><b>${i + 1}</b><span>${esc(s.label || 'Câmera')}</span></button>`).join('')
+    : '<div class="ic-mini-empty">Sem câmeras</div>';
+  const ptt = intercomMiniEl.querySelector('#icm-ptt');
+  if (ptt) {
+    const on = Object.keys(S.intercom.talk || {}).length > 0;
+    const hasPeople = intercomTalkIds('all').length > 0;
+    ptt.disabled = !hasPeople;
+    ptt.classList.toggle('on', on);
+    ptt.textContent = !hasPeople ? 'SEM PARTICIPANTES' : S.intercom.latch ? (on ? 'MIC ABERTO · CLIQUE PARA FECHAR' : 'CLIQUE PARA ABRIR O MIC') : 'SEGURE PARA FALAR';
+  }
+  const latch = intercomMiniEl.querySelector('#icm-latch');
+  if (latch) {
+    latch.classList.toggle('on', S.intercom.latch);
+    latch.textContent = S.intercom.latch ? 'MIC TRAVADO' : 'Travar PTT';
+  }
+  const topBtn = $('#btn-intercom-mini');
+  if (topBtn) topBtn.setAttribute('aria-pressed', String(!intercomMiniEl.hidden));
+}
+
+function toggleIntercomMini(force) {
+  const el = ensureIntercomMini();
+  const show = typeof force === 'boolean' ? force : el.hidden;
+  el.hidden = !show;
+  if (show) paintIntercomMini();
+  const topBtn = $('#btn-intercom-mini');
+  if (topBtn) topBtn.setAttribute('aria-pressed', String(show));
+}
+
+setInterval(() => { if (intercomMiniEl && !intercomMiniEl.hidden) paintIntercomMini(); }, 700);
+
+function renderIntercomPanel() {
+  const p = $('#panel-intercom');
+  if (!p) return;
+  const gs = intercomGuests();
+  const active = Object.keys(S.intercom.talk || {}).length;
+  const rows = gs.length
+    ? gs.map((g) => {
+      const src = S.sources.get(`${g.id}:cam`);
+      const onStage = !!(src && S.stage.includes(src.id));
+      const onAir = !!(src && S.take === src.id);
+      const listening = S.intercom.listen[g.id] !== false;
+      const role = intercomGroupOf(g) === 'rep' ? 'Reportagem' : 'Câmera';
+      return `<div class="ic-person ${onAir ? 'on-air' : onStage ? 'on-stage' : ''}" data-ic-person="${esc(g.id)}">
+        <span class="ic-dot ${S.intercom.talk[g.id] ? 'talk' : 'on'}"></span>
+        <div class="ic-who"><b>${esc(g.name || 'Participante')}</b><small>${role}${onAir ? ' · PGM' : onStage ? ' · palco' : ''}</small></div>
+        <button type="button" class="btn sm ic-listen ${listening ? 'on' : ''}" data-ic-listen="${esc(g.id)}" aria-pressed="${listening}">${listening ? 'Ouvindo' : 'Ouvir'}</button>
+        <button type="button" class="btn sm ic-person-ptt" data-ic-ptt="${esc(g.id)}" title="Segure para falar com ${esc(g.name || 'participante')}">PTT</button>
+      </div>`;
+    }).join('')
+    : '<div class="ic-empty">Nenhum celular/câmera conectado. Use <b>Link/QR</b> para chamar a equipe.</div>';
+  p.innerHTML = `<div class="ic-head"><div><b>Intercom</b><small>Diretor · câmeras · reportagem</small></div><span class="ic-count ${active ? 'on' : ''}">${gs.length} conectado${gs.length === 1 ? '' : 's'}${active ? ` · ${active} falando` : ''}</span><button type="button" class="btn sm" id="ic-mini-toggle" aria-pressed="${!!document.querySelector('#intercom-mini:not([hidden])')}">Mini</button><button type="button" class="btn sm" id="ic-link">Link/QR</button></div>
+    <div class="ic-director">
+      <button type="button" class="ic-ptt" id="ic-ptt" aria-label="Segure para falar com todos">🎙<b>PTT GERAL</b><small>${S.intercom.latch ? 'clique para abrir/fechar' : 'segure para falar com todos'}</small></button>
+      <div class="ic-mic"><span>MIC</span><div class="ic-meter"><i id="ic-mic-bar"></i></div><small>${S.intercom.latch ? 'PTT travado: clique para fechar' : 'Fale e solte para fechar'}</small><button type="button" class="btn sm ic-latch ${S.intercom.latch ? 'on' : ''}" id="ic-latch" aria-pressed="${S.intercom.latch}">${S.intercom.latch ? 'MIC TRAVADO' : 'Travar PTT'}</button></div>
+    </div>
+    <div class="ic-keys">
+      <button type="button" class="ic-key" data-ic-talk="all"><b>TODOS</b><small>${gs.length} pessoas</small><span class="ic-key-line"></span></button>
+      <button type="button" class="ic-key" data-ic-talk="cam"><b>CÂMERAS</b><small>${intercomTalkIds('cam').length} conectada${intercomTalkIds('cam').length === 1 ? '' : 's'}</small><span class="ic-key-line"></span></button>
+      <button type="button" class="ic-key" data-ic-talk="rep"><b>REPORTAGEM</b><small>${intercomTalkIds('rep').length} conectado${intercomTalkIds('rep').length === 1 ? '' : 's'}</small><span class="ic-key-line"></span></button>
+      <button type="button" class="ic-key ic-key-pgm" id="ic-pgm"><b>PGM</b><small>só escuta</small><span class="ic-key-line"></span></button>
+    </div>
+    <div class="ic-people">${rows}</div>
+    <div class="ic-ifb"><label class="check"><input type="checkbox" id="ic-ifb" ${S.intercom.ifb !== false ? 'checked' : ''}> <span>Enviar programa no IFB</span></label>
+      <input type="range" id="ic-ifb-level" min="0" max="1" step="0.01" value="${S.intercom.ifbLevel ?? 0.18}" aria-label="Volume do programa no IFB">
+      <small>Nível do programa separado do PTT.</small></div>
+    <div class="ic-admin"><button type="button" class="btn sm" id="ic-unlatch">Mic Unlatch</button><button type="button" class="btn sm danger" id="ic-mute-all">Silenciar todos</button><button type="button" class="btn sm" id="ic-mic-test">Testar fone</button></div>`;
+
+  const idsFor = (key) => intercomTalkIds(key);
+  const hold = (btn, ids) => {
+    let pointer = null;
+    const paint = () => {
+      const list = ids();
+      for (const id of list) p.querySelector(`[data-ic-person="${CSS.escape(id)}"]`)?.classList.add('ic-talking');
+      btn.classList.add('on');
+    };
+    const off = () => {
+      if (S.intercom.latch) return;
+      if (pointer === null) return;
+      pointer = null;
+      intercomSetTalk(ids(), false);
+      btn.classList.remove('on');
+      p.querySelectorAll('.ic-person').forEach((row) => row.classList.remove('ic-talking'));
+      p.querySelectorAll('[data-ic-talk]').forEach((b) => b.classList.remove('on'));
+    };
+    btn.addEventListener('pointerdown', (e) => {
+      if (e.button !== undefined && e.button !== 0) return;
+      e.preventDefault();
+      const list = ids();
+      if (S.intercom.latch) {
+        const on = !list.some((id) => S.intercom.talk[id]);
+        intercomSetTalk(list, on);
+        btn.classList.toggle('on', on);
+        for (const id of list) p.querySelector(`[data-ic-person="${CSS.escape(id)}"]`)?.classList.toggle('ic-talking', on);
+        p.querySelectorAll('[data-ic-talk]').forEach((b) => {
+          const l = idsFor(b.dataset.icTalk);
+          b.classList.toggle('on', l.some((id) => S.intercom.talk[id]));
+        });
+        return;
+      }
+      pointer = e.pointerId;
+      try { btn.setPointerCapture(e.pointerId); } catch {}
+      intercomSetTalk(list, true);
+      paint();
+    });
+    btn.addEventListener('pointerup', off);
+    btn.addEventListener('pointercancel', off);
+    btn.addEventListener('lostpointercapture', off);
+  };
+
+  hold($('#ic-ptt', p), () => idsFor('all'));
+  p.querySelectorAll('[data-ic-talk]').forEach((b) => hold(b, () => idsFor(b.dataset.icTalk)));
+  p.querySelectorAll('[data-ic-ptt]').forEach((b) => hold(b, () => [b.dataset.icPtt]));
+  p.querySelectorAll('[data-ic-listen]').forEach((b) => {
+    b.onclick = () => {
+      const id = b.dataset.icListen;
+      const on = S.intercom.listen[id] === false;
+      S.intercom.listen[id] = on;
+      mixer.setIntercomListen(intercomSourceId({ id }), on);
+      b.classList.toggle('on', on);
+      b.textContent = on ? 'Ouvindo' : 'Ouvir';
+      b.setAttribute('aria-pressed', String(on));
+    };
+  });
+  const applyIfb = () => {
+    S.intercom.ifb = !!$('#ic-ifb', p)?.checked;
+    S.intercom.ifbLevel = Number($('#ic-ifb-level', p)?.value) || 0.18;
+    for (const g of intercomGuests()) mixer.setIntercomProgram(g.id, S.intercom.ifb, S.intercom.ifbLevel);
+  };
+  $('#ic-ifb', p).onchange = applyIfb;
+  $('#ic-ifb-level', p).oninput = applyIfb;
+  applyIfb();
+  for (const g of gs) mixer.setIntercomListen(intercomSourceId(g), S.intercom.listen[g.id] !== false);
+  $('#ic-link', p).onclick = showIntercomLink;
+  $('#ic-mini-toggle', p).onclick = () => toggleIntercomMini();
+  $('#ic-latch', p).onclick = () => {
+    S.intercom.latch = !S.intercom.latch;
+    if (!S.intercom.latch) intercomReleaseAll();
+    toast(S.intercom.latch ? 'PTT travado: clique para abrir/fechar o microfone.' : 'PTT momentâneo restaurado.', 'info');
+    renderIntercomPanel();
+  };
+  $('#ic-unlatch', p).onclick = () => { intercomReleaseAll(); toast('Microfones do intercom destravados.'); };
+  $('#ic-mute-all', p).onclick = () => {
+    intercomReleaseAll();
+    for (const g of intercomGuests()) sig?.send({ type: 'control', to: g.id, action: 'mute' });
+    toast('Intercom silenciado para todos.', 'info');
+  };
+  $('#ic-mic-test', p).onclick = () => {
+    const el = $('#ic-mic-bar', p);
+    if (el) { el.style.width = '100%'; setTimeout(() => (el.style.width = '0%'), 450); }
+    const sent = mixer.intercomTestTone?.();
+    toast(sent ? 'Tom enviado para o retorno de quem está no intercom.' : 'Nenhum participante para testar o retorno.', sent ? 'info' : 'err');
+  };
 }
 
 function renderAudioPanel() {

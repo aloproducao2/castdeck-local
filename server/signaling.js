@@ -54,6 +54,8 @@ const cleanState = (s = {}) => {
   if (s.screenStreamId === null || typeof s.screenStreamId === 'string') out.screenStreamId = s.screenStreamId && clean(s.screenStreamId, 80);
   // câmera remota (celular pelo QR /cam): só envia vídeo, o host não monta retorno nem mix-minus para ela
   if (typeof s.cam === 'boolean') out.cam = s.cam;
+  if (typeof s.intercom === 'boolean') out.intercom = s.intercom;
+  if (s.intercomRole === 'camera' || s.intercomRole === 'reporter') out.intercomRole = s.intercomRole;
   if (s.camCaps && typeof s.camCaps === 'object') out.camCaps = cleanCamCaps(s.camCaps);
   if (s.camCtl && typeof s.camCtl === 'object') out.camCtl = cleanCamCtl(s.camCtl);
   if (Array.isArray(s.camVideoDevices)) out.camVideoDevices = cleanDevices(s.camVideoDevices);
@@ -389,6 +391,12 @@ export class SignalingHub {
     // controle remoto: sempre exige a chave do link (mesmo na rede local), pois comanda a live
     if (wantsRemote && clean(msg.key, 40) !== this.outKey(roomId)) {
       this.send(c, { type: 'error', code: 'bad-key', message: 'Link do controle remoto inválido. Gere o QR de novo no painel Diretor do estúdio.' });
+      c.ws.close(4005, 'bad-key');
+      return;
+    }
+    // intercom independente (/intercom): áudio de produção exige a chave, inclusive na LAN
+    if (msg.state?.intercom === true && clean(msg.key, 40) !== this.outKey(roomId)) {
+      this.send(c, { type: 'error', code: 'bad-key', message: 'Link do intercom inválido ou expirado. Gere o QR novamente no painel Intercom.' });
       c.ws.close(4005, 'bad-key');
       return;
     }

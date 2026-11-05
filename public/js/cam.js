@@ -55,6 +55,8 @@ const C = {
   sheet: '', // '' fechado | 'ctl' imagem | 'dev' aparelhos
   rejoins: 0,
   log: [],
+  ifb: { muted: false },
+  pttLatch: false,
 };
 window.__cam = C; // diagnóstico e testes e2e
 const clog = (m) => C.log.push(`${(performance.now() / 1000).toFixed(1)}s ${m}`);
@@ -69,6 +71,8 @@ try {
   if (typeof p.videoId === 'string') C.videoId = p.videoId;
   if (typeof p.audioId === 'string') C.audioId = p.audioId;
   if (FPS.includes(p.fps)) C.fps = p.fps;
+  if (p.ifbMuted === '1') C.ifb.muted = true;
+  if (p.ifbLatch === '1') C.pttLatch = true;
 } catch {}
 // O link gerado pelo estúdio pode definir a qualidade inicial: /cam/<id>?q=1080&fps=30
 try {
@@ -79,7 +83,7 @@ try {
 } catch {}
 const savePrefs = () => {
   try {
-    localStorage.setItem('castdeck.cam', JSON.stringify({ facing: C.facing, quality: C.quality, name: C.name, videoId: C.videoId, audioId: C.audioId, fps: C.fps }));
+    localStorage.setItem('castdeck.cam', JSON.stringify({ facing: C.facing, quality: C.quality, name: C.name, videoId: C.videoId, audioId: C.audioId, fps: C.fps, ifbMuted: C.ifb.muted ? '1' : '0', ifbLatch: C.pttLatch ? '1' : '0' }));
   } catch {}
 };
 // o nome padrão vai para o programa do estúdio: sai já no idioma do aparelho (o dicionário carrega antes do boot terminar)
@@ -535,6 +539,20 @@ function createPeer(hostId) {
   clog(`peer host=${hostId}`);
   const peer = new Peer({ id: hostId, polite: true, signal: (data) => sig.send({ type: 'signal', to: hostId, data }) });
   C.peer = peer;
+  peer.addEventListener('track', (e) => {
+    const { track, streams } = e.detail;
+    if (track?.kind !== 'audio') return;
+    const stream = streams?.[0] || new MediaStream([track]);
+    if (!C.ifbAudio) {
+      C.ifbAudio = new Audio();
+      C.ifbAudio.autoplay = true;
+      C.ifbAudio.playsInline = true;
+      C.ifbAudio.volume = 0.85;
+    }
+    C.ifbAudio.srcObject = stream;
+    C.ifbAudio.muted = !!C.ifb.muted;
+    C.ifbAudio.play().catch(() => {});
+  });
   for (const t of C.stream.getTracks()) peer.pc.addTrack(t, C.stream);
   peer.addEventListener('state', (e) => {
     clog(`state ${e.detail}`);
@@ -605,6 +623,10 @@ function render() {
         <div id="cam-q" class="cam-q"></div>
       </div>
       <nav class="cam-bar cam-ui" id="cam-bar"></nav>
+      <div class="cam-ifb" id="cam-ifb">
+        <div class="cam-ifb-top"><span class="cam-ifb-led"></span><b>INTERCOM</b><button type="button" id="ci-listen" class="on">Ouvindo</button><button type="button" id="ci-lock" title="Travar o microfone aberto">Travar</button></div>
+        <button type="button" id="ci-ptt">SEGURE PARA FALAR</button>
+      </div>
       <div class="cam-sheet" id="cam-sheet" hidden role="dialog" aria-label="Ajustes da câmera">
         <div class="cam-sheet-head">
           <div class="cam-tabs" role="tablist">
@@ -639,6 +661,7 @@ function render() {
     stage.classList.toggle('ui-hidden');
   });
   bindPinch(stage, v);
+  bindIntercom();
   renderControls();
 }
 
@@ -656,6 +679,90 @@ function openSheet(kind) {
   }
   renderControls();
 }
+
+function setupCameraMediaSession() {
+  if (!('mediaSession' in navigator)) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: 'Câmera — CastDeck',
+      artist: C.studio?.name || 'CastDeck',
+      album: 'Intercom de produção',
+    });
+    navigator.mediaSession.playbackState = C.ifbAudio && !C.ifb.muted ? 'playing' : 'paused';
+    const set = (a, fn) => { try { navigator.mediaSession.setActionHandler(a, fn); } catch {} };
+    set('play', () => { C.ifb.muted = false; if (C.ifbAudio) { C.ifbAudio.muted = false; C.ifbAudio.play().catch(() => {}); } renderControls(); });
+    set('pause', () => { C.ifb.muted = true; if (C.ifbAudio) C.ifbAudio.muted = true; renderControls(); });
+  } catch {}
+}
+
+function bindIntercom() {
+  const ptt = $('#ci-ptt');
+  const listen = $('#ci-listen');
+  const lock = $('#ci-lock');
+  if (!ptt || !listen) return;
+  const paintLock = () => {
+    if (!lock) return;
+    lock.classList.toggle('on', C.pttLatch);
+    lock.textContent = C.pttLatch ? 'Travado' : 'Travar';
+    lock.setAttribute('aria-pressed', String(C.pttLatch));
+    if (C.ptt) ptt.textContent = C.pttLatch ? 'MIC ABERTO · CLIQUE PARA FECHAR' : 'FALANDO...';
+    else ptt.textContent = C.pttLatch ? 'CLIQUE PARA ABRIR O MIC' : 'SEGURE PARA FALAR';
+  };
+  const off = () => {
+    if (!C.ptt) return;
+    C.ptt = false;
+    ptt.classList.remove('on');
+    paintLock();
+    if (!C.pttPrevMic) setMic(false);
+  };
+  const on = async () => {
+    if (C.ptt) return;
+    C.ptt = true;
+    C.pttPrevMic = C.micOn;
+    ptt.classList.add('on');
+    paintLock();
+    await setMic(true);
+    if (!C.ptt && !C.pttPrevMic) setMic(false);
+  };
+  const release = () => { if (C.pttLatch) return; off(); };
+  listen.classList.toggle('on', !C.ifb.muted);
+  listen.textContent = C.ifb.muted ? 'Ouvir' : 'Ouvindo';
+  listen.onclick = () => {
+    C.ifb.muted = !C.ifb.muted;
+    if (C.ifbAudio) {
+      C.ifbAudio.muted = C.ifb.muted;
+      if (!C.ifb.muted) C.ifbAudio.play().catch(() => {});
+    }
+    listen.classList.toggle('on', !C.ifb.muted);
+    listen.textContent = C.ifb.muted ? 'Ouvir' : 'Ouvindo';
+    savePrefs();
+  };
+  if (lock) lock.onclick = () => {
+    C.pttLatch = !C.pttLatch;
+    if (!C.pttLatch) off();
+    paintLock();
+    savePrefs();
+    if (navigator.wakeLock) keepAwake();
+    if (C.pttLatch) toast(C.ptt ? 'Microfone travado aberto.' : 'PTT travado: toque no botão para abrir/fechar.');
+  };
+  ptt.addEventListener('pointerdown', (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    try { ptt.setPointerCapture(e.pointerId); } catch {}
+    if (C.pttLatch) {
+      if (C.ptt) off();
+      else on();
+      return;
+    }
+    on();
+  });
+  setupCameraMediaSession();
+  ptt.addEventListener('pointerup', release);
+  ptt.addEventListener('pointercancel', release);
+  ptt.addEventListener('lostpointercapture', release);
+  paintLock();
+}
+window.addEventListener('blur', () => { const b = $('#ci-ptt'); if (b?.classList.contains('on') && !C.pttLatch) b.dispatchEvent(new Event('pointerup')); });
 
 function renderControls() {
   const bar = $('#cam-bar');

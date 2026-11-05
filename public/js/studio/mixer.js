@@ -84,6 +84,7 @@ export class AudioMixer {
 
     this.sources = new Map();
     this.outputs = new Map(); // guestId -> { bus, dest }
+    this.intercomOutputs = new Map(); // participantId -> { bus, dest, talk, program, host }
     this.isos = new Map(); // fonte de vídeo (stageKey) -> destino com só o áudio dela (sinais para OBS/vMix)
     this.onStage = new Set();
     this._buf = new Float32Array(1024);
@@ -122,7 +123,9 @@ export class AudioMixer {
     } catch {
       input = this.ctx.createMediaStreamSource(new MediaStream([track]));
     }
-    return this._register(id, input, { ownerId, stageKey, monitor, keepAlive });
+    const src = this._register(id, input, { ownerId, stageKey, monitor, keepAlive });
+    if (id === 'host:mic') this._wireIntercomHosts();
+    return src;
   }
 
   addElement(id, el, { ownerId = null, stageKey = id, monitor = true } = {}) {
@@ -368,6 +371,92 @@ export class AudioMixer {
       out.bus.disconnect();
     } catch {}
     this.outputs.delete(guestId);
+  }
+
+  // Intercom de produção: um retorno WebAudio por participante. O host mic entra
+  // pós-fader e pré-mute (PTT pode falar mesmo com o microfone do PGM mutado).
+  addIntercomOutput(participantId) {
+    this.removeIntercomOutput(participantId);
+    const ctx = this.ctx;
+    const bus = ctx.createGain();
+    const dest = ctx.createMediaStreamDestination();
+    const talk = ctx.createGain();
+    const program = ctx.createGain();
+    talk.gain.value = 0;
+    program.gain.value = 0;
+    talk.connect(bus);
+    program.connect(bus);
+    this.limiter.connect(program);
+    bus.connect(dest);
+    const out = { bus, dest, talk, program, host: null };
+    this._connectIntercomHost(out, this.sources.get('host:mic'));
+    this.intercomOutputs.set(participantId, out);
+    return dest.stream.getAudioTracks()[0];
+  }
+
+  _connectIntercomHost(out, host) {
+    if (!out || !host?.gain) return;
+    try { out.host?.disconnect(out.talk); } catch {}
+    try {
+      host.gain.connect(out.talk);
+      out.host = host.gain;
+    } catch {}
+  }
+
+  _wireIntercomHosts() {
+    const host = this.sources.get('host:mic');
+    for (const out of this.intercomOutputs.values()) this._connectIntercomHost(out, host);
+  }
+
+  setIntercomTalk(participantId, on) {
+    const out = this.intercomOutputs.get(participantId);
+    if (!out) return false;
+    out.talk.gain.setTargetAtTime(on ? 1 : 0, this.ctx.currentTime, 0.015);
+    return true;
+  }
+
+  setIntercomProgram(participantId, on, level = 0.18) {
+    const out = this.intercomOutputs.get(participantId);
+    if (!out) return false;
+    out.program.gain.setTargetAtTime(on ? Math.max(0, Math.min(1, level)) : 0, this.ctx.currentTime, 0.08);
+    return true;
+  }
+
+  // Escuta do host por participante: usa o monitor do canal, sem tocar no programa.
+  setIntercomListen(sourceId, on) {
+    const s = this.sources.get(sourceId);
+    if (!s) return false;
+    s.toMonitor.gain.setTargetAtTime(on ? 1 : 0, this.ctx.currentTime, 0.03);
+    return true;
+  }
+
+  intercomTestTone(ms = 420) {
+    if (!this.intercomOutputs.size) return false;
+    const ctx = this.ctx;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.value = 0.12;
+    osc.connect(gain);
+    for (const out of this.intercomOutputs.values()) gain.connect(out.bus);
+    const now = ctx.currentTime;
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.setValueAtTime(0, now + ms / 1000);
+    osc.start(now);
+    osc.stop(now + ms / 1000 + 0.02);
+    osc.onended = () => { try { gain.disconnect(); } catch {} };
+    return true;
+  }
+
+  removeIntercomOutput(participantId) {
+    const out = this.intercomOutputs.get(participantId);
+    if (!out) return;
+    try { out.bus.disconnect(); } catch {}
+    try { out.talk.disconnect(); } catch {}
+    try { out.program.disconnect(); } catch {}
+    try { out.host?.disconnect(out.talk); } catch {}
+    this.intercomOutputs.delete(participantId);
   }
 
   setStage(keys) {

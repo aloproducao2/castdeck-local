@@ -207,6 +207,20 @@ export function createCameraPanel({ S, getSig, modal, getDevices, getInterface, 
       ${tallyOf(s)}
     </div>`;
   }
+  function intercomHTML(s) {
+    if (!s.remoteCam || !S.guests.get(s.ownerId)?.cam) return '';
+    const ic = window.__castdeck?.intercom;
+    const listening = ic?.isListening(s.ownerId) ?? true;
+    const talking = ic?.isTalking(s.ownerId) ?? false;
+    return `<div class="hcam-ic">
+      <div class="hcam-ic-head"><span class="hcam-ic-dot"></span><b>INTERCOM</b><small>Diretor nesta câmera</small></div>
+      <div class="hcam-ic-row">
+        <button type="button" class="hcam-ic-btn ${listening ? 'on' : ''}" data-hcam-ic-listen="${esc(s.ownerId)}">${listening ? 'Ouvindo diretor' : 'Ouvir diretor'}</button>
+        <button type="button" class="hcam-ic-btn hcam-ic-ptt ${talking ? 'on' : ''}" data-hcam-ic-ptt="${esc(s.ownerId)}">PTT diretor</button>
+        <button type="button" class="hcam-ic-btn ghost" data-hcam-ic-link="1">Link/QR</button>
+      </div>
+    </div>`;
+  }
   function mainHTML(s) {
     const ready = !!trackOf(s);
     const caps = capsOf(s);
@@ -217,6 +231,7 @@ export function createCameraPanel({ S, getSig, modal, getDevices, getInterface, 
         <div class="hcam-stage-hud"><b>${esc(labelOf(s))}</b><span>${s.remoteCam ? 'Câmera remota' : 'Câmera local'}</span>${tallyOf(s)}</div>
       </div>
       ${interfaceHTML(s)}
+      ${intercomHTML(s)}
       <div class="hcam-controls" id="hcam-controls">${controlsHTML(s)}</div>
       <div class="hcam-actions">
         ${caps.torch === true ? `<button type="button" class="hcam-torch ${ctl.torch ? 'on' : ''}" data-sid="${esc(s.id)}" data-torch="1"><span class="hcam-torch-dot"></span><span>Lanterna</span><i>${ctl.torch ? 'Ligada' : 'Desligada'}</i></button>` : ''}
@@ -369,6 +384,28 @@ export function createCameraPanel({ S, getSig, modal, getDevices, getInterface, 
         setTimeout(() => onAddCamera?.(), 80);
       };
     }
+    const ic = window.__castdeck?.intercom;
+    for (const b of panel.querySelectorAll('[data-hcam-ic-listen]')) {
+      b.onclick = () => {
+        const on = !b.classList.contains('on');
+        ic?.listen(b.dataset.hcamIcListen, on);
+        b.classList.toggle('on', on);
+        b.textContent = on ? 'Ouvindo diretor' : 'Ouvir diretor';
+      };
+    }
+    for (const b of panel.querySelectorAll('[data-hcam-ic-ptt]')) {
+      let held = false;
+      const off = () => { if (!held) return; held = false; ic?.talk(b.dataset.hcamIcPtt, false); b.classList.remove('on'); };
+      b.addEventListener('pointerdown', (e) => {
+        if (e.button !== undefined && e.button !== 0) return;
+        e.preventDefault(); held = true; b.classList.add('on'); ic?.talk(b.dataset.hcamIcPtt, true);
+        try { b.setPointerCapture(e.pointerId); } catch {}
+      });
+      b.addEventListener('pointerup', off);
+      b.addEventListener('pointercancel', off);
+      b.addEventListener('lostpointercapture', off);
+    }
+    for (const b of panel.querySelectorAll('[data-hcam-ic-link]')) b.onclick = () => ic?.link();
     for (const el of panel.querySelectorAll('select[data-io-video], select[data-io-audio]')) {
       const kind = el.dataset.ioVideo !== undefined ? 'video' : 'audio';
       el.onchange = async () => {

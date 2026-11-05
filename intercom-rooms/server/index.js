@@ -32,6 +32,7 @@ const rooms = new Map();
 const rate = new Map();
 
 const clean = (s, n = 80) => String(s ?? '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, n);
+const generatedName = (id) => `Sala ${String(id || '').slice(0, 6).toUpperCase()}`;
 const randomToken = (n = 24) => crypto.randomBytes(n).toString('hex');
 const randId = (len = 8) => {
   const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
@@ -102,7 +103,7 @@ function loadRooms() {
       const createdAt = Number(r.createdAt) || Date.now();
       const room = {
         id,
-        name: clean(r.name || 'Intercom de produção', 40) || 'Intercom de produção',
+        name: clean(r.name || '', 40) || generatedName(id),
         hostToken: r.hostToken,
         guestToken: r.guestToken,
         password: r.password && typeof r.password === 'object' ? r.password : null,
@@ -225,7 +226,7 @@ function roomCreate(req, res) {
   const now = Date.now();
   const room = {
     id,
-    name: clean(req.body?.name || 'Intercom de produção', 40) || 'Intercom de produção',
+    name: clean(req.body?.name || '', 40) || generatedName(id),
     hostToken: randomToken(),
     guestToken: randomToken(),
     password: passwordRecord(password),

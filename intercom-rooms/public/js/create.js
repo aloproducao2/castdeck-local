@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { $, createRoom, copy, qrSvg, esc } from './common.js?v=12';
+import { $, createRoom, copy, qrSvg, esc } from './common.js?v=13';
 
 const form = $('#create-form');
 const err = $('#err');
@@ -27,6 +27,7 @@ form.addEventListener('submit', async (e) => {
     result.classList.add('on');
     form.hidden = true;
     $('#room-code').textContent = room.roomId;
+    $('#result-name').textContent = room.name;
     try { const u = new URL(room.guestUrl); $('#guest-link').textContent = u.host + u.pathname; } catch { $('#guest-link').textContent = room.guestUrl; }
     try { const u = new URL(room.hostUrl); $('#host-link').textContent = u.host + u.pathname; } catch { $('#host-link').textContent = room.hostUrl; }
     $('#open-host').href = room.hostUrl;

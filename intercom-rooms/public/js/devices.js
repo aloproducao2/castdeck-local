@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
 // Seleção de microfone e saída de áudio do CastDeck Intercom.
 
-import { keepScreenAwake, screenLockOn } from './common.js?v=12';
+import { keepScreenAwake, screenLockOn } from './common.js?v=13';
 
 const MIC_KEY = 'castdeck.intercom.mic';
 const OUT_KEY = 'castdeck.intercom.out';

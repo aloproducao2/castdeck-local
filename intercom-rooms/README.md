@@ -7,6 +7,7 @@
 
 - Criar sala **sem login** em `https://cast.flue.live/intercom/` (ou local).
 - Sala com ID **aleatório** ou **digitado**.
+- Nome da sala **digitado pelo host**; se ficar em branco, o servidor gera um nome.
 - **Senha opcional** com hash no servidor.
 - Link do host e link da equipe.
 - QR Code da sala.

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
-import { $, meta, esc, hashParams, roomFromPath, fmtDate, statusEl, keepScreenAwake, screenLockOn, requestAudioSession } from './common.js';
-import { initDevices, getMicStream } from './devices.js';
-import { Signaling, Peer, loadIce } from './peer.js';
+import { $, meta, esc, hashParams, roomFromPath, fmtDate, statusEl, keepScreenAwake, screenLockOn, requestAudioSession } from './common.js?v=8';
+import { initDevices, getMicStream } from './devices.js?v=8';
+import { Signaling, Peer, loadIce } from './peer.js?v=8';
 
 const room = roomFromPath();
 const token = hashParams().get('t') || '';

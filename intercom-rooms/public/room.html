@@ -15,7 +15,7 @@
 <link rel="icon" href="/intercom/icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/intercom/css/intercom.css?v=7">
+<link rel="stylesheet" href="/intercom/css/intercom.css?v=8">
 </head>
 <body>
 <div class="app narrow">
@@ -109,6 +109,27 @@
 
   <footer class="footer"><span>CastDeck Intercom · convidado</span><span>Áudio de produção · não vai ao programa</span></footer>
 </div>
-<script type="module" src="/intercom/js/guest.js?v=7"></script>
+<script type="module" src="/intercom/js/guest.js?v=8"></script>
+<script>
+(() => {
+  const KEY = 'castdeck.intercom.boot-reload';
+  let ticks = 0;
+  const timer = setInterval(() => {
+    if (window.__intercomGuest) {
+      clearInterval(timer);
+      try { sessionStorage.removeItem(KEY); } catch {}
+      return;
+    }
+    if (++ticks < 5) return;
+    clearInterval(timer);
+    const err = document.querySelector('#err');
+    if (err) { err.textContent = 'O Intercom não terminou de carregar. Recarregue a página.'; err.classList.remove('hidden'); }
+    try {
+      if (!sessionStorage.getItem(KEY)) { sessionStorage.setItem(KEY, '1'); location.reload(); }
+    } catch {}
+  }, 1000);
+})();
+</script>
+
 </body>
 </html>

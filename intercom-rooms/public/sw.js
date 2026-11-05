@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
-const CACHE = 'castdeck-intercom-v3';
+const CACHE = 'castdeck-intercom-v4';
 const STATIC = [
   '/intercom/',
   '/intercom/index.html',
-  '/intercom/css/intercom.css?v=7',
-  '/intercom/js/create.js?v=7',
-  '/intercom/js/host.js?v=7',
-  '/intercom/js/guest.js?v=7',
-  '/intercom/js/common.js',
-  '/intercom/js/devices.js',
-  '/intercom/js/peer.js',
-  '/intercom/js/qr.js',
+  '/intercom/css/intercom.css?v=8',
+  '/intercom/js/create.js?v=8',
+  '/intercom/js/host.js?v=8',
+  '/intercom/js/guest.js?v=8',
+  '/intercom/js/common.js?v=8',
+  '/intercom/js/devices.js?v=8',
+  '/intercom/js/peer.js?v=8',
+  '/intercom/js/qr.js?v=8',
   '/intercom/icon.svg',
   '/intercom/icon-192.png',
   '/intercom/icon-512.png',

@@ -29,3 +29,13 @@ Este diretório contém os modelos de produção. **Aplicados na VPS em 2026-11-
 - `systemctl stop castdeck-intercom`
 - remover o bloco `location /intercom/` e recarregar o Nginx.
 - o site estático continua intacto.
+
+## Cache e atualização
+
+Ao alterar JS/CSS do app:
+
+1. Suba o sufixo `?v=` em `index.html`, `host.html`, `room.html` e nos imports dos módulos.
+2. Suba `CACHE` em `public/sw.js` e os URLs da lista `STATIC`.
+3. Mantenha `sw.js` com `Cache-Control: no-store` no Nginx.
+
+Clientes antigos podem manter a página anterior aberta; um recarregamento resolve. O app tem um watchdog que recarrega uma vez se o módulo não inicializar.

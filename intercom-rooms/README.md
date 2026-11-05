@@ -126,3 +126,10 @@ Foram testados:
 ## Próximo passo
 
 Testar com celulares reais em 4G/Wi-Fi, adicionar aprovação/partyline e observar custo do TURN. A publicação em `/intercom/` já foi feita.
+
+## Se o botão de abrir a sala não responder
+
+1. Recarregue a página (ou feche e abra o PWA instalado).
+2. Confirme a permissão de microfone no navegador.
+3. O app usa módulos versionados; uma aba antiga pode estar com o JavaScript anterior em cache.
+4. Em último caso, limpe os dados do site/PWA e abra de novo.

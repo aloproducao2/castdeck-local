@@ -26,8 +26,8 @@ form.addEventListener('submit', async (e) => {
     const room = await createRoom({ name, roomId, password, maxParticipants });
     result.classList.add('on');
     $('#room-code').textContent = room.roomId;
-    $('#guest-link').textContent = room.guestUrl;
-    $('#host-link').textContent = room.hostUrl;
+    try { const u = new URL(room.guestUrl); $('#guest-link').textContent = u.host + u.pathname; } catch { $('#guest-link').textContent = room.guestUrl; }
+    try { const u = new URL(room.hostUrl); $('#host-link').textContent = u.host + u.pathname; } catch { $('#host-link').textContent = room.hostUrl; }
     $('#open-host').href = room.hostUrl;
     $('#open-guest').href = room.guestUrl;
     $('#qr').innerHTML = qrSvg(room.guestUrl);

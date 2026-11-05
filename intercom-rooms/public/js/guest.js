@@ -42,7 +42,7 @@ function setMic(on) {
   G.mic.enabled = G.ptt;
   const ptt = $('#ptt');
   ptt.classList.toggle('on', G.ptt);
-  ptt.innerHTML = G.ptt ? 'FALANDO<small>solte para fechar</small>' : (G.latch ? 'CLIQUE PARA ABRIR O MIC<small>PTT travado</small>' : 'SEGURE PARA FALAR<small>o diretor está ouvindo</small>');
+  ptt.innerHTML = G.ptt ? 'FALANDO<small>solte para fechar</small>' : (G.latch ? 'CLIQUE PARA FALAR<small>microfone aberto</small>' : 'SEGURE PARA FALAR<small>o diretor está ouvindo</small>');
   $('#mic-label').textContent = G.ptt ? 'aberto' : 'fechado';
   $('#mic-dot').className = `dot ${G.ptt ? '' : 'off'}`;
   $('#ptt-status').textContent = G.ptt ? 'Microfone aberto' : 'Microfone fechado';
@@ -52,7 +52,7 @@ function setMic(on) {
 function renderRoom() {
   if (!G.room) return;
   $('#live-room').textContent = G.room.name || 'Intercom';
-  $('#live-meta').textContent = `Sala ${G.room.roomId} · ${G.room.maxParticipants} pessoas`;
+  $('#live-meta').textContent = `${G.room.maxParticipants} pessoas · use fone`;
   $('#room-info').textContent = `Expira em ${fmtDate(G.room.expiresAt)}. O diretor controla a sala.`;
   statusEl('conectado', 'ok');
 }
@@ -196,12 +196,12 @@ async function join() {
       const btn = $('#join');
       if (m.code === 'password') {
         showError(m.message || 'Senha incorreta.');
-        btn.disabled = false; btn.textContent = 'Entrar no intercom';
+        btn.disabled = false; btn.textContent = 'Entrar e ouvir o diretor';
       } else if (m.code === 'room-full' || m.code === 'bad-token' || m.code === 'not-found') {
         fatal('Sala indisponível', m.message || 'Link inválido.');
       } else {
         showError(m.message || 'Erro de conexão.');
-        btn.disabled = false; btn.textContent = 'Entrar no intercom';
+        btn.disabled = false; btn.textContent = 'Entrar e ouvir o diretor';
       }
     });
     G.sig.on('close', () => { if (G.joined) statusEl('reconectando…', 'busy'); });
@@ -231,7 +231,7 @@ function bind() {
   $('#latch').onclick = () => {
     G.latch = !G.latch;
     $('#latch').classList.toggle('on', G.latch);
-    $('#latch').textContent = G.latch ? 'MIC TRAVADO' : 'Travar PTT';
+    $('#latch').textContent = G.latch ? 'MICROFONE ABERTO' : 'Manter microfone aberto';
     if (!G.latch && G.ptt) setMic(false);
     else setMic(G.ptt);
   };
@@ -264,7 +264,7 @@ async function boot() {
     const info = await meta(room);
     G.room = info;
     $('#room-name').textContent = info.name || 'Intercom';
-    $('#room-meta').textContent = `Sala ${info.roomId} · ${info.maxParticipants} pessoas · expira em ${fmtDate(info.expiresAt)}`;
+    $('#room-meta').textContent = `${info.maxParticipants} pessoas · use fone · link válido até ${fmtDate(info.expiresAt)}`;
     if (info.hasPassword) {
       $('#pass-field').hidden = false;
       $('#password').required = true;

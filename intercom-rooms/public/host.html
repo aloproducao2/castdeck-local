@@ -9,7 +9,7 @@
 <link rel="icon" href="/intercom/icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/intercom/css/intercom.css">
+<link rel="stylesheet" href="/intercom/css/intercom.css?v=4">
 </head>
 <body>
 <div class="app">
@@ -23,46 +23,44 @@
   <div class="roomhead" id="roomhead" hidden>
     <div><span class="eyebrow">Painel do diretor</span><h1 id="room-name">Sala</h1><div class="meta" id="room-meta"></div></div>
     <span class="spacer"></span>
-    <span class="pill" id="host-tag"><span class="dot"></span> Host</span>
+    <span class="pill" id="host-tag"><span class="dot"></span> Diretor</span>
   </div>
 
   <main id="main">
     <section class="card pad" id="start-card">
       <div class="hero" style="padding:8px 0 16px;text-align:left">
-        <span class="eyebrow">Antes de abrir a sala</span>
-        <h1 style="font-size:clamp(26px,5vw,40px)">Ative seu microfone<br><span class="grad">e receba o link da equipe.</span></h1>
-        <p class="lead" style="margin:0;max-width:620px">O navegador vai pedir permissão de microfone. Use fone. Você só fala quando apertar o PTT.</p>
+        <span class="eyebrow">Intercom de produção</span>
+        <h1 style="font-size:clamp(26px,5vw,40px)">Abra a sala<br><span class="grad">em três passos.</span></h1>
+        <div class="steps-mini"><span><b>1</b> Ative o microfone</span><span><b>2</b> Copie o link da equipe</span><span><b>3</b> Segure para falar</span></div>
+        <p class="lead" style="margin:12px 0 0;max-width:620px">Use fone. O navegador vai pedir permissão de microfone. Você só é ouvido quando segurar o botão de falar.</p>
       </div>
       <div id="err" class="alert hidden" role="alert"></div>
-      <button class="btn primary" id="start" style="width:100%;min-height:48px">Ativar microfone e entrar</button>
+      <button class="btn primary" id="start" style="width:100%;min-height:48px">Ativar microfone e abrir a sala</button>
       <p class="hint" style="text-align:center;margin:12px 0 0">O link do host é privado. O link da equipe aparece depois de entrar.</p>
     </section>
 
     <div class="grid2" id="live" hidden>
       <section class="card pad">
-        <div class="panel-title">Microfone do diretor <span class="spacer"></span><span id="mic-label" class="hint">fechado</span></div>
+        <div class="panel-title">Seu microfone <span class="spacer"></span><span id="mic-label" class="hint">fechado</span></div>
         <div class="ptt-wrap">
           <button class="ptt" id="ptt" type="button">SEGURE PARA FALAR<small>fale com todos na sala</small></button>
-          <div class="latch"><button class="btn" id="latch" type="button">Travar PTT</button><button class="btn ghost" id="test" type="button">Testar fone</button></div>
+          <div class="latch"><button class="btn" id="latch" type="button">Manter microfone aberto</button><button class="btn ghost" id="test" type="button">Testar fone</button></div>
           <div class="meter"><i id="meter"></i></div>
           <div class="statusbar"><span><span class="dot" id="mic-dot"></span> <span id="ptt-status">Microfone fechado</span></span><span class="spacer"></span><span id="room-count">0 conectados</span></div>
         </div>
         <div class="divider"></div>
-        <div class="panel-title">Equipe</div>
+        <div class="panel-title">Pessoas na sala</div>
         <div class="people" id="people"><div class="empty">Aguardando a equipe entrar pelo link.</div></div>
       </section>
 
       <aside class="card pad">
-        <div class="panel-title">Link da equipe</div>
-        <div class="linkbox"><a id="guest-link" href="#" target="_blank" rel="noopener">-</a><button class="btn sm" id="copy-guest" type="button">Copiar</button></div>
-        <div class="qr" id="qr" style="margin-top:12px"></div>
-        <p class="hint">Envie este link para cinegrafistas e repórteres. Eles não precisam de conta.</p>
-        <div class="divider"></div>
-        <div class="panel-title">Sala</div>
-        <p class="hint" id="room-info">-</p>
-        <div class="divider"></div>
-        <div class="panel-title">Segurança</div>
-        <p class="hint">Sala efêmera. O link do host é privado. Nada é gravado. Use fone para evitar eco.</p>
+        <div class="panel-title">Convide a equipe</div>
+        <p class="hint" style="margin-top:0">Copie o link e envie para cinegrafistas e repórteres. Eles não precisam criar conta.</p>
+        <div class="linkbox"><a id="guest-link" href="#" target="_blank" rel="noopener">-</a></div>
+        <button class="btn primary" id="copy-guest" type="button" style="width:100%;margin-top:8px">Copiar link da equipe</button>
+        <details class="qr-details"><summary>Mostrar QR Code</summary><div class="qr" id="qr"></div></details>
+        <p class="hint">No celular, a pessoa abre o link e toca em “Entrar no intercom”.</p>
+        <details class="more-info"><summary>Detalhes da sala</summary><p class="hint" id="room-info">-</p><p class="hint">Sala efêmera. O link do host é privado. Nada é gravado. Use fone para evitar eco.</p></details>
       </aside>
     </div>
 
@@ -75,6 +73,6 @@
 
   <footer class="footer"><span>CastDeck Intercom · direção</span><span id="expiry"></span></footer>
 </div>
-<script type="module" src="/intercom/js/host.js?v=2"></script>
+<script type="module" src="/intercom/js/host.js?v=4"></script>
 </body>
 </html>

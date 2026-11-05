@@ -9,7 +9,7 @@
 <link rel="icon" href="/intercom/icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/intercom/css/intercom.css">
+<link rel="stylesheet" href="/intercom/css/intercom.css?v=4">
 </head>
 <body>
 <div class="app narrow">
@@ -28,17 +28,17 @@
   <main class="card pad">
     <form class="form" id="create-form" autocomplete="off">
       <div class="field">
-        <label for="room-name">Nome da produção <span class="hint">(opcional)</span></label>
+        <label for="room-name">Para que é esta sala? <span class="hint">(opcional)</span></label>
         <input class="input" id="room-name" maxlength="40" placeholder="Ex.: Reportagem — Encontro">
       </div>
       <div class="row">
         <div class="field">
-          <label for="room-id">Nome da sala <span class="hint">(opcional)</span></label>
+          <label for="room-id">Endereço da sala <span class="hint">(opcional)</span></label>
           <input class="input" id="room-id" maxlength="24" placeholder="reportagem" autocapitalize="none" spellcheck="false">
           <small>4–24 caracteres: a-z, 0-9 e hífen. Em branco, geramos um código.</small>
         </div>
         <div class="field" style="max-width:150px">
-          <label for="room-max">Participantes</label>
+          <label for="room-max">Quantas pessoas?</label>
           <select class="input" id="room-max">
             <option value="4">4 pessoas</option>
             <option value="6">6 pessoas</option>
@@ -53,6 +53,7 @@
       </div>
       <div id="err" class="alert hidden" role="alert"></div>
       <button class="btn primary" id="create-btn" type="submit" style="width:100%;min-height:48px">Criar sala grátis</button>
+      <p class="hint" style="text-align:center;margin:0">Você recebe dois links: um para o diretor e outro para a equipe.</p>
       <p class="hint" style="text-align:center;margin:0">Sem conta · sem cartão · a sala expira em 6 h · use fone</p>
     </form>
 
@@ -80,6 +81,6 @@
 
   <footer class="footer"><span>CastDeck Intercom · áudio de produção</span><span>Sem login · sem gravação</span></footer>
 </div>
-<script type="module" src="/intercom/js/create.js"></script>
+<script type="module" src="/intercom/js/create.js?v=4"></script>
 </body>
 </html>

@@ -25,6 +25,10 @@ const H = {
 };
 window.__intercomHost = H;
 
+const shortUrl = (url) => {
+  try { const u = new URL(url); return `${u.host}${u.pathname}`; } catch { return url; }
+};
+
 const fatal = (message) => {
   $('#start-card').hidden = true;
   $('#live').hidden = true;
@@ -43,15 +47,15 @@ function renderRoom() {
   if (!H.room) return;
   $('#roomhead').hidden = false;
   $('#room-name').textContent = H.room.name || 'Intercom';
-  $('#room-meta').textContent = `Sala ${H.room.roomId} · host · ${H.room.maxParticipants} pessoas`;
+  $('#room-meta').textContent = `Até ${H.room.maxParticipants} pessoas · use fone`;
   const gl = $('#guest-link');
   if (gl) {
-    gl.textContent = H.guestUrl || '-';
-    if (H.guestUrl) gl.href = H.guestUrl;
+    gl.textContent = H.guestUrl ? shortUrl(H.guestUrl) : '-';
+    if (H.guestUrl) { gl.href = H.guestUrl; gl.title = H.guestUrl; }
     else gl.removeAttribute('href');
   }
   $('#qr').innerHTML = H.guestUrl ? qrSvg(H.guestUrl) : '';
-  $('#room-info').textContent = `Criada em ${fmtDate(H.room.createdAt)} · expira em ${fmtDate(H.room.expiresAt)}.`;
+  $('#room-info').textContent = `Sala ${H.room.roomId} · criada em ${fmtDate(H.room.createdAt)} · expira em ${fmtDate(H.room.expiresAt)}.`;
   $('#expiry').textContent = `Expira em ${fmtDate(H.room.expiresAt)}`;
   $('#copy-guest').onclick = () => H.guestUrl && copy(H.guestUrl, $('#copy-guest'));
   paintParticipants();
@@ -63,7 +67,7 @@ function participantName(id) {
 function paintParticipants() {
   const list = [...H.participants.values()];
   const box = $('#people');
-  $('#room-count').textContent = `${list.length + (H.started ? 1 : 0)} conectado${list.length === 0 ? '' : 's'}`;
+  $('#room-count').textContent = list.length ? `${list.length} pessoa${list.length === 1 ? '' : 's'} na sala` : 'Só você na sala';
   if (!list.length) {
     box.innerHTML = '<div class="empty">Aguardando a equipe entrar pelo link.</div>';
     return;
@@ -73,7 +77,7 @@ function paintParticipants() {
     return `<div class="person ${talking ? 'talking' : ''}" data-person="${esc(p.id)}">
       <span class="dot ${p.state?.micOn ? '' : 'off'}"></span>
       <div class="who"><b>${esc(p.name)}</b><small>${p.state?.micOn ? 'microfone aberto' : 'microfone fechado'}${talking ? ' · você está falando' : ''}</small></div>
-      <div class="actions"><button class="btn sm" data-talk="${esc(p.id)}" type="button">PTT</button><button class="btn sm" data-mute="${esc(p.id)}" type="button">Mudo</button><button class="btn sm danger" data-remove="${esc(p.id)}" type="button">Remover</button></div>
+      <div class="actions"><button class="btn sm" data-talk="${esc(p.id)}" type="button" title="Segure para falar com esta pessoa">Falar</button><button class="btn sm" data-mute="${esc(p.id)}" type="button">Mudo</button><button class="btn sm danger" data-remove="${esc(p.id)}" type="button">Remover</button></div>
     </div>`;
   }).join('');
   $$('[data-talk]', box).forEach((b) => {
@@ -118,7 +122,7 @@ function paintPtt() {
   H.ptt = on;
   const ptt = $('#ptt');
   ptt.classList.toggle('on', on);
-  ptt.innerHTML = on ? 'FALANDO<small>solte para fechar</small>' : (H.latch ? 'CLIQUE PARA ABRIR O MIC<small>PTT travado</small>' : 'SEGURE PARA FALAR<small>fale com todos na sala</small>');
+  ptt.innerHTML = on ? 'FALANDO<small>solte para fechar</small>' : (H.latch ? 'CLIQUE PARA FALAR<small>microfone aberto</small>' : 'SEGURE PARA FALAR<small>fale com todos na sala</small>');
   $('#mic-label').textContent = on ? 'aberto' : 'fechado';
   $('#mic-dot').className = `dot ${on ? '' : 'off'}`;
   $('#ptt-status').textContent = on ? 'Microfone aberto' : 'Microfone fechado';
@@ -309,7 +313,7 @@ function bind() {
   $('#latch').onclick = () => {
     H.latch = !H.latch;
     $('#latch').classList.toggle('on', H.latch);
-    $('#latch').textContent = H.latch ? 'MIC TRAVADO' : 'Travar PTT';
+    $('#latch').textContent = H.latch ? 'MICROFONE ABERTO' : 'Manter microfone aberto';
     if (!H.latch && H.ptt) setMic(false);
     else setMic(H.ptt);
   };

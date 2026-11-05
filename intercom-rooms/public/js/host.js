@@ -44,7 +44,12 @@ function renderRoom() {
   $('#roomhead').hidden = false;
   $('#room-name').textContent = H.room.name || 'Intercom';
   $('#room-meta').textContent = `Sala ${H.room.roomId} · host · ${H.room.maxParticipants} pessoas`;
-  $('#guest-link').textContent = H.guestUrl || '-';
+  const gl = $('#guest-link');
+  if (gl) {
+    gl.textContent = H.guestUrl || '-';
+    if (H.guestUrl) gl.href = H.guestUrl;
+    else gl.removeAttribute('href');
+  }
   $('#qr').innerHTML = H.guestUrl ? qrSvg(H.guestUrl) : '';
   $('#room-info').textContent = `Criada em ${fmtDate(H.room.createdAt)} · expira em ${fmtDate(H.room.expiresAt)}.`;
   $('#expiry').textContent = `Expira em ${fmtDate(H.room.expiresAt)}`;

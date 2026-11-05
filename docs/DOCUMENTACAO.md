@@ -419,6 +419,7 @@ Além do intercom local do estúdio, existe uma versão pública de salas:
 - **Só áudio de produção.**
 - Salas **permanentes** com ID aleatório ou digitado; os links podem ser reutilizados.
 - Nome definido pelo host; se ficar vazio, é gerado automaticamente.
+- Salas recentes ficam salvas no navegador do host, com atalho para reabrir.
 - Senha opcional.
 - Host e convidado com links separados.
 - Até 1 host + 14 convidados (15 pessoas no total).

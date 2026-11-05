@@ -19,6 +19,7 @@
 - Host encerra a **sessão ao vivo**, mantendo a sala e os links.
 - Limite de **1 host + 14 convidados (15 pessoas no total)**.
 - **Salas permanentes**: não expiram e podem ser reutilizadas com os mesmos links.
+- Lista local de **salas recentes** no navegador, com atalho para reabrir como diretor.
 - Persistência em arquivo JSON protegido no servidor; sobrevive a restart.
 - Rate limit de criação e tentativa de entrada.
 - Escolha de **microfone** e **saída de áudio** durante a sala.

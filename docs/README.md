@@ -4,6 +4,7 @@
 |---|---|
 | `DOCUMENTACAO.md` | Documentação funcional do CastDeck. |
 | `INTERCOM.md` | Guia EGM do intercom: operação, PTT, IFB, mini painel, mobile e diagnóstico. |
+| `../intercom-rooms/EGM.md` | Plano EGM do app público de salas de intercom sem login (MVP local). |
 | `PLANO-MELHORIAS.md` | Plano geral de melhorias. |
 | `artigo-imprensa.md` | Texto de divulgação. |
 | `ai/ESTADO.md` | Estado atual, versões e diário de trabalho. |
@@ -23,3 +24,4 @@
 - [`ai/`](ai/README.md) — estado, histórico e planos
 - [`designs/`](designs/README.md) — designs EGM
 - [`INTERCOM.md`](INTERCOM.md) — guia EGM do intercom
+- [`../intercom-rooms/`](../intercom-rooms/) — app público de salas (MVP local)

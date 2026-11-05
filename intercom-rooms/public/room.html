@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080910">
+<title>Convidado — CastDeck Intercom</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="/intercom/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/intercom/css/intercom.css">
+</head>
+<body>
+<div class="app narrow">
+  <header class="top">
+    <a class="brand" href="/intercom/"><span class="brand-mark">◈</span> CastDeck <small>Intercom</small></a>
+    <span class="spacer"></span>
+    <span class="pill" id="status"><span class="dot off"></span>Carregando…</span>
+  </header>
+
+  <section class="card pad join-card" id="join-card">
+    <span class="eyebrow">Intercom de produção</span>
+    <h1 style="font-size:clamp(28px,6vw,40px);margin:10px 0 6px" id="room-name">Entrando…</h1>
+    <p class="lead" id="room-meta" style="font-size:13px;margin:0 0 18px">Aguardando a sala.</p>
+    <div id="err" class="alert hidden" role="alert"></div>
+    <div class="form">
+      <div class="field"><label for="name">Seu nome</label><input class="input" id="name" maxlength="30" placeholder="Ex.: Câmera 1 — João" autocomplete="name"></div>
+      <div class="field" id="pass-field" hidden><label for="password">Senha da sala</label><input class="input" id="password" type="password" maxlength="64" autocomplete="current-password"></div>
+      <button class="btn primary" id="join" type="button" style="width:100%;min-height:48px">Entrar no intercom</button>
+      <p class="hint">Use fone. O microfone começa fechado; o navegador vai pedir permissão.</p>
+    </div>
+  </section>
+
+  <section id="live" hidden>
+    <div class="roomhead">
+      <div><span class="eyebrow">Via do diretor</span><h1 id="live-room">Sala</h1><div class="meta" id="live-meta">conectando…</div></div>
+      <span class="spacer"></span>
+      <span class="pill"><span class="dot" id="live-dot"></span> <span id="live-state">Conectado</span></span>
+    </div>
+
+    <div class="grid2">
+      <section class="card pad">
+        <div class="panel-title">Seu microfone <span class="spacer"></span><span id="mic-label" class="hint">fechado</span></div>
+        <div class="ptt-wrap">
+          <button class="ptt" id="ptt" type="button">SEGURE PARA FALAR<small>o diretor está ouvindo</small></button>
+          <div class="latch"><button class="btn" id="latch" type="button">Travar PTT</button></div>
+          <div class="meter"><i id="meter"></i></div>
+          <div class="statusbar"><span><span class="dot" id="mic-dot"></span> <span id="ptt-status">Microfone fechado</span></span><span class="spacer"></span><span id="director-state">Diretor conectado</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="panel-title">Escuta</div>
+        <div class="row">
+          <button class="btn" id="listen" type="button">Ouvindo diretor</button>
+          <input id="volume" type="range" min="0" max="1" step="0.01" value="0.9" aria-label="Volume do diretor" style="flex:1;min-width:120px">
+        </div>
+        <p class="hint" style="margin-top:10px">O diretor fala no PTT dele. Você ouve pelo fone e responde segurando o seu PTT.</p>
+      </section>
+
+      <aside class="card pad">
+        <div class="panel-title">Sala</div>
+        <p class="hint" id="room-info">-</p>
+        <div class="divider"></div>
+        <div class="panel-title">Antes de falar</div>
+        <ul class="hint" style="padding-left:18px;display:grid;gap:6px">
+          <li>Use fone.</li>
+          <li>Segure o PTT ou trave o microfone.</li>
+          <li>Se a tela apagar, o áudio pode ser suspenso pelo Android.</li>
+          <li>Nada é gravado.</li>
+        </ul>
+        <div class="divider"></div>
+        <button class="btn danger" id="leave" type="button" style="width:100%">Sair da sala</button>
+      </aside>
+    </div>
+  </section>
+
+  <section class="card pad" id="fatal" hidden style="max-width:520px;margin:6vh auto 0">
+    <h1 style="font-size:28px" id="fatal-title">Sala indisponível</h1>
+    <p class="hint" id="fatal-msg">O link pode ter expirado.</p>
+    <a class="btn" href="/intercom/">Criar uma sala</a>
+  </section>
+
+  <audio id="remote" autoplay playsinline class="audio-hidden"></audio>
+  <footer class="footer"><span>CastDeck Intercom · convidado</span><span>Áudio de produção · não vai ao programa</span></footer>
+</div>
+<script type="module" src="/intercom/js/guest.js"></script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080910">
+<title>Diretor — CastDeck Intercom</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="/intercom/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/intercom/css/intercom.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <a class="brand" href="/intercom/"><span class="brand-mark">◈</span> CastDeck <small>Intercom</small></a>
+    <span class="spacer"></span>
+    <span class="pill" id="status"><span class="dot off"></span>Carregando…</span>
+    <button class="btn sm danger" id="end" hidden>Encerrar</button>
+  </header>
+
+  <div class="roomhead" id="roomhead" hidden>
+    <div><span class="eyebrow">Painel do diretor</span><h1 id="room-name">Sala</h1><div class="meta" id="room-meta"></div></div>
+    <span class="spacer"></span>
+    <span class="pill" id="host-tag"><span class="dot"></span> Host</span>
+  </div>
+
+  <main id="main">
+    <section class="card pad" id="start-card">
+      <div class="hero" style="padding:8px 0 16px;text-align:left">
+        <span class="eyebrow">Antes de abrir a sala</span>
+        <h1 style="font-size:clamp(26px,5vw,40px)">Ative seu microfone<br><span class="grad">e receba o link da equipe.</span></h1>
+        <p class="lead" style="margin:0;max-width:620px">O navegador vai pedir permissão de microfone. Use fone. Você só fala quando apertar o PTT.</p>
+      </div>
+      <div id="err" class="alert hidden" role="alert"></div>
+      <button class="btn primary" id="start" style="width:100%;min-height:48px">Ativar microfone e entrar</button>
+      <p class="hint" style="text-align:center;margin:12px 0 0">O link do host é privado. O link da equipe aparece depois de entrar.</p>
+    </section>
+
+    <div class="grid2" id="live" hidden>
+      <section class="card pad">
+        <div class="panel-title">Microfone do diretor <span class="spacer"></span><span id="mic-label" class="hint">fechado</span></div>
+        <div class="ptt-wrap">
+          <button class="ptt" id="ptt" type="button">SEGURE PARA FALAR<small>fale com todos na sala</small></button>
+          <div class="latch"><button class="btn" id="latch" type="button">Travar PTT</button><button class="btn ghost" id="test" type="button">Testar fone</button></div>
+          <div class="meter"><i id="meter"></i></div>
+          <div class="statusbar"><span><span class="dot" id="mic-dot"></span> <span id="ptt-status">Microfone fechado</span></span><span class="spacer"></span><span id="room-count">0 conectados</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="panel-title">Equipe</div>
+        <div class="people" id="people"><div class="empty">Aguardando a equipe entrar pelo link.</div></div>
+      </section>
+
+      <aside class="card pad">
+        <div class="panel-title">Link da equipe</div>
+        <div class="linkbox"><code id="guest-link">-</code><button class="btn sm" id="copy-guest" type="button">Copiar</button></div>
+        <div class="qr" id="qr" style="margin-top:12px"></div>
+        <p class="hint">Envie este link para cinegrafistas e repórteres. Eles não precisam de conta.</p>
+        <div class="divider"></div>
+        <div class="panel-title">Sala</div>
+        <p class="hint" id="room-info">-</p>
+        <div class="divider"></div>
+        <div class="panel-title">Segurança</div>
+        <p class="hint">Sala efêmera. O link do host é privado. Nada é gravado. Use fone para evitar eco.</p>
+      </aside>
+    </div>
+
+    <section class="card pad" id="fatal" hidden style="max-width:540px;margin:6vh auto 0">
+      <h1 style="font-size:28px">Não foi possível abrir</h1>
+      <p class="hint" id="fatal-msg">Link inválido ou sala expirada.</p>
+      <a class="btn" href="/intercom/">Criar outra sala</a>
+    </section>
+  </main>
+
+  <footer class="footer"><span>CastDeck Intercom · direção</span><span id="expiry"></span></footer>
+</div>
+<script type="module" src="/intercom/js/host.js"></script>
+</body>
+</html>

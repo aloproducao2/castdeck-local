@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080910">
+<title>CastDeck Intercom — salas de produção</title>
+<meta name="description" content="Crie uma sala de intercom para produção ao vivo. Sem login, sem instalar app. Diretor, câmeras e reportagem na mesma via de áudio.">
+<link rel="icon" href="/intercom/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/intercom/css/intercom.css">
+</head>
+<body>
+<div class="app narrow">
+  <header class="top">
+    <a class="brand" href="/intercom/" aria-label="CastDeck Intercom"><span class="brand-mark">◈</span> CastDeck <small>Intercom</small></a>
+    <span class="spacer"></span>
+    <span class="pill"><span class="dot"></span> Áudio de produção</span>
+  </header>
+
+  <section class="hero">
+    <span class="eyebrow">Intercom de produção</span>
+    <h1>Fale com a equipe.<br><span class="grad">Sem instalar nada.</span></h1>
+    <p class="lead">Crie uma sala, envie o link e conecte cinegrafistas e reportagem. PTT, microfone travado e retorno pessoal. Sem login, sem vídeo, sem gravação.</p>
+  </section>
+
+  <main class="card pad">
+    <form class="form" id="create-form" autocomplete="off">
+      <div class="field">
+        <label for="room-name">Nome da produção <span class="hint">(opcional)</span></label>
+        <input class="input" id="room-name" maxlength="40" placeholder="Ex.: Reportagem — Encontro">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="room-id">Nome da sala <span class="hint">(opcional)</span></label>
+          <input class="input" id="room-id" maxlength="24" placeholder="reportagem" autocapitalize="none" spellcheck="false">
+          <small>4–24 caracteres: a-z, 0-9 e hífen. Em branco, geramos um código.</small>
+        </div>
+        <div class="field" style="max-width:150px">
+          <label for="room-max">Participantes</label>
+          <select class="input" id="room-max">
+            <option value="4">4 pessoas</option>
+            <option value="6">6 pessoas</option>
+            <option value="8" selected>8 pessoas</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="room-pass">Senha da sala <span class="hint">(opcional)</span></label>
+        <input class="input" id="room-pass" type="password" maxlength="64" placeholder="Deixe em branco para não usar senha" autocomplete="new-password">
+        <small>A senha não vai no link; o convidado digita na entrada.</small>
+      </div>
+      <div id="err" class="alert hidden" role="alert"></div>
+      <button class="btn primary" id="create-btn" type="submit" style="width:100%;min-height:48px">Criar sala grátis</button>
+      <p class="hint" style="text-align:center;margin:0">Sem conta · sem cartão · a sala expira em 6 h · use fone</p>
+    </form>
+
+    <section class="result" id="result" aria-live="polite">
+      <div class="divider"></div>
+      <div class="room-code"><span class="dot"></span> Sala <span class="mono" id="room-code"></span></div>
+      <div class="share-grid">
+        <div class="share-stack">
+          <span class="share-label">Link da equipe</span>
+          <div class="linkbox"><code id="guest-link"></code><button type="button" class="btn sm" id="copy-guest">Copiar</button></div>
+          <span class="share-label">Link do host</span>
+          <div class="linkbox"><code id="host-link"></code><button type="button" class="btn sm" id="copy-host">Copiar</button></div>
+          <div class="row" style="margin-top:4px">
+            <a class="btn primary" id="open-host" href="#">Entrar como diretor</a>
+            <a class="btn" id="open-guest" href="#" target="_blank" rel="noopener">Testar convidado</a>
+          </div>
+          <p class="hint">O link do host é privado. Envie apenas o link da equipe para cinegrafistas e repórteres.</p>
+        </div>
+        <div class="qr" id="qr"></div>
+      </div>
+      <div class="divider"></div>
+      <p class="hint">Sala efêmera. Expira em 6 h ou quando todos saírem. Nenhum áudio é gravado.</p>
+    </section>
+  </main>
+
+  <footer class="footer"><span>CastDeck Intercom · áudio de produção</span><span>Sem login · sem gravação</span></footer>
+</div>
+<script type="module" src="/intercom/js/create.js"></script>
+</body>
+</html>

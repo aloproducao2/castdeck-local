@@ -410,6 +410,40 @@ aplicativo Android nativo.
 
 ---
 
+### 4.14 Versão pública — CastDeck Intercom
+
+Além do intercom local do estúdio, existe uma versão pública de salas:
+
+- **URL:** https://cast.flue.live/intercom/
+- **Sem login.**
+- **Só áudio de produção.**
+- Salas efêmeras com ID aleatório ou digitado.
+- Senha opcional.
+- Host e convidado com links separados.
+- Até 1 host + 7 convidados.
+- PTT geral, PTT individual e PTT travado.
+- Host pode mutar, remover e encerrar.
+- TURN público em `turn.flue.live`.
+- Não é vídeo, chat, gravação ou IFB.
+
+A página de marketing continua em https://cast.flue.live/intercom.html.
+O código e o plano EGM ficam em `intercom-rooms/`.
+
+Diferença de escopo:
+
+| | Intercom local 1.3.33 | CastDeck Intercom público |
+|---|---|---|
+| Onde vive | estúdio local | site |
+| Quem entra | equipe do estúdio | qualquer pessoa com o link |
+| Salas | uma por estúdio | várias salas efêmeras |
+| IFB do programa | sim | não |
+| Vídeo | não | não |
+| Login | não | não |
+| Gravação | não | não |
+
+
+---
+
 ## 5. Arquitetura
 
 ```mermaid

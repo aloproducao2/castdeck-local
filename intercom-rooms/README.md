@@ -3,9 +3,9 @@
 > **Status:** **publicado** em `https://cast.flue.live/intercom/` (v0.1.0 do app de salas).
 > **Objetivo:** intercom de produção ao vivo, áudio-only, com salas sem login.
 
-## O que já funciona localmente
+## O que já funciona
 
-- Criar sala **sem login** em `http://localhost:3210/intercom/`.
+- Criar sala **sem login** em `https://cast.flue.live/intercom/` (ou local).
 - Sala com ID **aleatório** ou **digitado**.
 - **Senha opcional** com hash no servidor.
 - Link do host e link da equipe.

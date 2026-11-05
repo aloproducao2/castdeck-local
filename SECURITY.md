@@ -3,7 +3,8 @@
 O CastDeck é um estúdio local que sobe servidor HTTP/WebSocket, recebe convidados por link e executa
 FFmpeg/MediaMTX. Segurança é tratada como requisito de release, não como detalhe opcional.
 
-Plano completo, modelo de ameaças e roadmap: [`docs/designs/SECURITY-EGM.md`](docs/designs/SECURITY-EGM.md).
+A política de reporte e as versões suportadas estão abaixo. O plano interno detalhado não faz parte
+do repositório público.
 
 ## Versões suportadas
 

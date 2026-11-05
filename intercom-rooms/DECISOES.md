@@ -28,7 +28,7 @@
 | TTL | **6 h** (opção 1), com encerramento imediato quando o último participante sair |
 | Sala vazia | Destruída após 5 min |
 | Host ausente | Sala encerra após 5 min sem host |
-| Limite | 1 host + 7 convidados |
+| Limite | 1 host + 14 convidados (15 no total) |
 | Aprovação manual | Fora do MVP; entra na fase 3 |
 | Co-host/observador | Fora do MVP |
 | Persistência | Em memória no MVP; Redis só na escala |

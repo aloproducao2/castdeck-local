@@ -19,7 +19,7 @@ const BASE = (process.env.INTERCOM_BASE || '/intercom').replace(/\/+$/, '');
 const PORT = Number(process.env.PORT || 3210);
 const ROOM_TTL_MS = Number(process.env.ROOM_TTL_MS || 6 * 60 * 60 * 1000);
 const HOST_GRACE_MS = Number(process.env.HOST_GRACE_MS || 5 * 60 * 1000);
-const MAX_PARTICIPANTS = 8;
+const MAX_PARTICIPANTS = 15;
 const RESERVED = new Set(['host', 'api', 'ws', 'index', 'new', 'room', 'favicon', 'css', 'js', 'assets']);
 
 const app = express();

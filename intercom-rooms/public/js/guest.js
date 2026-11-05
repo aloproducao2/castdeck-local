@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
-import { $, meta, esc, hashParams, roomFromPath, fmtDate, statusEl, keepScreenAwake, screenLockOn, requestAudioSession } from './common.js?v=8';
-import { initDevices, getMicStream } from './devices.js?v=8';
-import { Signaling, Peer, loadIce } from './peer.js?v=8';
+import { $, meta, esc, hashParams, roomFromPath, fmtDate, statusEl, keepScreenAwake, screenLockOn, requestAudioSession } from './common.js?v=9';
+import { initDevices, getMicStream } from './devices.js?v=9';
+import { Signaling, Peer, loadIce } from './peer.js?v=9';
 
 const room = roomFromPath();
 const token = hashParams().get('t') || '';
@@ -58,7 +58,7 @@ function setMic(on) {
 function renderRoom() {
   if (!G.room) return;
   $('#live-room').textContent = G.room.name || 'Intercom';
-  $('#live-meta').textContent = `${G.room.maxParticipants} pessoas · use fone`;
+  $('#live-meta').textContent = `Até ${G.room.maxParticipants} pessoas · use fone`;
   $('#room-info').textContent = `Expira em ${fmtDate(G.room.expiresAt)}. O diretor controla a sala.`;
   statusEl('conectado', 'ok');
 }
@@ -313,7 +313,7 @@ async function boot() {
     const info = await meta(room);
     G.room = info;
     $('#room-name').textContent = info.name || 'Intercom';
-    $('#room-meta').textContent = `${info.maxParticipants} pessoas · use fone · link válido até ${fmtDate(info.expiresAt)}`;
+    $('#room-meta').textContent = `Até ${info.maxParticipants} pessoas · use fone · link válido até ${fmtDate(info.expiresAt)}`;
     if (info.hasPassword) {
       $('#pass-field').hidden = false;
       $('#password').required = true;

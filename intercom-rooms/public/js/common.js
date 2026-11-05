@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
-import { makeQR } from './qr.js?v=8';
+import { makeQR } from './qr.js?v=9';
 
 export const BASE = '/intercom';
 export const $ = (sel, root = document) => root.querySelector(sel);

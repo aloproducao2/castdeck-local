@@ -16,7 +16,7 @@
 - Host ouve todos; convidado ouve o host.
 - Host pode **mutar** e **remover** convidados.
 - Host encerra a sala.
-- Limite de 1 host + 7 convidados.
+- Limite de **1 host + 14 convidados (15 pessoas no total)**.
 - TTL de 6 h e limpeza.
 - Rate limit de criação e tentativa de entrada.
 - Escolha de **microfone** e **saída de áudio** durante a sala.

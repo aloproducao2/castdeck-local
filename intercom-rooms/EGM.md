@@ -34,7 +34,7 @@ Este projeto é **somente o intercom de produção ao vivo**:
 - **sem login**;
 - **sem IFB de programa** — não existe mesa de programa neste app;
 - host é o hub;
-- **1 host + 7 convidados** no MVP;
+- **1 host + 14 convidados (15 pessoas no total)** no MVP;
 - sala efêmera com TTL;
 - PTT momentâneo e microfone travado;
 - URL pública exata: **https://cast.flue.live/intercom/**.
@@ -223,7 +223,7 @@ O que o convidado precisa:
 - estrela no host: cada convidado envia uma faixa; o host devolve um mix pessoal;
 - sem vídeo;
 - sem reencode de vídeo;
-- limite inicial de **8 pessoas na sala** (1 host + 7 convidados);
+- limite inicial de **15 pessoas na sala** (1 host + 14 convidados);
 - TURN quando necessário;
 - sala com 1 host + 4 convidados deve ser confortável em 4G.
 
@@ -284,7 +284,7 @@ Sem login não significa sem controle:
 
 | Versão | Limite |
 |---|---:|
-| MVP | 1 host + 7 convidados |
+| MVP | 1 host + 14 convidados |
 | Confortável em 4G | 1 host + 4 convidados |
 | Fase SFU | 30+ |
 
@@ -612,7 +612,7 @@ As decisões estão detalhadas em [`DECISOES.md`](DECISOES.md). Resumo:
 | Escopo | som de produção ao vivo, áudio-only |
 | Login | não |
 | Papéis MVP | host e convidado |
-| Limite | 1 host + 7 convidados |
+| Limite | 1 host + 14 convidados |
 | ID | aleatório ou digitado pelo usuário |
 | Senha | opcional no MVP |
 | TTL | 6 h |

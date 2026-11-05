@@ -420,7 +420,7 @@ Além do intercom local do estúdio, existe uma versão pública de salas:
 - Salas efêmeras com ID aleatório ou digitado.
 - Senha opcional.
 - Host e convidado com links separados.
-- Até 1 host + 7 convidados.
+- Até 1 host + 14 convidados (15 pessoas no total).
 - PTT geral, PTT individual e PTT travado.
 - Escolha de microfone e saída de áudio na hora, quando o navegador permite.
 - Instalável como PWA (Android/desktop).

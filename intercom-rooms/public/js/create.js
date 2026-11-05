@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { $, createRoom, copy, qrSvg, esc } from './common.js?v=8';
+import { $, createRoom, copy, qrSvg, esc } from './common.js?v=9';
 
 const form = $('#create-form');
 const err = $('#err');
@@ -18,7 +18,7 @@ form.addEventListener('submit', async (e) => {
   const name = $('#room-name').value.trim();
   const roomId = $('#room-id').value.trim().toLowerCase();
   const password = $('#room-pass').value;
-  const maxParticipants = Number($('#room-max').value) || 8;
+  const maxParticipants = Number($('#room-max').value) || 15;
   if (roomId && !/^[a-z0-9-]{4,24}$/.test(roomId)) return showError('Nome da sala inválido. Use 4–24 caracteres: a-z, 0-9 ou hífen.');
   btn.disabled = true;
   btn.textContent = 'Criando…';

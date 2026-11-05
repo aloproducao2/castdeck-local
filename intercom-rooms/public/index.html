@@ -15,7 +15,7 @@
 <link rel="icon" href="/intercom/icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/intercom/css/intercom.css?v=8">
+<link rel="stylesheet" href="/intercom/css/intercom.css?v=9">
 </head>
 <body>
 <div class="app narrow">
@@ -45,12 +45,14 @@
           <small>4–24 caracteres: a-z, 0-9 e hífen. Em branco, geramos um código.</small>
         </div>
         <div class="field" style="max-width:150px">
-          <label for="room-max">Quantas pessoas?</label>
+          <label for="room-max">Quantas pessoas no total?</label>
           <select class="input" id="room-max">
             <option value="4">4 pessoas</option>
-            <option value="6">6 pessoas</option>
-            <option value="8" selected>8 pessoas</option>
+            <option value="8">8 pessoas</option>
+            <option value="12">12 pessoas</option>
+            <option value="15" selected>15 pessoas</option>
           </select>
+          <small class="hint" style="display:block;margin-top:5px">Inclui o diretor. Só áudio.</small>
         </div>
       </div>
       <div class="field">
@@ -88,6 +90,6 @@
 
   <footer class="footer"><span>CastDeck Intercom · áudio de produção</span><span>Sem login · sem gravação</span></footer>
 </div>
-<script type="module" src="/intercom/js/create.js?v=8"></script>
+<script type="module" src="/intercom/js/create.js?v=9"></script>
 </body>
 </html>

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
-import { $, $$, esc, meta, copy, qrSvg, statusEl, hashParams, roomFromPath, fmtDate, keepScreenAwake, screenLockOn, mediaSession, requestAudioSession } from './common.js?v=8';
-import { initDevices, getMicStream } from './devices.js?v=8';
-import { Signaling, Peer, loadIce } from './peer.js?v=8';
+import { $, $$, esc, meta, copy, qrSvg, statusEl, hashParams, roomFromPath, fmtDate, keepScreenAwake, screenLockOn, mediaSession, requestAudioSession } from './common.js?v=9';
+import { initDevices, getMicStream } from './devices.js?v=9';
+import { Signaling, Peer, loadIce } from './peer.js?v=9';
 
 const room = roomFromPath('host');
 const token = hashParams().get('k') || '';
@@ -408,7 +408,7 @@ async function boot() {
     const info = await meta(room);
     H.room = info;
     $('#room-name').textContent = info.name;
-    $('#room-meta').textContent = `Sala ${info.roomId} · ${info.maxParticipants} pessoas`;
+    $('#room-meta').textContent = `Até ${info.maxParticipants} pessoas · use fone`;
     $('#expiry').textContent = `Expira em ${fmtDate(info.expiresAt)}`;
     statusEl(info.hostOnline ? 'sala já aberta' : 'pronta para abrir', info.hostOnline ? 'ok' : 'wait');
     if (info.hostOnline) {

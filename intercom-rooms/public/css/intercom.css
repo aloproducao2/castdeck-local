@@ -98,7 +98,7 @@ h1 .grad { background:linear-gradient(100deg,#fff 10%,#c4b5fd 52%,#67e8f9); -web
 .meter { height:8px; border-radius:5px; background:rgba(255,255,255,.09); overflow:hidden; }
 .meter i { display:block; width:0; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--ok),#facc15,#fb7185); transition:width .08s linear; }
 .statusbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; color:var(--muted); font-size:11px; }
-.people { display:grid; gap:7px; }
+.people { display:grid; gap:7px; max-height:430px; overflow-y:auto; padding-right:3px; }
 .person { display:flex; align-items:center; gap:8px; padding:9px 10px; border:1px solid var(--line); border-radius:10px; background:rgba(0,0,0,.16); min-width:0; }
 .person .who { flex:1; min-width:0; }
 .person .who b { display:block; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

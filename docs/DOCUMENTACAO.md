@@ -422,6 +422,9 @@ Além do intercom local do estúdio, existe uma versão pública de salas:
 - Host e convidado com links separados.
 - Até 1 host + 7 convidados.
 - PTT geral, PTT individual e PTT travado.
+- Escolha de microfone e saída de áudio na hora, quando o navegador permite.
+- Instalável como PWA (Android/desktop).
+- Wake Lock opcional, Media Session e áudio em segundo plano quando o Android permite.
 - Host pode mutar, remover e encerrar.
 - TURN público em `turn.flue.live`.
 - Não é vídeo, chat, gravação ou IFB.

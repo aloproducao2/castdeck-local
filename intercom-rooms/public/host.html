@@ -6,16 +6,24 @@
 <meta name="theme-color" content="#080910">
 <title>Diretor — CastDeck Intercom</title>
 <meta name="robots" content="noindex,nofollow">
+<link rel="manifest" href="/intercom/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/intercom/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Intercom">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="icon" href="/intercom/icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/intercom/css/intercom.css?v=4">
+<link rel="stylesheet" href="/intercom/css/intercom.css?v=7">
 </head>
 <body>
 <div class="app">
   <header class="top">
     <a class="brand" href="/intercom/"><span class="brand-mark">◈</span> CastDeck <small>Intercom</small></a>
     <span class="spacer"></span>
+    <button class="icon-btn" type="button" data-devices-open title="Microfone e saída de áudio" aria-label="Microfone e saída de áudio">🎧</button>
+    <button class="icon-btn" type="button" data-install-app hidden title="Instalar o Intercom" aria-label="Instalar o Intercom">⬇</button>
     <span class="pill" id="status"><span class="dot off"></span>Carregando…</span>
     <button class="btn sm danger" id="end" hidden>Encerrar</button>
   </header>
@@ -37,6 +45,7 @@
       <div id="err" class="alert hidden" role="alert"></div>
       <button class="btn primary" id="start" style="width:100%;min-height:48px">Ativar microfone e abrir a sala</button>
       <p class="hint" style="text-align:center;margin:12px 0 0">O link do host é privado. O link da equipe aparece depois de entrar.</p>
+      <p style="text-align:center;margin:8px 0 0"><button class="linkbtn" type="button" data-devices-open>Escolher microfone e saída de áudio</button></p>
     </section>
 
     <div class="grid2" id="live" hidden>
@@ -47,6 +56,7 @@
           <div class="latch"><button class="btn" id="latch" type="button">Manter microfone aberto</button><button class="btn ghost" id="test" type="button">Testar fone</button></div>
           <div class="meter"><i id="meter"></i></div>
           <div class="statusbar"><span><span class="dot" id="mic-dot"></span> <span id="ptt-status">Microfone fechado</span></span><span class="spacer"></span><span id="room-count">0 conectados</span></div>
+          <p style="margin:8px 0 0"><button class="linkbtn" type="button" data-devices-open>Trocar microfone ou saída de áudio</button></p>
         </div>
         <div class="divider"></div>
         <div class="panel-title">Pessoas na sala</div>
@@ -71,8 +81,26 @@
     </section>
   </main>
 
+<dialog class="device-dialog" id="devices">
+  <div class="modal-head"><h2>Áudio do intercom</h2><button class="icon-btn" type="button" data-devices-close aria-label="Fechar">×</button></div>
+  <p class="hint" style="margin-top:0">Escolha o microfone e por onde quer ouvir. A mudança vale na hora.</p>
+  <label class="device-label" for="mic-device">Microfone</label>
+  <select class="input" id="mic-device"></select>
+  <label class="device-label" for="out-device">Saída de áudio</label>
+  <select class="input" id="out-device"></select>
+  <label class="device-check"><input type="checkbox" id="screen-lock"> Manter a tela ligada durante a sala</label>
+  <p class="hint" id="screen-note"></p>
+  <p class="hint" id="devices-note"></p>
+  <p class="hint">No Android, instale pelo menu do navegador → “Instalar app” ou “Adicionar à tela inicial”. Isso melhora o uso com a tela desligada.</p>
+  <div class="modal-actions">
+    <button class="btn sm" type="button" id="devices-refresh">Atualizar</button>
+    <button class="btn sm primary" type="button" data-devices-close>Fechar</button>
+    <button class="btn sm" type="button" data-install-app hidden>Instalar app</button>
+  </div>
+</dialog>
+
   <footer class="footer"><span>CastDeck Intercom · direção</span><span id="expiry"></span></footer>
 </div>
-<script type="module" src="/intercom/js/host.js?v=4"></script>
+<script type="module" src="/intercom/js/host.js?v=7"></script>
 </body>
 </html>

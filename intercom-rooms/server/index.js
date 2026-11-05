@@ -159,7 +159,7 @@ function dropClient(c, code = 1000) {
 
 function roomCreate(req, res) {
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
-  if (!allow(`create:${ip}`, 10, 60 * 60 * 1000)) return res.status(429).json({ error: 'rate', message: 'Muitas salas criadas. Tente novamente mais tarde.' });
+  if (!allow(`create:${ip}`, 30, 60 * 60 * 1000)) return res.status(429).json({ error: 'rate', message: 'Muitas salas criadas. Tente novamente mais tarde.' });
   const custom = normRoom(req.body?.roomId || '');
   if (custom && !validCustom(custom)) return res.status(400).json({ error: 'bad-room', message: 'Use 4–24 caracteres: a-z, 0-9 ou hífen. Esse nome é reservado ou inválido.' });
   const password = typeof req.body?.password === 'string' ? req.body.password.slice(0, 64) : '';

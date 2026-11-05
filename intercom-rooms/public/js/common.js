@@ -66,3 +66,79 @@ export const statusEl = (mesg, kind = 'wait') => {
   el.innerHTML = `${kind === 'ok' ? '<span class="dot"></span>' : kind === 'busy' ? '<span class="dot busy"></span>' : '<span class="dot off"></span>'}${esc(mesg)}`;
 };
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ── PWA / instalação / tela ligada ─────────────────────────────────────────
+let installEvent = null;
+let wakeLock = null;
+let wakeWanted = true;
+const SCREEN_KEY = 'castdeck.intercom.screenLock';
+
+export function screenLockOn() {
+  try { return localStorage.getItem(SCREEN_KEY) !== '0'; } catch { return true; }
+}
+
+export async function keepScreenAwake(on = true) {
+  wakeWanted = !!on;
+  try { localStorage.setItem(SCREEN_KEY, on ? '1' : '0'); } catch {}
+  if (!on) {
+    try { await wakeLock?.release(); } catch {}
+    wakeLock = null;
+    return;
+  }
+  if (wakeLock || !navigator.wakeLock?.request) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener?.('release', () => { wakeLock = null; });
+  } catch {}
+}
+
+export function initPwa() {
+  const sync = () => {
+    const show = !!installEvent && !matchMedia('(display-mode: standalone)').matches;
+    for (const b of document.querySelectorAll('[data-install-app]')) b.hidden = !show;
+  };
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    installEvent = e;
+    sync();
+  });
+  window.addEventListener('appinstalled', () => { installEvent = null; sync(); });
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest?.('[data-install-app]');
+    if (!b || !installEvent) return;
+    e.preventDefault();
+    try {
+      installEvent.prompt();
+      await installEvent.userChoice;
+    } catch {}
+    installEvent = null;
+    sync();
+  });
+  if ('serviceWorker' in navigator && isSecureContext) {
+    navigator.serviceWorker.register('/intercom/sw.js', { scope: '/intercom/' }).catch(() => {});
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && wakeWanted && !wakeLock) keepScreenAwake(true);
+  });
+  window.addEventListener('pagehide', () => { try { wakeLock?.release(); } catch {} });
+  sync();
+}
+
+export function mediaSession(title = 'CastDeck Intercom') {
+  if (!('mediaSession' in navigator)) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title,
+      artist: 'Sala de produção',
+      album: 'Áudio de intercom',
+      artwork: [{ src: '/intercom/icon-192.png', sizes: '192x192', type: 'image/png' }],
+    });
+    navigator.mediaSession.playbackState = 'playing';
+  } catch {}
+}
+
+initPwa();
+
+export function requestAudioSession() {
+  try { if ('audioSession' in navigator) navigator.audioSession.type = 'play-and-record'; } catch {}
+}

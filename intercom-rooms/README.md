@@ -19,6 +19,9 @@
 - Limite de 1 host + 7 convidados.
 - TTL de 6 h e limpeza.
 - Rate limit de criação e tentativa de entrada.
+- Escolha de **microfone** e **saída de áudio** durante a sala.
+- PWA instalável (`manifest`, service worker e ícones).
+- Android com Wake Lock opcional, Media Session, Audio Session e retomada de áudio.
 - Página mobile com Wake Lock e Media Session básica.
 
 ## Produção
@@ -71,6 +74,14 @@ room.html   ── WSS /intercom/ws ─────────► signaling + p
 - Sem vídeo, sem gravação, sem IFB, sem chat.
 - Sem servidor de mídia; signaling apenas troca SDP/ICE.
 
+## Android e tela desligada
+
+- O PWA pode ser instalado pelo menu do navegador ou pelo botão **Instalar app**.
+- A opção **Manter a tela ligada** fica ligada por padrão; desmarque para permitir que a tela apague.
+- Com a tela apagada, o WebRTC pode continuar, mas o Android pode suspender o microfone dependendo do fabricante.
+- O app usa Wake Lock, Media Session, `audioSession` quando disponível e um oscilador inaudível para manter o contexto de áudio ativo.
+- Teste em celular real: instale o PWA, entre na sala, desligue a tela e confirme com o diretor se o áudio continua.
+
 ## Limites do MVP
 
 - O host fala com **todos** ou com **uma pessoa** pelo PTT da linha.
@@ -107,6 +118,9 @@ Foram testados:
 - PTT do host altera o microfone e o status;
 - PTT do convidado chega ao host;
 - mute do host fecha o microfone do convidado **sem** mutar a escuta dele;
+- troca de microfone em tempo real no host e no convidado;
+- troca de saída de áudio em desktop (Android/iOS seguem a saída do sistema);
+- PWA registrado e cache do service worker ativo;
 - QR e links gerados na tela.
 
 ## Próximo passo

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
-import { $, $$, esc, meta, copy, qrSvg, statusEl, hashParams, roomFromPath, fmtDate } from './common.js';
+import { $, $$, esc, meta, copy, qrSvg, statusEl, hashParams, roomFromPath, fmtDate, keepScreenAwake, screenLockOn, mediaSession, requestAudioSession } from './common.js';
+import { initDevices, getMicStream } from './devices.js';
 import { Signaling, Peer, loadIce } from './peer.js';
 
 const room = roomFromPath('host');
@@ -10,6 +11,10 @@ const H = {
   token,
   sig: null,
   mic: null,
+  micStream: null,
+  analyser: null,
+  keepAlive: null,
+  devices: null,
   peers: new Map(),
   participants: new Map(),
   audios: new Map(),
@@ -23,6 +28,11 @@ const H = {
   ctx: null,
   meterRaf: 0,
 };
+
+function resumeAudio() {
+  if (H.ctx?.state === 'suspended') H.ctx.resume().catch(() => {});
+}
+
 window.__intercomHost = H;
 
 const shortUrl = (url) => {
@@ -178,6 +188,7 @@ function ensurePeer(id) {
     }
     audio.srcObject = stream;
     audio.play().catch(() => {});
+    H.devices?.applyOutput(audio);
   });
   peer.addEventListener('state', (e) => {
     const el = document.querySelector(`[data-person="${CSS.escape(id)}"] .who small`);
@@ -203,26 +214,67 @@ function removePeer(id) {
   if (audio) { audio.pause(); audio.srcObject = null; H.audios.delete(id); }
 }
 
-function setupMeter(track) {
+function attachMicSource(stream) {
+  if (!H.ctx) H.ctx = new AudioContext();
+  try { H.micSource?.disconnect(); } catch {}
+  H.micSource = H.ctx.createMediaStreamSource(stream);
+  H.micSource.connect(H.analyser);
+  for (const out of H.hostOuts.values()) H.micSource.connect(out.talk);
+  resumeAudio();
+}
+
+function setupMeter(stream) {
   try {
     H.ctx = H.ctx || new AudioContext();
-    H.micSource = H.ctx.createMediaStreamSource(new MediaStream([track]));
-    const analyser = H.ctx.createAnalyser();
-    analyser.fftSize = 512;
+    H.analyser = H.ctx.createAnalyser();
+    H.analyser.fftSize = 512;
     const pull = H.ctx.createGain();
     pull.gain.value = 0;
-    H.micSource.connect(analyser);
-    analyser.connect(pull).connect(H.ctx.destination);
-    const buf = new Uint8Array(analyser.fftSize);
+    attachMicSource(stream);
+    H.analyser.connect(pull).connect(H.ctx.destination);
+    // Oscilador inaudível mantém o AudioContext ativo quando a aba vai para segundo plano.
+    try {
+      H.keepAlive?.osc?.stop();
+      const osc = H.ctx.createOscillator();
+      const gain = H.ctx.createGain();
+      gain.gain.value = 0.00001;
+      osc.connect(gain).connect(H.ctx.destination);
+      osc.start();
+      H.keepAlive = { osc, gain };
+    } catch {}
+    if (H.meterRaf) cancelAnimationFrame(H.meterRaf);
+    const buf = new Uint8Array(H.analyser.fftSize);
     const draw = () => {
-      analyser.getByteTimeDomainData(buf);
+      H.analyser.getByteTimeDomainData(buf);
       let peak = 0;
       for (const v of buf) peak = Math.max(peak, Math.abs(v - 128) / 128);
       $('#meter').style.width = `${Math.min(100, Math.round(peak * 180))}%`;
       H.meterRaf = requestAnimationFrame(draw);
     };
     draw();
+    resumeAudio();
   } catch {}
+}
+
+async function switchHostMic() {
+  if (!H.started || !H.mic) return;
+  const stream = await getMicStream();
+  const track = stream.getAudioTracks()[0];
+  if (!track) throw new Error('Nenhum microfone disponível.');
+  track.enabled = true;
+  const old = H.mic;
+  const oldStream = H.micStream;
+  try {
+    attachMicSource(stream);
+    H.micStream = stream;
+    H.mic = track;
+    old?.stop();
+  } catch (err) {
+    track.stop();
+    // Se a troca falhou, tenta reancorar o microfone antigo no grafo.
+    try { attachMicSource(oldStream || new MediaStream([old])); } catch {}
+    throw err;
+  }
 }
 
 async function start() {
@@ -235,9 +287,12 @@ async function start() {
     if (!room) throw new Error('Sala não encontrada no link.');
     if (!token) throw new Error('Link do host incompleto. Abra pelo link gerado na criação da sala.');
     await loadIce();
-    H.mic = (await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }, video: false })).getAudioTracks()[0];
+    const stream = await getMicStream();
+    H.micStream = stream;
+    H.mic = stream.getAudioTracks()[0];
+    if (!H.mic) throw new Error('Nenhum microfone disponível.');
     H.mic.enabled = true;
-    setupMeter(H.mic);
+    setupMeter(stream);
     H.sig = new Signaling();
     H.sig.on('welcome', (m) => {
       H.room = m.room;
@@ -248,6 +303,9 @@ async function start() {
       $('#end').hidden = false;
       renderRoom();
       statusEl('sala aberta', 'ok');
+      keepScreenAwake(screenLockOn());
+      requestAudioSession();
+      mediaSession('CastDeck Intercom · direção');
       for (const p of m.participants || []) {
         H.participants.set(p.id, p);
         ensurePeer(p.id);
@@ -332,6 +390,14 @@ function bind() {
     H.started = false;
     setTimeout(() => fatal('Sala encerrada.'), 250);
   };
+  H.devices = initDevices({
+    getAudios: () => [...H.audios.values()],
+    onMic: () => switchHostMic(),
+  });
+  document.addEventListener('visibilitychange', () => {
+    resumeAudio();
+    if (!document.hidden) keepScreenAwake(screenLockOn());
+  });
   window.addEventListener('beforeunload', () => { H.mic?.stop(); H.sig?.close(); });
 }
 

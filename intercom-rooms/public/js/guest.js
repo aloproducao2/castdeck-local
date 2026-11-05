@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
-import { $, meta, esc, hashParams, roomFromPath, fmtDate, statusEl } from './common.js';
+import { $, meta, esc, hashParams, roomFromPath, fmtDate, statusEl, keepScreenAwake, screenLockOn, requestAudioSession } from './common.js';
+import { initDevices, getMicStream } from './devices.js';
 import { Signaling, Peer, loadIce } from './peer.js';
 
 const room = roomFromPath();
@@ -10,6 +11,11 @@ const G = {
   token,
   sig: null,
   mic: null,
+  micStream: null,
+  analyser: null,
+  micSource: null,
+  keepAlive: null,
+  devices: null,
   peer: null,
   hostId: null,
   latch: false,
@@ -57,26 +63,59 @@ function renderRoom() {
   statusEl('conectado', 'ok');
 }
 
-async function setupMeter(track) {
+function setupMeter(stream) {
   try {
-    G.ctx = new AudioContext();
-    const source = G.ctx.createMediaStreamSource(new MediaStream([track]));
-    const analyser = G.ctx.createAnalyser();
-    analyser.fftSize = 512;
+    G.ctx = G.ctx || new AudioContext();
+    try { G.micSource?.disconnect(); } catch {}
+    G.analyser = G.ctx.createAnalyser();
+    G.analyser.fftSize = 512;
+    G.micSource = G.ctx.createMediaStreamSource(stream);
+    G.micSource.connect(G.analyser);
     const pull = G.ctx.createGain();
     pull.gain.value = 0;
-    source.connect(analyser);
-    analyser.connect(pull).connect(G.ctx.destination);
-    const buf = new Uint8Array(analyser.fftSize);
+    G.analyser.connect(pull).connect(G.ctx.destination);
+    try {
+      G.keepAlive?.osc?.stop();
+      const osc = G.ctx.createOscillator();
+      const gain = G.ctx.createGain();
+      gain.gain.value = 0.00001;
+      osc.connect(gain).connect(G.ctx.destination);
+      osc.start();
+      G.keepAlive = { osc, gain };
+    } catch {}
+    const buf = new Uint8Array(G.analyser.fftSize);
     const draw = () => {
-      analyser.getByteTimeDomainData(buf);
+      G.analyser.getByteTimeDomainData(buf);
       let peak = 0;
       for (const v of buf) peak = Math.max(peak, Math.abs(v - 128) / 128);
       $('#meter').style.width = `${Math.min(100, Math.round(peak * 180))}%`;
       requestAnimationFrame(draw);
     };
     draw();
+    if (G.ctx.state === 'suspended') G.ctx.resume().catch(() => {});
   } catch {}
+}
+
+async function switchGuestMic() {
+  if (!G.joined || !G.mic) return;
+  const stream = await getMicStream();
+  const track = stream.getAudioTracks()[0];
+  if (!track) throw new Error('Nenhum microfone disponível.');
+  track.enabled = G.ptt;
+  try {
+    if (G.peer) {
+      const sender = G.peer.pc.getSenders().find((s) => s.track?.kind === 'audio');
+      if (sender) await sender.replaceTrack(track);
+    }
+  } catch (err) {
+    track.stop();
+    throw err;
+  }
+  const old = G.mic;
+  G.mic = track;
+  G.micStream = stream;
+  old?.stop();
+  setupMeter(stream);
 }
 
 function ensurePeer(hostId) {
@@ -98,6 +137,7 @@ function ensurePeer(hostId) {
     remote.muted = G.muted;
     remote.volume = Number($('#volume').value) || 0.9;
     remote.play().catch(() => {});
+    G.devices?.applyOutput(remote);
   });
   peer.addEventListener('state', (e) => {
     if (e.detail === 'connected') {
@@ -113,11 +153,7 @@ function ensurePeer(hostId) {
 }
 
 async function keepAwake() {
-  if (G.wake) return;
-  try {
-    G.wake = await navigator.wakeLock?.request('screen');
-    G.wake?.addEventListener?.('release', () => { G.wake = null; });
-  } catch {}
+  await keepScreenAwake(screenLockOn());
 }
 
 function setupMediaSession() {
@@ -127,7 +163,9 @@ function setupMediaSession() {
       title: 'CastDeck Intercom',
       artist: 'Sala de produção',
       album: 'Áudio de intercom',
+      artwork: [{ src: '/intercom/icon-192.png', sizes: '192x192', type: 'image/png' }],
     });
+    navigator.mediaSession.playbackState = 'playing';
     const set = (a, fn) => { try { navigator.mediaSession.setActionHandler(a, fn); } catch {} };
     set('pause', () => { G.muted = true; $('#remote').muted = true; });
     set('play', () => { G.muted = false; $('#remote').muted = false; $('#remote').play().catch(() => {}); });
@@ -148,10 +186,14 @@ async function join() {
     try { localStorage.setItem('castdeck.intercom.name', name); } catch {}
     const password = $('#password').value;
     await loadIce();
-    G.mic = (await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }, video: false })).getAudioTracks()[0];
+    const stream = await getMicStream();
+    G.micStream = stream;
+    G.mic = stream.getAudioTracks()[0];
+    if (!G.mic) throw new Error('Nenhum microfone disponível.');
     G.mic.enabled = false;
-    setupMeter(G.mic);
+    setupMeter(stream);
     keepAwake();
+    requestAudioSession();
     setupMediaSession();
     G.sig = new Signaling();
     G.sig.on('welcome', (m) => {
@@ -249,8 +291,15 @@ function bind() {
     G.mic?.stop();
     fatal('Você saiu', 'Pode fechar esta página.');
   };
+  G.devices = initDevices({
+    getAudios: () => [$('#remote')],
+    onMic: () => switchGuestMic(),
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (G.ctx?.state === 'suspended') G.ctx.resume().catch(() => {});
+    if (!document.hidden) keepAwake();
+  });
   window.addEventListener('beforeunload', () => { G.mic?.stop(); G.sig?.close(); });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) keepAwake(); });
 }
 
 async function boot() {

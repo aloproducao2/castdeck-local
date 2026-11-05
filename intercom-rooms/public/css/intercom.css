@@ -141,3 +141,21 @@ h1 .grad { background:linear-gradient(100deg,#fff 10%,#c4b5fd 52%,#67e8f9); -web
 .qr-details .qr svg { width:190px; height:190px; max-width:100%; }
 
 [hidden] { display:none !important; }
+
+.icon-btn { width:32px; height:32px; flex:none; border:1px solid var(--line); border-radius:8px; background:rgba(255,255,255,.04); color:var(--text); cursor:pointer; display:grid; place-items:center; font-size:15px; line-height:1; padding:0; }
+.icon-btn:hover { background:rgba(255,255,255,.08); }
+.device-dialog { width:min(430px,calc(100vw - 28px)); max-height:calc(100dvh - 30px); overflow:auto; padding:18px; border:1px solid var(--line2); border-radius:16px; background:var(--panel); color:var(--text); box-shadow:0 30px 90px rgba(0,0,0,.7); }
+.device-dialog::backdrop { background:rgba(3,4,10,.72); backdrop-filter:blur(5px); }
+.modal-head { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.modal-head h2 { margin:0; font:800 20px var(--display); }
+.modal-head .icon-btn { margin-left:auto; font-size:20px; }
+.device-label { display:block; margin:12px 0 5px; color:var(--muted); font-size:11px; font-weight:700; }
+.device-dialog .input { width:100%; }
+.modal-actions { display:flex; flex-wrap:wrap; gap:7px; margin-top:14px; }
+.modal-actions .btn { flex:1; min-width:100px; }
+@media (max-width:640px) { .top #status { display:none; } .top { gap:6px; } .brand { font-size:12px; } }
+
+.linkbtn { border:0; background:none; color:#bfb7e8; font:600 11px var(--body,Inter,sans-serif); text-decoration:underline; text-underline-offset:3px; cursor:pointer; padding:4px; }
+.linkbtn:hover { color:#fff; }
+.device-check { display:flex; align-items:center; gap:8px; margin:14px 0 4px; color:var(--text); font-size:11.5px; }
+.device-check input { width:16px; height:16px; accent-color:var(--violet); }

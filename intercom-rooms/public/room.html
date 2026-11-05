@@ -6,16 +6,24 @@
 <meta name="theme-color" content="#080910">
 <title>Convidado — CastDeck Intercom</title>
 <meta name="robots" content="noindex,nofollow">
+<link rel="manifest" href="/intercom/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/intercom/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Intercom">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="icon" href="/intercom/icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/intercom/css/intercom.css?v=4">
+<link rel="stylesheet" href="/intercom/css/intercom.css?v=7">
 </head>
 <body>
 <div class="app narrow">
   <header class="top">
     <a class="brand" href="/intercom/"><span class="brand-mark">◈</span> CastDeck <small>Intercom</small></a>
     <span class="spacer"></span>
+    <button class="icon-btn" type="button" data-devices-open title="Microfone e saída de áudio" aria-label="Microfone e saída de áudio">🎧</button>
+    <button class="icon-btn" type="button" data-install-app hidden title="Instalar o Intercom" aria-label="Instalar o Intercom">⬇</button>
     <span class="pill" id="status"><span class="dot off"></span>Carregando…</span>
   </header>
 
@@ -29,6 +37,7 @@
       <div class="field" id="pass-field" hidden><label for="password">Senha da sala</label><input class="input" id="password" type="password" maxlength="64" autocomplete="current-password"></div>
       <button class="btn primary" id="join" type="button" style="width:100%;min-height:48px">Entrar e ouvir o diretor</button>
       <p class="hint">Use fone. O microfone começa fechado; o navegador vai pedir permissão.</p>
+      <p style="text-align:center;margin:4px 0 0"><button class="linkbtn" type="button" data-devices-open>Escolher microfone e saída de áudio</button></p>
     </div>
   </section>
 
@@ -55,6 +64,7 @@
           <input id="volume" type="range" min="0" max="1" step="0.01" value="0.9" aria-label="Volume do diretor" style="flex:1;min-width:120px">
         </div>
         <p class="hint" style="margin-top:10px">O diretor fala com você. Responda segurando o botão de falar. Use fone.</p>
+        <p style="margin:8px 0 0"><button class="linkbtn" type="button" data-devices-open>Trocar microfone ou saída de áudio</button></p>
       </section>
 
       <aside class="card pad">
@@ -79,8 +89,26 @@
   </section>
 
   <audio id="remote" autoplay playsinline class="audio-hidden"></audio>
+<dialog class="device-dialog" id="devices">
+  <div class="modal-head"><h2>Áudio do intercom</h2><button class="icon-btn" type="button" data-devices-close aria-label="Fechar">×</button></div>
+  <p class="hint" style="margin-top:0">Escolha o microfone e por onde quer ouvir. A mudança vale na hora.</p>
+  <label class="device-label" for="mic-device">Microfone</label>
+  <select class="input" id="mic-device"></select>
+  <label class="device-label" for="out-device">Saída de áudio</label>
+  <select class="input" id="out-device"></select>
+  <label class="device-check"><input type="checkbox" id="screen-lock"> Manter a tela ligada durante a sala</label>
+  <p class="hint" id="screen-note"></p>
+  <p class="hint" id="devices-note"></p>
+  <p class="hint">No Android, instale pelo menu do navegador → “Instalar app” ou “Adicionar à tela inicial”. Isso melhora o uso com a tela desligada.</p>
+  <div class="modal-actions">
+    <button class="btn sm" type="button" id="devices-refresh">Atualizar</button>
+    <button class="btn sm primary" type="button" data-devices-close>Fechar</button>
+    <button class="btn sm" type="button" data-install-app hidden>Instalar app</button>
+  </div>
+</dialog>
+
   <footer class="footer"><span>CastDeck Intercom · convidado</span><span>Áudio de produção · não vai ao programa</span></footer>
 </div>
-<script type="module" src="/intercom/js/guest.js?v=4"></script>
+<script type="module" src="/intercom/js/guest.js?v=7"></script>
 </body>
 </html>

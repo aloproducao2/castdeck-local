@@ -145,7 +145,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.3.35** — QR alignment fixed, topbar no longer clips Record/Go live on desktops and Android, mobile portrait/landscape reviewed, and intercom audio input/output selection. See the
+Version **1.3.36** — background video independent from Playout and thumbnails, animated GIF stage backgrounds, and background video restored on the next session. See the
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

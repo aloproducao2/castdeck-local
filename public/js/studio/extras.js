@@ -278,7 +278,8 @@ export function createExtras(ctx) {
         for (const k of recs.keys()) if (!keep.has(k)) idbDel(key(k)).catch(() => {});
         // 3) nomes, palco, solo e playlist
         for (const [id, name] of Object.entries(ses.names || {})) ctx.applyName(id, name);
-        const stage = (ses.stage || []).filter((id) => S.sources.has(id));
+        const bgVideoId = S.brand?.background?.type === 'video' ? S.brand.background.value : '';
+        const stage = (ses.stage || []).filter((id) => S.sources.has(id) && id !== bgVideoId);
         if (stage.length) ctx.setStage(stage);
         if (ses.solo && S.sources.has(ses.solo)) ctx.setSolo(ses.solo);
         if (ses.playlist) Object.assign(S.playlist, ses.playlist);

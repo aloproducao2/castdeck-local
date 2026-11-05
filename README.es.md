@@ -146,7 +146,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **1.3.35** — QR alineado, barra superior sin cortar Grabar/Transmitir en escritorio y Android, diseño móvil revisado en vertical/horizontal y selección de entrada/salida de audio del intercom. Consulta los
+Versión **1.3.36** — vídeo de fondo independiente del Playout y de las miniaturas, fondos de escenario con GIF animado y vídeo de fondo restaurado en la próxima sesión. Consulta los
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

@@ -119,7 +119,7 @@ O **CastDeck Local** parte da premissa inversa:
 - **Menus do estúdio** agrupados em **Conteúdo** (Mídia, Banners, Jornal, Esportes), **Visual** (Marca, Exibição), **Interatividade** (Enquetes, Mensagens), **Público** (Chat, Redes), **Diretor** (AUTO-VOZ e controle remoto), **Áudio** (Mixer) e **Ajustes** (Transmissão, Dispositivos, Sinais). O painel pode ser recolhido em ícones (veja *Painel lateral recolhível*). Barra inferior: Mic, Câmera, Convidar | Mídia, Tela, Aba | Nomes, Cursor | Ajustes, Sair.
 - **Destinos dentro da sala**: em Configurar → Transmissão (e na janela "Entrar ao vivo" e no painel vertical) dá para adicionar, editar, ativar/desativar e excluir destinos RTMP sem voltar ao painel.
 - Variáveis `{mandante}`, `{visitante}`, `{placar}`, `{competicao}` e `{tempo}` em qualquer banner/GC.
-- Marca: logo, cor, overlay e fundos.
+- Marca: logo, cor, overlay e fundos. O fundo do palco aceita imagem, **GIF animado** (até 25 MB) ou vídeo mudo em loop, independente do Playout; o vídeo fica salvo para a próxima sessão.
 - Aba **Redes** (Social Stream Ninja): cartão de destaque, feed rolante, filtros por plataforma.
 
 ### Salvamento
@@ -180,7 +180,7 @@ Duas camadas fixas acima de tudo (GC, letreiro, logo), independentes da cena e d
 
 ## 4. Intercom de produção (EGM)
 
-> **Disponível na 1.3.35** no estúdio, na página `/cam` e na página independente `/intercom/:id`.
+> **Disponível na 1.3.36** no estúdio, na página `/cam` e na página independente `/intercom/:id`.
 > Guia completo: [`docs/INTERCOM.md`](https://github.com/aloproducao2/castdeck-local/blob/main/docs/INTERCOM.md)
 > e página do site [`intercom.html`](https://cast.flue.live/intercom.html).
 

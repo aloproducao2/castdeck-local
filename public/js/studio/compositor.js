@@ -271,6 +271,7 @@ export class Compositor {
     this.layout = 'grid';
     this.brand = { ...DEFAULT_BRAND };
     this.images = new Map(); // url -> HTMLImageElement
+    this.bgGifs = new Map(); // url -> player de GIF animado (ImageDecoder)
     this.bgVideos = new Map(); // sourceId -> HTMLVideoElement dedicado (mudo/loop) para fundo em vídeo
     this.anim = new Map(); // id -> { x,y,w,h,a }
     this.banner = null; // { title, subtitle, t0, hiding, t1 }
@@ -323,6 +324,73 @@ export class Compositor {
       ...brand,
       overlayLayers: { ...DEFAULT_BRAND.overlayLayers, ...(brand?.overlayLayers || {}) },
     };
+    const bgUrl = this.brand.background?.type === 'image' ? this.brand.background.value : '';
+    for (const [url, g] of this.bgGifs) {
+      if (url === bgUrl) continue;
+      for (const frame of g.frames) { try { frame.close(); } catch {} }
+      this.bgGifs.delete(url);
+    }
+  }
+
+  // GIF animado: o Chromium não avança o quadro ao desenhar um <img> de GIF em canvas.
+  // Decodificamos os quadros com ImageDecoder e desenhamos o quadro atual pelo relógio.
+  bgGif(url) {
+    if (!url) return null;
+    if (!/\.gif(?:[?#]|$)/i.test(url) && !/^data:image\/gif/i.test(url)) return null;
+    let g = this.bgGifs.get(url);
+    if (!g) {
+      g = { url, frames: [], times: [], total: 0, started: 0, ready: false, failed: false };
+      this.bgGifs.set(url, g);
+      this._loadBgGif(g);
+    }
+    return g.ready ? g : null;
+  }
+
+  async _loadBgGif(g) {
+    if (typeof ImageDecoder === 'undefined') {
+      g.failed = true;
+      return;
+    }
+    let dec;
+    try {
+      const blob = await (await fetch(g.url)).blob();
+      dec = new ImageDecoder({ data: blob.stream(), type: blob.type || 'image/gif' });
+      await dec.completed;
+      const count = Math.min(Number(dec.tracks.selectedTrack?.frameCount) || 0, 180);
+      let pixels = 0;
+      for (let i = 0; i < count; i++) {
+        const { image } = await dec.decode({ frameIndex: i, completeFramesOnly: true });
+        const w = image.displayWidth || image.codedWidth;
+        const h = image.displayHeight || image.codedHeight;
+        pixels += w * h;
+        if (i > 0 && pixels > 30_000_000) {
+          image.close();
+          break;
+        }
+        const bitmap = await createImageBitmap(image);
+        const duration = Number(image.duration);
+        image.close();
+        g.frames.push(bitmap);
+        g.times.push((g.times[g.times.length - 1] || 0) + Math.max(20, duration > 0 ? duration / 1000 : 100));
+      }
+      if (!g.frames.length) throw new Error('GIF sem quadros');
+      g.total = g.times[g.times.length - 1];
+      g.started = performance.now();
+      g.ready = true;
+    } catch (e) {
+      g.failed = true;
+      console.warn('[compositor] GIF de fundo não pôde ser animado:', e?.message || e);
+    } finally {
+      try { dec?.close(); } catch {}
+    }
+  }
+
+  gifFrame(g) {
+    if (!g?.ready || !g.total) return null;
+    const t = (performance.now() - g.started) % g.total;
+    let i = 0;
+    while (i < g.times.length - 1 && t >= g.times[i]) i++;
+    return g.frames[i] || null;
   }
 
   // O vídeo de fundo usa um elemento próprio, mudo e em loop, para não interferir no player da playlist.
@@ -514,9 +582,13 @@ export class Compositor {
     // fundo
     const bg = brand.background || {};
     const bgVideo = bg.type === 'video' ? this.bgVideo(bg.value) : null;
+    const bgGif = bg.type === 'image' ? this.bgGif(bg.value) : null;
+    const bgGifFrame = this.gifFrame(bgGif);
     const bgImg = bg.type === 'image' ? this.image(bg.value) : null;
     if (bgVideo) {
       this.drawCover(bgVideo, 0, 0, W, H, bgVideo.videoWidth, bgVideo.videoHeight);
+    } else if (bgGifFrame) {
+      this.drawCover(bgGifFrame, 0, 0, W, H, bgGifFrame.width, bgGifFrame.height);
     } else if (bgImg) {
       this.drawCover(bgImg, 0, 0, W, H, bgImg.naturalWidth, bgImg.naturalHeight);
     } else if (bg.type === 'color') {

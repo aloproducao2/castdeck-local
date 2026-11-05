@@ -49,9 +49,11 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
   // fontes na ordem da barra: suas câmeras primeiro, depois convidados/câmeras remotas, telas e mídias
   function busList() {
     const rank = (s) => (s.kind === 'camera' ? (s.ownerId === 'host' ? 0 : 1) : s.kind === 'screen' ? 2 : 3);
+    const bg = S.brand?.background;
+    const bgVideo = bg?.type === 'video' ? bg.value : '';
     // mesma ordem dos bastidores (S.bsOrder, a que o usuário arrasta); fontes novas sem posição vão ao fim pela ordem antiga
     const pos = (s) => { const i = (S.bsOrder || []).indexOf(s.id); return i < 0 ? Infinity : i; };
-    return [...S.sources.values()].filter((s) => BUS_KINDS.has(s.kind)).sort((a, b) => pos(a) - pos(b) || rank(a) - rank(b));
+    return [...S.sources.values()].filter((s) => BUS_KINDS.has(s.kind) && s.id !== bgVideo).sort((a, b) => pos(a) - pos(b) || rank(a) - rank(b));
   }
   const label = (id) => {
     if (id) return S.sources.get(id)?.label || 'Fonte';

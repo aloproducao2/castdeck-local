@@ -1591,6 +1591,15 @@ function renderTiles() {
     }
   }
   for (const s of S.sources.values()) {
+    // O vídeo de fundo não é uma fonte de cena: não entra no backstage nem nas miniaturas.
+    if (isBackgroundVideo(s.id)) {
+      const old = tileEls.get(s.id);
+      if (old) {
+        old.remove();
+        tileEls.delete(s.id);
+      }
+      continue;
+    }
     let el = tileEls.get(s.id);
     if (!el) {
       el = h(`
@@ -2713,8 +2722,15 @@ async function deleteMediaFile(s) {
 // ---- Playlist: toca os vídeos em sequência (ordem da lista), com repetição opcional da lista ----
 // Fila canônica do Playout: somente vídeos/áudios, independente da ordem do Map.
 // Imagens, câmeras, telas e vídeo de fundo ficam fora dela.
+// O vídeo de fundo é um asset próprio: fica fora do backstage, da biblioteca e do Playout.
+function isBackgroundVideo(id) {
+  const bg = S.brand?.background;
+  return bg?.type === 'video' && bg.value === id;
+}
+
 function normalizeQueue() {
-  const ids = [...S.sources.values()].filter((x) => x.kind === 'media').map((x) => x.id);
+  const bgVideoId = S.brand?.background?.type === 'video' ? S.brand.background.value : '';
+  const ids = [...S.sources.values()].filter((x) => x.kind === 'media' && x.id !== bgVideoId).map((x) => x.id);
   const valid = new Set(ids);
   const seen = new Set();
   const out = [];
@@ -4362,7 +4378,25 @@ window.addEventListener('beforeunload', (e) => {
 });
 
 function setBrand(patch) {
+  const bgChanged = !!patch && Object.prototype.hasOwnProperty.call(patch, 'background');
   Object.assign(S.brand, patch);
+  if (bgChanged) {
+    const bgVideoId = S.brand.background?.type === 'video' ? S.brand.background.value : '';
+    if (bgVideoId) {
+      if (S.stage.includes(bgVideoId)) setStage(S.stage.filter((id) => id !== bgVideoId));
+      // O player da biblioteca não deve continuar rodando escondido: quem toca é o vídeo dedicado do fundo.
+      const s = S.sources.get(bgVideoId);
+      if (s?.kind === 'media') {
+        try { s.el.pause(); } catch {}
+        if (S.playlist.current === bgVideoId) S.playlist.current = null;
+      }
+    }
+    normalizeQueue();
+    renderTiles();
+    switcher?.refresh?.();
+    if (tabOpen('media')) renderMediaPanel();
+    if (tabOpen('playout')) renderPlayoutPanel();
+  }
   comp.setBrand(S.brand);
   saveStudio();
   if ('showNames' in patch || 'showMediaNames' in patch) renderControls();
@@ -4414,6 +4448,22 @@ function readImage(file, maxSide, type = 'image/png') {
   });
 }
 
+// Fundo: GIF animado precisa manter os quadros. Ele vira asset no servidor (não cabe no JSON do estúdio);
+// imagens estáticas continuam sendo reduzidas/comprimidas como antes.
+async function readBackground(file, maxSide) {
+  const gif = file.type === 'image/gif' || /\.gif$/i.test(file.name);
+  if (!gif) return readImage(file, maxSide, 'image/jpeg');
+  if (file.size > 25 * 1024 * 1024) throw new Error('GIF maior que 25 MB');
+  const r = await fetch(`/api/dsk/assets?name=${encodeURIComponent(file.name)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'image/gif' },
+    body: file,
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || !data.url) throw new Error(data.error || 'não foi possível enviar o GIF');
+  return data.url;
+}
+
 // O input precisa estar no DOM: inputs soltos podem ser coletados pelo navegador antes do evento 'change'.
 function pickFile(accept) {
   return new Promise((resolve) => {
@@ -4430,14 +4480,15 @@ function pickFile(accept) {
 }
 
 // Envia uma imagem (pelo seletor ou arrastada): valida, converte, mostra progresso e erros.
-async function uploadImage(file, { maxSide, type, label }, apply) {
+async function uploadImage(file, spec, apply) {
+  const { maxSide, type, label } = spec;
   if (!file) return;
   if (!/^image\//.test(file.type) && !/\.(png|jpe?g|webp|gif|svg|bmp|avif)$/i.test(file.name)) return toast(`${label}: escolha um arquivo de imagem`, 'err');
   if (file.size > 40 * 1024 * 1024) return toast(`${label}: arquivo muito grande (máx. 40 MB)`, 'err');
   toast(`Enviando ${label.toLowerCase()}…`);
   try {
-    const data = await readImage(file, maxSide, type);
-    apply(data);
+    const data = spec.read ? await spec.read(file) : await readImage(file, spec.maxSide, spec.type);
+    spec.apply(data);
     toast(`${label} atualizado`, 'ok');
   } catch (e) {
     toast(`${label}: ${e.message}`, 'err');
@@ -4464,9 +4515,10 @@ function renderBrandPanel() {
     </div>
     <h4>Fundo</h4>
     <div class="thumbs">
-      ${bgs.map((x, i) => `<div class="thumb ${isBg(x) ? 'active' : ''}" data-bg="${i}" style="${bgStyle(x)}">${x.custom ? `<button class="x" data-delbg="${esc(x.value.slice(-24))}">✕</button>` : ''}</div>`).join('')}
+      ${bgs.map((x, i) => `<div class="thumb ${isBg(x) ? 'active' : ''}" data-bg="${i}" style="${bgStyle(x)}">${x.custom ? `<button class="x" data-delbg="${i}">✕</button>` : ''}</div>`).join('')}
       <div class="thumb add" id="b-addbg">${icons.plus}</div>
     </div>
+    <p class="hint" style="margin:-2px 0 10px">Fundo aceita PNG, JPEG, WebP ou GIF animado. O GIF mantém a animação no palco.</p>
     <h4>Vídeo de fundo</h4>
     <div class="row bgvideo-row">
       <select class="input grow" id="b-bgvideo" title="Vídeo mudo em loop atrás da cena">
@@ -4474,9 +4526,9 @@ function renderBrandPanel() {
         ${bgVideos.map((s) => `<option value="${esc(s.id)}" ${bgVideoId === s.id ? 'selected' : ''}>${esc(s.label || s.id)}</option>`).join('')}
       </select>
       <button class="btn sm" id="b-bgvideo-add">${icons.film} Enviar vídeo</button>
-      ${bgVideoId ? `<button class="btn sm danger icon" id="b-bgvideo-del" title="Remover vídeo de fundo">${icons.trash}</button>` : ''}
+      ${bgVideoId ? `<button class="btn sm danger icon" id="b-bgvideo-del" title="Remover vídeo de fundo e apagar o arquivo">${icons.trash}</button>` : ''}
     </div>
-    <p class="hint" style="margin:-4px 0 10px">O vídeo de fundo fica mudo e em loop atrás da cena; ele também entra na playlist.</p>
+    <p class="hint" style="margin:-4px 0 10px">O vídeo de fundo fica mudo e em loop atrás da cena, independente do Playout e das miniaturas.</p>
     <h4>Logo</h4>
     <div class="row dropzone" data-drop="logo">
       ${b.logo ? `<img src="${b.logo}" style="height:40px;max-width:120px;object-fit:contain;background:var(--bg-2);border-radius:8px;padding:4px">` : '<span class="hint grow">Arraste uma imagem aqui ou clique em Enviar</span>'}
@@ -4511,8 +4563,14 @@ function renderBrandPanel() {
   $$('[data-delbg]', p).forEach(
     (el) =>
       (el.onclick = () => {
-        const tail = el.dataset.delbg;
-        setBrand({ customBackgrounds: (b.customBackgrounds || []).filter((v) => !v.endsWith(tail)) });
+        const x = bgs[+el.dataset.delbg];
+        if (!x?.custom) return;
+        const patch = { customBackgrounds: (b.customBackgrounds || []).filter((v) => v !== x.value) };
+        if (S.brand.background?.type === 'image' && S.brand.background.value === x.value) {
+          patch.background = { type: 'gradient', value: '' };
+        }
+        setBrand(patch);
+        if (/^\/api\/dsk\/assets\//.test(x.value)) fetch(x.value, { method: 'DELETE' }).catch(() => {});
         renderBrandPanel();
       }),
   );
@@ -4527,15 +4585,19 @@ function renderBrandPanel() {
     const s = addMediaFile(f, { silent: true });
     if (!s) return;
     setBrand({ background: { type: 'video', value: s.id } });
+    extras?.save?.(true);
     if (tabOpen('brand')) renderBrandPanel();
     toast('Vídeo de fundo em loop e mudo', 'ok');
   });
   $('#b-bgvideo-del', p)?.addEventListener('click', () => {
+    const id = bgVideoId;
     setBrand({ background: { type: 'gradient', value: '' } });
+    if (id && S.sources.has(id)) removeSource(id);
+    extras?.save?.(true);
     renderBrandPanel();
   });
   const UP = {
-    bg: { maxSide: 1920, type: 'image/jpeg', label: 'Fundo', apply: (d) => setBrand({ customBackgrounds: [...(S.brand.customBackgrounds || []), d].slice(-6), background: { type: 'image', value: d } }) },
+    bg: { maxSide: 1920, type: 'image/jpeg', label: 'Fundo', read: readBackground, apply: (d) => setBrand({ customBackgrounds: [...(S.brand.customBackgrounds || []), d].slice(-6), background: { type: 'image', value: d } }) },
     logo: { maxSide: 600, type: 'image/png', label: 'Logo', apply: (d) => setBrand({ logo: d }) },
     overlay: {
       maxSide: 1600,

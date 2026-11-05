@@ -145,7 +145,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.3.32** — Remote camera with centered QR, 1080p/720p and high bitrate, plus autoplay and a one-video-at-a-time policy. See the
+Version **1.3.35** — QR alignment fixed, topbar no longer clips Record/Go live on desktops and Android, mobile portrait/landscape reviewed, and intercom audio input/output selection. See the
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

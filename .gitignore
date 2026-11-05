@@ -58,6 +58,8 @@ id_ed25519
 
 # Documentação interna (estado do projeto, VPS, diário)
 /docs/ai/
+/docs/artigo-imprensa.md
+/docs/PLANO-MELHORIAS.md
 
 # Logs, temporários e lixo de sistema
 *.log
@@ -71,7 +73,3 @@ desktop.ini
 /test/.shot.mjs
 /test/dbg.mjs
 /test/*.tmp
-
-# Documentos internos que não podem ir para o repositório público
-/docs/artigo-imprensa.md
-/docs/PLANO-MELHORIAS.md

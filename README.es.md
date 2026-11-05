@@ -146,7 +146,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **1.3.32** — Cámara remota con QR centrado, 1080p/720p y bitrate alto, además de autoplay y un solo vídeo a la vez. Consulta los
+Versión **1.3.35** — QR alineado, barra superior sin cortar Grabar/Transmitir en escritorio y Android, diseño móvil revisado en vertical/horizontal y selección de entrada/salida de audio del intercom. Consulta los
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

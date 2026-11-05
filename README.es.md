@@ -22,6 +22,8 @@ y multistream sin depender de una suscripción en la nube.
 
 <a href="https://www.producthunt.com/products/castdeck-local?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-castdeck-local" target="_blank" rel="noopener noreferrer"><img alt="CastDeck Local - Your free, open-source alternative to StreamYard | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1301120&amp;theme=light&amp;t=1793684308962"></a>
 
+<a href="https://cast.flue.live"><img src="docs/assets/castdeck-cover.png" alt="CastDeck Local — estudio profesional de live streaming local" width="100%"></a>
+
 </div>
 
 ![CastDeck Local — estudio con invitados y mesa de corte](https://cast.flue.live/assets/img/estudio-grade.png)

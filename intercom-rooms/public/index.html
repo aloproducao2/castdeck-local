@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#080910">
-<title>CastDeck Intercom — salas de produção</title>
+<title data-i18n="create.title">CastDeck Intercom — salas de produção</title>
 <meta name="description" content="Crie uma sala de intercom para produção ao vivo. Sem login, sem instalar app. Diretor, câmeras e reportagem na mesma via de áudio.">
 <link rel="manifest" href="/intercom/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/intercom/icon-180.png">
@@ -15,64 +15,70 @@
 <link rel="icon" href="/intercom/icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/intercom/css/intercom.css?v=14">
+<link rel="stylesheet" href="/intercom/css/intercom.css?v=15">
 </head>
 <body>
 <div class="app narrow">
-    <nav class="sitebar" aria-label="Site CastDeck">
-    <a class="home" href="/">← CastDeck</a>
+  <nav class="sitebar" aria-label="Site CastDeck">
+    <a class="home" href="/"><span aria-hidden="true">←</span> <span data-i18n="nav.home">CastDeck</span></a>
     <span class="spacer"></span>
-    <a class="wide" href="/recursos.html">Recursos</a>
-    <a class="wide" href="/downloads.html">Baixar</a>
-    <a class="wide" href="/documentacao.html">Ajuda</a>
-    <a class="active" href="/intercom/">Intercom</a>
+    <a class="wide" href="/recursos.html" data-i18n="nav.resources">Recursos</a>
+    <a class="wide" href="/downloads.html" data-i18n="nav.download">Baixar</a>
+    <a class="wide" href="/documentacao.html" data-i18n="nav.help">Ajuda</a>
+    <select class="lang-select" data-lang-select data-i18n-aria="common.language" aria-label="Idioma">
+      <option value="pt">PT</option>
+      <option value="en">EN</option>
+      <option value="es">ES</option>
+    </select>
+    <a class="active" href="/intercom/" data-i18n="nav.intercom">Intercom</a>
   </nav>
+
   <header class="top">
     <a class="brand" href="/intercom/" aria-label="CastDeck Intercom"><span class="brand-mark">◈</span> CastDeck <small>Intercom</small></a>
     <span class="spacer"></span>
-    <span class="pill"><span class="dot"></span> Áudio de produção</span>
-    <button class="btn sm" type="button" data-install-app hidden>Instalar app</button>
+    <span class="pill"><span class="dot"></span> <span data-i18n="common.audioProduction">Áudio de produção</span></span>
+    <button class="btn sm" type="button" data-install-app hidden data-i18n="common.installApp">Instalar app</button>
   </header>
 
   <section class="hero">
-    <span class="eyebrow">Intercom de produção</span>
-    <h1>Fale com a equipe.<br><span class="grad">Sem instalar nada.</span></h1>
-    <p class="lead">Crie uma sala, envie o link e conecte cinegrafistas e reportagem. PTT, microfone travado e retorno pessoal. Sem login, sem vídeo, sem gravação.</p>
+    <span class="eyebrow" data-i18n="create.eyebrow">Intercom de produção</span>
+    <h1><span data-i18n="create.heroA">Fale com a equipe.</span><br><span class="grad" data-i18n="create.heroB">Sem instalar nada.</span></h1>
+    <p class="lead" data-i18n="create.lead">Crie uma sala, envie o link e conecte cinegrafistas e reportagem. PTT, microfone travado e retorno pessoal. Sem login, sem vídeo, sem gravação.</p>
   </section>
 
   <main class="card pad">
     <form class="form" id="create-form" autocomplete="off">
       <div class="field">
-        <label for="room-name">Nome da sala <span class="hint">(opcional)</span></label>
-        <input class="input" id="room-name" maxlength="40" placeholder="Ex.: Reportagem — Encontro">
-        <small>Se deixar em branco, geramos um nome automático.</small>
+        <label for="room-name"><span data-i18n="create.nameLabel">Nome da sala</span> <span class="hint" data-i18n="create.optional">(opcional)</span></label>
+        <input class="input" id="room-name" maxlength="40" placeholder="Ex.: Reportagem — Encontro" data-i18n-placeholder="create.namePlaceholder">
+        <small data-i18n="create.nameHint">Se deixar em branco, geramos um nome automático.</small>
       </div>
       <div class="row">
         <div class="field">
-          <label for="room-id">Endereço da sala <span class="hint">(opcional)</span></label>
-          <input class="input" id="room-id" maxlength="24" placeholder="reportagem" autocapitalize="none" spellcheck="false">
-          <small>4–24 caracteres: a-z, 0-9 e hífen. Em branco, geramos um código.</small>
+          <label for="room-id"><span data-i18n="create.addressLabel">Endereço da sala</span> <span class="hint" data-i18n="create.optional">(opcional)</span></label>
+          <input class="input" id="room-id" maxlength="24" placeholder="reportagem" data-i18n-placeholder="create.addressPlaceholder" autocapitalize="none" spellcheck="false">
+          <small data-i18n="create.addressHelp">4–24 caracteres: a-z, 0-9 e hífen. Em branco, geramos um código.</small>
         </div>
         <div class="field" style="max-width:150px">
-          <label for="room-max">Quantas pessoas no total?</label>
+          <label for="room-max" data-i18n="create.totalLabel">Quantas pessoas no total?</label>
           <select class="input" id="room-max">
-            <option value="4">4 pessoas</option>
-            <option value="8">8 pessoas</option>
-            <option value="12">12 pessoas</option>
-            <option value="15" selected>15 pessoas</option>
+            <option value="4" data-i18n="create.people4">4 pessoas</option>
+            <option value="8" data-i18n="create.people8">8 pessoas</option>
+            <option value="12" data-i18n="create.people12">12 pessoas</option>
+            <option value="15" selected data-i18n="create.people15">15 pessoas</option>
           </select>
-          <small class="hint" style="display:block;margin-top:5px">Inclui o diretor. Só áudio.</small>
+          <small class="hint" style="display:block;margin-top:5px" data-i18n="create.directorIncluded">Inclui o diretor. Só áudio.</small>
         </div>
       </div>
       <div class="field">
-        <label for="room-pass">Senha da sala <span class="hint">(opcional)</span></label>
-        <input class="input" id="room-pass" type="password" maxlength="64" placeholder="Deixe em branco para não usar senha" autocomplete="new-password">
-        <small>A senha não vai no link; o convidado digita na entrada.</small>
+        <label for="room-pass"><span data-i18n="create.passwordLabel">Senha da sala</span> <span class="hint" data-i18n="create.optional">(opcional)</span></label>
+        <input class="input" id="room-pass" type="password" maxlength="64" placeholder="Deixe em branco para não usar senha" data-i18n-placeholder="create.passwordPlaceholder" autocomplete="new-password">
+        <small data-i18n="create.passwordHint">A senha não vai no link; o convidado digita na entrada.</small>
       </div>
       <div id="err" class="alert hidden" role="alert"></div>
-      <button class="btn primary" id="create-btn" type="submit" style="width:100%;min-height:48px">Criar sala grátis</button>
-      <p class="hint" style="text-align:center;margin:0">Você recebe dois links: um para o diretor e outro para a equipe.</p>
-      <p class="hint" style="text-align:center;margin:0">Sem conta · sem cartão · sala permanente · use fone</p>
+      <button class="btn primary" id="create-btn" type="submit" style="width:100%;min-height:48px" data-i18n="create.submit">Criar sala grátis</button>
+      <p class="hint" style="text-align:center;margin:0" data-i18n="create.twoLinks">Você recebe dois links: um para o diretor e outro para a equipe.</p>
+      <p class="hint" style="text-align:center;margin:0" data-i18n="create.noAccount">Sem conta · sem cartão · sala permanente · use fone</p>
     </form>
 
     <section class="result" id="result" aria-live="polite">
@@ -80,34 +86,34 @@
       <div class="room-code"><span class="dot"></span> <span id="result-name">Sala</span> <span class="mono" id="room-code"></span></div>
       <div class="share-grid">
         <div class="share-stack">
-          <span class="share-label">Link da equipe</span>
-          <div class="linkbox"><code id="guest-link"></code><button type="button" class="btn sm" id="copy-guest">Copiar</button></div>
-          <span class="share-label">Link do host</span>
-          <div class="linkbox"><code id="host-link"></code><button type="button" class="btn sm" id="copy-host">Copiar</button></div>
+          <span class="share-label" data-i18n="create.teamLink">Link da equipe</span>
+          <div class="linkbox"><code id="guest-link"></code><button type="button" class="btn sm" id="copy-guest" data-i18n="common.copy">Copiar</button></div>
+          <span class="share-label" data-i18n="create.hostLink">Link do host</span>
+          <div class="linkbox"><code id="host-link"></code><button type="button" class="btn sm" id="copy-host" data-i18n="common.copy">Copiar</button></div>
           <div class="row" style="margin-top:4px">
-            <a class="btn primary" id="open-host" href="#">Entrar como diretor</a>
-            <a class="btn" id="open-guest" href="#" target="_blank" rel="noopener">Testar convidado</a>
+            <a class="btn primary" id="open-host" href="#" data-i18n="create.openDirector">Entrar como diretor</a>
+            <a class="btn" id="open-guest" href="#" target="_blank" rel="noopener" data-i18n="create.testGuest">Testar convidado</a>
           </div>
-          <p class="hint">O link do host é privado. Envie apenas o link da equipe para cinegrafistas e repórteres.</p>
+          <p class="hint" data-i18n="create.hostPrivate">O link do host é privado. Envie apenas o link da equipe para cinegrafistas e repórteres.</p>
         </div>
         <div class="qr" id="qr"></div>
       </div>
       <div class="divider"></div>
-      <p class="hint">Sala permanente: os mesmos links podem ser usados de novo. Nenhum áudio é gravado.</p>
+      <p class="hint" data-i18n="create.permanentNote">Sala permanente: os mesmos links podem ser usados de novo. Nenhum áudio é gravado.</p>
       <div class="row" style="margin-top:12px">
-        <button class="btn" id="new-room" type="button">Criar outra sala</button>
+        <button class="btn" id="new-room" type="button" data-i18n="create.another">Criar outra sala</button>
       </div>
     </section>
   </main>
 
   <section class="card pad recent-card" id="recent" hidden style="margin-top:18px">
-    <div class="panel-title">Suas salas</div>
-    <p class="hint" style="margin-top:0">Salas criadas neste navegador. O link do host fica salvo apenas aqui; limpar os dados do site remove a lista.</p>
+    <div class="panel-title" data-i18n="create.recentTitle">Suas salas</div>
+    <p class="hint" style="margin-top:0" data-i18n="create.recentHint">Salas criadas neste navegador. O link do host fica salvo apenas aqui; limpar os dados do site remove a lista.</p>
     <div class="recent-list" id="recent-list"></div>
   </section>
 
-  <footer class="footer"><span>CastDeck Intercom · áudio de produção</span><span>Sem login · sem gravação</span></footer>
+  <footer class="footer"><span>CastDeck Intercom · <span data-i18n="common.audioProduction">Áudio de produção</span></span><span data-i18n="create.noAccount">Sem conta · sem cartão · sala permanente · use fone</span></footer>
 </div>
-<script type="module" src="/intercom/js/create.js?v=14"></script>
+<script type="module" src="/intercom/js/create.js?v=15"></script>
 </body>
 </html>

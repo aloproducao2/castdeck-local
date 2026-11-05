@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#080910">
-<title>Convidado — CastDeck Intercom</title>
+<title data-i18n="guest.title">Convidado — CastDeck Intercom</title>
 <meta name="robots" content="noindex,nofollow">
 <link rel="manifest" href="/intercom/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/intercom/icon-180.png">
@@ -15,109 +15,115 @@
 <link rel="icon" href="/intercom/icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/intercom/css/intercom.css?v=14">
+<link rel="stylesheet" href="/intercom/css/intercom.css?v=15">
 </head>
 <body>
 <div class="app narrow">
-    <nav class="sitebar" aria-label="Site CastDeck">
-    <a class="home" href="/">← CastDeck</a>
+  <nav class="sitebar" aria-label="Site CastDeck">
+    <a class="home" href="/"><span aria-hidden="true">←</span> <span data-i18n="nav.home">CastDeck</span></a>
     <span class="spacer"></span>
-    <a class="wide" href="/recursos.html">Recursos</a>
-    <a class="wide" href="/downloads.html">Baixar</a>
-    <a class="wide" href="/documentacao.html">Ajuda</a>
-    <a class="active" href="/intercom/">Intercom</a>
+    <a class="wide" href="/recursos.html" data-i18n="nav.resources">Recursos</a>
+    <a class="wide" href="/downloads.html" data-i18n="nav.download">Baixar</a>
+    <a class="wide" href="/documentacao.html" data-i18n="nav.help">Ajuda</a>
+    <select class="lang-select" data-lang-select data-i18n-aria="common.language" aria-label="Idioma">
+      <option value="pt">PT</option>
+      <option value="en">EN</option>
+      <option value="es">ES</option>
+    </select>
+    <a class="active" href="/intercom/" data-i18n="nav.intercom">Intercom</a>
   </nav>
+
   <header class="top">
     <a class="brand" href="/intercom/"><span class="brand-mark">◈</span> CastDeck <small>Intercom</small></a>
     <span class="spacer"></span>
-    <button class="icon-btn" type="button" data-devices-open title="Microfone e saída de áudio" aria-label="Microfone e saída de áudio">🎧</button>
-    <button class="icon-btn" type="button" data-install-app hidden title="Instalar o Intercom" aria-label="Instalar o Intercom">⬇</button>
-    <span class="pill" id="status"><span class="dot off"></span>Carregando…</span>
+    <button class="icon-btn" type="button" data-devices-open data-i18n-title="host.chooseAudio" data-i18n-aria="host.chooseAudio" title="Microfone e saída de áudio" aria-label="Microfone e saída de áudio">🎧</button>
+    <button class="icon-btn" type="button" data-install-app hidden data-i18n-title="common.installApp" data-i18n-aria="common.installApp" title="Instalar o Intercom" aria-label="Instalar o Intercom">⬇</button>
+    <span class="pill" id="status"><span class="dot off"></span><span data-i18n="common.loading">Carregando…</span></span>
   </header>
 
   <section class="card pad join-card" id="join-card">
-    <span class="eyebrow">Você foi convidado</span>
+    <span class="eyebrow" data-i18n="guest.invited">Você foi convidado</span>
     <h1 style="font-size:clamp(28px,6vw,40px);margin:10px 0 6px" id="room-name">Entrando…</h1>
-    <p class="lead" id="room-meta" style="font-size:13px;margin:0 0 18px">Aguardando a sala.</p>
+    <p class="lead" id="room-meta" style="font-size:13px;margin:0 0 18px" data-i18n="guest.joinWaiting">Aguardando a sala.</p>
     <div id="err" class="alert hidden" role="alert"></div>
     <div class="form">
-      <div class="field"><label for="name">Seu nome</label><input class="input" id="name" maxlength="30" placeholder="Ex.: Câmera 1 — João" autocomplete="name"></div>
-      <div class="field" id="pass-field" hidden><label for="password">Senha da sala</label><input class="input" id="password" type="password" maxlength="64" autocomplete="current-password"></div>
-      <button class="btn primary" id="join" type="button" style="width:100%;min-height:48px">Entrar e ouvir o diretor</button>
-      <p class="hint">Use fone. O microfone começa fechado; o navegador vai pedir permissão.</p>
-      <p style="text-align:center;margin:4px 0 0"><button class="linkbtn" type="button" data-devices-open>Escolher microfone e saída de áudio</button></p>
+      <div class="field"><label for="name" data-i18n="guest.nameLabel">Seu nome</label><input class="input" id="name" maxlength="30" placeholder="Ex.: Câmera 1 — João" data-i18n-placeholder="guest.namePlaceholder" autocomplete="name"></div>
+      <div class="field" id="pass-field" hidden><label for="password" data-i18n="guest.passwordLabel">Senha da sala</label><input class="input" id="password" type="password" maxlength="64" autocomplete="current-password"></div>
+      <button class="btn primary" id="join" type="button" style="width:100%;min-height:48px" data-i18n="guest.joinButton">Entrar e ouvir o diretor</button>
+      <p class="hint" data-i18n="guest.joinHint">Use fone. O microfone começa fechado; o navegador vai pedir permissão.</p>
+      <p style="text-align:center;margin:4px 0 0"><button class="linkbtn" type="button" data-devices-open data-i18n="guest.chooseAudio">Escolher microfone e saída de áudio</button></p>
     </div>
   </section>
 
   <section id="live" hidden>
     <div class="roomhead">
-      <div><span class="eyebrow">Intercom</span><h1 id="live-room">Sala</h1><div class="meta" id="live-meta">conectando…</div></div>
+      <div><span class="eyebrow" data-i18n="guest.intercom">Intercom</span><h1 id="live-room">Sala</h1><div class="meta" id="live-meta" data-i18n="guest.connecting">conectando…</div></div>
       <span class="spacer"></span>
-      <span class="pill"><span class="dot" id="live-dot"></span> <span id="live-state">Conectado</span></span>
+      <span class="pill"><span class="dot" id="live-dot"></span> <span id="live-state" data-i18n="guest.connected">Conectado</span></span>
     </div>
 
     <div class="grid2">
       <section class="card pad">
-        <div class="panel-title">Seu microfone <span class="spacer"></span><span id="mic-label" class="hint">fechado</span></div>
+        <div class="panel-title"><span data-i18n="guest.yourMic">Seu microfone</span> <span class="spacer"></span><span id="mic-label" class="hint" data-i18n="guest.micClosed">fechado</span></div>
         <div class="ptt-wrap">
-          <button class="ptt" id="ptt" type="button">SEGURE PARA FALAR<small>o diretor está ouvindo</small></button>
-          <div class="latch"><button class="btn" id="latch" type="button">Manter microfone aberto</button></div>
+          <button class="ptt" id="ptt" type="button"><span data-i18n="guest.pttIdle">SEGURE PARA FALAR</span><small data-i18n="guest.pttSub">o diretor está ouvindo</small></button>
+          <div class="latch"><button class="btn" id="latch" type="button" data-i18n="guest.latchOff">Manter microfone aberto</button></div>
           <div class="meter"><i id="meter"></i></div>
-          <div class="statusbar"><span><span class="dot" id="mic-dot"></span> <span id="ptt-status">Microfone fechado</span></span><span class="spacer"></span><span id="director-state">Diretor conectado</span></div>
+          <div class="statusbar"><span><span class="dot" id="mic-dot"></span> <span id="ptt-status" data-i18n="guest.micClosed">Microfone fechado</span></span><span class="spacer"></span><span id="director-state" data-i18n="guest.directorConnected">Diretor conectado</span></div>
         </div>
         <div class="divider"></div>
-        <div class="panel-title">Escuta</div>
+        <div class="panel-title" data-i18n="guest.listenSection">Escuta</div>
         <div class="row">
-          <button class="btn" id="listen" type="button">Ouvindo diretor</button>
-          <input id="volume" type="range" min="0" max="1" step="0.01" value="0.9" aria-label="Volume do diretor" style="flex:1;min-width:120px">
+          <button class="btn" id="listen" type="button" data-i18n="guest.listening">Ouvindo diretor</button>
+          <input id="volume" type="range" min="0" max="1" step="0.01" value="0.9" data-i18n-aria="guest.volume" aria-label="Volume do diretor" style="flex:1;min-width:120px">
         </div>
-        <p class="hint" style="margin-top:10px">O diretor fala com você. Responda segurando o botão de falar. Use fone.</p>
-        <p style="margin:8px 0 0"><button class="linkbtn" type="button" data-devices-open>Trocar microfone ou saída de áudio</button></p>
+        <p class="hint" style="margin-top:10px" data-i18n="guest.listenHint">O diretor fala com você. Responda segurando o botão de falar. Use fone.</p>
+        <p style="margin:8px 0 0"><button class="linkbtn" type="button" data-devices-open data-i18n="guest.audioSettings">Trocar microfone ou saída de áudio</button></p>
       </section>
 
       <aside class="card pad">
-        <div class="panel-title">Tudo certo?</div>
+        <div class="panel-title" data-i18n="guest.allGood">Tudo certo?</div>
         <ul class="hint" style="padding-left:18px;display:grid;gap:7px;margin-top:0">
-          <li>Use fone.</li>
-          <li>Segure o botão para falar.</li>
-          <li>Solte para fechar o microfone.</li>
-          <li>Nada é gravado.</li>
+          <li data-i18n="guest.tipHeadphones">Use fone.</li>
+          <li data-i18n="guest.tipHold">Segure o botão para falar.</li>
+          <li data-i18n="guest.tipRelease">Solte para fechar o microfone.</li>
+          <li data-i18n="guest.noRecording">Nada é gravado.</li>
         </ul>
-        <details class="more-info"><summary>Detalhes da sala</summary><p class="hint" id="room-info">-</p><p class="hint">Sala permanente. Se a tela apagar, o Android pode suspender o áudio.</p></details>
+        <details class="more-info"><summary data-i18n="guest.details">Detalhes da sala</summary><p class="hint" id="room-info">-</p><p class="hint" data-i18n="guest.androidNote">Sala permanente. Se a tela apagar, o Android pode suspender o áudio.</p></details>
         <div class="divider"></div>
-        <button class="btn danger" id="leave" type="button" style="width:100%">Sair da sala</button>
+        <button class="btn danger" id="leave" type="button" style="width:100%" data-i18n="guest.leave">Sair da sala</button>
       </aside>
     </div>
   </section>
 
   <section class="card pad" id="fatal" hidden style="max-width:520px;margin:6vh auto 0">
-    <h1 style="font-size:28px" id="fatal-title">Sala indisponível</h1>
-    <p class="hint" id="fatal-msg">O link pode ser inválido.</p>
-    <a class="btn" href="/intercom/">Criar uma sala</a>
+    <h1 style="font-size:28px" id="fatal-title" data-i18n="guest.fatalTitle">Sala indisponível</h1>
+    <p class="hint" id="fatal-msg" data-i18n="guest.fatalLink">O link pode ser inválido.</p>
+    <a class="btn" href="/intercom/" data-i18n="guest.createRoom">Criar uma sala</a>
   </section>
 
   <audio id="remote" autoplay playsinline class="audio-hidden"></audio>
 <dialog class="device-dialog" id="devices">
-  <div class="modal-head"><h2>Áudio do intercom</h2><button class="icon-btn" type="button" data-devices-close aria-label="Fechar">×</button></div>
-  <p class="hint" style="margin-top:0">Escolha o microfone e por onde quer ouvir. A mudança vale na hora.</p>
-  <label class="device-label" for="mic-device">Microfone</label>
+  <div class="modal-head"><h2 data-i18n="devices.title">Áudio do intercom</h2><button class="icon-btn" type="button" data-devices-close data-i18n-aria="common.close" aria-label="Fechar">×</button></div>
+  <p class="hint" style="margin-top:0" data-i18n="devices.intro">Escolha o microfone e por onde quer ouvir. A mudança vale na hora.</p>
+  <label class="device-label" for="mic-device" data-i18n="devices.mic">Microfone</label>
   <select class="input" id="mic-device"></select>
-  <label class="device-label" for="out-device">Saída de áudio</label>
+  <label class="device-label" for="out-device" data-i18n="devices.output">Saída de áudio</label>
   <select class="input" id="out-device"></select>
-  <label class="device-check"><input type="checkbox" id="screen-lock"> Manter a tela ligada durante a sala</label>
+  <label class="device-check"><input type="checkbox" id="screen-lock"> <span data-i18n="devices.screenOn">Manter a tela ligada durante a sala</span></label>
   <p class="hint" id="screen-note"></p>
   <p class="hint" id="devices-note"></p>
-  <p class="hint">No Android, instale pelo menu do navegador → “Instalar app” ou “Adicionar à tela inicial”. Isso melhora o uso com a tela desligada.</p>
+  <p class="hint" data-i18n="devices.androidInstall">No Android, instale pelo menu do navegador → “Instalar app” ou “Adicionar à tela inicial”. Isso melhora o uso com a tela desligada.</p>
   <div class="modal-actions">
-    <button class="btn sm" type="button" id="devices-refresh">Atualizar</button>
-    <button class="btn sm primary" type="button" data-devices-close>Fechar</button>
-    <button class="btn sm" type="button" data-install-app hidden>Instalar app</button>
+    <button class="btn sm" type="button" id="devices-refresh" data-i18n="devices.refresh">Atualizar</button>
+    <button class="btn sm primary" type="button" data-devices-close data-i18n="common.close">Fechar</button>
+    <button class="btn sm" type="button" data-install-app hidden data-i18n="devices.install">Instalar app</button>
   </div>
 </dialog>
 
-  <footer class="footer"><span>CastDeck Intercom · convidado</span><span>Áudio de produção · não vai ao programa</span></footer>
+  <footer class="footer"><span>CastDeck Intercom · <span data-i18n="common.guest">convidado</span></span><span data-i18n="guest.footerNote">Áudio de produção · não vai ao programa</span></footer>
 </div>
-<script type="module" src="/intercom/js/guest.js?v=14"></script>
+<script type="module" src="/intercom/js/guest.js?v=15"></script>
 <script>
 (() => {
   const KEY = 'castdeck.intercom.boot-reload';

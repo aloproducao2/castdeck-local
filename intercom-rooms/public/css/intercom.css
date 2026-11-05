@@ -36,6 +36,7 @@ button { cursor: pointer; }
 .sitebar a.home { display:inline-flex; align-items:center; gap:4px; color:var(--text); }
 .sitebar a.active { color:#fff; }
 .sitebar .spacer { flex:1; }
+.lang-select { appearance:none; border:1px solid var(--line); border-radius:7px; background:rgba(255,255,255,.04); color:var(--text); font:700 10px var(--font); padding:4px 18px 4px 7px; cursor:pointer; background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%); background-position:calc(100% - 9px) 50%,calc(100% - 6px) 50%; background-size:3px 3px,3px 3px; background-repeat:no-repeat; }
 .top { display:flex; align-items:center; gap:10px; min-height:36px; margin-bottom:22px; }
 .brand { display:flex; align-items:center; gap:8px; text-decoration:none; color:var(--text); font:800 15px var(--display); letter-spacing:-.02em; }
 .brand-mark { display:grid; place-items:center; width:30px; height:30px; border-radius:9px; background:linear-gradient(135deg,var(--violet),#4f46e5); color:#fff; font-size:16px; box-shadow:0 0 22px rgba(139,92,246,.35); }

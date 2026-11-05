@@ -21,6 +21,7 @@
 - **Salas permanentes**: não expiram e podem ser reutilizadas com os mesmos links.
 - Lista local de **salas recentes** no navegador, com atalho para reabrir como diretor.
 - Persistência em arquivo JSON protegido no servidor; sobrevive a restart.
+- Interface em **português, inglês e espanhol**, com seletor e preferência salva.
 - Rate limit de criação e tentativa de entrada.
 - Escolha de **microfone** e **saída de áudio** durante a sala.
 - PWA instalável (`manifest`, service worker e ícones).

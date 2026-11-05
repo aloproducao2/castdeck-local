@@ -2,7 +2,8 @@
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
 // Seleção de microfone e saída de áudio do CastDeck Intercom.
 
-import { keepScreenAwake, screenLockOn } from './common.js?v=14';
+import { keepScreenAwake, screenLockOn } from './common.js?v=15';
+import { t, onLangChange } from './i18n.js?v=15';
 
 const MIC_KEY = 'castdeck.intercom.mic';
 const OUT_KEY = 'castdeck.intercom.out';
@@ -68,7 +69,7 @@ function fill(select, items, saved, fallbackLabel) {
   for (const item of items) {
     const opt = document.createElement('option');
     opt.value = item.deviceId;
-    opt.textContent = item.label || `Dispositivo ${select.options.length}`;
+    opt.textContent = item.label || `${t('devices.device')} ${select.options.length}`;
     select.append(opt);
   }
   if ([...select.options].some((o) => o.value === current)) select.value = current;
@@ -93,8 +94,8 @@ export function initDevices({ getAudios = () => [], onMic = null, onOutput = nul
     if (!screen) return;
     screen.checked = screenLockOn();
     if (screenNote) screenNote.textContent = screen.checked
-      ? 'A tela fica ligada enquanto a sala estiver aberta.'
-      : 'A tela pode apagar. No Android, instalar o app ajuda o áudio a continuar.';
+      ? t('devices.screenOnNote')
+      : t('devices.screenOffNote');
   };
   paintScreen();
   screen?.addEventListener('change', () => {
@@ -105,35 +106,35 @@ export function initDevices({ getAudios = () => [], onMic = null, onOutput = nul
     const audios = getAudios().filter(Boolean);
     if (!audios.length) return true;
     if (!canSelectOutput()) {
-      setNote('Neste aparelho, o áudio sai pelo fone/Bluetooth definido no sistema. Isso é normal no Android e no iPhone.');
+      setNote(t('devices.outputUnsupported'));
       return false;
     }
     let ok = true;
     for (const audio of audios) {
       if (!(await applySink(audio, deviceId))) ok = false;
     }
-    if (!ok) setNote('O navegador não liberou trocar a saída. O áudio continua no dispositivo padrão do sistema.');
+    if (!ok) setNote(t('devices.systemRoute'));
     if (onOutput) onOutput(deviceId);
     return ok;
   }
 
   async function refresh() {
     if (!navigator.mediaDevices?.enumerateDevices) {
-      setNote('Este navegador não permite escolher dispositivos por aqui.');
+      setNote(t('devices.noDevices'));
       return;
     }
     try {
       const all = await navigator.mediaDevices.enumerateDevices();
       const mics = all.filter((d) => d.kind === 'audioinput');
       const outs = all.filter((d) => d.kind === 'audiooutput');
-      fill(micSel, mics, savedMicId(), 'Microfone padrão do aparelho');
-      fill(outSel, outs, savedOutputId(), canSelectOutput() ? 'Saída padrão do sistema' : 'Saída definida pelo sistema');
+      fill(micSel, mics, savedMicId(), t('devices.defaultMic'));
+      fill(outSel, outs, savedOutputId(), t(canSelectOutput() ? 'devices.defaultOutput' : 'devices.outputSystem'));
       if (outSel) outSel.disabled = !canSelectOutput();
       const named = mics.some((d) => d.label) || outs.some((d) => d.label);
-      if (!named) setNote('Ative o microfone para o navegador liberar os nomes dos dispositivos.');
-      else if (!canSelectOutput()) setNote('Para ouvir em outro fone/Bluetooth, troque a saída no sistema. O Intercom segue o áudio do aparelho.');
+      if (!named) setNote(t('devices.activateMicNames'));
+      else if (!canSelectOutput()) setNote(t('devices.systemRoute'));
     } catch (err) {
-      setNote(err?.message || 'Não foi possível listar os dispositivos.');
+      setNote(err?.message || t('devices.listError'));
     }
   }
 
@@ -142,9 +143,9 @@ export function initDevices({ getAudios = () => [], onMic = null, onOutput = nul
     if (onMic) {
       try {
         await onMic(deviceId);
-        setNote('Microfone trocado.');
+        setNote(t('devices.micChanged'));
       } catch (err) {
-        setNote(err?.message || 'Não foi possível trocar o microfone.');
+        setNote(err?.message || t('devices.micError'));
         if (micSel) micSel.value = savedMicId();
         remember(MIC_KEY, micSel?.value || '');
       }
@@ -155,7 +156,7 @@ export function initDevices({ getAudios = () => [], onMic = null, onOutput = nul
   outSel?.addEventListener('change', async () => {
     remember(OUT_KEY, outSel.value);
     await applyOutput(outSel.value);
-    setNote(canSelectOutput() ? 'Saída de áudio trocada.' : 'No Android/iPhone a saída é controlada pelo sistema.');
+    setNote(canSelectOutput() ? t('devices.outputChanged') : t('devices.outputUnsupported'));
   });
   refreshBtn?.addEventListener('click', refresh);
 
@@ -174,5 +175,6 @@ export function initDevices({ getAudios = () => [], onMic = null, onOutput = nul
   if (canSelectOutput()) applyOutput(savedOutputId());
   refresh();
 
+  onLangChange(() => { paintScreen(); refresh(); });
   return { applyOutput, refresh, open: async () => { await refresh(); if (dialog?.showModal) dialog.showModal(); } };
 }

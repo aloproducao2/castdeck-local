@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
-import { $, meta, esc, hashParams, roomFromPath, fmtDate, statusEl, keepScreenAwake, screenLockOn, requestAudioSession } from './common.js?v=14';
-import { initDevices, getMicStream } from './devices.js?v=14';
-import { Signaling, Peer, loadIce } from './peer.js?v=14';
+import { $, meta, esc, hashParams, roomFromPath, fmtDate, statusEl, keepScreenAwake, screenLockOn, requestAudioSession } from './common.js?v=15';
+import { initDevices, getMicStream } from './devices.js?v=15';
+import { t, errorText, onLangChange } from './i18n.js?v=15';
+import { Signaling, Peer, loadIce } from './peer.js?v=15';
 
 const room = roomFromPath();
 const token = hashParams().get('t') || '';
@@ -34,7 +35,7 @@ const fatal = (title, message) => {
   $('#fatal').hidden = false;
   $('#fatal-title').textContent = title;
   $('#fatal-msg').textContent = message;
-  statusEl('sala indisponível', 'off');
+  statusEl(t('host.statusUnavailable'), 'off');
 };
 const showError = (message) => {
   const el = $('#err');
@@ -48,19 +49,19 @@ function setMic(on) {
   G.mic.enabled = G.ptt;
   const ptt = $('#ptt');
   ptt.classList.toggle('on', G.ptt);
-  ptt.innerHTML = G.ptt ? 'FALANDO<small>solte para fechar</small>' : (G.latch ? 'CLIQUE PARA FALAR<small>microfone aberto</small>' : 'SEGURE PARA FALAR<small>o diretor está ouvindo</small>');
-  $('#mic-label').textContent = G.ptt ? 'aberto' : 'fechado';
+  ptt.innerHTML = G.ptt ? `${t('guest.pttTalking')}<small>${t('guest.pttRelease')}</small>` : (G.latch ? `${t('guest.pttLatched')}<small>${t('guest.pttLatchedSub')}</small>` : `${t('guest.pttIdle')}<small>${t('guest.pttSub')}</small>`);
+  $('#mic-label').textContent = t(G.ptt ? 'guest.micOpen' : 'guest.micClosed');
   $('#mic-dot').className = `dot ${G.ptt ? '' : 'off'}`;
-  $('#ptt-status').textContent = G.ptt ? 'Microfone aberto' : 'Microfone fechado';
+  $('#ptt-status').textContent = t(G.ptt ? 'host.statusOpen' : 'host.statusClosed');
   G.sig?.send({ type: 'state', state: { micOn: G.ptt, ptt: G.ptt } });
 }
 
 function renderRoom() {
   if (!G.room) return;
   $('#live-room').textContent = G.room.name || 'Intercom';
-  $('#live-meta').textContent = `Até ${G.room.maxParticipants} pessoas · use fone`;
-  $('#room-info').textContent = 'Sala permanente. O diretor controla a sessão.';
-  statusEl('conectado', 'ok');
+  $('#live-meta').textContent = t('guest.roomMeta', { n: G.room.maxParticipants });
+  $('#room-info').textContent = t('guest.permanentInfo');
+  statusEl(t('guest.statusConnected'), 'ok');
 }
 
 function setupMeter(stream) {
@@ -100,7 +101,7 @@ async function switchGuestMic() {
   if (!G.joined || !G.mic) return;
   const stream = await getMicStream();
   const track = stream.getAudioTracks()[0];
-  if (!track) throw new Error('Nenhum microfone disponível.');
+  if (!track) throw new Error(t('host.noMic'));
   track.enabled = G.ptt;
   try {
     if (G.peer) {
@@ -141,11 +142,11 @@ function ensurePeer(hostId) {
   });
   peer.addEventListener('state', (e) => {
     if (e.detail === 'connected') {
-      $('#live-state').textContent = 'Conectado';
+      $('#live-state').textContent = t('guest.connected');
       $('#live-dot').className = 'dot';
-      $('#director-state').textContent = 'Diretor conectado';
+      $('#director-state').textContent = t('guest.directorConnected');
     } else if (e.detail === 'failed' || e.detail === 'disconnected') {
-      $('#live-state').textContent = 'Reconectando…';
+      $('#live-state').textContent = t('guest.reconnecting');
       $('#live-dot').className = 'dot busy';
     }
   });
@@ -161,8 +162,8 @@ function setupMediaSession() {
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: 'CastDeck Intercom',
-      artist: 'Sala de produção',
-      album: 'Áudio de intercom',
+      artist: t('common.mediaProduction'),
+      album: t('common.mediaAudio'),
       artwork: [{ src: '/intercom/icon-192.png', sizes: '192x192', type: 'image/png' }],
     });
     navigator.mediaSession.playbackState = 'playing';
@@ -177,11 +178,11 @@ async function join() {
   $('#err').classList.add('hidden');
   const btn = $('#join');
   btn.disabled = true;
-  btn.textContent = 'Entrando…';
+  btn.textContent = t('guest.joining');
   try {
-    if (!room) throw new Error('O link não contém uma sala.');
-    if (!token) throw new Error('Link incompleto. Abra pelo link gerado pelo diretor.');
-    const name = $('#name').value.trim() || G.name || 'Convidado';
+    if (!room) throw new Error(t('host.leaveError'));
+    if (!token) throw new Error(t('guest.incompleteLink'));
+    const name = $('#name').value.trim() || G.name || t('common.guest');
     G.name = name;
     try { localStorage.setItem('castdeck.intercom.name', name); } catch {}
     const password = $('#password').value;
@@ -189,7 +190,7 @@ async function join() {
     const stream = await getMicStream();
     G.micStream = stream;
     G.mic = stream.getAudioTracks()[0];
-    if (!G.mic) throw new Error('Nenhum microfone disponível.');
+    if (!G.mic) throw new Error(t('host.noMic'));
     G.mic.enabled = false;
     setupMeter(stream);
     keepAwake();
@@ -204,24 +205,24 @@ async function join() {
       renderRoom();
       if (m.hostId) ensurePeer(m.hostId);
       else {
-        $('#live-state').textContent = 'Aguardando diretor';
+        $('#live-state').textContent = t('guest.waitingHost');
         $('#live-dot').className = 'dot busy';
-        $('#director-state').textContent = 'Aguardando o diretor…';
+        $('#director-state').textContent = t('guest.waitingHostState');
       }
     });
     G.sig.on('host-joined', (m) => {
       ensurePeer(m.id);
-      $('#live-state').textContent = 'Conectando…';
-      $('#director-state').textContent = 'Diretor entrou';
+      $('#live-state').textContent = t('guest.connecting');
+      $('#director-state').textContent = t('guest.directorEntered');
     });
     G.sig.on('host-offline', () => {
-      $('#live-state').textContent = 'Diretor saiu';
+      $('#live-state').textContent = t('guest.directorLeft');
       $('#live-dot').className = 'dot busy';
-      $('#director-state').textContent = 'Aguardando o diretor…';
+      $('#director-state').textContent = t('guest.waitingHostState');
     });
     G.sig.on('state', (m) => {
       if (m.participant?.role === 'host') {
-        $('#director-state').textContent = m.participant.state?.ptt ? 'Diretor falando' : 'Diretor conectado';
+        $('#director-state').textContent = t(m.participant.state?.ptt ? 'guest.directorTalking' : 'guest.directorConnected');
         $('#director-state').style.color = m.participant.state?.ptt ? 'var(--cyan)' : '';
       }
     });
@@ -230,28 +231,29 @@ async function join() {
       G.peer?.handle(m.data);
     });
     G.sig.on('control', (m) => {
-      if (m.action === 'mute') { setMic(false); statusEl('diretor silenciou você', 'busy'); }
-      else if (m.action === 'remove') { fatal('Você saiu da sala', m.message || 'O diretor removeu você.'); G.sig?.close(); }
+      if (m.action === 'mute') { setMic(false); statusEl(t('guest.mutedByDirector'), 'busy'); }
+      else if (m.action === 'remove') { fatal(t('guest.leftTitle'), t('guest.removed')); G.sig?.close(); }
     });
-    G.sig.on('room-ended', () => fatal('Sessão encerrada', 'O diretor encerrou esta sessão. O link continua válido para a próxima.'));
+    G.sig.on('room-ended', () => fatal(t('guest.endedTitle'), t('guest.endedMessage')));
     G.sig.on('error', (m) => {
       const btn = $('#join');
       if (m.code === 'password') {
-        showError(m.message || 'Senha incorreta.');
-        btn.disabled = false; btn.textContent = 'Entrar e ouvir o diretor';
+        showError(errorText(m));
+        btn.disabled = false; btn.textContent = t('guest.joinButton');
       } else if (m.code === 'room-full' || m.code === 'bad-token' || m.code === 'not-found') {
-        fatal('Sala indisponível', m.message || 'Link inválido.');
+        fatal(t('guest.fatalTitle'), errorText(m));
       } else {
-        showError(m.message || 'Erro de conexão.');
-        btn.disabled = false; btn.textContent = 'Entrar e ouvir o diretor';
+        showError(errorText(m));
+        btn.disabled = false; btn.textContent = t('guest.joinButton');
       }
     });
-    G.sig.on('close', () => { if (G.joined) statusEl('reconectando…', 'busy'); });
+    G.sig.on('close', () => { if (G.joined) statusEl(t('guest.reconnecting'), 'busy'); });
     G.sig.connect({ type: 'join', room, role: 'guest', token, password, name });
   } catch (e) {
-    showError(e.message || 'Não foi possível entrar.');
+    const message = e?.name === 'NotAllowedError' ? t('guest.permissionError') : (e?.message || t('guest.joiningError'));
+    showError(message);
     btn.disabled = false;
-    btn.textContent = 'Entrar no intercom';
+    btn.textContent = t('guest.joinButton');
   }
 }
 
@@ -273,7 +275,7 @@ function bind() {
   $('#latch').onclick = () => {
     G.latch = !G.latch;
     $('#latch').classList.toggle('on', G.latch);
-    $('#latch').textContent = G.latch ? 'MICROFONE ABERTO' : 'Manter microfone aberto';
+    $('#latch').textContent = t(G.latch ? 'guest.latchOn' : 'guest.latchOff');
     if (!G.latch && G.ptt) setMic(false);
     else setMic(G.ptt);
   };
@@ -281,7 +283,7 @@ function bind() {
     G.muted = !G.muted;
     $('#remote').muted = G.muted;
     $('#listen').classList.toggle('on', !G.muted);
-    $('#listen').textContent = G.muted ? 'Ouvir diretor' : 'Ouvindo diretor';
+    $('#listen').textContent = t(G.muted ? 'guest.listen' : 'guest.listening');
     if (!G.muted) $('#remote').play().catch(() => {});
   };
   $('#volume').oninput = (e) => { $('#remote').volume = Number(e.target.value); };
@@ -289,7 +291,7 @@ function bind() {
     G.sig?.send({ type: 'leave' });
     G.sig?.close();
     G.mic?.stop();
-    fatal('Você saiu', 'Pode fechar esta página.');
+    fatal(t('guest.leftTitle'), t('guest.leftMessage'));
   };
   G.devices = initDevices({
     getAudios: () => [$('#remote')],
@@ -307,21 +309,36 @@ async function boot() {
   const q = hashParams();
   if (q.get('name')) { $('#name').value = q.get('name'); }
   else if (G.name) $('#name').value = G.name;
-  if (!room) return fatal('Link inválido', 'O link não contém uma sala.');
-  if (!token) return fatal('Link incompleto', 'Abra pelo link gerado pelo diretor.');
+  if (!room) return fatal(t('guest.fatalTitle'), t('host.leaveError'));
+  if (!token) return fatal(t('guest.fatalTitle'), t('guest.incompleteLink'));
   try {
     const info = await meta(room);
     G.room = info;
     $('#room-name').textContent = info.name || 'Intercom';
-    $('#room-meta').textContent = `Até ${info.maxParticipants} pessoas · use fone · link permanente`;
+    $('#room-meta').textContent = t('guest.roomMetaLink', { n: info.maxParticipants });
     if (info.hasPassword) {
       $('#pass-field').hidden = false;
       $('#password').required = true;
     }
-    statusEl(info.hostOnline ? 'sala aguardando você' : 'sala aguardando o diretor', info.hostOnline ? 'ok' : 'wait');
+    statusEl(t(info.hostOnline ? 'guest.statusWaitingYou' : 'guest.statusWaitingDirector'), info.hostOnline ? 'ok' : 'wait');
   } catch (e) {
-    return fatal('Sala indisponível', e.message || 'Link inválido.');
+    return fatal(t('guest.fatalTitle'), errorText(e));
   }
   $('#join').focus();
 }
+onLangChange(() => {
+  $('#latch').textContent = t(G.latch ? 'guest.latchOn' : 'guest.latchOff');
+  $('#listen').textContent = t(G.muted ? 'guest.listen' : 'guest.listening');
+  if (G.room) {
+    $('#live-meta').textContent = t('guest.roomMeta', { n: G.room.maxParticipants });
+    $('#room-info').textContent = t('guest.permanentInfo');
+    $('#ptt').innerHTML = G.ptt ? `${t('guest.pttTalking')}<small>${t('guest.pttRelease')}</small>` : (G.latch ? `${t('guest.pttLatched')}<small>${t('guest.pttLatchedSub')}</small>` : `${t('guest.pttIdle')}<small>${t('guest.pttSub')}</small>`);
+    $('#mic-label').textContent = t(G.ptt ? 'guest.micOpen' : 'guest.micClosed');
+    $('#ptt-status').textContent = t(G.ptt ? 'host.statusOpen' : 'host.statusClosed');
+  }
+  if (!G.joined) {
+    $('#join').textContent = t('guest.joinButton');
+    if (G.room) $('#room-meta').textContent = t('guest.roomMetaLink', { n: G.room.maxParticipants });
+  }
+});
 boot();

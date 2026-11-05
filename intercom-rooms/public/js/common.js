@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
-import { makeQR } from './qr.js?v=14';
+import { makeQR } from './qr.js?v=15';
+import { initI18n, locale, t } from './i18n.js?v=15';
 
 export const BASE = '/intercom';
 export const $ = (sel, root = document) => root.querySelector(sel);
@@ -57,7 +58,7 @@ export function qrSvg(text) {
   return `<svg width="${dim}" height="${dim}" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" role="img" aria-label="QR Code da sala"><rect width="${n}" height="${n}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
 }
 export const fmtDate = (t) => {
-  try { return new Date(t).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+  try { return new Date(t).toLocaleString(locale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
   catch { return ''; }
 };
 export const statusEl = (mesg, kind = 'wait') => {
@@ -129,8 +130,8 @@ export function mediaSession(title = 'CastDeck Intercom') {
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
       title,
-      artist: 'Sala de produção',
-      album: 'Áudio de intercom',
+      artist: t('common.mediaProduction'),
+      album: t('common.mediaAudio'),
       artwork: [{ src: '/intercom/icon-192.png', sizes: '192x192', type: 'image/png' }],
     });
     navigator.mediaSession.playbackState = 'playing';
@@ -142,3 +143,5 @@ initPwa();
 export function requestAudioSession() {
   try { if ('audioSession' in navigator) navigator.audioSession.type = 'play-and-record'; } catch {}
 }
+
+initI18n();

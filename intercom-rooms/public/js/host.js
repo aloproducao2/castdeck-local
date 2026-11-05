@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
-import { $, $$, esc, meta, copy, qrSvg, statusEl, hashParams, roomFromPath, fmtDate, keepScreenAwake, screenLockOn, mediaSession, requestAudioSession } from './common.js?v=14';
-import { initDevices, getMicStream } from './devices.js?v=14';
-import { Signaling, Peer, loadIce } from './peer.js?v=14';
+import { $, $$, esc, meta, copy, qrSvg, statusEl, hashParams, roomFromPath, fmtDate, keepScreenAwake, screenLockOn, mediaSession, requestAudioSession } from './common.js?v=15';
+import { initDevices, getMicStream } from './devices.js?v=15';
+import { t, errorText, onLangChange } from './i18n.js?v=15';
+import { Signaling, Peer, loadIce } from './peer.js?v=15';
 
 const room = roomFromPath('host');
 const token = hashParams().get('k') || '';
@@ -39,7 +40,7 @@ const shortUrl = (url) => {
   try { const u = new URL(url); return `${u.host}${u.pathname}`; } catch { return url; }
 };
 
-const fatal = (message, title = 'Não foi possível abrir') => {
+const fatal = (message, title = t('host.fatalTitle')) => {
   $('#start-card').hidden = true;
   $('#live').hidden = true;
   $('#roomhead').hidden = true;
@@ -47,7 +48,7 @@ const fatal = (message, title = 'Não foi possível abrir') => {
   $('#fatal-title').textContent = title;
   $('#fatal-msg').textContent = message;
   if ($('#reopen')) $('#reopen').hidden = true;
-  statusEl('sala indisponível', 'off');
+  statusEl(t('host.statusUnavailable'), 'off');
 };
 const showError = (message) => {
   const el = $('#err');
@@ -59,7 +60,7 @@ function renderRoom() {
   if (!H.room) return;
   $('#roomhead').hidden = false;
   $('#room-name').textContent = H.room.name || 'Intercom';
-  $('#room-meta').textContent = `Até ${H.room.maxParticipants} pessoas · use fone`;
+  $('#room-meta').textContent = t('host.roomMeta', { n: H.room.maxParticipants });
   const gl = $('#guest-link');
   if (gl) {
     gl.textContent = H.guestUrl ? shortUrl(H.guestUrl) : '-';
@@ -67,29 +68,29 @@ function renderRoom() {
     else gl.removeAttribute('href');
   }
   $('#qr').innerHTML = H.guestUrl ? qrSvg(H.guestUrl) : '';
-  $('#room-info').textContent = `Sala ${H.room.roomId} · permanente · criada em ${fmtDate(H.room.createdAt)}.`;
-  $('#expiry').textContent = 'Sala permanente';
+  $('#room-info').textContent = t('host.roomInfo', { room: H.room.roomId, date: fmtDate(H.room.createdAt) });
+  $('#expiry').textContent = t('common.permanentRoom');
   $('#copy-guest').onclick = () => H.guestUrl && copy(H.guestUrl, $('#copy-guest'));
   paintParticipants();
 }
 
 function participantName(id) {
-  return H.participants.get(id)?.name || 'Convidado';
+  return H.participants.get(id)?.name || t('common.guest');
 }
 function paintParticipants() {
   const list = [...H.participants.values()];
   const box = $('#people');
-  $('#room-count').textContent = list.length ? `${list.length} pessoa${list.length === 1 ? '' : 's'} na sala` : 'Só você na sala';
+  $('#room-count').textContent = list.length ? t(list.length === 1 ? 'host.countOne' : 'host.countMany', { n: list.length }) : t('host.onlyYou');
   if (!list.length) {
-    box.innerHTML = '<div class="empty">Aguardando a equipe entrar pelo link.</div>';
+    box.innerHTML = `<div class="empty">${esc(t('host.waitingPeople'))}</div>`;
     return;
   }
   box.innerHTML = list.map((p) => {
     const talking = H.talk.has(p.id);
     return `<div class="person ${talking ? 'talking' : ''}" data-person="${esc(p.id)}">
       <span class="dot ${p.state?.micOn ? '' : 'off'}"></span>
-      <div class="who"><b>${esc(p.name)}</b><small>${p.state?.micOn ? 'microfone aberto' : 'microfone fechado'}${talking ? ' · você está falando' : ''}</small></div>
-      <div class="actions"><button class="btn sm" data-talk="${esc(p.id)}" type="button" title="Segure para falar com esta pessoa">Falar</button><button class="btn sm" data-mute="${esc(p.id)}" type="button">Mudo</button><button class="btn sm danger" data-remove="${esc(p.id)}" type="button">Remover</button></div>
+      <div class="who"><b>${esc(p.name)}</b><small>${t(p.state?.micOn ? 'host.rowMicOpen' : 'host.rowMicClosed')}${talking ? ` · ${t('host.rowTalking')}` : ''}</small></div>
+      <div class="actions"><button class="btn sm" data-talk="${esc(p.id)}" type="button" title="${esc(t('host.talkTitle'))}">${esc(t('host.talk'))}</button><button class="btn sm" data-mute="${esc(p.id)}" type="button">${esc(t('host.mute'))}</button><button class="btn sm danger" data-remove="${esc(p.id)}" type="button">${esc(t('host.remove'))}</button></div>
     </div>`;
   }).join('');
   $$('[data-talk]', box).forEach((b) => {
@@ -110,7 +111,7 @@ function paintParticipants() {
     if (p) { p.state = { ...p.state, micOn: false, ptt: false }; paintParticipants(); }
   }));
   $$('[data-remove]', box).forEach((b) => (b.onclick = () => {
-    if (!confirm(`Remover ${participantName(b.dataset.remove)} da sala?`)) return;
+    if (!confirm(t('host.confirmRemove', { name: participantName(b.dataset.remove) }))) return;
     H.sig?.send({ type: 'control', action: 'remove', to: b.dataset.remove });
   }));
 }
@@ -134,10 +135,10 @@ function paintPtt() {
   H.ptt = on;
   const ptt = $('#ptt');
   ptt.classList.toggle('on', on);
-  ptt.innerHTML = on ? 'FALANDO<small>solte para fechar</small>' : (H.latch ? 'CLIQUE PARA FALAR<small>microfone aberto</small>' : 'SEGURE PARA FALAR<small>fale com todos na sala</small>');
-  $('#mic-label').textContent = on ? 'aberto' : 'fechado';
+  ptt.innerHTML = on ? `${t('host.pttTalking')}<small>${t('host.pttRelease')}</small>` : (H.latch ? `${t('host.pttLatched')}<small>${t('host.pttLatchedSub')}</small>` : `${t('host.pttIdle')}<small>${t('host.pttSub')}</small>`);
+  $('#mic-label').textContent = t(on ? 'host.micOpen' : 'host.micClosed');
   $('#mic-dot').className = `dot ${on ? '' : 'off'}`;
-  $('#ptt-status').textContent = on ? 'Microfone aberto' : 'Microfone fechado';
+  $('#ptt-status').textContent = t(on ? 'host.statusOpen' : 'host.statusClosed');
   H.sig?.send({ type: 'state', state: { micOn: on, ptt: on } });
   for (const row of $$('#people .person')) {
     const id = row.dataset.person;
@@ -145,7 +146,7 @@ function paintPtt() {
     row.classList.toggle('talking', talking);
     const small = row.querySelector('.who small');
     const person = H.participants.get(id);
-    if (small && person) small.textContent = `${person.state?.micOn ? 'microfone aberto' : 'microfone fechado'}${talking ? ' · você está falando' : ''}`;
+    if (small && person) small.textContent = `${t(person.state?.micOn ? 'host.rowMicOpen' : 'host.rowMicClosed')}${talking ? ` · ${t('host.rowTalking')}` : ''}`;
   }
 }
 
@@ -262,7 +263,7 @@ async function switchHostMic() {
   if (!H.started || !H.mic) return;
   const stream = await getMicStream();
   const track = stream.getAudioTracks()[0];
-  if (!track) throw new Error('Nenhum microfone disponível.');
+  if (!track) throw new Error(t('host.noMic'));
   track.enabled = true;
   const old = H.mic;
   const oldStream = H.micStream;
@@ -284,15 +285,15 @@ async function start() {
   $('#err').classList.add('hidden');
   const btn = $('#start');
   btn.disabled = true;
-  btn.textContent = 'Abrindo microfone…';
+  btn.textContent = t('host.startingMic');
   try {
-    if (!room) throw new Error('Sala não encontrada no link.');
-    if (!token) throw new Error('Link do host incompleto. Abra pelo link gerado na criação da sala.');
+    if (!room) throw new Error(t('host.leaveError'));
+    if (!token) throw new Error(t('host.noToken'));
     await loadIce();
     const stream = await getMicStream();
     H.micStream = stream;
     H.mic = stream.getAudioTracks()[0];
-    if (!H.mic) throw new Error('Nenhum microfone disponível.');
+    if (!H.mic) throw new Error(t('host.noMic'));
     H.mic.enabled = true;
     setupMeter(stream);
     H.sig = new Signaling();
@@ -304,10 +305,10 @@ async function start() {
       $('#live').hidden = false;
       $('#end').hidden = false;
       renderRoom();
-      statusEl('sala aberta', 'ok');
+      statusEl(t('host.statusOpen'), 'ok');
       keepScreenAwake(screenLockOn());
       requestAudioSession();
-      mediaSession('CastDeck Intercom · direção');
+      mediaSession('CastDeck Intercom · ' + t('host.panel'));
       for (const p of m.participants || []) {
         H.participants.set(p.id, p);
         ensurePeer(p.id);
@@ -335,22 +336,23 @@ async function start() {
       peer?.handle(m.data);
     });
     H.sig.on('room-ended', () => {
-      fatal('Sessão encerrada. A sala e os links continuam válidos.', 'Sessão encerrada');
+      fatal(t('host.roomEnded'), t('guest.endedTitle'));
     });
-    H.sig.on('host-offline', () => statusEl('host desconectado', 'off'));
+    H.sig.on('host-offline', () => statusEl(t('host.hostOffline'), 'off'));
     H.sig.on('error', (m) => {
-      if (m.code === 'bad-token' || m.code === 'not-found' || m.code === 'host-busy') fatal(m.message || 'Link inválido.');
+      if (m.code === 'bad-token' || m.code === 'not-found' || m.code === 'host-busy') fatal(errorText(m));
       else {
-        showError(m.message || 'Erro na sala.');
-        const btn = $('#start'); btn.disabled = false; btn.textContent = 'Tentar novamente';
+        showError(errorText(m));
+        const btn = $('#start'); btn.disabled = false; btn.textContent = t('host.tryAgain');
       }
     });
-    H.sig.on('close', () => { if (H.started) statusEl('reconectando…', 'busy'); });
-    H.sig.connect({ type: 'join', room, role: 'host', token, name: 'Diretor' });
+    H.sig.on('close', () => { if (H.started) statusEl(t('host.reconnecting'), 'busy'); });
+    H.sig.connect({ type: 'join', room, role: 'host', token, name: t('common.director') });
   } catch (e) {
-    showError(e.message || 'Não foi possível abrir o microfone.');
+    const micError = e?.name === 'NotAllowedError' ? t('host.permDenied') : (e?.message || t('host.micOpenError'));
+    showError(micError);
     btn.disabled = false;
-    btn.textContent = 'Tentar novamente';
+    btn.textContent = t('host.tryAgain');
   }
 }
 
@@ -373,7 +375,7 @@ function bind() {
   $('#latch').onclick = () => {
     H.latch = !H.latch;
     $('#latch').classList.toggle('on', H.latch);
-    $('#latch').textContent = H.latch ? 'MICROFONE ABERTO' : 'Manter microfone aberto';
+    $('#latch').textContent = t(H.latch ? 'host.latchOn' : 'host.latchOff');
     if (!H.latch && H.ptt) setMic(false);
     else setMic(H.ptt);
   };
@@ -387,11 +389,11 @@ function bind() {
     } catch {}
   };
   $('#end').onclick = () => {
-    if (!confirm('Encerrar a sessão ao vivo? Os links da sala continuam válidos e podem ser usados de novo.')) return;
+    if (!confirm(t('host.confirmEnd'))) return;
     H.sig?.send({ type: 'control', action: 'end-session' });
     H.started = false;
     setTimeout(() => {
-      fatal('Sessão encerrada. Os links da sala continuam válidos.', 'Sessão encerrada');
+      fatal(t('host.sessionEnded'), t('guest.endedTitle'));
       const reopen = $('#reopen');
       if (reopen) { reopen.href = location.href; reopen.hidden = false; }
     }, 250);
@@ -409,21 +411,32 @@ function bind() {
 
 async function boot() {
   bind();
-  if (!room) return fatal('O link não contém uma sala.');
+  if (!room) return fatal(t('host.leaveError'));
   try {
     const info = await meta(room);
     H.room = info;
     $('#room-name').textContent = info.name;
-    $('#room-meta').textContent = `Até ${info.maxParticipants} pessoas · use fone`;
-    $('#expiry').textContent = 'Sala permanente';
-    statusEl(info.hostOnline ? 'sala já aberta' : 'pronta para abrir', info.hostOnline ? 'ok' : 'wait');
+    $('#room-meta').textContent = t('host.roomMeta', { n: info.maxParticipants });
+    $('#expiry').textContent = t('common.permanentRoom');
+    statusEl(t(info.hostOnline ? 'host.statusAlready' : 'host.statusReady'), info.hostOnline ? 'ok' : 'wait');
     if (info.hostOnline) {
       // outro host está conectado; o servidor vai recusar com host-busy
-      showError('Esta sala já está aberta em outro dispositivo. Feche a outra janela para assumir.');
+      showError(t('host.alreadyOpen'));
     }
   } catch (e) {
-    return fatal(e.message || 'Sala não encontrada.');
+    return fatal(errorText(e));
   }
   $('#start').focus();
 }
+onLangChange(() => {
+  if (H.room) {
+    $('#room-meta').textContent = t('host.roomMeta', { n: H.room.maxParticipants });
+    $('#room-info').textContent = t('host.roomInfo', { room: H.room.roomId, date: fmtDate(H.room.createdAt) });
+    $('#expiry').textContent = t('common.permanentRoom');
+  }
+  paintParticipants();
+  paintPtt();
+  $('#latch').textContent = t(H.latch ? 'host.latchOn' : 'host.latchOff');
+  if (H.started) statusEl(t('host.statusOpen'), 'ok');
+});
 boot();

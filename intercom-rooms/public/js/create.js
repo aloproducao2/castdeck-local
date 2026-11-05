@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { $, createRoom, copy, qrSvg, esc } from './common.js?v=14';
+import { $, createRoom, copy, qrSvg, esc } from './common.js?v=15';
+import { t, errorText, onLangChange } from './i18n.js?v=15';
 
 const form = $('#create-form');
 const err = $('#err');
@@ -45,9 +46,9 @@ function renderRecent() {
   wrap.innerHTML = list.map((room, i) => `<div class="recent-item">
     <div class="who"><b>${esc(room.name || room.roomId)}</b><small>${esc(room.roomId)}</small></div>
     <div class="actions">
-      <a class="btn sm" href="${esc(safeUrl(room.hostUrl))}">Abrir diretor</a>
-      <button class="btn sm" type="button" data-copy-recent="${i}">Copiar equipe</button>
-      <button class="btn sm danger" type="button" data-forget-recent="${i}" title="Remover desta lista">×</button>
+      <a class="btn sm" href="${esc(safeUrl(room.hostUrl))}">${esc(t('create.openDirectorShort'))}</a>
+      <button class="btn sm" type="button" data-copy-recent="${i}">${esc(t('create.copyTeam'))}</button>
+      <button class="btn sm danger" type="button" data-forget-recent="${i}" title="${esc(t('create.forget'))}">×</button>
     </div>
   </div>`).join('');
   wrap.querySelectorAll('[data-copy-recent]').forEach((b) => {
@@ -79,9 +80,9 @@ form.addEventListener('submit', async (e) => {
   const roomId = $('#room-id').value.trim().toLowerCase();
   const password = $('#room-pass').value;
   const maxParticipants = Number($('#room-max').value) || 15;
-  if (roomId && !/^[a-z0-9-]{4,24}$/.test(roomId)) return showError('Nome da sala inválido. Use 4–24 caracteres: a-z, 0-9 ou hífen.');
+  if (roomId && !/^[a-z0-9-]{4,24}$/.test(roomId)) return showError(t('error.bad-room'));
   btn.disabled = true;
-  btn.textContent = 'Criando…';
+  btn.textContent = t('create.submitting');
   try {
     const room = await createRoom({ name, roomId, password, maxParticipants });
     result.classList.add('on');
@@ -99,10 +100,10 @@ form.addEventListener('submit', async (e) => {
     renderRecent();
     result.scrollIntoView({ behavior: 'smooth', block: 'center' });
   } catch (ex) {
-    showError(ex.message || 'Não foi possível criar a sala.');
+    showError(errorText(ex));
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Criar sala grátis';
+    btn.textContent = t('create.submit');
   }
 });
 
@@ -116,3 +117,5 @@ $('#new-room').addEventListener('click', () => {
 });
 
 renderRecent();
+
+onLangChange(renderRecent);

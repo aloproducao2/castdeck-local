@@ -417,7 +417,7 @@ Além do intercom local do estúdio, existe uma versão pública de salas:
 - **URL:** https://cast.flue.live/intercom/
 - **Sem login.**
 - **Só áudio de produção.**
-- Salas efêmeras com ID aleatório ou digitado.
+- Salas **permanentes** com ID aleatório ou digitado; os links podem ser reutilizados.
 - Senha opcional.
 - Host e convidado com links separados.
 - Até 1 host + 14 convidados (15 pessoas no total).
@@ -425,7 +425,8 @@ Além do intercom local do estúdio, existe uma versão pública de salas:
 - Escolha de microfone e saída de áudio na hora, quando o navegador permite.
 - Instalável como PWA (Android/desktop).
 - Wake Lock opcional, Media Session e áudio em segundo plano quando o Android permite.
-- Host pode mutar, remover e encerrar.
+- Host pode mutar, remover e **encerrar a sessão**. A sala e os links permanecem.
+- Salas persistem em arquivo protegido no servidor e sobrevivem a restart. Sessões ao vivo caem.
 - TURN público em `turn.flue.live`.
 - Não é vídeo, chat, gravação ou IFB.
 
@@ -438,7 +439,7 @@ Diferença de escopo:
 |---|---|---|
 | Onde vive | estúdio local | site |
 | Quem entra | equipe do estúdio | qualquer pessoa com o link |
-| Salas | uma por estúdio | várias salas efêmeras |
+| Salas | uma por estúdio | várias salas permanentes |
 | IFB do programa | sim | não |
 | Vídeo | não | não |
 | Login | não | não |

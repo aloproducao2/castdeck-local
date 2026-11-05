@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
-import { $, meta, esc, hashParams, roomFromPath, fmtDate, statusEl, keepScreenAwake, screenLockOn, requestAudioSession } from './common.js?v=9';
-import { initDevices, getMicStream } from './devices.js?v=9';
-import { Signaling, Peer, loadIce } from './peer.js?v=9';
+import { $, meta, esc, hashParams, roomFromPath, fmtDate, statusEl, keepScreenAwake, screenLockOn, requestAudioSession } from './common.js?v=11';
+import { initDevices, getMicStream } from './devices.js?v=11';
+import { Signaling, Peer, loadIce } from './peer.js?v=11';
 
 const room = roomFromPath();
 const token = hashParams().get('t') || '';
@@ -59,7 +59,7 @@ function renderRoom() {
   if (!G.room) return;
   $('#live-room').textContent = G.room.name || 'Intercom';
   $('#live-meta').textContent = `Até ${G.room.maxParticipants} pessoas · use fone`;
-  $('#room-info').textContent = `Expira em ${fmtDate(G.room.expiresAt)}. O diretor controla a sala.`;
+  $('#room-info').textContent = 'Sala permanente. O diretor controla a sessão.';
   statusEl('conectado', 'ok');
 }
 
@@ -233,7 +233,7 @@ async function join() {
       if (m.action === 'mute') { setMic(false); statusEl('diretor silenciou você', 'busy'); }
       else if (m.action === 'remove') { fatal('Você saiu da sala', m.message || 'O diretor removeu você.'); G.sig?.close(); }
     });
-    G.sig.on('room-ended', (m) => fatal('Sala encerrada', m.reason === 'expired' ? 'A sala expirou.' : 'O diretor encerrou a sala.'));
+    G.sig.on('room-ended', () => fatal('Sessão encerrada', 'O diretor encerrou esta sessão. O link continua válido para a próxima.'));
     G.sig.on('error', (m) => {
       const btn = $('#join');
       if (m.code === 'password') {
@@ -313,14 +313,14 @@ async function boot() {
     const info = await meta(room);
     G.room = info;
     $('#room-name').textContent = info.name || 'Intercom';
-    $('#room-meta').textContent = `Até ${info.maxParticipants} pessoas · use fone · link válido até ${fmtDate(info.expiresAt)}`;
+    $('#room-meta').textContent = `Até ${info.maxParticipants} pessoas · use fone · link permanente`;
     if (info.hasPassword) {
       $('#pass-field').hidden = false;
       $('#password').required = true;
     }
     statusEl(info.hostOnline ? 'sala aguardando você' : 'sala aguardando o diretor', info.hostOnline ? 'ok' : 'wait');
   } catch (e) {
-    return fatal('Sala indisponível', e.message || 'Link inválido ou sala expirada.');
+    return fatal('Sala indisponível', e.message || 'Link inválido.');
   }
   $('#join').focus();
 }

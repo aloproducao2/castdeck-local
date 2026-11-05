@@ -17,9 +17,10 @@ const here = (() => { try { return path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = process.env.INTERCOM_PUBLIC || path.join(here, '..', 'public');
 const BASE = (process.env.INTERCOM_BASE || '/intercom').replace(/\/+$/, '');
 const PORT = Number(process.env.PORT || 3210);
-const ROOM_TTL_MS = Number(process.env.ROOM_TTL_MS || 6 * 60 * 60 * 1000);
 const HOST_GRACE_MS = Number(process.env.HOST_GRACE_MS || 5 * 60 * 1000);
 const MAX_PARTICIPANTS = 15;
+const DATA_FILE = process.env.INTERCOM_DATA || path.join(here, '..', 'data', 'rooms.json');
+const DATA_DIR = path.dirname(DATA_FILE);
 const RESERVED = new Set(['host', 'api', 'ws', 'index', 'new', 'room', 'favicon', 'css', 'js', 'assets']);
 
 const app = express();
@@ -79,6 +80,60 @@ function checkPassword(room, password) {
   return want.length === got.length && crypto.timingSafeEqual(want, got);
 }
 
+function roomRecord(room) {
+  return {
+    id: room.id,
+    name: room.name,
+    hostToken: room.hostToken,
+    guestToken: room.guestToken,
+    password: room.password,
+    maxParticipants: room.maxParticipants,
+    createdAt: room.createdAt,
+  };
+}
+
+function loadRooms() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    const list = raw?.rooms && typeof raw.rooms === 'object' ? Object.values(raw.rooms) : [];
+    for (const r of list) {
+      const id = normRoom(r?.id);
+      if (!validCustom(id) || typeof r.hostToken !== 'string' || typeof r.guestToken !== 'string') continue;
+      const createdAt = Number(r.createdAt) || Date.now();
+      const room = {
+        id,
+        name: clean(r.name || 'Intercom de produção', 40) || 'Intercom de produção',
+        hostToken: r.hostToken,
+        guestToken: r.guestToken,
+        password: r.password && typeof r.password === 'object' ? r.password : null,
+        maxParticipants: Math.max(2, Math.min(MAX_PARTICIPANTS, Number(r.maxParticipants) || MAX_PARTICIPANTS)),
+        createdAt,
+        expiresAt: null,
+        host: null,
+        clients: new Map(),
+        hostTimer: null,
+        ended: false,
+      };
+      rooms.set(id, room);
+    }
+    if (rooms.size) console.log(`Salas permanentes carregadas: ${rooms.size} (${DATA_FILE})`);
+  } catch (err) {
+    if (err?.code !== 'ENOENT') console.error('Falha ao carregar salas:', err?.message || err);
+  }
+}
+
+function saveRooms() {
+  fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
+  try { fs.chmodSync(DATA_DIR, 0o700); } catch {}
+  const data = { version: 1, rooms: Object.fromEntries([...rooms].map(([id, room]) => [id, roomRecord(room)])) };
+  const tmp = `${DATA_FILE}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(data), { encoding: 'utf8', mode: 0o600 });
+  fs.renameSync(tmp, DATA_FILE);
+  try { fs.chmodSync(DATA_FILE, 0o600); } catch {}
+}
+
+console.log(`Dados das salas: ${DATA_FILE}`);
+
 function roomUrl(req, room, role) {
   const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'http').split(',')[0].trim();
   const host = String(req.headers['x-forwarded-host'] || req.headers.host || `localhost:${PORT}`).split(',')[0].trim();
@@ -94,7 +149,8 @@ function publicRoom(room) {
     maxParticipants: room.maxParticipants,
     hasPassword: !!room.password,
     createdAt: room.createdAt,
-    expiresAt: room.expiresAt,
+    expiresAt: null,
+    persistent: true,
     hostOnline: !!room.host,
     participants: room.clients.size,
   };
@@ -112,12 +168,13 @@ function broadcast(room, msg, except) {
   if (except !== room.host?.ws) send(room.host?.ws, msg);
 }
 
-function endRoom(room, reason) {
-  if (!room || room.ended) return;
-  room.ended = true;
-  clearTimeout(room.ttlTimer);
-  clearTimeout(room.emptyTimer);
+// Encerra somente a sessão ao vivo. A sala e os links permanecem salvos.
+function endSession(room, reason) {
+  if (!room) return;
   clearTimeout(room.hostTimer);
+  clearTimeout(room.emptyTimer);
+  room.hostTimer = null;
+  room.emptyTimer = null;
   broadcast(room, { type: 'room-ended', reason });
   for (const c of room.clients.values()) {
     c.room = null;
@@ -127,14 +184,8 @@ function endRoom(room, reason) {
     room.host.room = null;
     try { room.host.ws.close(4001, reason); } catch {}
   }
-  rooms.delete(room.id);
-}
-
-function scheduleEmpty(room) {
-  clearTimeout(room.emptyTimer);
-  if (room.clients.size || room.host) return;
-  room.emptyTimer = setTimeout(() => endRoom(room, 'empty'), 5 * 60 * 1000);
-  room.emptyTimer.unref?.();
+  room.clients.clear();
+  room.host = null;
 }
 
 function dropClient(c, code = 1000) {
@@ -145,13 +196,14 @@ function dropClient(c, code = 1000) {
   if (c.role === 'host') {
     room.host = null;
     clearTimeout(room.hostTimer);
-    room.hostTimer = setTimeout(() => endRoom(room, 'host-timeout'), HOST_GRACE_MS);
+    room.hostTimer = setTimeout(() => {
+      if (!room.host) endSession(room, 'host-timeout');
+    }, HOST_GRACE_MS);
     room.hostTimer.unref?.();
     broadcast(room, { type: 'host-offline' });
   } else {
     room.clients.delete(c.id);
     broadcast(room, { type: 'participant-left', id: c.id });
-    scheduleEmpty(room);
   }
   c.room = null;
   try { c.ws.close(code); } catch {}
@@ -179,14 +231,19 @@ function roomCreate(req, res) {
     password: passwordRecord(password),
     maxParticipants: Math.max(2, Math.min(MAX_PARTICIPANTS, Number(req.body?.maxParticipants) || MAX_PARTICIPANTS)),
     createdAt: now,
-    expiresAt: now + ROOM_TTL_MS,
+    expiresAt: null,
     host: null,
     clients: new Map(),
     ended: false,
   };
-  room.ttlTimer = setTimeout(() => endRoom(room, 'expired'), ROOM_TTL_MS);
-  room.ttlTimer.unref?.();
   rooms.set(id, room);
+  try {
+    saveRooms();
+  } catch (err) {
+    rooms.delete(id);
+    console.error('Falha ao salvar sala permanente:', err?.message || err);
+    return res.status(500).json({ error: 'storage', message: 'Não foi possível salvar a sala permanente.' });
+  }
   res.status(201).json({
     ...publicRoom(room),
     hostUrl: roomUrl(req, room, 'host'),
@@ -223,7 +280,7 @@ app.post(`${BASE}/api/rooms`, roomCreate);
 
 app.get(`${BASE}/api/rooms/:room`, (req, res) => {
   const room = rooms.get(normRoom(req.params.room));
-  if (!room || room.ended) return res.status(404).json({ error: 'not-found', message: 'Sala não encontrada ou expirada.' });
+  if (!room) return res.status(404).json({ error: 'not-found', message: 'Sala não encontrada.' });
   res.set('Cache-Control', 'no-store').json(publicRoom(room));
 });
 
@@ -244,6 +301,7 @@ app.get(`${BASE}/:room`, (req, res, next) => {
 app.use(BASE || '/', express.static(PUBLIC, { extensions: ['html'], maxAge: 0 }));
 
 const server = http.createServer(app);
+loadRooms();
 const wss = new WebSocketServer({ server, path: `${BASE}/ws`, maxPayload: 128 * 1024 });
 
 wss.on('connection', (ws, req) => {
@@ -265,7 +323,7 @@ wss.on('connection', (ws, req) => {
       if (!allow(`join:${client.ip}`, 45, 60 * 1000)) return fail('rate', 'Muitas tentativas. Aguarde um minuto.', 4007);
       const id = normRoom(msg.room);
       const room = rooms.get(id);
-      if (!room || room.ended) return fail('not-found', 'Sala não encontrada ou expirada.', 4004);
+      if (!room) return fail('not-found', 'Sala não encontrada.', 4004);
       const role = msg.role === 'host' ? 'host' : msg.role === 'guest' ? 'guest' : '';
       if (!role) return fail('bad-role', 'Papel inválido.');
       if (role === 'host') {
@@ -314,7 +372,7 @@ wss.on('connection', (ws, req) => {
     }
     if (msg.type === 'control' && client.role === 'host') {
       const action = clean(msg.action, 20);
-      if (action === 'end') return endRoom(client.room, 'host-ended');
+      if (action === 'end' || action === 'end-session') return endSession(client.room, 'host-ended');
       const target = client.room.clients.get(clean(msg.to, 40));
       if (!target) return;
       if (action === 'mute') {

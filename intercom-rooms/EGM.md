@@ -35,7 +35,7 @@ Este projeto é **somente o intercom de produção ao vivo**:
 - **sem IFB de programa** — não existe mesa de programa neste app;
 - host é o hub;
 - **1 host + 14 convidados (15 pessoas no total)** no MVP;
-- sala efêmera com TTL;
+- sala **permanente**, reutilizável com os mesmos links;
 - PTT momentâneo e microfone travado;
 - URL pública exata: **https://cast.flue.live/intercom/**.
 
@@ -82,7 +82,7 @@ O VDO.Ninja foi usado como **referência de fluxo**, não como cópia.
 | Sem login | sem conta | igual |
 | Senha | opcional; `&password` | senha opcional + tokens |
 | URL parameters | controlam sala/papel | links com papéis explícitos |
-| Sala efêmera | morre quando todos saem | TTL + último participante |
+| Sala permanente | sala persiste e pode ser reutilizada | registro JSON + tokens estáveis |
 | Mídia | P2P; signaling só encontra | áudio WebRTC estrela no host |
 | TURN | quando rota direta falha | TURN próprio/gerenciado |
 | Escala | malha; Meshcast/SFU opcional | limite de sala; SFU futuro |
@@ -194,8 +194,8 @@ O que o convidado precisa:
 
 ### 4.3 Automação
 
-- sala expira por inatividade;
-- host ausente encerra ou coloca em espera;
+- sala permanente: não expira e pode ser reutilizada;
+- host ausente encerra a sessão após 5 min, mas mantém a sala e os links;
 - reconexão com o mesmo papel;
 - limpeza de participantes fantasmas;
 - rate limit na criação;
@@ -211,7 +211,7 @@ O que o convidado precisa:
   - falando;
   - microfone travado;
   - reconectando;
-  - sala encerrada/expirada.
+  - sessão encerrada.
 - cor não é o único sinal;
 - o host vê quem está transmitindo;
 - o convidado vê “diretor falando”;
@@ -236,8 +236,8 @@ Sem login não significa sem controle:
 - token no fragmento da URL (não vai ao servidor em logs);
 - validação no servidor ao entrar;
 - limite de tentativas;
-- sala efêmera;
-- host pode expulsar e encerrar;
+- sala permanente protegida por arquivo de dados;
+- host pode expulsar e encerrar a sessão (sem apagar a sala);
 - senha opcional;
 - nenhuma gravação;
 - sem anúncio ou rastreamento no app;
@@ -257,7 +257,7 @@ Sem login não significa sem controle:
 │  ├─ POST /api/rooms      cria sala + tokens                           │
 │  ├─ WSS /ws              signaling + presença                         │
 │  ├─ GET /api/rooms/:id   metadados mínimos (nome, estado)             │
-│  ├─ rate limit / cap / TTL                                            │
+│  ├─ rate limit / cap / persistência                                    │
 │  └─ sem mídia: só SDP/ICE                                             │
 └──────────────────────────────┬───────────────────────────────────────┘
                                │ ICE / TURN
@@ -302,7 +302,7 @@ Mensagens propostas:
 | `signal` | troca | SDP/ICE |
 | `ptt` | host/convidado | microfone aberto/fechado |
 | `host-command` | host | mute, expulsar, encerrar |
-| `room-ended` | servidor | sala encerrada/expirada |
+| `room-ended` | servidor | sessão encerrada |
 
 ### 5.4 API de criação
 
@@ -353,7 +353,7 @@ intercom-rooms/
 │       └── qr.js
 ├── server/
 │   ├── index.js                # HTTP + WSS
-│   ├── rooms.js                # criação, TTL, tokens
+│   ├── rooms.js                # criação, persistência, tokens
 │   ├── signaling.js            # salas e mensagens
 │   ├── rate-limit.js
 │   └── config.js
@@ -410,18 +410,19 @@ O maior risco de uma sala sem login é virar um canal aberto de abuso.
 
 - `roomId`: 8 caracteres base32, aleatório.
 - `hostToken`: 32 bytes aleatórios.
-- `guestToken`: JWT/HMAC curto com `roomId`, papel, expiração.
+- `guestToken`: token aleatório estável, guardado no arquivo de salas.
 - Host token **nunca** vai ao servidor de mídia; só no `join` WSS.
 - Tokens em **fragmento** (`#`) para não aparecer em logs de proxy.
 - Servidor não registra token completo.
+- Arquivo de salas com permissão `0600` no servidor.
 
 ### 6.2 Controles
 
 - limite de participantes;
 - limite de salas por IP;
 - rate limit no `POST /api/rooms`;
-- TTL de sala (ex.: 6 h);
-- sala encerra se o host cair por mais de 5 min;
+- persistência atômica das salas (sem TTL);
+- a sessão encerra se o host cair por mais de 5 min, mas a sala permanece;
 - aprovação manual opcional na fase 2;
 - host pode expulsar;
 - bloqueio de origens desconhecidas;
@@ -451,7 +452,7 @@ O maior risco de uma sala sem login é virar um canal aberto de abuso.
 │ [Senha opcional]                       │
 │ Participantes [4 ▾]                    │
 │ [Criar sala grátis]                    │
-│ Sem login · sala efêmera · áudio       │
+│ Sem login · sala permanente · áudio       │
 └────────────────────────────────────────┘
 ```
 
@@ -524,7 +525,7 @@ Sala criada
 - página do convidado reutilizando a página mobile;
 - PTT e travar;
 - QR;
-- TTL e encerramento;
+- persistência e encerramento de sessão;
 - nenhum vídeo, chat ou IFB.
 
 ### Fase 2 — Publicação no site (2–4 dias)
@@ -572,7 +573,7 @@ Sala criada
 - [ ] PTT momentâneo funciona.
 - [ ] PTT travado abre/fecha com um clique.
 - [ ] Host pode mutar/expulsar.
-- [ ] Sala expira.
+- [ ] Sala persiste após restart e encerramento de sessão.
 - [ ] Host token não vaza em logs.
 - [ ] Link de convidado sem token não entra.
 - [ ] Limite de participantes respeitado.
@@ -590,8 +591,8 @@ Sala criada
 
 | Risco | Impacto | Mitigação |
 |---|---|---|
-| Host como hub | Host com rede ruim derruba a sala | teste de rede, TURN, limite de 8 |
-| Abuso sem login | Spam de salas | rate limit, TTL, CAPTCHA condicional |
+| Host como hub | Host com rede ruim derruba a sala | teste de rede, TURN, limite 15 (recomendado 8–12) |
+| Abuso sem login | Spam de salas | rate limit, persistência controlada, CAPTCHA condicional |
 | Link vazado | Estranho entra | token, senha, aprovação, expulsar |
 | TURN caro | Custo por minuto | preferir direto; limite; monitorar |
 | Android suspende aba | Mic para | Wake Lock/Media Session; app nativo futuro |
@@ -615,7 +616,8 @@ As decisões estão detalhadas em [`DECISOES.md`](DECISOES.md). Resumo:
 | Limite | 1 host + 14 convidados |
 | ID | aleatório ou digitado pelo usuário |
 | Senha | opcional no MVP |
-| TTL | 6 h |
+| Expiração | não expira; sala permanente |
+| Persistência | JSON protegido (0600) no servidor |
 | Aprovação | fora do MVP |
 | IFB/vídeo/chat/gravação | fora do MVP |
 | TURN | próprio na VPS, credenciais temporárias |
@@ -640,7 +642,7 @@ As decisões estão detalhadas em [`DECISOES.md`](DECISOES.md). Resumo:
 
 O caminho certo é:
 
-1. criar uma **sala efêmera** sem login;
+1. criar uma **sala permanente** sem login;
 2. dar ao host um **link privado** e à equipe um **link de convidado**;
 3. usar **WebRTC estrela no host**, áudio-only;
 4. reutilizar a lógica de PTT/travar do intercom 1.3.33;

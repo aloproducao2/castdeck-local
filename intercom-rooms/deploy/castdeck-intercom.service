@@ -1,4 +1,4 @@
-﻿[Unit]
+[Unit]
 Description=CastDeck Intercom
 After=network.target
 
@@ -9,7 +9,7 @@ WorkingDirectory=/opt/castdeck/intercom
 Environment=PORT=3210
 Environment=INTERCOM_BASE=/intercom
 Environment=INTERCOM_PUBLIC=/opt/castdeck/intercom/public
-Environment=ROOM_TTL_MS=21600000
+Environment=INTERCOM_DATA=/opt/castdeck/intercom/data/rooms.json
 Environment=HOST_GRACE_MS=300000
 Environment=TURN_CREDS_URL=http://127.0.0.1:8099/api/turn
 ExecStart=/opt/castdeck/intercom/castdeck-intercom

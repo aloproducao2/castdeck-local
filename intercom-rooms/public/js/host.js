@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
-import { $, $$, esc, meta, copy, qrSvg, statusEl, hashParams, roomFromPath, fmtDate, keepScreenAwake, screenLockOn, mediaSession, requestAudioSession } from './common.js?v=9';
-import { initDevices, getMicStream } from './devices.js?v=9';
-import { Signaling, Peer, loadIce } from './peer.js?v=9';
+import { $, $$, esc, meta, copy, qrSvg, statusEl, hashParams, roomFromPath, fmtDate, keepScreenAwake, screenLockOn, mediaSession, requestAudioSession } from './common.js?v=11';
+import { initDevices, getMicStream } from './devices.js?v=11';
+import { Signaling, Peer, loadIce } from './peer.js?v=11';
 
 const room = roomFromPath('host');
 const token = hashParams().get('k') || '';
@@ -39,12 +39,14 @@ const shortUrl = (url) => {
   try { const u = new URL(url); return `${u.host}${u.pathname}`; } catch { return url; }
 };
 
-const fatal = (message) => {
+const fatal = (message, title = 'Não foi possível abrir') => {
   $('#start-card').hidden = true;
   $('#live').hidden = true;
   $('#roomhead').hidden = true;
   $('#fatal').hidden = false;
+  $('#fatal-title').textContent = title;
   $('#fatal-msg').textContent = message;
+  if ($('#reopen')) $('#reopen').hidden = true;
   statusEl('sala indisponível', 'off');
 };
 const showError = (message) => {
@@ -65,8 +67,8 @@ function renderRoom() {
     else gl.removeAttribute('href');
   }
   $('#qr').innerHTML = H.guestUrl ? qrSvg(H.guestUrl) : '';
-  $('#room-info').textContent = `Sala ${H.room.roomId} · criada em ${fmtDate(H.room.createdAt)} · expira em ${fmtDate(H.room.expiresAt)}.`;
-  $('#expiry').textContent = `Expira em ${fmtDate(H.room.expiresAt)}`;
+  $('#room-info').textContent = `Sala ${H.room.roomId} · permanente · criada em ${fmtDate(H.room.createdAt)}.`;
+  $('#expiry').textContent = 'Sala permanente';
   $('#copy-guest').onclick = () => H.guestUrl && copy(H.guestUrl, $('#copy-guest'));
   paintParticipants();
 }
@@ -332,8 +334,8 @@ async function start() {
       const peer = H.peers.get(m.from) || ensurePeer(m.from);
       peer?.handle(m.data);
     });
-    H.sig.on('room-ended', (m) => {
-      fatal(m.reason === 'expired' ? 'A sala expirou.' : 'O host encerrou a sala.');
+    H.sig.on('room-ended', () => {
+      fatal('Sessão encerrada. A sala e os links continuam válidos.', 'Sessão encerrada');
     });
     H.sig.on('host-offline', () => statusEl('host desconectado', 'off'));
     H.sig.on('error', (m) => {
@@ -385,10 +387,14 @@ function bind() {
     } catch {}
   };
   $('#end').onclick = () => {
-    if (!confirm('Encerrar a sala para todos?')) return;
-    H.sig?.send({ type: 'control', action: 'end' });
+    if (!confirm('Encerrar a sessão ao vivo? Os links da sala continuam válidos e podem ser usados de novo.')) return;
+    H.sig?.send({ type: 'control', action: 'end-session' });
     H.started = false;
-    setTimeout(() => fatal('Sala encerrada.'), 250);
+    setTimeout(() => {
+      fatal('Sessão encerrada. Os links da sala continuam válidos.', 'Sessão encerrada');
+      const reopen = $('#reopen');
+      if (reopen) { reopen.href = location.href; reopen.hidden = false; }
+    }, 250);
   };
   H.devices = initDevices({
     getAudios: () => [...H.audios.values()],
@@ -409,14 +415,14 @@ async function boot() {
     H.room = info;
     $('#room-name').textContent = info.name;
     $('#room-meta').textContent = `Até ${info.maxParticipants} pessoas · use fone`;
-    $('#expiry').textContent = `Expira em ${fmtDate(info.expiresAt)}`;
+    $('#expiry').textContent = 'Sala permanente';
     statusEl(info.hostOnline ? 'sala já aberta' : 'pronta para abrir', info.hostOnline ? 'ok' : 'wait');
     if (info.hostOnline) {
       // outro host está conectado; o servidor vai recusar com host-busy
       showError('Esta sala já está aberta em outro dispositivo. Feche a outra janela para assumir.');
     }
   } catch (e) {
-    return fatal(e.message || 'Sala não encontrada ou expirada.');
+    return fatal(e.message || 'Sala não encontrada.');
   }
   $('#start').focus();
 }

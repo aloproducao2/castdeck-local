@@ -25,9 +25,10 @@
 | ID personalizado | Permitido, 4–24 caracteres `a-z 0-9 -` |
 | Colisão | Sala existente não é tomada; retorna conflito e sugere outro nome |
 | Senha | Opcional no MVP; hash no servidor, nunca em texto |
-| TTL | **6 h** (opção 1), com encerramento imediato quando o último participante sair |
-| Sala vazia | Destruída após 5 min |
-| Host ausente | Sala encerra após 5 min sem host |
+| TTL | **Sem expiração**; sala permanente e reutilizável |
+| Persistência | Registro em JSON protegido; sobrevive a restart |
+| Sala vazia | Permanece para a próxima sessão |
+| Host ausente | Sessão encerra após 5 min sem host; sala permanece |
 | Limite | 1 host + 14 convidados (15 no total) |
 | Aprovação manual | Fora do MVP; entra na fase 3 |
 | Co-host/observador | Fora do MVP |

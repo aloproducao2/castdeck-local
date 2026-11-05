@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { $, createRoom, copy, qrSvg, esc } from './common.js?v=9';
+import { $, createRoom, copy, qrSvg, esc } from './common.js?v=11';
 
 const form = $('#create-form');
 const err = $('#err');
@@ -25,6 +25,7 @@ form.addEventListener('submit', async (e) => {
   try {
     const room = await createRoom({ name, roomId, password, maxParticipants });
     result.classList.add('on');
+    form.hidden = true;
     $('#room-code').textContent = room.roomId;
     try { const u = new URL(room.guestUrl); $('#guest-link').textContent = u.host + u.pathname; } catch { $('#guest-link').textContent = room.guestUrl; }
     try { const u = new URL(room.hostUrl); $('#host-link').textContent = u.host + u.pathname; } catch { $('#host-link').textContent = room.hostUrl; }
@@ -40,4 +41,13 @@ form.addEventListener('submit', async (e) => {
     btn.disabled = false;
     btn.textContent = 'Criar sala grátis';
   }
+});
+
+$('#new-room').addEventListener('click', () => {
+  form.reset();
+  $('#room-max').value = '15';
+  form.hidden = false;
+  result.classList.remove('on');
+  hideError();
+  form.scrollIntoView({ behavior: 'smooth', block: 'center' });
 });

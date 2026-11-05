@@ -15,9 +15,10 @@
 - Áudio WebRTC entre host e convidados.
 - Host ouve todos; convidado ouve o host.
 - Host pode **mutar** e **remover** convidados.
-- Host encerra a sala.
+- Host encerra a **sessão ao vivo**, mantendo a sala e os links.
 - Limite de **1 host + 14 convidados (15 pessoas no total)**.
-- TTL de 6 h e limpeza.
+- **Salas permanentes**: não expiram e podem ser reutilizadas com os mesmos links.
+- Persistência em arquivo JSON protegido no servidor; sobrevive a restart.
 - Rate limit de criação e tentativa de entrada.
 - Escolha de **microfone** e **saída de áudio** durante a sala.
 - PWA instalável (`manifest`, service worker e ícones).
@@ -51,8 +52,8 @@ Variáveis:
 |---|---|---|
 | `PORT` | `3210` | porta HTTP |
 | `INTERCOM_BASE` | `/intercom` | prefixo público |
-| `ROOM_TTL_MS` | 6 h | validade da sala |
-| `HOST_GRACE_MS` | 5 min | tolerância sem host |
+| `INTERCOM_DATA` | `intercom-rooms/data/rooms.json` | arquivo persistente das salas |
+| `HOST_GRACE_MS` | 5 min | tolerância sem host antes de encerrar a sessão |
 | `ICE_STUN` | Cloudflare + Google | STUN |
 | `TURN_URL` | vazio | TURN |
 | `TURN_USERNAME` | vazio | usuário TURN |
@@ -61,7 +62,7 @@ Variáveis:
 ## Arquitetura
 
 ```text
-index.html  ── POST /intercom/api/rooms ──► salas em memória
+index.html  ── POST /intercom/api/rooms ──► registro permanente (JSON)
 host.html   ── WSS /intercom/ws ─────────► signaling + presença
 room.html   ── WSS /intercom/ws ─────────► signaling + presença
                    │
@@ -73,6 +74,9 @@ room.html   ── WSS /intercom/ws ─────────► signaling + p
 - O convidado envia o microfone; o host recebe.
 - Sem vídeo, sem gravação, sem IFB, sem chat.
 - Sem servidor de mídia; signaling apenas troca SDP/ICE.
+- A sessão ao vivo existe em memória; a identidade da sala, tokens e senha ficam no arquivo persistente.
+- Encerrar a sessão desconecta todos, mas mantém a sala e os links.
+- Reiniciar o serviço preserva as salas; as sessões ao vivo caem.
 
 ## Android e tela desligada
 
@@ -86,7 +90,7 @@ room.html   ── WSS /intercom/ws ─────────► signaling + p
 
 - O host fala com **todos** ou com **uma pessoa** pelo PTT da linha.
 - O host ouve todos os convidados; ainda não há mix de convidados para convidados (partyline).
-- A sala vive em memória; reiniciar o servidor encerra as salas.
+- A sessão ao vivo cai ao reiniciar o servidor; a sala permanente e os links continuam.
 - Sem Redis/SFU.
 - Publicado sem conta; o app é um serviço separado do CastDeck local.
 - O link do host é a autoridade da sala; não há conta.

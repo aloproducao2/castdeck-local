@@ -8350,5 +8350,73 @@
   "Destacar o painel já em modo de mesa vertical": [
     "Detach the panel already in vertical desk mode",
     "Separar el panel ya en modo de mesa vertical"
+  ],
+  "Microfone da direção (programa + intercom)": [
+    "Director microphone (program + intercom)",
+    "Micrófono de dirección (programa + intercom)"
+  ],
+  "Saída do retorno (fone)": [
+    "Return output (headphones)",
+    "Salida de retorno (auriculares)"
+  ],
+  "A troca vale na hora. A saída escolhida atende ao monitor e ao intercom.": [
+    "Changes apply immediately. The selected output feeds the monitor and the intercom.",
+    "El cambio se aplica al instante. La salida elegida alimenta el monitor y el intercom."
+  ],
+  "Microfone do intercom trocado.": [
+    "Intercom microphone switched.",
+    "Micrófono del intercom cambiado."
+  ],
+  "Saída do intercom trocada.": [
+    "Intercom output switched.",
+    "Salida del intercom cambiada."
+  ],
+  "Neste aparelho, a saída de áudio segue o sistema. A escolha de microfone continua disponível.": [
+    "On this device, audio output follows the system. Microphone selection is still available.",
+    "En este dispositivo, la salida de audio sigue el sistema. La selección de micrófono sigue disponible."
+  ],
+  "Neste aparelho, a saída segue o sistema. O microfone continua selecionável.": [
+    "On this device, output follows the system. The microphone is still selectable.",
+    "En este dispositivo, la salida sigue el sistema. El micrófono sigue siendo seleccionable."
+  ],
+  "Não foi possível listar os dispositivos de áudio.": [
+    "Could not list audio devices.",
+    "No se pudieron listar los dispositivos de audio."
+  ],
+  "Microfone salvo. Ele será usado quando você abrir o PTT.": [
+    "Microphone saved. It will be used when you open PTT.",
+    "Micrófono guardado. Se usará cuando abras el PTT."
+  ],
+  "Microfone padrão": [
+    "Default microphone",
+    "Micrófono predeterminado"
+  ],
+  "Saída padrão": [
+    "Default output",
+    "Salida predeterminada"
+  ],
+  "A troca vale na hora.": [
+    "Changes apply immediately.",
+    "El cambio se aplica al instante."
+  ],
+  "Não foi possível trocar o microfone:": [
+    "Could not switch the microphone:",
+    "No se pudo cambiar el micrófono:"
+  ],
+  "Não foi possível trocar a saída:": [
+    "Could not switch the output:",
+    "No se pudo cambiar la salida:"
+  ],
+  "Não foi possível tocar o tom:": [
+    "Could not play the tone:",
+    "No se pudo reproducir el tono:"
+  ],
+  "Tom tocado na saída escolhida.": [
+    "Tone played on the selected output.",
+    "Tono reproducido en la salida elegida."
+  ],
+  "Saída padrão do sistema": [
+    "System default output",
+    "Salida predeterminada del sistema"
   ]
 }

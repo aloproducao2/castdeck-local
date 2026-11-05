@@ -3,6 +3,7 @@
 // Intercom independente: página audio-only para câmera/reportagem.
 import { $, esc, toast } from './ui.js';
 import { Signaling, Peer } from './rtc.js';
+import { getMic, loadPrefs, savePrefs, listDevices } from './media.js';
 
 const studioId = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '');
 const params = new URLSearchParams(location.search);
@@ -49,6 +50,8 @@ function ensureAudio() {
   C.audio.playsInline = true;
   C.audio.volume = 0.9;
   C.audio.muted = C.muted;
+  const out = loadPrefs().speakerId || '';
+  if (out && C.audio.setSinkId) C.audio.setSinkId(out).catch(() => {});
   return C.audio;
 }
 
@@ -181,7 +184,7 @@ function pttDown() {
 async function micOn() {
   if (!C.mic) {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints(), video: false });
+      const stream = await getMic(loadPrefs().micId || '');
       C.mic = stream.getAudioTracks()[0];
       if (C.peer) C.peer.pc.addTrack(C.mic, new MediaStream([C.mic]));
       else C.stream = new MediaStream([C.mic]);
@@ -283,6 +286,66 @@ function connect() {
   });
 }
 
+async function switchMicDevice(deviceId) {
+  savePrefs({ micId: deviceId || '' });
+  if (!C.mic) {
+    toast('Microfone salvo. Ele será usado quando você abrir o PTT.', 'info');
+    return;
+  }
+  try {
+    const stream = await getMic(deviceId || '');
+    const track = stream.getAudioTracks()[0];
+    if (!track) throw new Error('Nenhum microfone disponível.');
+    track.enabled = C.micOn;
+    if (C.peer) {
+      const sender = C.peer.pc.getSenders().find((s) => s.track?.kind === 'audio');
+      if (sender) await sender.replaceTrack(track);
+      else C.peer.pc.addTrack(track, new MediaStream([track]));
+    } else {
+      C.stream = new MediaStream([track]);
+    }
+    const old = C.mic;
+    C.mic = track;
+    old?.stop();
+    toast('Microfone do intercom trocado.', 'ok');
+  } catch (e) {
+    toast('Não foi possível trocar o microfone: ' + (e.message || e.name), 'err');
+  }
+}
+
+function initAudioDevices() {
+  const micSel = $('#icp-mic');
+  const outSel = $('#icp-out');
+  const note = $('#icp-audio-note');
+  const canOut = typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype;
+  if (outSel) outSel.disabled = !canOut;
+  if (!canOut && note) note.textContent = 'Neste aparelho, a saída segue o sistema. O microfone continua selecionável.';
+  listDevices().then(({ mics, speakers }) => {
+    if (micSel) {
+      micSel.innerHTML = '<option value="">Microfone padrão</option>' + mics.map((d) => `<option value="${esc(d.deviceId)}">${esc(d.label || 'Microfone')}</option>`).join('');
+      const saved = loadPrefs().micId || '';
+      if ([...micSel.options].some((o) => o.value === saved)) micSel.value = saved;
+      micSel.onchange = () => switchMicDevice(micSel.value);
+    }
+    if (outSel && canOut) {
+      outSel.innerHTML = '<option value="">Saída padrão</option>' + speakers.map((d) => `<option value="${esc(d.deviceId)}">${esc(d.label || 'Saída')}</option>`).join('');
+      const saved = loadPrefs().speakerId || '';
+      if ([...outSel.options].some((o) => o.value === saved)) outSel.value = saved;
+      outSel.onchange = async () => {
+        try {
+          savePrefs({ speakerId: outSel.value });
+          if (C.audio?.setSinkId) await C.audio.setSinkId(outSel.value || '');
+          toast('Saída do intercom trocada.', 'ok');
+        } catch (e) {
+          toast('Não foi possível trocar a saída: ' + (e.message || e.name), 'err');
+        }
+      };
+    }
+  }).catch(() => {
+    if (note) note.textContent = 'Não foi possível listar os dispositivos de áudio.';
+  });
+}
+
 function render() {
   app.innerHTML = `<div class="icp-wrap">
     <header class="icp-head"><div class="icp-brand"><span class="icp-dot"></span><b>INTERCOM</b><span>CastDeck</span></div><span id="icp-status" class="icp-status wait">Conectando…</span></header>
@@ -293,6 +356,11 @@ function render() {
       <div id="icp-tally" class="icp-tally"></div>
       <button id="icp-ptt" class="icp-ptt" type="button">SEGURE PARA FALAR</button>
       <div class="icp-listen-row"><button id="icp-listen" class="icp-listen on" type="button">Ouvindo diretor</button><input id="icp-vol" type="range" min="0" max="1" step="0.01" value="0.9" aria-label="Volume do diretor"></div>
+      <div class="icp-audio">
+        <label><span>Microfone</span><select id="icp-mic"></select></label>
+        <label><span>Saída de áudio</span><select id="icp-out"></select></label>
+        <small id="icp-audio-note">A troca vale na hora.</small>
+      </div>
       <div class="icp-lock-row"><button id="icp-lock" type="button">Travar PTT</button><span id="icp-keep">Tela pode apagar</span></div>
       <p class="icp-hint">Segure para falar ou trave o PTT para manter o microfone aberto. Use fone. O Chrome pode mostrar o intercom na notificação de mídia; mantenha a aba ativa.</p>
     </section>
@@ -325,6 +393,7 @@ function render() {
   $('#icp-vol').oninput = (e) => { ensureAudio().volume = +e.target.value; };
   window.addEventListener('blur', off);
   document.addEventListener('visibilitychange', () => { if (document.hidden) off(); else keepAwake(); });
+  initAudioDevices();
 }
 
 async function boot() {

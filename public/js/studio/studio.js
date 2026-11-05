@@ -5612,6 +5612,12 @@ function renderIntercomPanel() {
       <button type="button" class="ic-ptt" id="ic-ptt" aria-label="Segure para falar com todos">🎙<b>PTT GERAL</b><small>${S.intercom.latch ? 'clique para abrir/fechar' : 'segure para falar com todos'}</small></button>
       <div class="ic-mic"><span>MIC</span><div class="ic-meter"><i id="ic-mic-bar"></i></div><small>${S.intercom.latch ? 'PTT travado: clique para fechar' : 'Fale e solte para fechar'}</small><button type="button" class="btn sm ic-latch ${S.intercom.latch ? 'on' : ''}" id="ic-latch" aria-pressed="${S.intercom.latch}">${S.intercom.latch ? 'MIC TRAVADO' : 'Travar PTT'}</button></div>
     </div>
+    <div class="ic-audio">
+      <label><span>Microfone da direção (programa + intercom)</span><select class="input sm" id="ic-mic-dev"></select></label>
+      <label><span>Saída do retorno (fone)</span><select class="input sm" id="ic-out-dev"></select></label>
+      <button type="button" class="btn sm" id="ic-audio-test">Testar saída</button>
+      <span class="ic-audio-note" id="ic-audio-note">A troca vale na hora. A saída escolhida atende ao monitor e ao intercom.</span>
+    </div>
     <div class="ic-keys">
       <button type="button" class="ic-key" data-ic-talk="all"><b>TODOS</b><small>${gs.length} pessoas</small><span class="ic-key-line"></span></button>
       <button type="button" class="ic-key" data-ic-talk="cam"><b>CÂMERAS</b><small>${intercomTalkIds('cam').length} conectada${intercomTalkIds('cam').length === 1 ? '' : 's'}</small><span class="ic-key-line"></span></button>
@@ -5691,6 +5697,60 @@ function renderIntercomPanel() {
   for (const g of gs) mixer.setIntercomListen(intercomSourceId(g), S.intercom.listen[g.id] !== false);
   $('#ic-link', p).onclick = showIntercomLink;
   $('#ic-mini-toggle', p).onclick = () => toggleIntercomMini();
+  const icMicDev = $('#ic-mic-dev', p);
+  const icOutDev = $('#ic-out-dev', p);
+  const icAudioNote = $('#ic-audio-note', p);
+  const canPickOutput = typeof mixer.ctx?.setSinkId === 'function';
+  if (icOutDev) icOutDev.disabled = !canPickOutput;
+  if (!canPickOutput && icAudioNote) icAudioNote.textContent = 'Neste aparelho, a saída de áudio segue o sistema. A escolha de microfone continua disponível.';
+  listDevices().then(({ mics, speakers }) => {
+    if (!document.body.contains(p)) return;
+    if (icMicDev) {
+      icMicDev.innerHTML = '<option value="">Padrão do sistema</option>' + mics.map((d) => `<option value="${esc(d.deviceId)}">${esc(d.label || 'Microfone')}</option>`).join('');
+      const saved = loadPrefs().micId || '';
+      if ([...icMicDev.options].some((o) => o.value === saved)) icMicDev.value = saved;
+      icMicDev.onchange = async () => {
+        const deviceId = icMicDev.value;
+        icMicDev.disabled = true;
+        try {
+          const mic = await getMic(deviceId || '');
+          const old = S.local.mic;
+          S.local.mic = mic;
+          mixer.addStream('host:mic', mic, { ownerId: 'host', stageKey: 'host:cam', monitor: false });
+          mixer.setMuted('host:mic', !S.local.micOn, { save: false });
+          old?.getTracks?.().forEach((t) => { try { t.stop(); } catch {} });
+          savePrefs({ micId: deviceId || '' });
+          toast('Microfone do intercom trocado.', 'ok');
+        } catch (e) {
+          if (icMicDev) icMicDev.value = loadPrefs().micId || '';
+          toast('Não foi possível trocar o microfone: ' + (e.message || e.name), 'err');
+        } finally {
+          if (icMicDev) icMicDev.disabled = false;
+        }
+      };
+    }
+    if (icOutDev && canPickOutput) {
+      icOutDev.innerHTML = '<option value="">Saída padrão do sistema</option>' + speakers.map((d) => `<option value="${esc(d.deviceId)}">${esc(d.label || 'Saída')}</option>`).join('');
+      const saved = loadPrefs().speakerId || '';
+      if ([...icOutDev.options].some((o) => o.value === saved)) icOutDev.value = saved;
+      icOutDev.onchange = async () => {
+        try {
+          await mixer.setSpeaker(icOutDev.value);
+          savePrefs({ speakerId: icOutDev.value });
+          toast('Saída do intercom trocada.', 'ok');
+        } catch (e) {
+          icOutDev.value = loadPrefs().speakerId || '';
+          toast('Não foi possível trocar a saída: ' + (e.message || e.name), 'err');
+        }
+      };
+    }
+  }).catch(() => {
+    if (icAudioNote) icAudioNote.textContent = 'Não foi possível listar os dispositivos de áudio.';
+  });
+  $('#ic-audio-test', p).onclick = async () => {
+    try { await mixer.resume(); await mixer.beep(); toast('Tom tocado na saída escolhida.', 'info'); }
+    catch (e) { toast('Não foi possível tocar o tom: ' + (e.message || e.name), 'err'); }
+  };
   $('#ic-latch', p).onclick = () => {
     S.intercom.latch = !S.intercom.latch;
     if (!S.intercom.latch) intercomReleaseAll();

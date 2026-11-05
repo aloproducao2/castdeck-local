@@ -180,7 +180,7 @@ Duas camadas fixas acima de tudo (GC, letreiro, logo), independentes da cena e d
 
 ## 4. Intercom de produção (EGM)
 
-> **Disponível na 1.3.33** no estúdio, na página `/cam` e na página independente `/intercom/:id`.
+> **Disponível na 1.3.34** no estúdio, na página `/cam` e na página independente `/intercom/:id`.
 > Guia completo: [`docs/INTERCOM.md`](https://github.com/aloproducao2/castdeck-local/blob/main/docs/INTERCOM.md)
 > e página do site [`intercom.html`](https://cast.flue.live/intercom.html).
 
@@ -210,6 +210,8 @@ DIRETOR  ── fala/ouve ──  CÂMERA 1
 - PTT geral, por grupo e individual.
 - Teclas **TODOS**, **CÂMERAS**, **REPORTAGEM** e **PGM**.
 - **Mic Unlatch** e **Silenciar todos**.
+- **Microfone da direção** e **saída do retorno** escolhidos no próprio painel do intercom.
+- Troca de dispositivo ao vivo, sem sair da sala.
 - Mini painel opcional com PTT e corte de câmeras juntos.
 
 #### Criação

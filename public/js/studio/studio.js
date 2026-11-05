@@ -6596,11 +6596,9 @@ function qrSvg(text) {
   const n = q.size + 8; // 4 módulos de margem branca de cada lado (zona de silêncio exigida pelos leitores)
   let d = '';
   for (let y = 0; y < q.size; y++) for (let x = 0; x < q.size; x++) if (q.modules[y][x]) d += `M${x + 4} ${y + 4}h1v1h-1z`;
-  // Escala INTEIRA por módulo (px por módulo). Com 190px fixos o navegador caía em 4,63px por módulo e o
-  // `crispEdges` serrilhava/entortava o desenho. Aqui cada módulo tem o mesmo número inteiro de pixels.
-  const px = Math.max(2, Math.floor(200 / n));
-  const dim = n * px;
-  return `<svg width="${dim}" height="${dim}" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" preserveAspectRatio="xMidYMid meet" role="img" aria-label="QR Code" style="width:${dim}px;height:${dim}px;max-width:100%;display:block;image-rendering:pixelated"><rect width="${n}" height="${n}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+  // O container .camqr-code define a caixa visível. O SVG ocupa 100% dela nos dois cards,
+  // mesmo quando a URL local e a de internet geram versões diferentes do QR Code.
+  return `<svg width="100%" height="100%" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" preserveAspectRatio="xMidYMid meet" role="img" aria-label="QR Code" style="width:100%;height:100%;max-width:100%;display:block;image-rendering:pixelated"><rect width="${n}" height="${n}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
 }
 
 // "＋ Câmera": câmera ligada neste computador (USB/captura) ou um celular/aparelho pela rede (QR Code)

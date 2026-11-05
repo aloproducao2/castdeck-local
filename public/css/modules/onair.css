@@ -546,10 +546,10 @@ body:has(.studio) #toasts { bottom: 112px; }
 #btn-remote { padding: 0 10px; display: inline-flex; align-items: center; justify-content: center; }
 
 /* ===== Auditoria de layout 29/10: topbar não corta Gravar/Transmitir e o palco não some no tablet ===== */
-/* Em 900/700/390 a barra superior passava da largura (scrollWidth 1033/853/515): os botões
+/* Em 900/700/390 e também em notebooks de 1366–1490 a barra superior passava da largura:
    Gravar e Transmitir ficavam fora da tela, sem rolagem. Esconde só os rótulos secundários
    (os títulos continuam nos tooltips) e deixa a barra rolável como último recurso. */
-@media (max-width: 1100px) {
+@media (max-width: 1490px) {
   .studio .topbar { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
   .studio .topbar::-webkit-scrollbar { display: none; }
   /* os dois rótulos mais longos somem primeiro; Vertical/Painel continuam legíveis */

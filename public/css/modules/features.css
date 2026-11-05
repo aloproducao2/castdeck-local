@@ -396,6 +396,18 @@
 .camqr-live-txt { min-width: 0; flex: 1; }
 .camqr-live-item .btn { margin-left: auto; flex: none; }
 @media (max-width: 640px) { .addcam-opts, .camqr, .camqr-toolbar { grid-template-columns: 1fr; } }
+/* Celular deitado: o modal é baixo; compacta os cards para o QR Code inteiro
+   aparecer sem precisar rolar antes de escanear. */
+@media (orientation: landscape) and (max-height: 540px) {
+  .modal:has(.camqr) { width: min(880px, 96vw); }
+  .modal:has(.camqr) p.sub { display: none; }
+  .modal:has(.camqr) .camqr { gap: 10px; }
+  .modal:has(.camqr) .camqr-card { padding: 8px; gap: 6px; }
+  .modal:has(.camqr) .camqr-head small { display: none; }
+  .modal:has(.camqr) .camqr-code { width: 132px; }
+  .modal:has(.camqr) .camqr-url { height: 22px; line-height: 22px; }
+  .modal:has(.camqr) .camqr-actions .btn { min-height: 28px; height: 28px; padding: 0 8px; }
+}
 
 /* =====================================================================
    Página da câmera remota (/cam) — celular em tela cheia

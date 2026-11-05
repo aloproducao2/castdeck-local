@@ -180,7 +180,7 @@ Duas camadas fixas acima de tudo (GC, letreiro, logo), independentes da cena e d
 
 ## 4. Intercom de produção (EGM)
 
-> **Disponível na 1.3.34** no estúdio, na página `/cam` e na página independente `/intercom/:id`.
+> **Disponível na 1.3.35** no estúdio, na página `/cam` e na página independente `/intercom/:id`.
 > Guia completo: [`docs/INTERCOM.md`](https://github.com/aloproducao2/castdeck-local/blob/main/docs/INTERCOM.md)
 > e página do site [`intercom.html`](https://cast.flue.live/intercom.html).
 

@@ -593,8 +593,16 @@ body { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   .studio.is-mobile .topbar .title,
   .studio.is-mobile .topbar .live-stats,
   .studio.is-mobile .topbar .spacer { display: none; }
-  .studio.is-mobile .topbar .btn { padding-left: 7px; padding-right: 7px; }
-  .studio.is-mobile .topbar { gap: 5px; padding: 0 6px; }
+  .studio.is-mobile .topbar .btn { padding-left: 6px; padding-right: 6px; }
+  .studio.is-mobile .topbar { gap: 4px; padding: 0 4px; }
+}
+/* Telas Android estreitas (360/320 dp): o botão Auto play é o primeiro a sair para
+   Gravar/Transmitir continuarem inteiros. */
+@media (max-width: 380px) {
+  .studio.is-mobile .topbar #btn-autoplay { display: none; }
+}
+@media (max-width: 340px) {
+  .studio.is-mobile .topbar #btn-intercom-mini { display: none; }
 }
 /* Celular deitado: mesma economia de espaço; Gravar/Transmitir continuam à vista. */
 /* Deitado: garante que o painel vire gaveta de fundo (alguma regra deixava o #side aberto na lateral). */

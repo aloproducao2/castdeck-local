@@ -89,6 +89,10 @@ export function createMusic({ studioId, mixer, onChange } = {}) {
     return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 0.4;
   })();
   let muted = false;
+  let hostMon = (() => {
+    const raw = localStorage.getItem(ls('monitor'));
+    return raw == null || raw === '' ? true : raw === '1';
+  })();
   let restored = false;
   let seeking = false;
 
@@ -101,7 +105,7 @@ export function createMusic({ studioId, mixer, onChange } = {}) {
 
   try {
     mixer?.addElement?.(CHANNEL, audio, { ownerId: 'host', stageKey: 'music', monitor: true });
-    mixer?.setRoute?.(CHANNEL, { program: true, monitor: true });
+    mixer?.setRoute?.(CHANNEL, { program: true, monitor: hostMon });
     mixer?.setVolume?.(CHANNEL, volume, { save: false });
     mixer?.setMuted?.(CHANNEL, false, { save: false });
   } catch (e) {
@@ -118,6 +122,7 @@ export function createMusic({ studioId, mixer, onChange } = {}) {
     try {
       localStorage.setItem(ls('mode'), mode);
       localStorage.setItem(ls('volume'), String(volume));
+      localStorage.setItem(ls('monitor'), hostMon ? '1' : '0');
       if (currentId) localStorage.setItem(ls('current'), currentId);
       else localStorage.removeItem(ls('current'));
     } catch {}
@@ -187,6 +192,11 @@ export function createMusic({ studioId, mixer, onChange } = {}) {
       mute.innerHTML = muted ? icons.volumeOff : icons.volume;
       mute.setAttribute('aria-pressed', String(muted));
       mute.title = muted ? 'Reativar o som da trilha' : 'Silenciar a trilha';
+    }
+    const mon = panel.querySelector('#music-monitor');
+    if (mon) {
+      mon.checked = hostMon;
+      mon.setAttribute('aria-checked', String(hostMon));
     }
     panel.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('on', b.dataset.mode === mode));
     panel.querySelectorAll('[data-track]').forEach((row) => row.classList.toggle('active', row.dataset.track === currentId));
@@ -272,12 +282,21 @@ export function createMusic({ studioId, mixer, onChange } = {}) {
     notify();
   }
 
+  function setMonitor(next = !hostMon) {
+    hostMon = !!next;
+    mixer?.setRoute?.(CHANNEL, { program: true, monitor: hostMon });
+    persist();
+    paint();
+    notify();
+  }
+
   // O fader do canal no Mixer é a mesma fonte de verdade do volume da trilha.
   function syncFromMixer() {
     const s = mixer?.sources?.get(CHANNEL);
     if (!s) return;
     volume = Math.max(0, Math.min(1, Number(s.volume)));
     muted = !!s.muted;
+    if (s.route) hostMon = s.route.monitor !== false;
     persist();
     paint();
   }
@@ -403,6 +422,11 @@ export function createMusic({ studioId, mixer, onChange } = {}) {
         <b id="music-vol-val">${Math.round(volume * 100)}%</b>
       </div>
 
+      <label class="check music-monitor"><span>Ouvir no fone do host</span>
+        <span class="switch"><input id="music-monitor" type="checkbox" ${hostMon ? 'checked' : ''} aria-label="Enviar a trilha para o fone do host"><span></span></span>
+      </label>
+      <p class="hint music-monitor-hint">O programa continua com a trilha; isto controla apenas o retorno do host.</p>
+
       <div class="music-modes" role="group" aria-label="Modo de repetição da trilha">
         ${MODES.map(([id, label, icon]) => `<button class="music-mode ${mode === id ? 'on' : ''}" data-mode="${id}" title="${label}">${icons[icon]}<span>${label}</span></button>`).join('')}
       </div>
@@ -425,6 +449,7 @@ export function createMusic({ studioId, mixer, onChange } = {}) {
     $("#music-prev", panel)?.addEventListener("click", () => step(-1));
     $("#music-next", panel)?.addEventListener("click", () => step(1));
     $("#music-mute", panel)?.addEventListener("click", () => setMuted());
+    $("#music-monitor", panel)?.addEventListener("change", (e) => setMonitor(e.target.checked));
     $("#music-vol", panel)?.addEventListener("input", (e) => setVolume(Number(e.target.value) / 100));
     panel.querySelectorAll("[data-mode]").forEach((b) => (b.onclick = () => setMode(b.dataset.mode)));
     panel.querySelectorAll("[data-play-track]").forEach(
@@ -532,12 +557,14 @@ export function createMusic({ studioId, mixer, onChange } = {}) {
     setMode,
     setVolume,
     setMuted,
+    setMonitor,
     syncFromMixer,
     get tracks() { return tracks.map(({ id, name, duration }) => ({ id, name, duration })); },
     get currentId() { return currentId; },
     get mode() { return mode; },
     get volume() { return volume; },
     get muted() { return muted; },
+    get hostMon() { return hostMon; },
     get restored() { return restored; },
     get audio() { return audio; },
     pauseAll: pause,

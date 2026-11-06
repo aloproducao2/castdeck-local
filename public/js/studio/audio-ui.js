@@ -221,6 +221,7 @@ export function createAudioPanel({
                 <span class="ch-tag">${r.tag}</span><span class="ch-name" title="${esc(r.name)}">${esc(r.name)}</span>
                 ${onAir ? '<span class="ch-air" title="Este canal está no ar (palco/take/DSK)">NO AR</span>' : ''}
                 ${routeLabel ? `<span class="ch-route" title="Rota de áudio fixa (independe do palco)">${routeLabel}</span>` : ''}
+                ${isAmbient ? `<button class="ch-mon ${s?.route?.monitor === false ? 'off' : 'on'}" data-mon title="Ouvir a trilha no fone do host (não muda o programa)" aria-pressed="${s?.route?.monitor !== false}">${s?.route?.monitor === false ? 'FONE OFF' : 'FONE'}</button>` : ''}
                 ${hasSound ? '<span class="badge ok" style="font-size:10px;padding:2px 6px">Áudio ativo</span>' : '<span class="badge warn" style="font-size:10px;padding:2px 6px">Aguardando áudio</span>'}
                 ${!isAmbient && typeof mixer.ccOf === 'function' ? `<button class="ch-cc ${mixer.ccOf(r.id) ? 'on' : ''} ${mixer.captionOn ? '' : 'idle'}" data-cc title="${mixer.captionOn ? 'Legenda: enviar este áudio para a legenda ao vivo (clique liga/desliga; duplo clique = só este canal)' : 'Legenda: escolha se este áudio vai para a legenda. Ligue a legenda na aba Legendas do painel.'}" aria-pressed="${mixer.ccOf(r.id)}">CC</button>` : ''}
                 <button class="ch-solo ${solo ? 'on' : ''}" data-solo title="Solo no fone: ouve este canal sem mudar o programa (funciona até mudo)">S</button>
@@ -431,6 +432,14 @@ export function createAudioPanel({
           mixer.setSolo(id, !s.solo);
           soloBtn.classList.toggle('on', !!mixer.sources.get(id)?.solo);
           ch.classList.toggle('solo-on', !!mixer.sources.get(id)?.solo);
+        };
+      }
+      const monBtn = $('[data-mon]', ch);
+      if (monBtn) {
+        monBtn.onclick = () => {
+          if (!s) return;
+          const on = s.route?.monitor === false;
+          mixer.setRoute(id, { program: true, monitor: on });
         };
       }
       for (const sendBtn of $$('[data-send]', ch)) {
@@ -703,6 +712,16 @@ export function createAudioPanel({
           ch.classList.toggle('solo-on', !!s?.solo);
           const sb = $('[data-solo]', ch);
           if (sb) sb.classList.toggle('on', !!s?.solo);
+          const mb = $('[data-mon]', ch);
+          if (mb) {
+            const on = s?.route?.monitor !== false;
+            mb.classList.toggle('on', on);
+            mb.classList.toggle('off', !on);
+            mb.textContent = on ? 'FONE' : 'FONE OFF';
+            mb.setAttribute('aria-pressed', String(on));
+          }
+          const routeEl = $('.ch-route', ch);
+          if (routeEl && s?.route) routeEl.textContent = s.route.program ? (s.route.monitor ? 'PGM+FONE' : 'PGM') : (s.route.monitor ? 'FONE' : 'MUDO');
           const cc = $('[data-cc]', ch);
           if (cc) cc.classList.toggle('idle', !mixer.captionOn);
           for (const btn of $$('[data-send]', ch)) btn.classList.toggle('on', !!s && mixer.getSend(id, btn.dataset.send));

@@ -147,7 +147,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.3.38** — source framing with 10–300% zoom, DSK layer zoom/pan/crop and fixed page viewports, adjustments shown in thumbnails, plus the soundtrack panel. See the
+Version **1.3.39** — soundtrack host-monitor selector in the panel and mixer, plus source framing, DSK layer controls, fixed page viewports, thumbnail adjustments and the soundtrack panel. See the
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

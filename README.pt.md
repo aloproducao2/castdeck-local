@@ -147,7 +147,7 @@ incorporar o código em produto fechado. Componentes de terceiros mantêm suas l
 
 ## Status
 
-Versão **1.3.38** — enquadramento de fontes com zoom de 10–300%, zoom/pan/corte de camadas DSK e viewport fixo de página, ajustes refletidos nas miniaturas e painel de trilha sonora. Veja os
+Versão **1.3.39** — seletor de monitor da trilha no painel e no Mixer, além de enquadramento de fontes, controles de camada DSK, viewport fixo de página, ajustes nas miniaturas e painel de trilha sonora. Veja os
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Feito por **Miguel Kallemback / flue.live**, de brasileiros para o mundo. 🌎

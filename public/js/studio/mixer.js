@@ -482,6 +482,7 @@ export class AudioMixer {
     s.toProgram.gain.setTargetAtTime(onProgram ? 1 : 0, t, 0.02);
     s.toMonitor.gain.setTargetAtTime(onMonitor ? 1 : 0, t, 0.02);
     this._ccApply(s, t);
+    this.onChange?.(id, 'route');
     return true;
   }
 

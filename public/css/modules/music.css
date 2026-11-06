@@ -87,6 +87,21 @@
 .music-volume { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--text-2); font-size: 11px; }
 .music-volume input { flex: 1; min-width: 60px; accent-color: var(--accent); }
 .music-volume b { width: 34px; text-align: right; color: var(--text-1); font: 600 10.5px ui-monospace, 'Cascadia Mono', Consolas, monospace; }
+.music-monitor { justify-content: space-between; margin: 9px 0 0; font-size: 11px; color: var(--text-1); }
+.music-monitor-hint { margin: 3px 0 0; font-size: 10px; line-height: 1.35; }
+.ch-mon {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 5px;
+  background: var(--bg-1);
+  color: var(--text-2);
+  font: 800 8.5px/1 var(--font);
+  letter-spacing: .04em;
+  cursor: pointer;
+}
+.ch-mon.on { color: var(--cue); border-color: color-mix(in srgb, var(--cue) 45%, transparent); }
+.ch-mon.off { color: var(--text-2); opacity: .7; }
+.ch-mon:hover { border-color: var(--line-strong); color: var(--text-0); }
 
 .music-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-top: 9px; }
 .music-mode {

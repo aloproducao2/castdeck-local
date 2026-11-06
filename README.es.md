@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **1.3.38** — encuadre de fuentes con zoom de 10–300%, zoom/pan/corte de capas DSK y viewport fijo de página, ajustes reflejados en miniaturas y panel de música ambiente. Consulta los
+Versión **1.3.39** — selector de monitor de la música ambiente en el panel y en el mixer, además de encuadre de fuentes, controles de capas DSK, viewport fijo de página, ajustes en miniaturas y panel de música. Consulta los
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

@@ -95,6 +95,7 @@ export function createAudioPanel({
 
   function rowsFor() {
     const rows = [{ id: 'host:mic', name: `${S.local.name}`, tag: 'MIC' }];
+    if (mixer.sources.has('music:ambient')) rows.push({ id: 'music:ambient', name: 'Trilha', tag: 'TRILHA', ambient: true });
     for (const s of S.sources.values()) {
       if (s.ownerId !== 'host' && s.kind === 'camera') rows.push({ id: s.id + ':audio', name: s.label, tag: S.guests.get(s.ownerId)?.cohost ? 'CO-HOST' : 'CONV' });
       if (s.extraCam) rows.push({ id: s.id + ':audio', name: s.label, tag: 'CAM' });
@@ -203,6 +204,7 @@ export function createAudioPanel({
           rows
             .map((r) => {
               const s = mixer.sources.get(r.id);
+              const isAmbient = !!r.ambient;
               const isScreen = r.id.startsWith('host:screen');
               const hasSound = isScreen ? r.hasAudio : !!s;
               const vol = s ? s.volume : (mixer.prefs.get(r.id)?.volume ?? 1);
@@ -218,17 +220,17 @@ export function createAudioPanel({
               <div class="ch-top">
                 <span class="ch-tag">${r.tag}</span><span class="ch-name" title="${esc(r.name)}">${esc(r.name)}</span>
                 ${onAir ? '<span class="ch-air" title="Este canal está no ar (palco/take/DSK)">NO AR</span>' : ''}
-                ${routeLabel ? `<span class="ch-route" title="Rota de áudio do Replay">${routeLabel}</span>` : ''}
+                ${routeLabel ? `<span class="ch-route" title="Rota de áudio fixa (independe do palco)">${routeLabel}</span>` : ''}
                 ${hasSound ? '<span class="badge ok" style="font-size:10px;padding:2px 6px">Áudio ativo</span>' : '<span class="badge warn" style="font-size:10px;padding:2px 6px">Aguardando áudio</span>'}
-                ${typeof mixer.ccOf === 'function' ? `<button class="ch-cc ${mixer.ccOf(r.id) ? 'on' : ''} ${mixer.captionOn ? '' : 'idle'}" data-cc title="${mixer.captionOn ? 'Legenda: enviar este áudio para a legenda ao vivo (clique liga/desliga; duplo clique = só este canal)' : 'Legenda: escolha se este áudio vai para a legenda. Ligue a legenda na aba Legendas do painel.'}" aria-pressed="${mixer.ccOf(r.id)}">CC</button>` : ''}
+                ${!isAmbient && typeof mixer.ccOf === 'function' ? `<button class="ch-cc ${mixer.ccOf(r.id) ? 'on' : ''} ${mixer.captionOn ? '' : 'idle'}" data-cc title="${mixer.captionOn ? 'Legenda: enviar este áudio para a legenda ao vivo (clique liga/desliga; duplo clique = só este canal)' : 'Legenda: escolha se este áudio vai para a legenda. Ligue a legenda na aba Legendas do painel.'}" aria-pressed="${mixer.ccOf(r.id)}">CC</button>` : ''}
                 <button class="ch-solo ${solo ? 'on' : ''}" data-solo title="Solo no fone: ouve este canal sem mudar o programa (funciona até mudo)">S</button>
                 <button class="ch-mute ${muted ? 'on' : ''}" data-mute title="${r.id === 'host:mic' ? 'Liga/desliga seu microfone' : 'Silenciar este canal no programa e no retorno'}">M</button>
               </div>
               ${vuHtml(r.id)}
-              ${faderHtml(r.id, vol)}
+              ${faderHtml(r.id, vol, isAmbient ? 100 : 200)}
               <div class="ch-sends" title="Enviar este canal para os buses de saída (A–G)">${BUS_IDS.map((b) => `<button class="ch-send ${s && mixer.getSend(r.id, b) ? 'on' : ''}" data-send="${b}" ${s ? '' : 'disabled'} title="Enviar para o bus ${b}">${b}</button>`).join('')}</div>
-              <label class="ch-nr ${s ? '' : 'disabled'}" title="${s ? 'Redução de ruído RNNoise nesta fonte' : 'Aguarde esta fonte ter áudio para ativar a redução de ruído'}">
-                <input type="checkbox" data-nr ${s?.nrOn ? 'checked' : ''} ${s ? '' : 'disabled'}>
+              <label class="ch-nr ${s && !isAmbient ? '' : 'disabled'}" title="${isAmbient ? 'A trilha usa o volume do canal; redução de ruído fica desligada' : s ? 'Redução de ruído RNNoise nesta fonte' : 'Aguarde esta fonte ter áudio para ativar a redução de ruído'}">
+                <input type="checkbox" data-nr ${s?.nrOn ? 'checked' : ''} ${s && !isAmbient ? '' : 'disabled'}>
                 <span class="sw"></span><span>Redução de ruído</span>
               </label>
               ${

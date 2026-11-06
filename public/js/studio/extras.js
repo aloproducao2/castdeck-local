@@ -249,24 +249,37 @@ export function createExtras(ctx) {
 
   async function restore() {
     const ses = S.studio.session;
+    const camCount = Array.isArray(ses?.cams) ? ses.cams.length : 0;
+    const mediaCount = Array.isArray(ses?.media) ? ses.media.length : 0;
+    const total = camCount + mediaCount;
+    let done = 0;
     let restored = 0;
+    const progress = (label) => ctx.onRestoreProgress?.({ done, total, label });
+    if (total) progress('Preparando câmeras e mídias…');
     try {
       if (ses?.v === 1) {
         // 1) câmeras extras
         for (const c of ses.cams || []) {
+          progress(`Reabrindo câmeras (${Math.min(done + 1, total)}/${total})…`);
           try {
             await addCam(c, { silent: true });
             restored++;
           } catch (e) {
             toast(`Câmera “${c.label}” não encontrada (${e.name === 'OverconstrainedError' ? 'desconectada?' : e.message})`, 'err');
           }
+          done++;
         }
         // 2) mídias e imagens (arquivos no IndexedDB)
+        progress('Lendo mídias salvas…');
         const recs = new Map((await idbEntries().catch(() => [])).filter(([k]) => String(k).startsWith(studioId + '|')).map(([k, v]) => [String(k).slice(studioId.length + 1), v]));
         const keep = new Set();
         for (const m of ses.media || []) {
+          progress(`Carregando mídias (${Math.min(done + 1, total)}/${total})…`);
           const rec = recs.get(m.id);
-          if (!rec?.file) continue;
+          if (!rec?.file) {
+            done++;
+            continue;
+          }
           keep.add(m.id);
           const s = ctx.addMediaFile(rec.file, { id: m.id, silent: true, recordingName: m.recordingName || '' });
           if (s?.kind === 'media') {
@@ -274,9 +287,11 @@ export function createExtras(ctx) {
             if (m.vol != null) ctx.mixer().setVolume(m.id, m.vol);
           }
           restored++;
+          done++;
         }
         for (const k of recs.keys()) if (!keep.has(k)) idbDel(key(k)).catch(() => {});
         // 3) nomes, palco, solo e playlist
+        progress('Organizando palco e playlist…');
         for (const [id, name] of Object.entries(ses.names || {})) ctx.applyName(id, name);
         const bgVideoId = S.brand?.background?.type === 'video' ? S.brand.background.value : '';
         const stage = (ses.stage || []).filter((id) => S.sources.has(id) && id !== bgVideoId);
@@ -290,6 +305,7 @@ export function createExtras(ctx) {
     }
     if (restored) toast('Sessão anterior restaurada (câmeras, mídias e palco)', 'ok');
     if (S.tab === 'media') ctx.renderMediaPanel();
+    return restored;
   }
 
   setInterval(() => save(), 3000);

@@ -47,6 +47,12 @@ function defCfg() {
     fadeMs: 500,
     pos: 'full',
     rect: { x: 0, y: 0, w: 1, h: 1 },
+    zoom: 1,
+    x: 0,
+    y: 0,
+    // página web: viewport fixo (não reflui quando a área do DSK muda) ou o legado "área do DSK".
+    // O desenho usa page.fit para encaixar a captura fixa na área.
+    page: { mode: 'fixed', width: 1280, height: 720, fit: 'cover' },
     luma: { lo: 0.1, soft: 0.1, invert: false },
     // mesma escala do filtro de chroma do OBS (similaridade 0,40 / suavidade 0,08 com verde puro)
     chroma: { color: '#00ff00', sim: 0.4, smooth: 0.08 },
@@ -69,7 +75,7 @@ function defCfg() {
     // então não gasta CPU/GPU/memória. Pôr no ar um DSK desligado liga sozinho.
     power: true,
     // saída vertical 9:16: posição e corte próprios (a mesma imagem, encaixada sem esticar). on: aparece no vertical
-    vert: { on: false, pos: 'full', rect: { x: 0, y: 0, w: 1, h: 1 }, crop: { l: 0, t: 0, r: 0, b: 0, fill: false } },
+    vert: { on: false, pos: 'full', rect: { x: 0, y: 0, w: 1, h: 1 }, zoom: 1, x: 0, y: 0, crop: { l: 0, t: 0, r: 0, b: 0, fill: false } },
   };
 }
 // corte e área (do horizontal ou do vertical) dentro dos limites
@@ -86,11 +92,21 @@ function normGeo(r) {
   r.rect.h = clamp(+r.rect.h || 1, 0.05, 1);
   r.rect.x = clamp(+r.rect.x || 0, 0, 1 - r.rect.w);
   r.rect.y = clamp(+r.rect.y || 0, 0, 1 - r.rect.h);
+  r.zoom = clamp(Number.isFinite(+r.zoom) ? +r.zoom : 1, 0.1, 3);
+  r.x = clamp(Number.isFinite(+r.x) ? +r.x : 0, -1, 1);
+  r.y = clamp(Number.isFinite(+r.y) ? +r.y : 0, -1, 1);
 }
 function normCfg(c) {
   const d = defCfg();
   c = c && typeof c === 'object' ? c : {};
+  const pageMissing = !c.page || typeof c.page !== 'object';
   const r = { ...d, ...c, rect: { ...d.rect, ...(c.rect || {}) }, luma: { ...d.luma, ...(c.luma || {}) }, chroma: { ...d.chroma, ...(c.chroma || {}) }, crop: { ...d.crop, ...(c.crop || {}) } };
+  // DSKs antigos sem campo page mantêm o viewport do tamanho da área; novas páginas usam viewport fixo.
+  r.page = { ...d.page, ...(pageMissing ? (c.url ? { mode: 'area' } : {}) : c.page) };
+  r.page.mode = r.page.mode === 'area' ? 'area' : 'fixed';
+  r.page.width = clamp(Math.round(+r.page.width || d.page.width), 320, 3840);
+  r.page.height = clamp(Math.round(+r.page.height || d.page.height), 240, 2160);
+  r.page.fit = r.page.fit === 'contain' ? 'contain' : 'cover';
   const v = c.vert && typeof c.vert === 'object' ? c.vert : {};
   r.vert = { ...d.vert, ...v, rect: { ...d.vert.rect, ...(v.rect || {}) }, crop: { ...d.vert.crop, ...(v.crop || {}) } };
   r.vert.on = !!r.vert.on;
@@ -117,7 +133,7 @@ function normCfg(c) {
   return r;
 }
 // configuração para desenhar no vertical: área/corte do vertical e imagem encaixada (fit), nunca esticada
-const vertCfg = (c) => ({ ...c, pos: c.vert.pos, rect: c.vert.rect, crop: c.vert.crop, fit: true });
+const vertCfg = (c) => ({ ...c, pos: c.vert.pos, rect: c.vert.rect, crop: c.vert.crop, zoom: c.vert.zoom, x: c.vert.x, y: c.vert.y, fit: true });
 const configured = (c) => (c.src === 'url' ? !!c.url : c.src === 'images' ? !!(c.images?.length && c.images[c.imgIndex]) : !!c.sourceId);
 const hasCrop = (c) => !!c.crop && (c.crop.l > 0 || c.crop.t > 0 || c.crop.r > 0 || c.crop.b > 0);
 // resumo ao lado do título da seção (fechada ela ainda mostra que há corte)
@@ -206,7 +222,7 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
   // chamado a cada quadro pelo compositor: só normaliza quando a lista ainda não está no formato (estudio novo/recarregado)
   const cfgs = () => {
     const d = S.brand.dsk;
-    if (Array.isArray(d) && d.length === N && d.every((x) => x && x.rect && x.luma && x.chroma && x.crop && x.vert)) return d;
+    if (Array.isArray(d) && d.length === N && d.every((x) => x && x.rect && x.luma && x.chroma && x.crop && x.vert && x.page?.mode && Number.isFinite(+x.zoom) && Number.isFinite(+x.vert.zoom))) return d;
     const out = Array.isArray(d) ? d : [];
     for (let i = 0; i < N; i++) out[i] = normCfg(out[i]);
     out.length = N;
@@ -411,8 +427,11 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
     for (let k = 0; k < N; k++) {
       if (i !== null && k !== i) continue;
       const x = c[k];
+      const pageFixed = x.page?.mode === 'fixed';
+      const pageW = pageFixed ? x.page.width : Math.round(x.rect.w * comp.W);
+      const pageH = pageFixed ? x.page.height : Math.round(x.rect.h * comp.H);
       const want = x.power && x.src === 'url' && x.url
-        ? { url: x.url, width: Math.round(x.rect.w * comp.W), height: Math.round(x.rect.h * comp.H), jpeg: !!x.opaque, fps: x.fps, quality: x.quality }
+        ? { url: x.url, width: pageW, height: pageH, jpeg: !!x.opaque, fps: x.fps, quality: x.quality }
         : null;
       const sig = want ? `${want.url}|${want.width}x${want.height}|${want.jpeg}|${want.fps}|${want.quality}` : '';
       if (!force && st[k].sent === sig) continue;
@@ -451,7 +470,8 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
     }
     if (cfg.src === 'url') {
       const b = st[i].bmp;
-      return b ? { img: b, w: b.width, h: b.height, stretch: true, seq: st[i].seq } : null;
+      const fixed = cfg.page?.mode === 'fixed';
+      return b ? { img: b, w: b.width, h: b.height, stretch: !fixed, fit: fixed ? cfg.page.fit : undefined, seq: st[i].seq } : null;
     }
     const s = view.sources?.get(cfg.sourceId);
     const el = s?.el;
@@ -489,11 +509,24 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
     // o recorte do key é reduzido (máx. 1920): o corte usa as medidas reais do canvas dele
     return { ...src, img: s.keyer.canvas, iw: s.keyer.canvas.width, ih: s.keyer.canvas.height };
   }
+  // área final da camada depois do zoom/pan do DSK (independente do recorte da fonte)
+  function layerRect(g, r) {
+    const z = clamp(Number.isFinite(+g.zoom) ? +g.zoom : 1, 0.1, 3);
+    const px = Number.isFinite(+g.x) ? +g.x : 0;
+    const py = Number.isFinite(+g.y) ? +g.y : 0;
+    return {
+      x: r.x + (r.w * (1 - z)) / 2 + px * (r.w / 2),
+      y: r.y + (r.h * (1 - z)) / 2 + py * (r.h / 2),
+      w: r.w * z,
+      h: r.h * z,
+    };
+  }
   // onde a parte não cortada da fonte vai parar dentro da área (x,y,w,h) do DSK
   function placeCropped(cfg, src, x, y, w, h) {
     const c = cfg.crop || { l: 0, t: 0, r: 0, b: 0, fill: false };
     // página web estica na área (ela foi aberta no tamanho dela); no vertical (fit) encaixa sem deformar
     const stretch = src.stretch && !cfg.fit;
+    const fit = src.fit === 'cover' ? 'cover' : 'contain';
     const fw = 1 - c.l - c.r;
     const fh = 1 - c.t - c.b;
     if (c.fill) {
@@ -510,7 +543,7 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
     let iw = w;
     let ih = h;
     if (!stretch) {
-      const sc = Math.min(w / src.w, h / src.h);
+      const sc = fit === 'cover' ? Math.max(w / src.w, h / src.h) : Math.min(w / src.w, h / src.h);
       iw = src.w * sc;
       ih = src.h * sc;
       fx = x + (w - iw) / 2;
@@ -523,7 +556,7 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
     let src = sourceImage(i, cfg, view);
     if (!src) return;
     if (cfg.blend === 'luma' || cfg.blend === 'chroma') src = keyed(i, cfg, src, now);
-    const r = cfg.rect;
+    const r = layerRect(cfg, cfg.rect);
     const g = placeCropped(cfg, src, r.x * W, r.y * H, r.w * W, r.h * H);
     if (g.dw < 0.5 || g.dh < 0.5) return;
     const iw = src.iw ?? src.w;
@@ -730,6 +763,24 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
                           <button class="btn sm" id="dsk-reload" ${c.url ? '' : 'disabled'} title="Recarregar a página">⟳</button></div></label>
                         <label class="dsk-chk"><input type="checkbox" id="dsk-opaque" ${c.opaque ? 'checked' : ''}> Página opaca (vídeo/YouTube): imagem mais leve, sem transparência</label>
                         <div class="dsk-row2">
+                          <label class="field"><span>Página</span><select class="input" id="dsk-page-mode">
+                            <option value="fixed" ${c.page.mode === 'fixed' ? 'selected' : ''}>Tamanho fixo (não reflui)</option>
+                            <option value="area" ${c.page.mode === 'area' ? 'selected' : ''}>Área do DSK (legado)</option>
+                          </select></label>
+                          ${c.page.mode === 'fixed'
+                            ? `<label class="field"><span>Tamanho fixo</span><select class="input" id="dsk-page-size">
+                                ${[[1280, 720], [1920, 1080], [1024, 576]].map(([w, h]) => `<option value="${w}x${h}" ${c.page.width === w && c.page.height === h ? 'selected' : ''}>${w}×${h}</option>`).join('')}
+                              </select></label>`
+                            : ''}
+                        </div>
+                        ${c.page.mode === 'fixed'
+                          ? `<div class="dsk-row2"><label class="field"><span>Encaixe na área</span><select class="input" id="dsk-page-fit">
+                              <option value="cover" ${c.page.fit === 'cover' ? 'selected' : ''}>Preencher (corta bordas)</option>
+                              <option value="contain" ${c.page.fit === 'contain' ? 'selected' : ''}>Conter (página inteira)</option>
+                            </select></label></div>
+                            <p class="hint" style="margin:-2px 0 8px">A página mantém o layout fixo; mudar a área, o zoom ou a posição não a faz refluir.</p>`
+                          : `<p class="hint" style="margin:-2px 0 8px">Modo antigo: a página é aberta no tamanho da área e reflui ao redimensionar.</p>`}
+                        <div class="dsk-row2">
                           <label class="field"><span>Quadros/s</span><select class="input" id="dsk-fps">${[15, 20, 30, 60].map((v) => `<option value="${v}" ${c.fps === v ? 'selected' : ''}>${v} qps</option>`).join('')}</select></label>
                           ${c.opaque ? `<label class="field"><span>Qualidade JPEG</span><select class="input" id="dsk-quality">${[60, 70, 80, 85, 95].map((v) => `<option value="${v}" ${c.quality === v ? 'selected' : ''}>${v}%</option>`).join('')}</select></label>` : ''}
                         </div>
@@ -783,6 +834,11 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
                     }
                     <div class="dsk-geo-body ${fmt === 'v' && !c.vert.on ? 'dim' : ''}">
                   <label class="field"><span>Posição${fmt === 'v' ? ' no vertical' : ''}</span><select class="input" id="dsk-pos">${posOpts}</select></label>
+                  <div class="dsk-sub dsk-rect">
+                    ${sl('dsk-zoom', 'Zoom da camada %', Math.round(g.zoom * 100), 10, 300, 1)}
+                    ${sl('dsk-px', 'Pan X %', Math.round(g.x * 100), -100, 100, 1)}
+                    ${sl('dsk-py', 'Pan Y %', Math.round(g.y * 100), -100, 100, 1)}
+                  </div>
                   ${
                     g.pos === 'custom'
                       ? `<div class="dsk-sub dsk-rect">${sl('dsk-x', 'X %', Math.round(g.rect.x * 100), 0, 95, 1)}${sl('dsk-y', 'Y %', Math.round(g.rect.y * 100), 0, 95, 1)}${sl('dsk-w', 'Largura %', Math.round(g.rect.w * 100), 5, 100, 1)}${sl('dsk-h', 'Altura %', Math.round(g.rect.h * 100), 5, 100, 1)}</div>`
@@ -902,7 +958,7 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
             const cfg = drawCfg(cfgs()[tab]);
             const src = sourceImage(tab, cfg, comp);
             if (!src) return null;
-            const r = cfg.rect;
+            const r = layerRect(cfg, cfg.rect);
             const W = pv.width;
             const H = pv.height;
             const g = placeCropped({ ...cfg, crop: { l: 0, t: 0, r: 0, b: 0 } }, src, r.x * W, r.y * H, r.w * W, r.h * H);
@@ -992,7 +1048,7 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
             const src = sourceImage(tab, cfg, comp);
             if (!src) return null;
             const p = canvasPt(e);
-            const r = cfg.rect;
+            const r = layerRect(cfg, cfg.rect);
             const g = placeCropped(cfg, src, r.x * pv.width, r.y * pv.height, r.w * pv.width, r.h * pv.height);
             if (g.dw < 1 || g.dh < 1) return null;
             const fu = (p.x - g.dx) / g.dw;
@@ -1249,6 +1305,21 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
             const key = $('#dsk-key', body);
             if (key) key.oninput = () => set({ chroma: { ...c().chroma, color: key.value } });
             $('#dsk-fade', body).onchange = (e) => set({ fadeMs: +e.target.value });
+            const pageMode = $('#dsk-page-mode', body);
+            if (pageMode)
+              pageMode.onchange = () => {
+                set({ page: { ...c().page, mode: pageMode.value } }, { resync: true });
+                render();
+              };
+            const pageSize = $('#dsk-page-size', body);
+            if (pageSize)
+              pageSize.onchange = () => {
+                const [width, height] = pageSize.value.split('x').map(Number);
+                set({ page: { ...c().page, width, height } }, { resync: true });
+                render();
+              };
+            const pageFit = $('#dsk-page-fit', body);
+            if (pageFit) pageFit.onchange = () => set({ page: { ...c().page, fit: pageFit.value } });
             $('#dsk-pos', body).onchange = (e) => {
               const pos = e.target.value;
               putG({ pos, rect: pos === 'custom' ? { ...G().rect } : { ...POS[pos][1] } });
@@ -1261,6 +1332,11 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
               num('dsk-' + k, (v) => putG({ rect: { ...G().rect, [k]: v / 100 } }));
               const el = $('#dsk-' + k, body);
               if (el) el.onchange = () => save(tab, { resync: fmt === 'h' });
+            }
+            for (const [id, key] of [['dsk-zoom', 'zoom'], ['dsk-px', 'x'], ['dsk-py', 'y']]) {
+              num(id, (v) => putG({ [key]: v / 100 }));
+              const el = $('#' + id, body);
+              if (el) el.onchange = () => save(tab);
             }
             $('#dsk-air', body).onclick = () => (toggle(tab), render());
             $('#dsk-interact', body).onclick = () => setInteract(!interact);
@@ -1314,7 +1390,7 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
             if (vcopy)
               vcopy.onclick = () => {
                 const h = c();
-                S.brand.dsk[tab] = normCfg({ ...h, vert: { ...h.vert, pos: h.pos, rect: { ...h.rect }, crop: { ...h.crop } } });
+                S.brand.dsk[tab] = normCfg({ ...h, vert: { ...h.vert, pos: h.pos, rect: { ...h.rect }, zoom: h.zoom, x: h.x, y: h.y, crop: { ...h.crop } } });
                 save(tab);
                 render();
               };
@@ -1344,7 +1420,7 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
               pctx.fillRect(x, y, sq, sq);
             }
             const cfg = drawCfg(cfgs()[tab]);
-            const r = cfg.rect;
+            const r = layerRect(cfg, cfg.rect);
             pctx.strokeStyle = 'rgba(255,255,255,.35)';
             pctx.setLineDash([4, 4]);
             pctx.strokeRect(r.x * W + 0.5, r.y * H + 0.5, r.w * W - 1, r.h * H - 1);

@@ -22,6 +22,8 @@
 @import './modules/formats.css';
 @import './modules/widgets.css';
 @import './modules/audio.css';
+@import './modules/music.css';
+@import './modules/restore.css';
 @import './modules/features.css';
 @import './modules/social.css';
 @import './modules/onair.css';

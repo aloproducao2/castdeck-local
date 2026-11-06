@@ -147,7 +147,7 @@ incorporar o código em produto fechado. Componentes de terceiros mantêm suas l
 
 ## Status
 
-Versão **1.3.32** — Câmera remota com QR central, 1080p/720p e bitrate alto, além de autoplay e um vídeo por vez. Veja os
+Versão **1.3.38** — enquadramento de fontes com zoom de 10–300%, zoom/pan/corte de camadas DSK e viewport fixo de página, ajustes refletidos nas miniaturas e painel de trilha sonora. Veja os
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Feito por **Miguel Kallemback / flue.live**, de brasileiros para o mundo. 🌎

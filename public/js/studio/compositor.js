@@ -44,7 +44,7 @@ export function normalizeAdjust(a = {}) {
   if (t + b > 0.9) { const k = 0.9 / (t + b); t *= k; b *= k; }
   return {
     fit: a.fit === 'contain' ? 'contain' : 'cover',
-    zoom: num(a.zoom, 1, 3, 1),
+    zoom: num(a.zoom, 0.1, 3, 1),
     x: num(a.x, -1, 1, 0),
     y: num(a.y, -1, 1, 0),
     crop: { l, r, t, b },

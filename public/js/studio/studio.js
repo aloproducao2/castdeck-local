@@ -10,6 +10,7 @@ import { createJournal, newsPayload } from './journal.js';
 import { createGcDesigner } from './gc-designer.js';
 import { AudioMixer } from './mixer.js';
 import { createAudioPanel } from './audio-ui.js';
+import { createMusic } from './music.js';
 import { VideoFx, FX_BACKGROUNDS } from './vfx.js';
 import { Broadcaster } from './broadcaster.js';
 import { createOnAir } from './onair.js';
@@ -118,6 +119,7 @@ try {
 } catch {}
 let replayEngine; // motor sob demanda de Replay & VAR (buffer circular em RAM e playout)
 let captions; // legenda ao vivo (aba Legendas): na tela (PGM) e por link /cc
+let music; // trilha sonora ambiente (aba Trilha), independente do Playout
 const tileEls = new Map();
 
 // Menu do painel lateral: grupos em ordem de uso durante a live (o que vai para a tela → visual → público → som → ajustes).
@@ -170,7 +172,7 @@ const TAB_GROUPS = [
     ],
   },
   { id: 'director', label: 'Diretor', icon: 'auto', hint: 'Diretor automático: corta ou destaca quem fala e abaixa a música quando alguém fala', tabs: [['director', 'Diretor', 'auto', 'Corte automático e áudio inteligente']] },
-  { id: 'audio', label: 'Áudio', icon: 'mixer', hint: 'Mixer e intercom de produção', tabs: [['audio', 'Mixer', 'mixer', 'Volume de cada fonte'], ['intercom', 'Intercom', 'mic', 'Intercom do diretor com câmeras e repórteres']] },
+  { id: 'audio', label: 'Áudio', icon: 'mixer', hint: 'Mixer, trilha sonora e intercom de produção', tabs: [['audio', 'Mixer', 'mixer', 'Volume de cada fonte'], ['music', 'Trilha', 'music', 'Trilha sonora ambiente: lista de áudios, loop e volume'], ['intercom', 'Intercom', 'mic', 'Intercom do diretor com câmeras e repórteres']] },
   { id: 'captions', label: 'Legendas', icon: 'cc', hint: 'Legenda ao vivo da fala: na tela (PGM) e por link, com tradução opcional', tabs: [['captions', 'Legendas', 'cc', 'Legenda ao vivo: na tela e por link']] },
   { id: 'outputs', label: 'Sinais', icon: 'signal', hint: 'Sinais para OBS/vMix: programa horizontal, vertical e cada pessoa, com qualidade ajustável', tabs: [['outputs', 'Sinais', 'signal', 'Sinais separados para OBS e vMix: programa horizontal, vertical e cada pessoa']] },
   {
@@ -274,6 +276,42 @@ async function boot() {
 // =====================================================================
 // Layout da página
 // =====================================================================
+let restoreStatusTimer = 0;
+function showRestoreStatus(detail = 'Reabrindo câmeras e mídias salvas.', count = '') {
+  const el = $('#restore-banner');
+  if (!el) return;
+  clearTimeout(restoreStatusTimer);
+  el.hidden = false;
+  el.dataset.state = 'loading';
+  const t = $('#restore-title');
+  if (t) t.textContent = 'Restaurando sessão…';
+  const d = $('#restore-detail');
+  if (d) d.textContent = detail;
+  const c = $('#restore-count');
+  if (c) c.textContent = count;
+}
+
+function updateRestoreStatus(p) {
+  if (!p?.total) return;
+  showRestoreStatus(p.label || 'Restaurando câmeras e mídias…', `${p.done || 0}/${p.total}`);
+}
+
+function finishRestoreStatus(ok = true, detail = '') {
+  const el = $('#restore-banner');
+  if (!el || el.hidden) return;
+  clearTimeout(restoreStatusTimer);
+  el.dataset.state = ok ? 'done' : 'error';
+  const t = $('#restore-title');
+  if (t) t.textContent = ok ? 'Sessão restaurada' : 'Restauração incompleta';
+  const d = $('#restore-detail');
+  if (d) d.textContent = detail || (ok ? 'Câmeras, mídias e palco estão prontos.' : 'Alguns itens não puderam ser restaurados.');
+  const c = $('#restore-count');
+  if (c) c.textContent = ok ? 'OK' : '!';
+  restoreStatusTimer = setTimeout(() => {
+    el.hidden = true;
+  }, ok ? 1800 : 5000);
+}
+
 async function buildStudio() {
   if (IS_MOBILE || S.system.platform === 'android') {
     document.body.classList.add('is-mobile');
@@ -281,6 +319,11 @@ async function buildStudio() {
   }
   app.innerHTML = `
   <div class="studio ${IS_MOBILE || S.system.platform === 'android' ? 'is-mobile' : ''} ${S.system.platform === 'android' ? 'platform-android' : ''}">
+    <div class="restore-banner" id="restore-banner" role="status" aria-live="polite" hidden>
+      <span class="restore-spinner" aria-hidden="true"></span>
+      <div class="restore-copy"><b id="restore-title">Restaurando sessão…</b><small id="restore-detail">Reabrindo câmeras e mídias salvas.</small></div>
+      <span class="restore-count" id="restore-count"></span>
+    </div>
     <header class="topbar">
       <div class="brand"><span class="brand-mark">${icons.logo}</span><span class="brand-txt">CastDeck <small>Local</small></span></div>
       <div>
@@ -380,6 +423,7 @@ async function buildStudio() {
       <div class="panel" id="panel-chat"></div>
       <div class="panel" id="panel-social"></div>
       <div class="panel" id="panel-audio"></div>
+      <div class="panel" id="panel-music"></div>
       <div class="panel" id="panel-intercom"></div>
       <div class="panel" id="panel-captions"></div>
       <div class="panel" id="panel-director"></div>
@@ -498,6 +542,12 @@ async function buildStudio() {
     startScreen: (mode) => startScreen(mode),
   });
   await mixer.resume();
+  music = createMusic({ studioId, mixer });
+  music.restore().catch((e) => console.warn('[trilha]', e));
+  // Se o volume/mudo for alterado no fader do Mixer, a aba Trilha acompanha.
+  mixer.onChange = (id) => {
+    if (id === 'music:ambient') music?.syncFromMixer?.();
+  };
   // legenda ao vivo: precisa do mixer (captionBus) e do compositor (camada no PGM); desktop apenas
   if (S.system.platform !== 'android') {
     captions = createCaptions({ S, comp, getMixer: () => mixer, $, esc, toast, icons, api, studioId, copyText, saveStudio, qrSvg, onAudioUi: () => tabOpen('audio') && renderAudioPanel() });
@@ -565,6 +615,7 @@ async function buildStudio() {
     S,
     comp,
     mixer,
+    music,
     applySpeakerMode: (safe) => applySpeakerMode(safe),
     social,
     vview,
@@ -819,6 +870,7 @@ async function buildStudio() {
     S, studioId, api, $, $$, esc, toast, modal, fmtBytes, listDevices, getCamera, getMic,
     mixer: () => mixer, addVideoSource, removeSource, setStage, setSolo, addMediaFile, applyName,
     toggleBanner, stopScreen, renderMediaPanel, renderAudioPanel,
+    onRestoreProgress: (p) => updateRestoreStatus(p),
   });
   window.__castdeck.extras = extras;
   ingest = createIngest({
@@ -828,7 +880,15 @@ async function buildStudio() {
   window.__castdeck.ingest = ingest;
   connectSignaling();
   setInterval(uiTick, 100);
-  extras.restore().then(() => ytResume()).catch((e) => toast('Não foi possível restaurar a sessão: ' + e.message, 'err'));
+  extras.restore()
+    .then((n) => {
+      finishRestoreStatus(true, n ? `${n} ${n === 1 ? 'item restaurado' : 'itens restaurados'}.` : '');
+      ytResume();
+    })
+    .catch((e) => {
+      finishRestoreStatus(false, e.message);
+      toast('Não foi possível restaurar a sessão: ' + e.message, 'err');
+    });
   ingest.restore().catch(() => {});
 
   window.addEventListener('beforeunload', (e) => {
@@ -1781,7 +1841,12 @@ function uiTick() {
           ctx.fillStyle = '#000';
           ctx.fillRect(0, 0, 320, 180);
           const fx = !contain && !isImg ? vfx?.frame(id, v) : null;
-          if (fx) drawFxThumb(ctx, fx);
+          if (s.adjust) {
+            const srcEl = fx?.img || v;
+            const sw = fx?.w || vw;
+            const sh = fx?.h || vh;
+            drawFramed(ctx, srcEl, 0, 0, 320, 180, sw, sh, s.adjust);
+          } else if (fx) drawFxThumb(ctx, fx);
           else {
             const sc = contain ? Math.min(320 / vw, 180 / vh) : Math.max(320 / vw, 180 / vh);
             const dw = vw * sc;
@@ -1994,7 +2059,7 @@ async function openSourceAdjust(id) {
           <div class="srcadj-group">
             <div class="srcadj-group-head"><span>02</span><div><b>Movimento</b><small>Zoom e posição da imagem</small></div></div>
             <div class="srcadj-grid">
-              <label class="srcadj-range"><span>Zoom <b id="sa-zoom-v"></b></span><input type="range" id="sa-zoom" min="100" max="300" step="1"></label>
+              <label class="srcadj-range"><span>Zoom <b id="sa-zoom-v"></b></span><input type="range" id="sa-zoom" min="10" max="300" step="1"></label>
               <label class="srcadj-range"><span>Posição X <b id="sa-x-v"></b></span><input type="range" id="sa-x" min="-100" max="100" step="1"></label>
               <label class="srcadj-range"><span>Posição Y <b id="sa-y-v"></b></span><input type="range" id="sa-y" min="-100" max="100" step="1"></label>
             </div>
@@ -4250,7 +4315,7 @@ function tabOpen(t) {
   return S.tab === t || !!floatWins?.has(t);
 }
 function renderTabContent(tab) {
-  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, outputs: () => outputs.open(), intercom: renderIntercomPanel })[tab]?.();
+  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, music: renderMusicPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, outputs: () => outputs.open(), intercom: renderIntercomPanel })[tab]?.();
 }
 
 // marca nas abas da lateral quais estão destacadas e cuida do botão ⧉
@@ -5831,6 +5896,10 @@ function renderIntercomPanel() {
     const sent = mixer.intercomTestTone?.();
     toast(sent ? 'Tom enviado para o retorno de quem está no intercom.' : 'Nenhum participante para testar o retorno.', sent ? 'info' : 'err');
   };
+}
+
+function renderMusicPanel() {
+  music?.render($('#panel-music'));
 }
 
 function renderAudioPanel() {

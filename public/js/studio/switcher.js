@@ -9,7 +9,7 @@
 //  - O palco continua valendo para o áudio: cortar para outra câmera não silencia quem está falando no palco.
 //  - Tally: câmeras remotas (celular pelo QR) recebem 'tally' para acender a borda vermelha/verde.
 //  - Cores como em qualquer mesa broadcast: vermelho = no ar, verde = prévia.
-import { PreviewView } from './compositor.js';
+import { PreviewView, drawFramed } from './compositor.js';
 import { icons } from '../ui.js';
 
 const SCENE = '__scene__';
@@ -452,9 +452,13 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
     const vw = img ? el?.naturalWidth : el?.videoWidth;
     const vh = img ? el?.naturalHeight : el?.videoHeight;
     if (el && vw > 0 && (img || el.readyState >= 2) && !s.camOff) {
-      const contain = s.kind !== 'camera';
-      const sc = contain ? Math.min(W / vw, H / vh) : Math.max(W / vw, H / vh);
-      x.drawImage(el, (W - vw * sc) / 2, (H - vh * sc) / 2, vw * sc, vh * sc);
+      if (s.adjust) {
+        drawFramed(x, el, 0, 0, W, H, vw, vh, s.adjust);
+      } else {
+        const contain = s.kind !== 'camera';
+        const sc = contain ? Math.min(W / vw, H / vh) : Math.max(W / vw, H / vh);
+        x.drawImage(el, (W - vw * sc) / 2, (H - vh * sc) / 2, vw * sc, vh * sc);
+      }
     } else {
       x.fillStyle = '#7d7d92';
       x.font = '600 13px Inter, sans-serif';

@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **1.3.36** — vídeo de fondo independiente del Playout y de las miniaturas, fondos de escenario con GIF animado y vídeo de fondo restaurado en la próxima sesión. Consulta los
+Versión **1.3.38** — encuadre de fuentes con zoom de 10–300%, zoom/pan/corte de capas DSK y viewport fijo de página, ajustes reflejados en miniaturas y panel de música ambiente. Consulta los
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

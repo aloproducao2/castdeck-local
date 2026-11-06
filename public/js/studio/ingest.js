@@ -6,7 +6,7 @@
 // H.264/Opus. Aqui o estúdio só "assiste" por WHEP (WebRTC recvonly, tudo em 127.0.0.1): a fonte entra como
 // uma câmera comum, com o áudio no mixer (só vai ao ar quando ela está no palco, como as câmeras extras).
 
-const POLL_MS = 2000;
+const POLL_MS = 750;
 
 export function createIngest(ctx) {
   const { S, studioId, api, $, esc, toast, modal, copyText, qrSvg, addVideoSource, removeSource, mixer, renderAudioPanel } = ctx;
@@ -46,6 +46,7 @@ export function createIngest(ctx) {
     c.pc = null;
     c.play = null;
     c.stream = null;
+    c.audioTrack = null;
     mixer()?.remove(sid(key) + ':audio');
     // a miniatura fica nos bastidores como "sem sinal": se o drone voltar, a imagem volta sozinha
     if (keepSource && S.sources.has(sid(key))) addVideoSource(sid(key), null, { camOff: true, ingestLive: false });
@@ -75,9 +76,30 @@ export function createIngest(ctx) {
       pc.addTransceiver('video', { direction: 'recvonly' });
       pc.addTransceiver('audio', { direction: 'recvonly' });
       const stream = new MediaStream();
-      pc.ontrack = (e) => stream.addTrack(e.track);
+      c.stream = stream;
+      const isNdi = /^NDI\b/i.test(si.name || '');
+      // O ontrack de áudio pode chegar depois do setRemoteDescription; não basta ler
+      // stream.getAudioTracks()[0] imediatamente, senão a fonte NDI fica sem canal no Mixer.
+      const syncAudio = () => {
+        if (conns.get(key) !== c || c.stream !== stream) return;
+        const at = stream.getAudioTracks()[0];
+        if (!at || c.audioTrack === at) return;
+        c.audioTrack = at;
+        // NDI é retorno de monitor por padrão: o operador ouve a fonte no FONE
+        // antes/junto de colocá-la no palco, como nas câmeras locais.
+        mixer()?.addStream(sid(key) + ':audio', new MediaStream([at]), { ownerId: 'host', stageKey: sid(key), monitor: isNdi });
+        if (S.tab === 'audio') renderAudioPanel?.();
+      };
+      pc.ontrack = (e) => {
+        stream.addTrack(e.track);
+        if (e.track.kind === 'audio') {
+          e.track.onunmute = () => syncAudio();
+          e.track.onended = () => { c.audioTrack = null; mixer()?.remove(sid(key) + ':audio'); };
+          syncAudio();
+        }
+      };
       await pc.setLocalDescription(await pc.createOffer());
-      await waitIce(pc, 1500);
+      await waitIce(pc, 700);
       const r = await fetch(`/api/ingest/whep/${encodeURIComponent(key)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/sdp' },
@@ -113,10 +135,7 @@ export function createIngest(ctx) {
         }
       }, 8000);
       if (pc.connectionState === 'connected') live();
-      const at = stream.getAudioTracks()[0];
-      mixer()?.remove(sid(key) + ':audio');
-      if (at) mixer()?.addStream(sid(key) + ':audio', new MediaStream([at]), { ownerId: 'host', stageKey: sid(key), monitor: false });
-      if (S.tab === 'audio') renderAudioPanel?.();
+      syncAudio();
       c.retryAt = 0;
     } catch (e) {
       try {
@@ -158,15 +177,18 @@ export function createIngest(ctx) {
   }
 
   // ---------- bastidores ----------
-  function addToStudio(key, { silent = false } = {}) {
+  async function addToStudio(key, { silent = false } = {}) {
+    // A fonte pode ter sido criada agora pelo painel NDI e ainda não estar no snapshot de /api/ingest.
+    if (!srcInfo(key)) await refresh();
     const si = srcInfo(key);
-    if (!si) return;
+    if (!si) return false;
     if (!conns.has(key)) conns.set(key, { pc: null, stream: null, play: null, busy: false, retryAt: 0 });
     if (!S.sources.has(sid(key))) addVideoSource(sid(key), null, { kind: 'camera', label: si.name, ownerId: 'host', ingest: true, ingestKey: key, camOff: true, ingestLive: false });
     persist();
     connect(key);
     startPoll();
     if (!silent) toast(`“${si.name}” nos bastidores${si.live ? '' : ' — aguardando o sinal'}`, 'ok');
+    return true;
   }
 
   // chamado por removeSource() do estúdio (lixeira da miniatura, reset da cena…)

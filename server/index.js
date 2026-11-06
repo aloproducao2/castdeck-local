@@ -31,6 +31,7 @@ import { Updater } from './updater.js';
 import { WhatsAppService } from './whatsapp.js';
 import { Ytdlp } from './ytdlp.js';
 import { DskHost } from './dsk.js';
+import { NdiOutputServer, NdiSourceServer } from './ndi.js';
 import { SocialScraper } from './social-scraper.js';
 import { ReplayStore } from './replay.js';
 import { CaptionService } from './caption.js';
@@ -69,6 +70,7 @@ function isLocalReq(req) {
 
 // ---------- bootstrap ----------
 const store = new Store(DATA);
+const ndiEnabled = () => store.getSettings().ndiEnabled === true;
 // pasta das gravações: escolhida pelo usuário (Sistema → Pasta das gravações) ou a padrão
 const recDir = () => store.getSettings().recordingsDir || DEFAULT_RECORDINGS;
 await store.load();
@@ -110,10 +112,12 @@ if (!(await detectFfmpeg())) {
 
 const hub = new SignalingHub({ studioExists: (id) => !!store.getStudio(id), outKey: (id) => store.studioOutKey(id) });
 const broadcasts = new BroadcastManager({ ffmpegInfo, recordingsDir: recDir, store });
+const ndiOutput = new NdiOutputServer({ root: ROOT, ffmpegPath: ffmpegInfo.path, binDir: BIN });
 const pollHub = new PollHub();
 const msgHub = new MsgHub();
 // entradas RTMP/SRT (drones e câmeras da rede local) pelo MediaMTX embutido
 const ingest = new Ingest({ deps, store, ffmpegInfo, dataDir: DATA, lanIps });
+const ndiSource = new NdiSourceServer({ root: ROOT, ffmpegPath: ffmpegInfo.path, ingest, binDir: BIN });
 const whatsapp = new WhatsAppService({ dataDir: DATA });
 await whatsapp.init();
 // nome da plataforma no releases.json do site (verificação/instalação de atualizações)
@@ -342,6 +346,48 @@ api.get('/caption/link/:id', (req, res) => {
 const dsk = new DskHost({ dataDir: DATA });
 const dskKey = (k) => String(k || '').replace(/[^\w.-]/g, '').slice(0, 80);
 api.get('/dsk', (req, res) => res.set('Cache-Control', 'no-store').json(dsk.info()));
+const ndiLocalOnly = (req, res, next) => (isLocalReq(req) ? next() : res.status(403).json({ error: 'NDI é exclusivo deste PC.' }));
+api.get('/ndi/status', ndiLocalOnly, (req, res) => {
+  ndiOutput.ffmpegPath = ffmpegInfo.path || 'ffmpeg';
+  res.set('Cache-Control', 'no-store').json({ enabled: ndiEnabled(), ...ndiOutput.status(), source: ndiSource.status() });
+});
+api.post('/ndi/enabled', ndiLocalOnly, (req, res) => {
+  const on = req.body?.on === true;
+  console.log(`[ndi] subsistema ${on ? 'ativado' : 'desativado'} por ${req.ip || 'local'}`);
+  store.updateSettings({ ndiEnabled: on });
+  if (!on) {
+    try { ndiOutput.stopAll(); } catch {}
+    try { ndiSource.stopAll(); } catch {}
+  }
+  res.json({ enabled: on, output: ndiOutput.status(), source: ndiSource.status() });
+});
+api.get('/ndi/sources', ndiLocalOnly, async (req, res) => {
+  if (!ndiEnabled()) return res.set('Cache-Control', 'no-store').json({ enabled: false, sources: [], active: [] });
+  try {
+    ndiSource.ffmpegPath = ffmpegInfo.path || 'ffmpeg';
+    const sources = await ndiSource.listSources();
+    res.set('Cache-Control', 'no-store').json({ enabled: true, sources, active: ndiSource.active() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+api.post('/ndi/sources', ndiLocalOnly, async (req, res) => {
+  if (!ndiEnabled()) return res.status(409).json({ error: 'Ative o NDI antes de adicionar fontes.' });
+  try {
+    const name = String(req.body?.name || '').trim();
+    const url = String(req.body?.url || '').trim();
+    if (!name) return res.status(400).json({ error: 'Nome da fonte NDI ausente.' });
+    ndiSource.ffmpegPath = ffmpegInfo.path || 'ffmpeg';
+    const src = await ndiSource.start(name, url);
+    res.json(src);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+api.delete('/ndi/sources/:key', ndiLocalOnly, (req, res) => {
+  const ok = ndiSource.stop(req.params.key);
+  res.status(ok ? 200 : 404).json({ ok });
+});
 api.put('/dsk/:key', async (req, res) => {
   try {
     const b = req.body || {};
@@ -1182,6 +1228,7 @@ const wssDsk = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024, perM
 const wssSocial = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
 // áudio da legenda: PCM 16 kHz mono em blocos pequenos (~100 ms = 3,2 KB); sem deflate
 const wssCaption = new WebSocketServer({ noServer: true, maxPayload: 256 * 1024, perMessageDeflate: false });
+const wssNdi = new WebSocketServer({ noServer: true, maxPayload: 32 * 1024 * 1024, perMessageDeflate: false });
 
 function attachUpgrade(server) {
   server.on('upgrade', (req, socket, head) => {
@@ -1197,6 +1244,13 @@ function attachUpgrade(server) {
       wssSocial.handleUpgrade(req, socket, head, (ws) => socialScraper.handleClient(ws));
     } else if (pathname === '/caption' && local) {
       wssCaption.handleUpgrade(req, socket, head, (ws) => caption.handleStudio(ws));
+    } else if (pathname === '/ndi/output' && local) {
+      ndiOutput.ffmpegPath = ffmpegInfo.path || 'ffmpeg';
+      if (!ndiEnabled()) {
+        socket.destroy();
+        return;
+      }
+      wssNdi.handleUpgrade(req, socket, head, (ws) => ndiOutput.attach(ws));
     } else {
       socket.destroy();
     }
@@ -1249,6 +1303,8 @@ const shutdown = () => {
   console.log('\n[shutdown] encerrando…');
   broadcasts.stopAll();
   tunnel.stop();
+  try { ndiOutput.stopAll(); } catch {}
+  try { ndiSource.stopAll(); } catch {}
   // MediaMTX e conversões rodam como processos filhos: sem isso ficariam órfãos segurando as portas 1935/8890
   try { ingest.stop(); } catch {}
   // o navegador sem janela do DSK também é filho: fecha junto

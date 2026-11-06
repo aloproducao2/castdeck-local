@@ -133,6 +133,17 @@ for (const key of list) {
   // a licença MIT do MediaMTX exige o aviso junto do binário redistribuído
   const mtxLic = path.join('build', 'assets', 'licenses', 'mediamtx-LICENSE.txt');
   if (fs.existsSync(mtxLic)) fs.copyFileSync(mtxLic, path.join(vdir, 'mediamtx-LICENSE.txt'));
+  // bridge NDI (Rust) do próprio PC; o runtime NDI não é redistribuído — o usuário instala o NDI Runtime.
+  if (key.startsWith('win-') && key === host) {
+    const ndiSrc = path.resolve('native', 'ndi-bridge', 'target', 'release', 'castdeck-ndi.exe');
+    if (fs.existsSync(ndiSrc)) {
+      fs.copyFileSync(ndiSrc, path.join(vdir, 'castdeck-ndi.exe'));
+      fs.copyFileSync(ndiSrc, path.join('dist', 'castdeck-ndi.exe'));
+      console.log(`  castdeck-ndi: ${(fs.statSync(ndiSrc).size / 1024).toFixed(0)} KB`);
+    } else {
+      console.warn('  ⚠ castdeck-ndi não compilado: compile native/ndi-bridge antes do build.');
+    }
+  }
   // worker da legenda ao vivo (Rust + whisper.cpp): compilado aqui mesmo, só para o sistema deste PC
   // (sem compilação cruzada por enquanto). Se falhar, o app sai sem a legenda em vez de quebrar o build.
   if (key === host) {

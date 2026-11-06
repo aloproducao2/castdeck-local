@@ -97,6 +97,12 @@ export function createAudioPanel({
     const rows = [{ id: 'host:mic', name: `${S.local.name}`, tag: 'MIC' }];
     if (mixer.sources.has('music:ambient')) rows.push({ id: 'music:ambient', name: 'Trilha', tag: 'TRILHA', ambient: true });
     for (const s of S.sources.values()) {
+      // Entradas RTMP/SRT/NDI: o áudio é uma faixa separada do vídeo; entra no Mixer
+      // assim que a faixa WebRTC chega, mesmo que a miniatura ainda esteja nos bastidores.
+      if (s.ingest && s.ownerId === 'host') {
+        const tag = /^NDI\b/i.test(s.label || '') ? 'NDI' : 'ENTRADA';
+        rows.push({ id: s.id + ':audio', name: s.label, tag });
+      }
       if (s.ownerId !== 'host' && s.kind === 'camera') rows.push({ id: s.id + ':audio', name: s.label, tag: S.guests.get(s.ownerId)?.cohost ? 'CO-HOST' : 'CONV' });
       if (s.extraCam) rows.push({ id: s.id + ':audio', name: s.label, tag: 'CAM' });
       if (s.kind === 'screen') {

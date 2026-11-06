@@ -1,0 +1,17 @@
+[package]
+name = "castdeck-ndi"
+version = "0.1.0"
+edition = "2021"
+description = "NDI bridge experimental e de alta performance do CastDeck"
+license = "AGPL-3.0-only"
+publish = false
+
+[[bin]]
+name = "castdeck-ndi"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"

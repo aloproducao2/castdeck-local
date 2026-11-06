@@ -8,7 +8,7 @@ import fss from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-const DEFAULT_DB = { studios: [], destinations: [], settings: { autoTunnel: true, tunnelProvider: 'cloudflare', turn: { urls: '', username: '', credential: '' } } };
+const DEFAULT_DB = { studios: [], destinations: [], settings: { autoTunnel: true, tunnelProvider: 'cloudflare', turn: { urls: '', username: '', credential: '' }, ndiEnabled: false } };
 const BACKUP_EVERY = 5 * 60 * 1000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -140,6 +140,7 @@ export class Store {
   }
   updateSettings(patch) {
     const s = this.data.settings;
+    if (typeof patch.ndiEnabled === 'boolean') s.ndiEnabled = patch.ndiEnabled;
     if (typeof patch.autoTunnel === 'boolean') s.autoTunnel = patch.autoTunnel;
     if (['auto', 'localhostrun', 'cloudflare'].includes(patch.tunnelProvider)) s.tunnelProvider = patch.tunnelProvider;
     if (['app', 'browser', 'none'].includes(patch.openMode)) s.openMode = patch.openMode;

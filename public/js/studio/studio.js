@@ -11,6 +11,7 @@ import { createGcDesigner } from './gc-designer.js';
 import { AudioMixer } from './mixer.js';
 import { createAudioPanel } from './audio-ui.js';
 import { createMusic } from './music.js';
+import { createNdiOutput } from './ndi.js';
 import { VideoFx, FX_BACKGROUNDS } from './vfx.js';
 import { Broadcaster } from './broadcaster.js';
 import { createOnAir } from './onair.js';
@@ -120,6 +121,10 @@ try {
 let replayEngine; // motor sob demanda de Replay & VAR (buffer circular em RAM e playout)
 let captions; // legenda ao vivo (aba Legendas): na tela (PGM) e por link /cc
 let music; // trilha sonora ambiente (aba Trilha), independente do Playout
+let ndiOut; // saída NDI do programa (aba NDI)
+let ndiEnabled = false; // liga/desliga o subsistema NDI (economiza recursos)
+let ndiState = 'off';
+let ndiDetail = '';
 const tileEls = new Map();
 
 // Menu do painel lateral: grupos em ordem de uso durante a live (o que vai para a tela → visual → público → som → ajustes).
@@ -174,7 +179,7 @@ const TAB_GROUPS = [
   { id: 'director', label: 'Diretor', icon: 'auto', hint: 'Diretor automático: corta ou destaca quem fala e abaixa a música quando alguém fala', tabs: [['director', 'Diretor', 'auto', 'Corte automático e áudio inteligente']] },
   { id: 'audio', label: 'Áudio', icon: 'mixer', hint: 'Mixer, trilha sonora e intercom de produção', tabs: [['audio', 'Mixer', 'mixer', 'Volume de cada fonte'], ['music', 'Trilha', 'music', 'Trilha sonora ambiente: lista de áudios, loop e volume'], ['intercom', 'Intercom', 'mic', 'Intercom do diretor com câmeras e repórteres']] },
   { id: 'captions', label: 'Legendas', icon: 'cc', hint: 'Legenda ao vivo da fala: na tela (PGM) e por link, com tradução opcional', tabs: [['captions', 'Legendas', 'cc', 'Legenda ao vivo: na tela e por link']] },
-  { id: 'outputs', label: 'Sinais', icon: 'signal', hint: 'Sinais para OBS/vMix: programa horizontal, vertical e cada pessoa, com qualidade ajustável', tabs: [['outputs', 'Sinais', 'signal', 'Sinais separados para OBS e vMix: programa horizontal, vertical e cada pessoa']] },
+  { id: 'outputs', label: 'Sinais', icon: 'signal', hint: 'Sinais para OBS/vMix e saída NDI do programa', tabs: [['outputs', 'Sinais', 'signal', 'Sinais separados para OBS e vMix: programa horizontal, vertical e cada pessoa'], ...(IS_MOBILE ? [] : [['ndi', 'NDI', 'signal', 'Saída NDI do programa']])] },
   {
     id: 'setup',
     label: 'Ajustes',
@@ -339,6 +344,7 @@ async function buildStudio() {
         <button class="btn mode-pill" id="btn-vertical" title="Painel de vídeo vertical 9:16 (Instagram, TikTok, Reels, Shorts) ao lado do preview" aria-pressed="false">${VERT_ICON}<span>9:16 Vertical</span></button>
       </div>
       <button class="btn autoplay" id="btn-autoplay" type="button" aria-pressed="true" title="Auto play de vídeos ao entrar no PGM ou ao colocar no palco">${icons.play}<span class="auto-dot"></span><span class="lbl">Auto play</span><span class="auto-state">ON</span></button>
+      ${IS_MOBILE || S.system.platform === 'android' ? '' : `<button class="btn ndi-top" id="btn-ndi" type="button" title="NDI: clique para ativar/desativar e abrir o painel" aria-label="NDI" aria-pressed="false"><span class="ndi-top-ico">${icons.ndi}</span><span class="ndi-top-lbl">NDI</span><span class="ndi-top-dot" aria-hidden="true"></span></button>`}
       <div class="spacer"></div>
       ${window.CDi18n ? window.CDi18n.selectHTML({ className: 'btn', short: true, id: 'studio-lang' }) : ''}
       ${S.system.platform === 'android' ? '' : `<button class="btn icon" id="btn-whatsapp" title="WhatsApp local: QR, caixa de entrada e fila do programa" aria-label="WhatsApp">${icons.whatsapp}</button>`}
@@ -431,6 +437,7 @@ async function buildStudio() {
       <div class="panel" id="panel-display"></div>
       <div class="panel" id="panel-devices"></div>
       <div class="panel" id="panel-outputs"></div>
+      <div class="panel" id="panel-ndi"></div>
       </div>
     </aside>
   </div>`;
@@ -566,6 +573,14 @@ async function buildStudio() {
   vStream = new MediaStream([vview.track, mixer.programTrack]);
   outputs = createOutputs({ S, studioId, getSig: () => sig, getMixer: () => mixer, getStreams: () => ({ programStream, vStream }), $, $$, esc, icons, copyText, api, vNeeded: () => !!projectors?.active('vpgm') });
   projectors = createProjectors({ S, getStreams: () => ({ programStream, vStream }), getMixer: () => mixer, $, esc, toast, modal, icons });
+  ndiOut = createNdiOutput({
+    onStatus: ({ state, detail }) => {
+      ndiState = state;
+      ndiDetail = detail || '';
+      syncNdiButton();
+      if (S.tab === 'ndi') renderNdiPanel();
+    },
+  });
   $('#btn-projector')?.addEventListener('click', () => projectors.openDialog('pgm'));
   // Shift+P abre o projetor (fora de campos de texto), como atalho de operação ao vivo
   if (CAN_SHARE_SCREEN)
@@ -616,6 +631,7 @@ async function buildStudio() {
     comp,
     mixer,
     music,
+    get ndi() { return ndiOut; },
     applySpeakerMode: (safe) => applySpeakerMode(safe),
     social,
     vview,
@@ -778,6 +794,32 @@ async function buildStudio() {
   });
   $('#btn-whatsapp')?.addEventListener('click', () => whatsapp?.open());
   $('#btn-cameras').onclick = () => cameras.open();
+  if ($('#btn-ndi')) {
+    $('#btn-ndi').onclick = async () => {
+      const next = !ndiEnabled;
+      if (!next) ndiOut?.stop();
+      try {
+        await api('/ndi/enabled', { method: 'POST', body: { on: next } });
+        ndiEnabled = next;
+        syncNdiButton();
+      } catch (e) {
+        toast('NDI: ' + e.message, 'error');
+      }
+      openSideTab('ndi');
+      renderNdiPanel();
+    };
+    api('/ndi/status').then((st) => { ndiEnabled = !!st.enabled; syncNdiButton(); }).catch(() => {});
+    // Reconcilia o botão com o servidor sem deixar uma falha passageira desligar o NDI.
+    setInterval(async () => {
+      try {
+        const st = await api('/ndi/status');
+        if (typeof st?.enabled === 'boolean' && st.enabled !== ndiEnabled) {
+          ndiEnabled = st.enabled;
+          syncNdiButton();
+        }
+      } catch {}
+    }, 8000);
+  }
   $('#btn-intercom-mini').onclick = () => toggleIntercomMini();
   $('#btn-remote').onclick = () => remote.openModal();
   floatWins = createFloatWins({
@@ -4315,7 +4357,7 @@ function tabOpen(t) {
   return S.tab === t || !!floatWins?.has(t);
 }
 function renderTabContent(tab) {
-  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, music: renderMusicPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, outputs: () => outputs.open(), intercom: renderIntercomPanel })[tab]?.();
+  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, music: renderMusicPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, outputs: () => outputs.open(), ndi: renderNdiPanel, intercom: renderIntercomPanel })[tab]?.();
 }
 
 // marca nas abas da lateral quais estão destacadas e cuida do botão ⧉
@@ -5911,6 +5953,157 @@ function renderAudioPanel() {
   } catch {}
 }
 
+function syncNdiButton() {
+  const b = $('#btn-ndi');
+  if (!b) return;
+  b.classList.toggle('on', ndiEnabled);
+  b.classList.toggle('live', ndiEnabled && !!ndiOut?.running);
+  b.title = ndiEnabled ? 'NDI ativo — clique para desativar e abrir o painel' : 'NDI inativo — clique para ativar e abrir o painel';
+  b.setAttribute('aria-pressed', ndiEnabled ? 'true' : 'false');
+}
+
+async function renderNdiPanel() {
+  const el = $('#panel-ndi');
+  if (!el) return;
+  let st = null;
+  let statusErr = '';
+  try {
+    st = await api('/ndi/status');
+  } catch (e) {
+    // Uma falha passageira da API não pode desligar o NDI na interface.
+    statusErr = e.message || 'falha ao consultar o status';
+    st = { enabled: ndiEnabled, available: true };
+  }
+  if (typeof st?.enabled === 'boolean') ndiEnabled = st.enabled;
+  syncNdiButton();
+  if (!ndiEnabled) {
+    el.innerHTML = `
+      <h4>NDI</h4>
+      <div class="st-more">
+        <div class="st-more-txt"><strong>NDI desligado</strong><span class="hint">Economiza CPU, rede e memória quando você não está usando entrada ou saída NDI.</span></div>
+        <button class="btn sm primary" id="ndi-enable" ${st.available === false ? 'disabled' : ''}>Ativar</button>
+      </div>
+      ${st.available === false ? `<p class="hint err">Bridge NDI não encontrado. Reinstale o app ou compile <code>native/ndi-bridge</code>.</p>` : ''}
+      ${statusErr ? `<p class="hint err">Não foi possível consultar o NDI agora: ${esc(statusErr)}</p>` : ''}
+      <p class="hint" style="margin:10px 0 0">Requer NDI Runtime 6.3+ (NDI Tools). Fontes NDI na rede, programa como fonte NDI e retorno de áudio ficam disponíveis ao ativar.</p>`;
+    $('#ndi-enable')?.addEventListener('click', async () => {
+      try {
+        await api('/ndi/enabled', { method: 'POST', body: { on: true } });
+        ndiEnabled = true;
+        ndiState = 'off';
+        syncNdiButton();
+        renderNdiPanel();
+      } catch (e) { toast('NDI: ' + e.message, 'error'); }
+    });
+    return;
+  }
+  const running = !!ndiOut?.running;
+  const name = localStorage.getItem('ndi.outputName') || 'CastDeck Local';
+  const fps = S.system?.presets?.[S.preset]?.fps || 30;
+  const w = comp?.canvas?.width || 1280;
+  const h = comp?.canvas?.height || 720;
+  const dot = running ? 'ok' : ndiState === 'error' ? 'err' : '';
+  const stateText = running ? `No ar · ${esc(ndiDetail)}` : ndiState === 'error' ? esc(ndiDetail || 'erro') : 'Desligada';
+  el.innerHTML = `
+    <div class="dm-head"><h4>NDI</h4><span class="row"><span class="pill ok">Ativo</span><button class="btn sm ghost" id="ndi-disable">Desativar</button></span></div>
+    ${statusErr ? `<p class="hint err">Status indisponível: ${esc(statusErr)}</p>` : ''}
+
+    <h4>Saída NDI</h4>
+    <label class="field"><span>Nome da fonte</span><input class="input" id="ndi-name" maxlength="90" value="${esc(name)}" placeholder="CastDeck Local"></label>
+    <div class="dest-status">
+      <div class="dest-row">
+        <div class="meta"><strong>Estado</strong><span>${esc(stateText)}</span></div>
+        <span class="pill ${dot}">${running ? 'No ar' : 'Off'}</span>
+        <div class="row">
+          <button class="btn sm" id="ndi-stop" ${running ? '' : 'disabled'}>Parar</button>
+          <button class="btn sm primary" id="ndi-start" ${running ? 'disabled' : ''}>Ligar saída NDI</button>
+        </div>
+      </div>
+    </div>
+    <p class="hint">Publica o programa horizontal como fonte NDI. É independente de transmissão e gravação. Saída ${w}×${h} @ ${fps} fps.</p>
+
+    <div class="dm-head"><h4>Fontes NDI</h4><button class="btn sm ghost icon" id="ndi-refresh" title="Atualizar">${icons.refresh}</button></div>
+    <div id="ndi-source-list" class="dest-status"><p class="hint ndi-loading"><span class="spinner"></span> Buscando fontes NDI…</p></div>`;
+
+  $('#ndi-start')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    const n = ($('#ndi-name')?.value || '').trim().slice(0, 90) || 'CastDeck Local';
+    localStorage.setItem('ndi.outputName', n);
+    if (!programStream) { toast('Programa ainda não está pronto.'); return; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Ligando…'; }
+    try {
+      await ndiOut.start({ stream: programStream, width: w, height: h, fps, name: n });
+    } catch (e) {
+      toast('NDI: ' + e.message, 'error');
+    }
+    renderNdiPanel();
+  });
+  $('#ndi-stop')?.addEventListener('click', () => { ndiOut?.stop(); renderNdiPanel(); });
+  $('#ndi-disable')?.addEventListener('click', async () => {
+    ndiOut?.stop();
+    try { await api('/ndi/enabled', { method: 'POST', body: { on: false } }); } catch {}
+    ndiEnabled = false;
+    syncNdiButton();
+    renderNdiPanel();
+  });
+  $('#ndi-refresh')?.addEventListener('click', () => loadNdiSources());
+  loadNdiSources();
+}
+
+async function loadNdiSources() {
+  const box = $('#ndi-source-list');
+  if (!box) return;
+  box.innerHTML = '<p class="hint ndi-loading"><span class="spinner"></span> Buscando fontes NDI…</p>';
+  let data;
+  try {
+    data = await api('/ndi/sources');
+  } catch (e) {
+    box.innerHTML = `<p class="hint err">Falha ao buscar NDI: ${esc(e.message)}</p>`;
+    return;
+  }
+  const active = new Map((data.active || []).map((a) => [a.ndiName, a.key]));
+  const rows = (data.sources || []).map((s) => {
+    const key = active.get(s.name);
+    return `<div class="dest-row ndi-source-row" data-name="${esc(s.name)}">
+      <div class="meta"><strong>${esc(s.name)}</strong><span>${esc(s.url || '—')}</span></div>
+      ${key ? '<span class="pill ok">Ativo</span>' : ''}
+      <div class="row ndi-source-actions">
+        ${key
+          ? `<button class="btn ghost sm icon" data-remove="${esc(key)}" title="Remover">${icons.trash}</button>`
+          : `<button class="btn sm primary" data-add="${esc(s.name)}" data-url="${esc(s.url || '')}">${icons.plus} Adicionar</button>`}
+      </div>
+    </div>`;
+  }).join('');
+  box.innerHTML = rows || '<div class="empty">Nenhuma fonte NDI encontrada. Abra o NDI Tools/Test Patterns ou outra fonte na rede.</div>';
+  box.querySelectorAll('[data-add]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const name = btn.dataset.add;
+      const url = btn.dataset.url || '';
+      btn.disabled = true;
+      btn.textContent = 'Adicionando…';
+      try {
+        const src = await api('/ndi/sources', { method: 'POST', body: { name, url } });
+        const added = await ingest?.addToStudio?.(src.key);
+        if (!added) toast('Fonte criada, mas não entrou no estúdio. Abra Sinais → Entradas e adicione.', 'err');
+        else toast('Fonte NDI adicionada ao estúdio.');
+      } catch (e) {
+        toast('NDI: ' + e.message, 'error');
+      }
+      loadNdiSources();
+    });
+  });
+  box.querySelectorAll('[data-remove]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const key = btn.dataset.remove;
+      btn.disabled = true;
+      btn.textContent = 'Removendo…';
+      try { await api('/ndi/sources/' + encodeURIComponent(key), { method: 'DELETE' }); } catch {}
+      removeSource('ingest:' + key);
+      loadNdiSources();
+    });
+  });
+}
+
 function renderOutputPanel() {
   const p = $('#panel-output');
   const st = S.status;
@@ -6735,13 +6928,13 @@ function qrSvg(text) {
 // "＋ Câmera": câmera ligada neste computador (USB/captura) ou um celular/aparelho pela rede (QR Code)
 async function openAddCamera() {
   const pick = await modal(
-    `<h3>Adicionar câmera</h3>
-    <p class="sub">Escolha de onde vem a imagem.</p>
+    `<div class="addcam-head"><div><h3>Adicionar câmera ou fonte</h3><p class="sub">Escolha de onde vem a imagem para o estúdio.</p></div><span class="addcam-kicker">${icons.cam} ENTRADAS</span></div>
     <div class="addcam-opts">
-      <button class="addcam-opt" data-pick="remote"><span class="addcam-ico">📱</span><strong>Celular ou outro aparelho</strong><span>Leia o QR Code com a câmera do celular. Funciona no mesmo Wi‑Fi ou pela internet.</span></button>
-      <button class="addcam-opt" data-pick="usb"><span class="addcam-ico">🎥</span><strong>Câmera deste computador</strong><span>Webcam USB, placa de captura ou câmera virtual, com áudio próprio.</span></button>
-      <button class="addcam-opt" data-pick="ingest"><span class="addcam-ico">🚁</span><strong>Drone ou câmera profissional</strong><span>Recebe RTMP ou SRT (H.264/H.265) de drones, câmeras, encoders e apps da mesma rede.</span></button>
-      <button class="addcam-opt" data-pick="manage"><span class="addcam-ico">🎛️</span><strong>Gerenciar câmeras</strong><span>Preview, zoom, foco, ISO, exposição, cor, lanterna e interfaces de vídeo/áudio.</span></button>
+      <button class="addcam-opt" data-pick="remote"><span class="addcam-ico">${icons.remote}</span><span class="addcam-info"><strong>Celular ou outro aparelho</strong><small>Leia o QR Code com a câmera do celular. Funciona no mesmo Wi‑Fi ou pela internet.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
+      <button class="addcam-opt" data-pick="usb"><span class="addcam-ico">${icons.usbCam}</span><span class="addcam-info"><strong>Câmera deste computador</strong><small>Webcam USB, placa de captura ou câmera virtual, com áudio próprio.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
+      <button class="addcam-opt" data-pick="ingest"><span class="addcam-ico">${icons.drone}</span><span class="addcam-info"><strong>Drone ou câmera profissional</strong><small>Recebe RTMP ou SRT (H.264/H.265) de drones, câmeras, encoders e apps da mesma rede.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
+      <button class="addcam-opt addcam-ndi" data-pick="ndi"><span class="addcam-ico">${icons.ndi}</span><span class="addcam-info"><strong>Fonte NDI</strong><small>Receba NDI de outro PC, câmera ou encoder. O NDI fica desligado até você ativar.</small></span><span class="addcam-badge">NDI</span></button>
+      <button class="addcam-opt" data-pick="manage"><span class="addcam-ico">${icons.sliders}</span><span class="addcam-info"><strong>Gerenciar câmeras</strong><small>Preview, zoom, foco, ISO, exposição, cor, lanterna e interfaces de vídeo/áudio.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
     </div>
     <div class="modal-actions"><button class="btn" data-close>Cancelar</button></div>`,
     { onMount: (m, close) => m.querySelectorAll('[data-pick]').forEach((b) => (b.onclick = () => close(b.dataset.pick))) },
@@ -6749,6 +6942,7 @@ async function openAddCamera() {
   if (pick === 'usb') extras?.camDialog();
   else if (pick === 'remote') showRemoteCam();
   else if (pick === 'ingest') ingest?.openPanel();
+  else if (pick === 'ndi') { openSideTab('ndi'); renderNdiPanel(); }
   else if (pick === 'manage') cameras?.open();
 }
 

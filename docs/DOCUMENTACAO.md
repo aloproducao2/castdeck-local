@@ -710,7 +710,7 @@ npm run build:exe         # dist/CastDeck.exe (esbuild + pkg), só o seu sistema
 npm run build:all         # todos os sistemas (baixa FFmpeg/cloudflared em build/vendor)
 npm run build:android     # dist/CastDeck.apk (Android Studio/SDK + JDK do Android Studio)
 npm run build:appimage    # dist/CastDeck-x86_64.AppImage e -aarch64 (via WSL, depois do build:all)
-npm run release -- --notes "novidade 1;novidade 2"   # versão nova + todos os builds + publicação no site
+npm run version:next     # prepara a próxima versão antes dos builds
 ```
 
 - Lançador Windows compilado com o `csc.exe` do Windows; ícone/splash gerados por `build/make-assets.ps1`.
@@ -728,11 +728,11 @@ npm run release -- --notes "novidade 1;novidade 2"   # versão nova + todos os b
 - Comandos:
   - `npm run version:show` mostra a versão atual.
   - `npm run version:next` avança para a próxima versão ainda não publicada (aceita `minor` ou `major` como argumento).
-- Cada build registra em `dist/build-info.json` com qual versão o arquivo foi gerado. O `landpage:publish` recusa binários de outra versão e versões já publicadas.
+- Cada build registra em `dist/build-info.json` com qual versão o arquivo foi gerado. O publicador da release recusa binários de outra versão e versões já publicadas.
 
 ### Atualizações automáticas (v1.3.26+)
 
-- **Fonte:** `https://cast.flue.live/releases.json` (gerado pelo `npm run release`, com `size` e `sha256` de cada artefato). A plataforma de cada instalação vem de `updateTarget` em `/api/system` (`windows-x64`, `linux-x64[-appimage]`, `macos-arm64`, `android-arm64`…).
+- **Fonte:** `https://cast.flue.live/releases.json` (com `size` e `sha256` de cada artefato). A plataforma de cada instalação vem de `updateTarget` em `/api/system` (`windows-x64`, `linux-x64[-appimage]`, `macos-arm64`, `android-arm64`…).
 - **Verificação** (`public/js/updates.js`): ao abrir o painel e a cada 6 h (`localStorage cd-upd-auto`), ou manual em Painel → Sistema. Banner no topo com notas; "Depois" pula aquela versão (`cd-upd-skip`).
 - **Instalação dentro do app** — rotas locais: `GET /api/update/status`, `POST /api/update/download`, `POST /api/update/install` (recusa com 409 se houver transmissão/gravação).
   - O servidor busca o `releases.json`, baixa por `/dl/<ver>/<arquivo>` (conta no contador do site), confere o SHA-256 e guarda em `<dados>/update/`.

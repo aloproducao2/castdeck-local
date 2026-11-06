@@ -69,8 +69,8 @@ export async function probeFfmpeg(ffmpegPath = 'ffmpeg') {
   return info;
 }
 
-export function videoEncoderArgs(encoder, kbps, fps) {
-  const gop = String(Math.round(fps * 2)); // keyframe a cada 2s (exigência de YouTube/Facebook/Twitch)
+export function videoEncoderArgs(encoder, kbps, fps, gopSec = 2) {
+  const gop = String(Math.max(1, Math.round(fps * gopSec))); // padrão: keyframe a cada 2s
   const rate = ['-b:v', `${kbps}k`, '-maxrate', `${kbps}k`, '-bufsize', `${kbps * 2}k`];
   switch (encoder) {
     case 'h264_nvenc':

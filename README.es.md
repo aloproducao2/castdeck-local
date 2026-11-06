@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **1.3.39** — selector de monitor de la música ambiente en el panel y en el mixer, además de encuadre de fuentes, controles de capas DSK, viewport fijo de página, ajustes en miniaturas y panel de música. Consulta los
+Versión **1.4.1** — entrada y salida NDI, ingesta SRT/Opus de baja latencia, audio NDI en el mixer y retorno de monitor, panel NDI rediseñado y botón NDI en la barra superior.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

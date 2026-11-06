@@ -319,7 +319,7 @@ export class Ingest {
         this.restartTimer = setTimeout(() => this.start(), 2000 * this.fails);
       }
     });
-    this.poller = setInterval(() => this.poll(), 1500);
+    this.poller = setInterval(() => this.poll(), 750);
   }
 
   stop() {

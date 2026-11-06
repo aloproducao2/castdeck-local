@@ -147,7 +147,7 @@ incorporar o código em produto fechado. Componentes de terceiros mantêm suas l
 
 ## Status
 
-Versão **1.3.39** — seletor de monitor da trilha no painel e no Mixer, além de enquadramento de fontes, controles de camada DSK, viewport fixo de página, ajustes nas miniaturas e painel de trilha sonora. Veja os
+Versão **1.4.1** — entrada e saída NDI, ingest SRT/Opus de baixa latência, áudio NDI no Mixer e retorno de monitor, painel NDI redesenhado e botão NDI na barra superior.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Feito por **Miguel Kallemback / flue.live**, de brasileiros para o mundo. 🌎

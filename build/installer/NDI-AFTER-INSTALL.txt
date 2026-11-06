@@ -1,0 +1,16 @@
+CastDeck Local — NDI
+
+O NDI é opcional e vem desligado por padrão.
+
+Para usar NDI como fonte ou saída:
+1. Instale o NDI Tools/Runtime 6.3 ou mais recente (https://ndi.video/tools/).
+2. Abra o CastDeck.
+3. Clique no botão NDI na barra superior.
+4. Ative o NDI no seletor e escolha a fonte ou ligue a saída do programa.
+
+Na primeira utilização, permita o CastDeck na rede privada do Windows.
+O NDI usa a rede local; o tráfego não passa pelos servidores do CastDeck.
+
+O restante do aplicativo funciona sem NDI.
+
+NDI® is a registered trademark of Vizrt NDI AB.

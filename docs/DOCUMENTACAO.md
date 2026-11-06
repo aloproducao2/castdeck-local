@@ -6,7 +6,7 @@
 
 | | |
 | --- | --- |
-| **Projeto** | CastDeck Local (`castdeck-local` v1.3.33, 2026-11-04) |
+| **Projeto** | CastDeck Local (`castdeck-local` v1.4.1, 2026-11-06) |
 | **Licença** | AGPL-3.0 (código aberto) + licença comercial |
 | **Autoria / desenvolvimento** | **Miguel Kallemback** (desenvolvedor e idealizador) |
 | **Desenvolvimento assistido por IA** | Claude (Anthropic), Gemini / Antigravity (Google DeepMind) e DeepSeek |
@@ -139,6 +139,16 @@ O **CastDeck Local** parte da premissa inversa:
 - Encoders: **x264 (CPU), NVENC, QSV, AMF, VideoToolbox** (detectados automaticamente).
 - **Gravação** em MP4: só horizontal ou **horizontal + vertical**.
 - **Modo Vertical (9:16)**: segunda saída 720×1280 ou 1080×1920, layouts próprios, zona segura, destinos e gravação independentes.
+
+### NDI (fonte e saída)
+
+O NDI é opcional e fica **desligado por padrão** para economizar CPU, rede e memória. O botão **NDI** na barra superior fica **vermelho** quando inativo e **verde** quando ativo; um clique ativa/desativa o subsistema e abre o painel.
+
+- **Saída NDI:** publica o programa horizontal como fonte NDI na rede local. É independente de transmissão, gravação e estúdio remoto. O áudio do programa também é publicado.
+- **Entrada NDI:** lista as fontes visíveis na máquina/rede. Ao adicionar, a fonte entra nos bastidores e é publicada para o navegador por **SRT H.264 + Opus** e WHEP local, sem conversão intermediária.
+- **Áudio:** a fonte NDI entra no Mixer com a tag **NDI** e usa o retorno de monitor; acompanha o palco/programa quando vai ao ar.
+- **Reconexão:** entrada e saída tentam reconectar sozinhas após queda do bridge/FFmpeg. O subsistema permanece ativo; falhas aparecem no painel em vez de desligar o NDI.
+- **Requisitos:** NDI Runtime 6.3+ (NDI Tools). O bridge é compilado em Rust e usa o runtime instalado; o app não redistribui o SDK. NDI® é marca registrada da Vizrt NDI AB.
 
 ### Replay & VAR (desktop)
 
@@ -676,7 +686,7 @@ Depuração do WebView: `adb forward tcp:9222 localabstract:webview_devtools_rem
 
 ### Usuário final (PC)
 
-1. Execute `dist/CastDeck.exe` (Windows) — FFmpeg e cloudflared já vêm embutidos.
+1. Execute `CastDeck.exe` (portátil) ou o **instalador** `CastDeck-Setup-1.4.1.exe` no Windows — FFmpeg e cloudflared já vêm embutidos. O instalador cria atalhos, início automático opcional e desinstalador, sem apagar `%LOCALAPPDATA%\CastDeck`.
 2. Crie um estúdio no painel.
 3. **Convidar** → copie o link `https://….trycloudflare.com/join/…` e envie.
 4. Cadastre destinos (YouTube, Facebook, Twitch, RTMP) e clique em **Transmitir**.

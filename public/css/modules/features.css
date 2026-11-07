@@ -1762,3 +1762,14 @@ body.platform-android #btn-replay {
 .ndi-top.on { color: hsl(158 70% 76%); border-color: hsl(158 60% 40% / .55); background: hsl(158 60% 18% / .28); }
 .ndi-top.on .ndi-top-dot { background: hsl(158 80% 55%); box-shadow: 0 0 8px hsl(158 80% 55% / .8); }
 .ndi-top.live .ndi-top-dot { animation: pulse 1.4s infinite; }
+
+
+/* fonte Browser: painel de interação (clique/teclado/navegação) */
+.browser-interact{display:grid;gap:10px;min-width:0}
+.browser-interact-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.browser-interact-bar .input{flex:1 1 260px;min-width:0}
+.browser-interact canvas{display:block;width:100%;max-height:min(62vh,720px);aspect-ratio:16/9;background:#111;border:1px solid var(--line-strong);border-radius:12px;object-fit:contain;outline:none;cursor:crosshair}
+.browser-interact canvas:focus{border-color:var(--accent);box-shadow:0 0 0 3px hsl(262 83% 65% / .18)}
+.browser-interact .row{flex-wrap:wrap}
+.browser-interact .row .input{flex:1 1 220px;min-width:0}
+@media(max-width:640px){.browser-interact-bar .btn{flex:1 1 auto}.browser-interact canvas{max-height:50vh}}

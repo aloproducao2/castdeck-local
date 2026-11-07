@@ -118,6 +118,7 @@ export function createAudioPanel({
         });
       }
       if (s.kind === 'media') rows.push({ id: s.id, name: s.label, tag: 'MÍDIA' });
+      if (s.kind === 'browser' && mixer.sources.has(s.id + ':audio')) rows.push({ id: s.id + ':audio', name: s.label, tag: 'BROWSER' });
     }
     // som das páginas web do DSK (o canal só existe depois que a página tocou algo)
     for (const id of ['dsk:1', 'dsk:2']) rows.push({ id, name: `DSK ${id.slice(4)} (página)`, tag: 'DSK' });

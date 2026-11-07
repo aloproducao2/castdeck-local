@@ -25,6 +25,8 @@ export const PRESETS = {
   '720p60': { width: 1280, height: 720, fps: 60, videoKbps: 6000, audioKbps: 160 },
   '1080p30': { width: 1920, height: 1080, fps: 30, videoKbps: 6000, audioKbps: 160 },
   '1080p60': { width: 1920, height: 1080, fps: 60, videoKbps: 9000, audioKbps: 192 },
+  '2160p30': { width: 3840, height: 2160, fps: 30, videoKbps: 30000, audioKbps: 192 },
+  '2160p60': { width: 3840, height: 2160, fps: 60, videoKbps: 55000, audioKbps: 192 },
   '480p30': { width: 854, height: 480, fps: 30, videoKbps: 2000, audioKbps: 128 },
   // modo vertical 9:16 (Instagram, TikTok, Reels, Shorts)
   v720p30: { width: 720, height: 1280, fps: 30, videoKbps: 3500, audioKbps: 128, vertical: true },

@@ -12,6 +12,7 @@ import { AudioMixer } from './mixer.js';
 import { createAudioPanel } from './audio-ui.js';
 import { createMusic } from './music.js';
 import { createNdiOutput } from './ndi.js';
+import { createBrowserSources } from './browser-source.js';
 import { VideoFx, FX_BACKGROUNDS } from './vfx.js';
 import { Broadcaster } from './broadcaster.js';
 import { createOnAir } from './onair.js';
@@ -109,6 +110,7 @@ let autoVoice; // AUTO-VOZ: corte automático por quem está falando (só com a 
 let meters; // medidores de áudio à vista (programa + miniaturas)
 let scenes; // cenas rápidas F1–F6
 let dsk; // DSK 1 e 2 (camadas por cima do programa)
+let browserSources; // fonte Browser (página URL em navegador headless)
 let cameras; // painel "Câmeras": preview e ajustes das câmeras locais/remotas
 let whatsapp; // ponte local WhatsApp (desktop)
 let ytJob = null; // download yt-dlp em andamento
@@ -201,6 +203,9 @@ const BITRATE_OPTS = [
   [12000, '12.0 Mbps (Qualidade broadcast)'],
   [15000, '15.0 Mbps (Qualidade máxima)'],
   [20000, '20.0 Mbps (Gravação master)'],
+  [25000, '25 Mbps (4K30)'],
+  [35000, '35 Mbps (4K30 alta)'],
+  [50000, '50 Mbps (4K60)'],
 ];
 const lastTabOf = {}; // última sub-aba aberta em cada grupo
 
@@ -920,6 +925,10 @@ async function buildStudio() {
     mixer: () => mixer, addVideoSource, removeSource, renderAudioPanel,
   });
   window.__castdeck.ingest = ingest;
+  browserSources = createBrowserSources({
+    S, comp, api, mixer, addVideoSource, removeSource, modal, esc, studioId, toast, saveStudio,
+  });
+  window.__castdeck.browserSources = browserSources;
   connectSignaling();
   setInterval(uiTick, 100);
   extras.restore()
@@ -932,6 +941,7 @@ async function buildStudio() {
       toast('Não foi possível restaurar a sessão: ' + e.message, 'err');
     });
   ingest.restore().catch(() => {});
+  browserSources.restore().catch(() => {});
 
   window.addEventListener('beforeunload', (e) => {
     if (S.live || S.vlive) {
@@ -1030,6 +1040,7 @@ const FOCUS_ICONS = [
 function applyPreset() {
   const p = S.system.presets[S.preset];
   comp.setSize(p.width, p.height);
+  browserSources?.applyPreset?.(p);
   if (ticker) ticker.postMessage(1000 / p.fps);
   // A prévia da mesa acompanha o mesmo fps do PGM (30/60), não fica em 15.
   switcher?.setPreviewFps(p.fps);
@@ -1283,6 +1294,7 @@ async function setCameraAudioInterface(id, deviceId) {
 }
 
 function removeSource(id) {
+  browserSources?.stop?.(id, { remove: false });
   const s = S.sources.get(id);
   if (!s) return;
   comp.removeSource(id);
@@ -1763,6 +1775,7 @@ function renderTiles() {
         : '');
     const acts = el.querySelector('.acts');
     acts.innerHTML = '';
+    const isBrowser = s.kind === 'browser';
     const actions = [];
     const add = (icon, title, fn, cls = '') => actions.push({ icon, title, fn, cls });
     if (s.kind === 'camera' && s.ownerId !== 'host' && s.remoteCam) {
@@ -1776,8 +1789,9 @@ function renderTiles() {
         sig.send({ type: 'control', to: s.ownerId, action: s.micOn === false ? 'unmute-request' : 'mute' }),
       );
     }
-    add('✎', 'Renomear', () => renameSource(s.id), 'act-sec');
+    if (!isBrowser) add('✎', 'Renomear', () => renameSource(s.id), 'act-sec');
     add(icons.crop, 'Ajustar posição, zoom e corte desta fonte', () => openSourceAdjust(s.id), s.adjust ? 'primary' : 'act-sec');
+    if (isBrowser) add(icons.display, 'Interagir com a página (clicar, digitar, navegar)', () => browserSources?.openInteract(s.id), 'act-sec');
     if (s.kind === 'camera' && !s.ingest) add('✦', vfx?.active(s.id) ? 'Efeitos de vídeo (ligados)' : 'Efeitos de vídeo: fundo virtual e enquadramento automático', () => openFx(s.id), vfx?.active(s.id) ? 'primary' : 'act-sec');
     if (s.kind === 'camera' && s.ownerId !== 'host' && !s.ingest && !s.remoteCam) {
       add(icons.kick, 'Remover do estúdio', () => kickGuest(s.ownerId), 'danger');
@@ -1801,6 +1815,7 @@ function renderTiles() {
       add('⚙', 'Endereços e status das entradas RTMP/SRT', () => ingest.openPanel(), 'act-sec');
       add(icons.trash, 'Tirar dos bastidores (a entrada continua cadastrada)', () => removeSource(s.id), 'danger');
     }
+    if (isBrowser) add(icons.trash, 'Excluir Browser', () => removeSource(s.id), 'danger');
     // Ações da miniatura: mostra as 3 principais e recolhe o resto num menu "⋮" (não estoura com botões extras).
     const MAX_ACT = 3;
     acts.replaceChildren(...actions.slice(0, MAX_ACT).map((a) => {
@@ -1815,6 +1830,15 @@ function renderTiles() {
         openTileActions(actions);
       };
       acts.append(more);
+    }
+    el._tileActions = actions;
+    if (!el._ctxMenuBound) {
+      el._ctxMenuBound = true;
+      el.addEventListener('contextmenu', (e) => {
+        if (e.target.closest?.('button')) return;
+        e.preventDefault();
+        openTileActions(el._tileActions || []);
+      });
     }
   }
 
@@ -6933,6 +6957,7 @@ async function openAddCamera() {
       <button class="addcam-opt" data-pick="remote"><span class="addcam-ico">${icons.remote}</span><span class="addcam-info"><strong>Celular ou outro aparelho</strong><small>Leia o QR Code com a câmera do celular. Funciona no mesmo Wi‑Fi ou pela internet.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
       <button class="addcam-opt" data-pick="usb"><span class="addcam-ico">${icons.usbCam}</span><span class="addcam-info"><strong>Câmera deste computador</strong><small>Webcam USB, placa de captura ou câmera virtual, com áudio próprio.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
       <button class="addcam-opt" data-pick="ingest"><span class="addcam-ico">${icons.drone}</span><span class="addcam-info"><strong>Drone ou câmera profissional</strong><small>Recebe RTMP ou SRT (H.264/H.265) de drones, câmeras, encoders e apps da mesma rede.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
+      ${S.system.platform === 'android' ? '' : `<button class="addcam-opt" data-pick="browser"><span class="addcam-ico">${icons.display}</span><span class="addcam-info"><strong>Browser — página web</strong><small>Abra um painel, placar, YouTube ou dashboard como fonte. Segue a resolução/FPS da mesa.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>`}
       <button class="addcam-opt addcam-ndi" data-pick="ndi"><span class="addcam-ico">${icons.ndi}</span><span class="addcam-info"><strong>Fonte NDI</strong><small>Receba NDI de outro PC, câmera ou encoder. O NDI fica desligado até você ativar.</small></span><span class="addcam-badge">NDI</span></button>
       <button class="addcam-opt" data-pick="manage"><span class="addcam-ico">${icons.sliders}</span><span class="addcam-info"><strong>Gerenciar câmeras</strong><small>Preview, zoom, foco, ISO, exposição, cor, lanterna e interfaces de vídeo/áudio.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
     </div>
@@ -6942,6 +6967,7 @@ async function openAddCamera() {
   if (pick === 'usb') extras?.camDialog();
   else if (pick === 'remote') showRemoteCam();
   else if (pick === 'ingest') ingest?.openPanel();
+  else if (pick === 'browser') browserSources?.openDialog();
   else if (pick === 'ndi') { openSideTab('ndi'); renderNdiPanel(); }
   else if (pick === 'manage') cameras?.open();
 }

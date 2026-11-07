@@ -145,7 +145,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.4.1** — NDI input and output, low-latency SRT/Opus ingest, NDI audio in the mixer and monitor return, redesigned NDI panel and top-bar NDI button. See the
+Version **1.4.2** — Browser source with URL + Interact panel, 4K presets, thumbnail danger menu and right-click actions.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

@@ -147,7 +147,7 @@ incorporar o código em produto fechado. Componentes de terceiros mantêm suas l
 
 ## Status
 
-Versão **1.4.1** — entrada e saída NDI, ingest SRT/Opus de baixa latência, áudio NDI no Mixer e retorno de monitor, painel NDI redesenhado e botão NDI na barra superior.
+Versão **1.4.2** — fonte Browser com URL + painel Interagir, presets 4K, lixeira nas miniaturas e menu por botão direito.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Feito por **Miguel Kallemback / flue.live**, de brasileiros para o mundo. 🌎

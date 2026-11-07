@@ -6,7 +6,7 @@
 
 | | |
 | --- | --- |
-| **Projeto** | CastDeck Local (`castdeck-local` v1.4.1, 2026-11-06) |
+| **Projeto** | CastDeck Local (`castdeck-local` v1.4.2, 2026-11-06) |
 | **Licença** | AGPL-3.0 (código aberto) + licença comercial |
 | **Autoria / desenvolvimento** | **Miguel Kallemback** (desenvolvedor e idealizador) |
 | **Desenvolvimento assistido por IA** | Claude (Anthropic), Gemini / Antigravity (Google DeepMind) e DeepSeek |
@@ -139,6 +139,7 @@ O **CastDeck Local** parte da premissa inversa:
 - Encoders: **x264 (CPU), NVENC, QSV, AMF, VideoToolbox** (detectados automaticamente).
 - **Gravação** em MP4: só horizontal ou **horizontal + vertical**.
 - **Modo Vertical (9:16)**: segunda saída 720×1280 ou 1080×1920, layouts próprios, zona segura, destinos e gravação independentes.
+- **4K (2160p)**: presets 2160p30/2160p60 com bitrate próprio; gravação, transmissão, NDI e switching em 4K quando o hardware suportar.
 
 ### NDI (fonte e saída)
 
@@ -149,6 +150,16 @@ O NDI é opcional e fica **desligado por padrão** para economizar CPU, rede e m
 - **Áudio:** a fonte NDI entra no Mixer com a tag **NDI** e usa o retorno de monitor; acompanha o palco/programa quando vai ao ar.
 - **Reconexão:** entrada e saída tentam reconectar sozinhas após queda do bridge/FFmpeg. O subsistema permanece ativo; falhas aparecem no painel em vez de desligar o NDI.
 - **Requisitos:** NDI Runtime 6.3+ (NDI Tools). O bridge é compilado em Rust e usa o runtime instalado; o app não redistribui o SDK. NDI® é marca registrada da Vizrt NDI AB.
+
+### Browser (fonte web)
+
+- Abre uma URL no navegador headless do servidor e entrega a página como fonte de vídeo no palco.
+- Segue o preset da mesa: 720p30/60, 1080p30/60 e 4K30/60 quando configurado.
+- Áudio da página entra no Mixer como canal BROWSER.
+- **Interagir**: prévia com clique, teclado, envio de texto, troca de URL e recarregar.
+- Lixeira na miniatura e menu de ações com botão direito.
+- Limite de 2 fontes em 720p/1080p ou 1 em 4K.
+- Nesta versão local o renderizador é Edge headless (modo compatibilidade); o BrowserHost CEF nativo com qualidade OBS/vMix ainda está no roadmap.
 
 ### Replay & VAR (desktop)
 
@@ -686,7 +697,7 @@ Depuração do WebView: `adb forward tcp:9222 localabstract:webview_devtools_rem
 
 ### Usuário final (PC)
 
-1. Execute `CastDeck.exe` (portátil) ou o **instalador** `CastDeck-Setup-1.4.1.exe` no Windows — FFmpeg e cloudflared já vêm embutidos. O instalador cria atalhos, início automático opcional e desinstalador, sem apagar `%LOCALAPPDATA%\CastDeck`.
+1. Execute `CastDeck.exe` (portátil) ou o **instalador** `CastDeck-Setup-1.4.2.exe` no Windows — FFmpeg e cloudflared já vêm embutidos. O instalador cria atalhos, início automático opcional e desinstalador, sem apagar `%LOCALAPPDATA%\CastDeck`.
 2. Crie um estúdio no painel.
 3. **Convidar** → copie o link `https://….trycloudflare.com/join/…` e envie.
 4. Cadastre destinos (YouTube, Facebook, Twitch, RTMP) e clique em **Transmitir**.
@@ -816,6 +827,7 @@ A pasta `test/` contém ainda roteiros E2E de layout, co-host, vertical, notíci
 - Layouts e gráficos importáveis/exportáveis.
 - Assinatura de código (Windows/macOS) e chave própria no APK para a Play Store.
 - Telemetria local de qualidade (gráficos de bitrate/perda) durante a live.
+- **DSK:** expandir de 2 para até **4 camadas** (2 por padrão + botão “Adicionar DSK”), com limite por DSK; não há plano para 6 ou 8.
 - Exportar os 4 ângulos ISO em disco e interpolação de quadros (WebGPU/Rust) para câmera lenta mais fluida.
 - Mais presets/perfis de controladores MIDI/HID e exportação/importação da galeria de overlays.
 

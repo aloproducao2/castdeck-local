@@ -59,6 +59,7 @@ Name: "launch"; Description: "Abrir o CastDeck agora"; GroupDescription: "Depois
 [Files]
 Source: "..\..\dist\CastDeck.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\dist\castdeck-ndi.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\dist\browser-host-cef\*"; DestDir: "{app}\browser-host-cef"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\NOTICE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion

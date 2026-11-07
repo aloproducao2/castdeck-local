@@ -31,6 +31,7 @@ import { Updater } from './updater.js';
 import { WhatsAppService } from './whatsapp.js';
 import { Ytdlp } from './ytdlp.js';
 import { DskHost } from './dsk.js';
+import { CefBrowserHost } from './cef.js';
 import { NdiOutputServer, NdiSourceServer } from './ndi.js';
 import { SocialScraper } from './social-scraper.js';
 import { ReplayStore } from './replay.js';
@@ -345,7 +346,21 @@ api.get('/caption/link/:id', (req, res) => {
 // DSK por endereço web: páginas renderizadas num navegador sem janela, quadros PNG pelo WS /dsk
 const dsk = new DskHost({ dataDir: DATA });
 const dskKey = (k) => String(k || '').replace(/[^\w.-]/g, '').slice(0, 80);
+const cef = new CefBrowserHost({ root: ROOT });
 api.get('/dsk', (req, res) => res.set('Cache-Control', 'no-store').json(dsk.info()));
+api.get('/cef/status', (req, res) => res.set('Cache-Control', 'no-store').json(cef.info()));
+api.put('/cef/:key', async (req, res) => {
+  try {
+    const b = req.body || {};
+    res.json(await cef.set(dskKey(req.params.key), b));
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+api.delete('/cef/:key', async (req, res) => {
+  await cef.stop(dskKey(req.params.key));
+  res.json({ ok: true });
+});
 const ndiLocalOnly = (req, res, next) => (isLocalReq(req) ? next() : res.status(403).json({ error: 'NDI é exclusivo deste PC.' }));
 api.get('/ndi/status', ndiLocalOnly, (req, res) => {
   ndiOutput.ffmpegPath = ffmpegInfo.path || 'ffmpeg';
@@ -1225,6 +1240,7 @@ const wssSignal = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 
 const wssIngest = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 * 1024, perMessageDeflate: false });
 // PNG já é comprimido: deflate só gastaria CPU
 const wssDsk = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024, perMessageDeflate: false });
+const wssCef = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024, perMessageDeflate: false });
 const wssSocial = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
 // áudio da legenda: PCM 16 kHz mono em blocos pequenos (~100 ms = 3,2 KB); sem deflate
 const wssCaption = new WebSocketServer({ noServer: true, maxPayload: 256 * 1024, perMessageDeflate: false });
@@ -1240,6 +1256,8 @@ function attachUpgrade(server) {
       wssIngest.handleUpgrade(req, socket, head, (ws) => broadcasts.handleIngest(ws));
     } else if (pathname === '/dsk' && local) {
       wssDsk.handleUpgrade(req, socket, head, (ws) => dsk.handleClient(ws));
+    } else if (pathname === '/cef' && local) {
+      wssCef.handleUpgrade(req, socket, head, (ws) => cef.attach(ws));
     } else if (pathname === '/social-stream' && local) {
       wssSocial.handleUpgrade(req, socket, head, (ws) => socialScraper.handleClient(ws));
     } else if (pathname === '/caption' && local) {
@@ -1309,6 +1327,7 @@ const shutdown = () => {
   try { ingest.stop(); } catch {}
   // o navegador sem janela do DSK também é filho: fecha junto
   try { dsk.stop(); } catch {}
+  try { cef.closeAll(); } catch {}
   try { socialScraper.stop(); } catch {}
   try { caption.stop(); } catch {}
   try { whatsapp.disconnect(); } catch {}

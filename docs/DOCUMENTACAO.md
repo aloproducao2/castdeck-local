@@ -6,7 +6,7 @@
 
 | | |
 | --- | --- |
-| **Projeto** | CastDeck Local (`castdeck-local` v1.4.2, 2026-11-06) |
+| **Projeto** | CastDeck Local (`castdeck-local` v1.4.3, 2026-11-07) |
 | **Licença** | AGPL-3.0 (código aberto) + licença comercial |
 | **Autoria / desenvolvimento** | **Miguel Kallemback** (desenvolvedor e idealizador) |
 | **Desenvolvimento assistido por IA** | Claude (Anthropic), Gemini / Antigravity (Google DeepMind) e DeepSeek |
@@ -153,13 +153,14 @@ O NDI é opcional e fica **desligado por padrão** para economizar CPU, rede e m
 
 ### Browser (fonte web)
 
-- Abre uma URL no navegador headless do servidor e entrega a página como fonte de vídeo no palco.
+- No Windows usa o **BrowserHost CEF** local (shared texture + áudio); nos demais sistemas cai para o Edge headless.
 - Segue o preset da mesa: 720p30/60, 1080p30/60 e 4K30/60 quando configurado.
 - Áudio da página entra no Mixer como canal BROWSER.
-- **Interagir**: prévia com clique, teclado, envio de texto, troca de URL e recarregar.
+- **Interagir**: prévia ampliada com clique, texto, scroll, troca de URL e recarregar.
+- Idioma do navegador segue o idioma da interface (pt-BR/en-US/es-ES).
+- Adblock básico ativado por padrão, com botão ON/OFF.
 - Lixeira na miniatura e menu de ações com botão direito.
 - Limite de 2 fontes em 720p/1080p ou 1 em 4K.
-- Nesta versão local o renderizador é Edge headless (modo compatibilidade); o BrowserHost CEF nativo com qualidade OBS/vMix ainda está no roadmap.
 
 ### Replay & VAR (desktop)
 
@@ -697,7 +698,7 @@ Depuração do WebView: `adb forward tcp:9222 localabstract:webview_devtools_rem
 
 ### Usuário final (PC)
 
-1. Execute `CastDeck.exe` (portátil) ou o **instalador** `CastDeck-Setup-1.4.2.exe` no Windows — FFmpeg e cloudflared já vêm embutidos. O instalador cria atalhos, início automático opcional e desinstalador, sem apagar `%LOCALAPPDATA%\CastDeck`.
+1. Execute `CastDeck.exe` (portátil) ou o **instalador** `CastDeck-Setup-1.4.3.exe` no Windows — FFmpeg e cloudflared já vêm embutidos. O instalador cria atalhos, início automático opcional e desinstalador, sem apagar `%LOCALAPPDATA%\CastDeck`.
 2. Crie um estúdio no painel.
 3. **Convidar** → copie o link `https://….trycloudflare.com/join/…` e envie.
 4. Cadastre destinos (YouTube, Facebook, Twitch, RTMP) e clique em **Transmitir**.
@@ -731,7 +732,7 @@ npm run build:exe         # dist/CastDeck.exe (esbuild + pkg), só o seu sistema
 npm run build:all         # todos os sistemas (baixa FFmpeg/cloudflared em build/vendor)
 npm run build:android     # dist/CastDeck.apk (Android Studio/SDK + JDK do Android Studio)
 npm run build:appimage    # dist/CastDeck-x86_64.AppImage e -aarch64 (via WSL, depois do build:all)
-npm run version:next     # prepara a próxima versão antes dos builds
+npm run release -- --notes "novidade 1;novidade 2"   # versão nova + todos os builds + publicação no site
 ```
 
 - Lançador Windows compilado com o `csc.exe` do Windows; ícone/splash gerados por `build/make-assets.ps1`.
@@ -749,11 +750,11 @@ npm run version:next     # prepara a próxima versão antes dos builds
 - Comandos:
   - `npm run version:show` mostra a versão atual.
   - `npm run version:next` avança para a próxima versão ainda não publicada (aceita `minor` ou `major` como argumento).
-- Cada build registra em `dist/build-info.json` com qual versão o arquivo foi gerado. O publicador da release recusa binários de outra versão e versões já publicadas.
+- Cada build registra em `dist/build-info.json` com qual versão o arquivo foi gerado. O `landpage:publish` recusa binários de outra versão e versões já publicadas.
 
 ### Atualizações automáticas (v1.3.26+)
 
-- **Fonte:** `https://cast.flue.live/releases.json` (com `size` e `sha256` de cada artefato). A plataforma de cada instalação vem de `updateTarget` em `/api/system` (`windows-x64`, `linux-x64[-appimage]`, `macos-arm64`, `android-arm64`…).
+- **Fonte:** `https://cast.flue.live/releases.json` (gerado pelo `npm run release`, com `size` e `sha256` de cada artefato). A plataforma de cada instalação vem de `updateTarget` em `/api/system` (`windows-x64`, `linux-x64[-appimage]`, `macos-arm64`, `android-arm64`…).
 - **Verificação** (`public/js/updates.js`): ao abrir o painel e a cada 6 h (`localStorage cd-upd-auto`), ou manual em Painel → Sistema. Banner no topo com notas; "Depois" pula aquela versão (`cd-upd-skip`).
 - **Instalação dentro do app** — rotas locais: `GET /api/update/status`, `POST /api/update/download`, `POST /api/update/install` (recusa com 409 se houver transmissão/gravação).
   - O servidor busca o `releases.json`, baixa por `/dl/<ver>/<arquivo>` (conta no contador do site), confere o SHA-256 e guarda em `<dados>/update/`.

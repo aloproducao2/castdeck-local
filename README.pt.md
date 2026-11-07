@@ -147,7 +147,7 @@ incorporar o código em produto fechado. Componentes de terceiros mantêm suas l
 
 ## Status
 
-Versão **1.4.2** — fonte Browser com URL + painel Interagir, presets 4K, lixeira nas miniaturas e menu por botão direito.
+Versão **1.4.3** — fonte Browser CEF no Windows com áudio, 4K, scroll, idioma da UI e adblock.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Feito por **Miguel Kallemback / flue.live**, de brasileiros para o mundo. 🌎

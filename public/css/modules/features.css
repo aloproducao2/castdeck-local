@@ -1773,3 +1773,6 @@ body.platform-android #btn-replay {
 .browser-interact .row{flex-wrap:wrap}
 .browser-interact .row .input{flex:1 1 220px;min-width:0}
 @media(max-width:640px){.browser-interact-bar .btn{flex:1 1 auto}.browser-interact canvas{max-height:50vh}}
+
+.modal:has(.browser-interact){width:min(1280px,96vw);max-width:none;max-height:calc(100dvh - 20px);padding:16px}
+.browser-interact canvas{max-height:calc(100dvh - 250px)}

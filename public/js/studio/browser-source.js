@@ -8,12 +8,16 @@ import { toast } from '../ui.js';
 export function createBrowserSources({ S, comp, mixer, api, addVideoSource, removeSource, modal, esc, studioId, saveStudio }) {
   const items = new Map(); // key -> item
   let ws = null;
+  let cefWs = null;
+  let cefOk = null;
   let timer = null;
   let seq = 0;
 
   const keyOf = (id) => `br-${String(id).replace(/[^\w.-]/g, '').slice(0, 32)}`;
   const findKey = (key) => items.get(key) || null;
   const preset = () => S.system?.presets?.[S.preset] || { width: 1280, height: 720, fps: 30 };
+  const locale = () => window.CDi18n?.locale || ({ pt: 'pt-BR', en: 'en-US', es: 'es-ES' }[localStorage.getItem('castdeck.lang')] || 'pt-BR');
+
 
   function connect() {
     if (ws || !items.size) return;
@@ -30,6 +34,32 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
       ws = null;
       if (items.size) timer = setTimeout(connect, 1500);
     };
+  }
+
+  function connectCef() {
+    if (cefWs || !items.size) return;
+    try {
+      cefWs = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/cef`);
+    } catch {
+      timer = setTimeout(connectCef, 1500);
+      return;
+    }
+    cefWs.binaryType = 'arraybuffer';
+    cefWs.onmessage = onMessage;
+    cefWs.onerror = () => {};
+    cefWs.onclose = () => {
+      cefWs = null;
+      if ([...items.values()].some((x) => x.backend === 'cef' && !x.stopped)) timer = setTimeout(connectCef, 1500);
+    };
+  }
+
+  async function cefAvailable() {
+    if (cefOk !== null) return cefOk;
+    try {
+      const r = await api('/cef/status');
+      cefOk = !!r?.available;
+    } catch { cefOk = false; }
+    return cefOk;
   }
 
   function onMessage(ev) {
@@ -65,22 +95,22 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
       while (item.pending && !item.stopped) {
         const blob = item.pending;
         item.pending = null;
-        const bmp = await createImageBitmap(blob);
-        if (item.stopped) { bmp.close?.(); break; }
+        const pic = await decodeFrame(blob);
+        if (item.stopped) { pic.close?.(); break; }
         const { ctx, canvas, track } = item;
-        if (canvas.width !== bmp.width || canvas.height !== bmp.height) {
+        if (canvas.width !== pic.width || canvas.height !== pic.height) {
           // o servidor pode ajustar o viewport; mantém o canvas no tamanho atual da mesa
           const w = canvas.width;
           const h = canvas.height;
           ctx.clearRect(0, 0, w, h);
-          const sc = Math.min(w / bmp.width, h / bmp.height);
-          const dw = bmp.width * sc;
-          const dh = bmp.height * sc;
-          ctx.drawImage(bmp, (w - dw) / 2, (h - dh) / 2, dw, dh);
+          const sc = Math.min(w / pic.width, h / pic.height);
+          const dw = pic.width * sc;
+          const dh = pic.height * sc;
+          ctx.drawImage(pic.image, (w - dw) / 2, (h - dh) / 2, dw, dh);
         } else {
-          ctx.drawImage(bmp, 0, 0);
+          ctx.drawImage(pic.image, 0, 0);
         }
-        bmp.close?.();
+        pic.close?.();
         try { track.requestFrame(); } catch {}
         item.frames++;
       }
@@ -89,6 +119,23 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
       item.decoding = false;
       if (item.pending && !item.stopped) pump(item);
     }
+  }
+
+  async function decodeFrame(blob) {
+    if (typeof ImageDecoder !== 'undefined') {
+      try {
+        const decoder = new ImageDecoder({ data: await blob.arrayBuffer(), type: 'image/jpeg' });
+        const { image } = await decoder.decode();
+        return {
+          image,
+          width: image.displayWidth,
+          height: image.displayHeight,
+          close: () => { try { image.close(); } catch {} try { decoder.close(); } catch {} },
+        };
+      } catch {}
+    }
+    const bmp = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
+    return { image: bmp, width: bmp.width, height: bmp.height, close: () => bmp.close?.() };
   }
 
   function playPcm(item, bytes) {
@@ -128,11 +175,11 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
   function persist() {
     S.brand.browserSources = [...items.values()]
       .filter((x) => !x.stopped)
-      .map((x) => ({ id: x.id, label: x.label, url: x.url }));
+      .map((x) => ({ id: x.id, label: x.label, url: x.url, adblock: x.adblock !== false }));
     saveStudio();
   }
 
-  async function create({ label, url, id = '' } = {}) {
+  async function create({ label, url, id = '', adblock = true } = {}) {
     const p = preset();
     const max = p.width >= 3840 ? 1 : 2;
     if (items.size >= max) throw new Error(max === 1 ? 'No 4K, use apenas 1 Browser por vez.' : 'Máximo de 2 Browsers simultâneos.');
@@ -155,6 +202,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
       bid,
       label: String(label || 'Browser').slice(0, 80),
       url,
+      adblock: adblock !== false,
       canvas,
       ctx,
       stream,
@@ -168,15 +216,29 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
     items.set(key, item);
     addVideoSource(item.id, stream, { kind: 'browser', label: item.label, ownerId: 'host' });
     try { track.requestFrame(); } catch {}
-    connect();
-    try {
-      await api(`/dsk/${encodeURIComponent(key)}`, {
-        method: 'PUT',
-        body: { url, width: p.width, height: p.height, jpeg: true, fps: p.fps, quality: 72, force: true },
-      });
-    } catch (e) {
-      stop(item.id, { remove: true });
-      throw e;
+    let backend = 'dsk';
+    if (await cefAvailable()) {
+      try {
+        await api(`/cef/${encodeURIComponent(key)}`, {
+          method: 'PUT',
+          body: { url, width: p.width, height: p.height, fps: 60, lang: locale(), adblock: item.adblock },
+        });
+        backend = 'cef';
+        connectCef();
+      } catch {}
+    }
+    item.backend = backend;
+    if (backend === 'dsk') {
+      connect();
+      try {
+        await api(`/dsk/${encodeURIComponent(key)}`, {
+          method: 'PUT',
+          body: { url, width: p.width, height: p.height, jpeg: true, fps: p.fps, quality: 72, force: true },
+        });
+      } catch (e) {
+        stop(item.id, { remove: true });
+        throw e;
+      }
     }
     persist();
     toast('Browser adicionado. A página aparece assim que o servidor renderizar.', 'ok');
@@ -194,13 +256,15 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
       try { item.audio.gain.disconnect(); } catch {}
       try { item.audio.dest.disconnect(); } catch {}
     }
-    api(`/dsk/${encodeURIComponent(item.key)}`, { method: 'DELETE' }).catch(() => {});
+    api(`/${item.backend === 'cef' ? 'cef' : 'dsk'}/${encodeURIComponent(item.key)}`, { method: 'DELETE' }).catch(() => {});
     mixer.remove(`${item.id}:audio`);
     if (remove) removeSource(item.id);
     if (!items.size) {
       clearTimeout(timer);
       try { ws?.close(); } catch {}
       ws = null;
+      try { cefWs?.close(); } catch {}
+      cefWs = null;
     }
     persist();
   }
@@ -209,9 +273,11 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
     const p = preset();
     const r = await modal(
       `<h3>Browser — página ao vivo</h3>
-       <p class="sub">O servidor abre a URL num navegador headless e traz os quadros para o palco. Nesta versão local o renderizador é o Edge headless; o BrowserHost CEF 30/60 fps e 4K fica para a próxima fase.</p>
+       <p class="sub">O servidor usa o BrowserHost CEF local quando disponível (vídeo via shared texture); sem ele, usa o Edge headless. No CEF, vídeo, clique/texto e áudio da página já são nativos.</p>
        <label class="field"><span>Nome</span><input class="input" id="br-label" maxlength="80" placeholder="Painel do jogo"></label>
        <label class="field"><span>URL</span><input class="input" id="br-url" inputmode="url" placeholder="https://exemplo.com/painel"></label>
+       <label class="checkrow" style="margin:0 0 12px"><input type="checkbox" id="br-adblock" checked><span>Bloquear anúncios e rastreadores (recomendado)</span></label>
+
        <p class="hint">Renderização ${p.width}×${p.height} @ ${p.fps} fps, seguindo o preset da mesa. Áudio da página entra no Mixer quando disponível.</p>
        <div class="modal-actions"><button class="btn" data-close>Cancelar</button><button class="btn primary" data-add>Adicionar Browser</button></div>`,
       {
@@ -219,6 +285,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
         onMount(m, close) {
           const url = m.querySelector('#br-url');
           const label = m.querySelector('#br-label');
+          const adblock = m.querySelector('#br-adblock');
           const go = async () => {
             const u = url.value.trim();
             if (!/^https?:\/\//i.test(u)) return toast('Informe uma URL http(s).', 'err');
@@ -226,7 +293,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
             btn.disabled = true;
             btn.textContent = 'Abrindo…';
             try {
-              await create({ label: label.value.trim() || 'Browser', url: u });
+              await create({ label: label.value.trim() || 'Browser', url: u, adblock: adblock.checked });
               close(true);
             } catch (e) {
               toast('Browser: ' + e.message, 'err');
@@ -245,7 +312,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
   async function restore() {
     const list = Array.isArray(S.brand.browserSources) ? S.brand.browserSources : [];
     for (const b of list.slice(0, 2)) {
-      try { await create({ label: b.label, url: b.url, id: b.id }); } catch {}
+      try { await create({ label: b.label, url: b.url, id: b.id, adblock: b.adblock !== false }); } catch {}
     }
   }
 
@@ -258,16 +325,31 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
       item.ctx.fillRect(0, 0, p.width, p.height);
       item.pending = null;
       item.frames = 0;
-      api(`/dsk/${encodeURIComponent(item.key)}`, {
+      api(`/${item.backend === 'cef' ? 'cef' : 'dsk'}/${encodeURIComponent(item.key)}`, {
         method: 'PUT',
-        body: { url: item.url, width: p.width, height: p.height, jpeg: true, fps: p.fps, quality: 72, force: true },
+        body: item.backend === 'cef'
+          ? { url: item.url, width: p.width, height: p.height, fps: 60, lang: locale(), adblock: item.adblock }
+          : { url: item.url, width: p.width, height: p.height, jpeg: true, fps: p.fps, quality: 72, force: true },
       }).catch(() => {});
     }
   }
 
   function sendInput(item, ev) {
-    if (!ws || ws.readyState !== 1) return;
-    try { ws.send(JSON.stringify({ type: 'input', slot: item.key, ev })); } catch {}
+    const socket = item.backend === 'cef' ? cefWs : ws;
+    if (!socket || socket.readyState !== 1) return;
+    try { socket.send(JSON.stringify({ type: 'input', key: item.key, slot: item.key, ev })); } catch {}
+  }
+
+  async function toggleAdblock(item, on) {
+    if (item.backend !== 'cef') return toast('Adblock disponível no backend CEF.', 'err');
+    const next = !!on;
+    await api('/cef/' + encodeURIComponent(item.key), {
+      method: 'PUT',
+      body: { url: item.url, width: item.canvas.width, height: item.canvas.height, fps: 60, lang: locale(), adblock: next },
+    });
+    item.adblock = next;
+    persist();
+    toast(next ? 'Adblock ativado.' : 'Adblock desativado.', 'ok');
   }
 
   async function navigate(id, url) {
@@ -276,9 +358,11 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
     const u = String(url || '').trim();
     if (!/^https?:\/\//i.test(u)) throw new Error('Use uma URL http(s).');
     const p = preset();
-    await api(`/dsk/${encodeURIComponent(item.key)}`, {
+    await api(`/${item.backend === 'cef' ? 'cef' : 'dsk'}/${encodeURIComponent(item.key)}`, {
       method: 'PUT',
-      body: { url: u, width: item.canvas.width, height: item.canvas.height, jpeg: true, fps: p.fps, quality: 72, force: true },
+      body: item.backend === 'cef'
+        ? { url: u, width: item.canvas.width, height: item.canvas.height, fps: 60, lang: locale(), adblock: item.adblock }
+        : { url: u, width: item.canvas.width, height: item.canvas.height, jpeg: true, fps: p.fps, quality: 72, force: true },
     });
     item.url = u;
     item.pending = null;
@@ -303,6 +387,8 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
           <input class="input" id="bi-url" value="${esc(item.url)}" spellcheck="false" aria-label="URL da página">
           <button class="btn sm primary" id="bi-go">Ir</button>
           <button class="btn sm" id="bi-reload">Recarregar</button>
+          <button class="btn sm" id="bi-adblock" title="Ativar/desativar adblock">Adblock: ON</button>
+
         </div>
         <canvas id="bi-canvas" width="1280" height="720" tabindex="0" aria-label="Prévia interativa da página"></canvas>
         <div class="row" style="margin-top:8px">
@@ -366,7 +452,8 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
           });
           cv.addEventListener('wheel', (e) => {
             const p = pos(e);
-            sendInput(item, { kind: 'mouse', type: 'mouseWheel', x: p.x, y: p.y, button: 'none', deltaX: e.deltaX, deltaY: e.deltaY });
+            const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
+            sendInput(item, { kind: 'mouse', type: 'mouseWheel', x: p.x, y: p.y, button: 'none', deltaX: e.deltaX * unit, deltaY: e.deltaY * unit });
             e.preventDefault();
           }, { passive: false });
           cv.addEventListener('keydown', (e) => {
@@ -396,6 +483,10 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
               toast('URL atualizada.', 'ok');
             } catch (e) { toast('Browser: ' + e.message, 'err'); }
           };
+          const ab = m.querySelector('#bi-adblock');
+          const syncAb = () => { ab.textContent = 'Adblock: ' + (item.adblock === false ? 'OFF' : 'ON'); ab.classList.toggle('primary', item.adblock !== false); if (item.backend !== 'cef') { ab.disabled = true; ab.title = 'Adblock disponível no backend CEF'; } };
+          syncAb();
+          ab.onclick = () => toggleAdblock(item, item.adblock === false).then(syncAb).catch((e) => toast('Browser: ' + e.message, 'err'));
           m.querySelector('#bi-reload').onclick = () => api(`/dsk/${encodeURIComponent(item.key)}/reload`, { method: 'POST' }).catch((e) => toast('Browser: ' + e.message, 'err'));
           m.querySelector('#bi-del').onclick = () => { stop(); close(true); removeSource(item.id); };
           const mo = new MutationObserver(() => {

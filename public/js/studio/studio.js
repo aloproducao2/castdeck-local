@@ -73,6 +73,9 @@ const S = {
   brand: { ...DEFAULT_BRAND },
   bsMin: (() => { try { return localStorage.getItem('cd.bs.min') === '1'; } catch { return false; } })(),
   bsOrder: (() => { try { return JSON.parse(localStorage.getItem('cd.bs.order') || '[]'); } catch { return []; } })(),
+  bsGroup: (() => { try { return localStorage.getItem('cd.bs.group') === 'type' ? 'type' : 'free'; } catch { return 'free'; } })(),
+  bsGroupsCollapsed: (() => { try { return JSON.parse(localStorage.getItem('cd.bs.collapsed') || '[]'); } catch { return []; } })(),
+  bsGroupOrder: (() => { try { const v = JSON.parse(localStorage.getItem('cd.bs.groupOrder') || '[]'); return Array.isArray(v) && v.length ? v : ['camera','guest','ingest','screen','media','browser','image','other']; } catch { return ['camera','guest','ingest','screen','media','browser','image','other']; } })(),
   banners: [],
   gcTemplates: [],
   activeBanner: null,
@@ -701,6 +704,7 @@ async function buildStudio() {
     toast,
     sendControl: (to, action, data) => sig?.send({ type: 'control', to, action, data }),
     onAir: applyAir,
+    onPreview: renderTiles,
     openFx: (id) => openFx(id),
     fxActive: (id) => !!vfx?.active(id),
     toggleCohost: (ownerId) => toggleCohost(ownerId),
@@ -711,6 +715,7 @@ async function buildStudio() {
       applySideForMode(on);
       updateModeHint(on);
       autoVoice?.onMode(on);
+      renderTiles();
     },
   });
   switcher.mount();
@@ -1695,6 +1700,131 @@ function openTileActions(actions) {
   );
 }
 
+const BS_GROUPS = [
+  { key: 'camera', label: 'Câmeras', ico: '◉' },
+  { key: 'guest', label: 'Convidados', ico: '◌' },
+  { key: 'ingest', label: 'Entradas', ico: '⇄' },
+  { key: 'screen', label: 'Telas', ico: '▣' },
+  { key: 'media', label: 'Mídias', ico: '▶' },
+  { key: 'browser', label: 'Browser', ico: '⌘' },
+  { key: 'image', label: 'Imagens', ico: '▧' },
+  { key: 'other', label: 'Outros', ico: '•' },
+];
+
+function bsGroupOf(s) {
+  if (s.ingest) return 'ingest';
+  if (s.kind === 'camera') return s.ownerId === 'host' ? 'camera' : 'guest';
+  if (s.kind === 'screen') return 'screen';
+  if (s.kind === 'media') return 'media';
+  if (s.kind === 'browser') return 'browser';
+  if (s.kind === 'image') return 'image';
+  return 'other';
+}
+
+function saveBsGroupPrefs() {
+  try {
+    localStorage.setItem('cd.bs.group', S.bsGroup);
+    localStorage.setItem('cd.bs.collapsed', JSON.stringify(S.bsGroupsCollapsed || []));
+    localStorage.setItem('cd.bs.groupOrder', JSON.stringify(S.bsGroupOrder || []));
+  } catch {}
+}
+
+function orderedBsGroups() {
+  const order = Array.isArray(S.bsGroupOrder) && S.bsGroupOrder.length
+    ? S.bsGroupOrder
+    : BS_GROUPS.map((x) => x.key);
+  const rank = new Map(order.map((k, i) => [k, i]));
+  return [...BS_GROUPS].sort((a, b) => (rank.get(a.key) ?? 999) - (rank.get(b.key) ?? 999));
+}
+
+function moveBsGroupBy(key, dir) {
+  const keys = orderedBsGroups().map((x) => x.key);
+  const i = keys.indexOf(key);
+  if (i < 0) return;
+  // Move apenas em relação aos grupos visíveis; grupos vazios não bloqueiam a troca.
+  const visible = new Set([...document.querySelectorAll('#backstage .bs-group')].map((g) => g.dataset.group));
+  visible.add(key);
+  let target = -1;
+  if (dir > 0) {
+    for (let j = i + 1; j < keys.length; j++) if (visible.has(keys[j])) { target = j; break; }
+  } else {
+    for (let j = i - 1; j >= 0; j--) if (visible.has(keys[j])) { target = j; break; }
+  }
+  if (target < 0) return;
+  keys.splice(i, 1);
+  const at = target > i ? target - 1 : target;
+  keys.splice(dir > 0 ? at + 1 : at, 0, key);
+  S.bsGroupOrder = keys;
+  saveBsGroupPrefs();
+  renderTiles();
+}
+
+function moveBsGroup(from, before) {
+  if (!from || from === before) return;
+  const order = orderedBsGroups().map((x) => x.key).filter((k) => k !== from);
+  const i = before ? order.indexOf(before) : -1;
+  order.splice(i < 0 ? order.length : i, 0, from);
+  S.bsGroupOrder = order;
+  saveBsGroupPrefs();
+  renderTiles();
+}
+
+function toggleBsGroupMode() {
+  S.bsGroup = S.bsGroup === 'type' ? 'free' : 'type';
+  saveBsGroupPrefs();
+  renderTiles();
+  toast(S.bsGroup === 'type' ? 'Miniaturas agrupadas por tipo' : 'Miniaturas em ordem livre');
+}
+
+function toggleBsGroup(key) {
+  const set = new Set(Array.isArray(S.bsGroupsCollapsed) ? S.bsGroupsCollapsed : []);
+  if (set.has(key)) set.delete(key); else set.add(key);
+  S.bsGroupsCollapsed = [...set];
+  saveBsGroupPrefs();
+  renderTiles();
+}
+
+function ensureBsGroup(box, key) {
+  let sec = box.querySelector(`.bs-group[data-group="${key}"]`);
+  if (sec) return sec;
+  const meta = BS_GROUPS.find((x) => x.key === key) || BS_GROUPS[BS_GROUPS.length - 1];
+  sec = h(`<section class="bs-group" data-group="${key}">
+    <div class="bs-group-head" role="button" tabindex="0" title="Mostrar ou ocultar grupo" draggable="true">
+      <span class="bs-group-handle" title="Arraste para reordenar o grupo">⠿</span><span class="bs-group-ico">${meta.ico}</span><span class="bs-group-name">${meta.label}</span>
+      <span class="bs-group-count"></span><button class="bs-group-move" type="button" data-dir="-1" title="Mover grupo para a esquerda" aria-label="Mover grupo para a esquerda">‹</button><button class="bs-group-move" type="button" data-dir="1" title="Mover grupo para a direita" aria-label="Mover grupo para a direita">›</button><span class="bs-group-chev">▾</span>
+    </div>
+    <div class="bs-group-body"></div>
+  </section>`);
+  const head = sec.querySelector('.bs-group-head');
+  let wasDragged = false;
+  head.onclick = () => { if (wasDragged) { wasDragged = false; return; } toggleBsGroup(key); };
+  head.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBsGroup(key); } };
+  head.querySelectorAll('.bs-group-move').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); moveBsGroupBy(key, Number(b.dataset.dir) || 0); }; });
+  head.ondragstart = (e) => {
+    wasDragged = true;
+    e.dataTransfer.setData('text/x-castdeck-bs-group', key);
+    e.dataTransfer.effectAllowed = 'move';
+    sec.classList.add('dragging');
+  };
+  head.ondragend = () => { sec.classList.remove('dragging'); setTimeout(() => { wasDragged = false; }, 80); };
+  sec.ondragover = (e) => {
+    if (![...(e.dataTransfer.types || [])].includes('text/x-castdeck-bs-group')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    sec.classList.add('drop-before');
+  };
+  sec.ondragleave = () => sec.classList.remove('drop-before');
+  sec.ondrop = (e) => {
+    const from = e.dataTransfer.getData('text/x-castdeck-bs-group');
+    if (!from) return;
+    e.preventDefault();
+    sec.classList.remove('drop-before');
+    moveBsGroup(from, key);
+  };
+  box.append(sec);
+  return sec;
+}
+
 function renderTiles() {
   const box = $('#backstage');
   if (!box) return;
@@ -1726,6 +1856,14 @@ function renderTiles() {
           <div class="tbar"><span class="nm"></span><span class="acts row" style="gap:2px"></span></div>
         </div>`);
       el.dataset.srcId = s.id;
+      el.addEventListener('click', (e) => {
+        if (!S.switcher || e.target.closest('button') || el.classList.contains('dragging')) return;
+        switcher?.setPreview(s.id);
+      });
+      el.addEventListener('dblclick', (e) => {
+        if (!S.switcher || e.target.closest('button') || el.classList.contains('dragging')) return;
+        switcher?.cutTo(s.id);
+      });
       el.querySelector('.stage-btn button').onclick = () => toggleStage(s.id);
       el.draggable = true;
       el.title = 'Arraste para um espaço do programa';
@@ -1757,7 +1895,10 @@ function renderTiles() {
     }
     const on = S.stage.includes(s.id);
     const air = S.take === s.id; // mesa de corte: esta fonte está no ar em tela cheia
+    const pvw = !!S.switcher && S.pvw === s.id;
     el.classList.toggle('on-stage', on || air);
+    el.classList.toggle('pgm', air);
+    el.classList.toggle('pvw', pvw && !air);
     el.querySelector('.stage-btn button').textContent = on ? 'Tirar do palco' : 'Pôr no palco';
     const nmEl = el.querySelector('.nm');
     nmEl.textContent = s.label || '';
@@ -1765,8 +1906,8 @@ function renderTiles() {
     el.title = s.label || '';
     const badge = { camera: s.ingest ? (s.ingestLive ? 'Drone/RTMP' : 'Sem sinal') : s.extraCam ? 'Câmera' : s.remoteCam ? 'Câmera remota' : s.ownerId === 'host' ? 'Você' : S.guests.get(s.ownerId)?.cohost ? 'Co-host' : 'Convidado', screen: 'Tela', media: 'Mídia', image: 'Imagem' }[s.kind];
     const b = el.querySelector('.badge');
-    b.textContent = air ? 'NO AR' : on ? 'NO PALCO' : badge;
-    b.className = 'pill badge' + (on || air ? ' live' : '');
+    b.textContent = air ? 'NO AR' : pvw ? 'PRÉVIA' : on ? 'NO PALCO' : badge;
+    b.className = 'pill badge' + (air ? ' live' : pvw ? ' pvw' : on ? ' live' : '');
     const q = s.kind === 'camera' && s.ownerId !== 'host' ? S.guests.get(s.ownerId)?.quality : null;
     el.querySelector('.icons').innerHTML =
       (s.kind === 'camera' && s.micOn === false ? `<i>${icons.micOff}</i>` : '') +
@@ -1852,15 +1993,62 @@ function renderTiles() {
   box.classList.toggle('bs-min', S.bsMin);
   const layBox = $('#layouts');
   if (layBox && minBtn.parentElement !== layBox) layBox.append(minBtn);
+  let groupBtn = $('#bs-group');
+  if (!groupBtn) {
+    groupBtn = h(`<button class="bs-min-btn bs-group-btn" id="bs-group" type="button" title="Alternar entre agrupamento por tipo e ordem livre"></button>`);
+    groupBtn.onclick = toggleBsGroupMode;
+  }
+  const groupedNow = S.bsGroup === 'type';
+  const groupLabel = groupedNow ? 'Agrupado por tipo' : 'Ordem livre';
+  groupBtn.textContent = groupedNow ? '▦' : '☰';
+  groupBtn.title = groupedNow ? `${groupLabel} — clique para ordem livre` : `${groupLabel} — clique para agrupar por tipo`;
+  groupBtn.setAttribute('aria-label', groupBtn.title);
+  groupBtn.classList.toggle('on', groupedNow);
+  groupBtn.setAttribute('aria-pressed', groupedNow ? 'true' : 'false');
+  if (layBox && groupBtn.parentElement !== layBox) layBox.append(groupBtn);
 
   const ids = [...S.sources.keys()];
   const known = (Array.isArray(S.bsOrder) ? S.bsOrder : []).filter((id) => S.sources.has(id));
   for (const id of ids) if (!known.includes(id)) known.push(id);
   S.bsOrder = known;
   saveBsOrder();
+  const grouped = S.bsGroup === 'type';
+  box.classList.toggle('grouped', grouped);
+  if (!grouped) {
+    for (const g of [...box.querySelectorAll('.bs-group')]) g.remove();
+  }
+  const usedGroups = new Set();
   for (const id of known) {
     const el = tileEls.get(id);
-    if (el) box.append(el);
+    if (!el) continue;
+    if (grouped) {
+      const key = bsGroupOf(S.sources.get(id));
+      const sec = ensureBsGroup(box, key);
+      const body = sec.querySelector('.bs-group-body');
+      if (body) body.append(el);
+      usedGroups.add(key);
+    } else {
+      box.append(el);
+    }
+  }
+  if (grouped) {
+    const ordered = [];
+    for (const meta of orderedBsGroups()) {
+      if (!usedGroups.has(meta.key)) continue;
+      const sec = ensureBsGroup(box, meta.key);
+      const body = sec.querySelector('.bs-group-body');
+      const count = body ? body.querySelectorAll('.tile').length : 0;
+      if (!count) continue;
+      const c = sec.querySelector('.bs-group-count');
+      if (c) c.textContent = count;
+      const collapsed = (S.bsGroupsCollapsed || []).includes(meta.key);
+      sec.classList.toggle('collapsed', collapsed);
+      const chev = sec.querySelector('.bs-group-chev');
+      if (chev) chev.textContent = collapsed ? '▸' : '▾';
+      box.append(sec);
+      ordered.push(sec);
+    }
+    for (const g of [...box.querySelectorAll('.bs-group')]) if (!ordered.includes(g)) g.remove();
   }
 
   // "＋ Câmera" sempre no fim dos bastidores

@@ -8418,5 +8418,183 @@
   "Saída padrão do sistema": [
     "System default output",
     "Salida predeterminada del sistema"
+  ],
+  "Convidados": [
+    "Guests",
+    "Invitados"
+  ],
+  "Entradas": [
+    "Inputs",
+    "Entradas"
+  ],
+  "Telas": [
+    "Screens",
+    "Pantallas"
+  ],
+  "Mídias": [
+    "Media",
+    "Medios"
+  ],
+  "Browser": [
+    "Browser",
+    "Navegador"
+  ],
+  "Outros": [
+    "Others",
+    "Otros"
+  ],
+  "Agrupar: Tipo": [
+    "Group: Type",
+    "Agrupar: Tipo"
+  ],
+  "Agrupar: Livre": [
+    "Group: Free",
+    "Agrupar: Libre"
+  ],
+  "Miniaturas agrupadas por tipo": [
+    "Thumbnails grouped by type",
+    "Miniaturas agrupadas por tipo"
+  ],
+  "Miniaturas em ordem livre": [
+    "Thumbnails in free order",
+    "Miniaturas en orden libre"
+  ],
+  "Mostrar ou ocultar grupo": [
+    "Show or hide group",
+    "Mostrar u ocultar grupo"
+  ],
+  "Bloquear anúncios e rastreadores (recomendado)": [
+    "Block ads and trackers (recommended)",
+    "Bloquear anuncios y rastreadores (recomendado)"
+  ],
+  "Adblock: ON": [
+    "Adblock: ON",
+    "Adblock: ON"
+  ],
+  "Adblock: OFF": [
+    "Adblock: OFF",
+    "Adblock: OFF"
+  ],
+  "Adblock ativado.": [
+    "Adblock enabled.",
+    "Adblock activado."
+  ],
+  "Adblock desativado.": [
+    "Adblock disabled.",
+    "Adblock desactivado."
+  ],
+  "Adblock disponível no backend CEF.": [
+    "Adblock is available on the CEF backend.",
+    "Adblock disponible en el backend CEF."
+  ],
+  "Ativar/desativar adblock": [
+    "Enable/disable adblock",
+    "Activar/desactivar adblock"
+  ],
+  "Browser — página ao vivo": [
+    "Browser — live page",
+    "Navegador — página en vivo"
+  ],
+  "O servidor usa o BrowserHost CEF local quando disponível (vídeo via shared texture); sem ele, usa o Edge headless. No CEF, vídeo, clique/texto e áudio da página já são nativos.": [
+    "The server uses the local CEF BrowserHost when available (video via shared texture); otherwise it uses headless Edge. In CEF, page video, click/text and audio are already native.",
+    "El servidor usa el BrowserHost CEF local cuando está disponible (vídeo mediante shared texture); si no, usa Edge headless. En CEF, el vídeo, clic/texto y audio de la página ya son nativos."
+  ],
+  "Clique e navegue na página como no OBS. O teclado funciona quando a prévia está focada; use o campo de texto para digitar em campos da página.": [
+    "Click and browse the page like in OBS. The keyboard works when the preview is focused; use the text field to type into page fields.",
+    "Haz clic y navega por la página como en OBS. El teclado funciona cuando la vista previa está enfocada; usa el campo de texto para escribir en campos de la página."
+  ],
+  "Prévia interativa da página": [
+    "Interactive page preview",
+    "Vista previa interactiva de la página"
+  ],
+  "URL da página": [
+    "Page URL",
+    "URL de la página"
+  ],
+  "Digite um texto para a página e pressione Enter": [
+    "Type text for the page and press Enter",
+    "Escribe un texto para la página y pulsa Enter"
+  ],
+  "Enviar texto": [
+    "Send text",
+    "Enviar texto"
+  ],
+  "Excluir Browser": [
+    "Delete Browser",
+    "Eliminar navegador"
+  ],
+  "Recarregar": [
+    "Reload",
+    "Recargar"
+  ],
+  "Ir": [
+    "Go",
+    "Ir"
+  ],
+  "URL atualizada.": [
+    "URL updated.",
+    "URL actualizada."
+  ],
+  "Informe uma URL http(s).": [
+    "Enter an http(s) URL.",
+    "Introduce una URL http(s)."
+  ],
+  "Painel do jogo": [
+    "Game dashboard",
+    "Panel del juego"
+  ],
+  "Renderização {0}×{1} @ {2} fps, seguindo o preset da mesa. Áudio da página entra no Mixer quando disponível.": [
+    "Rendering {0}×{1} @ {2} fps, following the studio preset. Page audio goes to the Mixer when available.",
+    "Renderización {0}×{1} @ {2} fps, siguiendo el preset de la mesa. El audio de la página entra en el Mixer cuando está disponible."
+  ],
+  "Alternar entre agrupamento por tipo e ordem livre": [
+    "Toggle grouping by type and free order",
+    "Alternar entre agrupación por tipo y orden libre"
+  ],
+  "Browser adicionado. A página aparece assim que o servidor renderizar.": [
+    "Browser added. The page appears as soon as the server renders it.",
+    "Navegador añadido. La página aparece en cuanto el servidor la renderice."
+  ],
+  "Interagir com a página (clicar, digitar, navegar)": [
+    "Interact with the page (click, type, browse)",
+    "Interactuar con la página (clic, escribir, navegar)"
+  ],
+  "Interagir com a página": [
+    "Interact with the page",
+    "Interactuar con la página"
+  ],
+  "Arraste para reordenar o grupo": [
+    "Drag to reorder the group",
+    "Arrastra para reordenar el grupo"
+  ],
+  "Arraste para reordenar o grupo.": [
+    "Drag to reorder the group.",
+    "Arrastra para reordenar el grupo."
+  ],
+  "Mover grupo para a esquerda": [
+    "Move group left",
+    "Mover grupo a la izquierda"
+  ],
+  "Mover grupo para a direita": [
+    "Move group right",
+    "Mover grupo a la derecha"
+  ],
+  "Clique na miniatura = prévia · duplo clique = corte direto · botão direito = ações": [
+    "Click thumbnail = preview · double-click = direct cut · right-click = actions",
+    "Clic en miniatura = vista previa · doble clic = corte directo · clic derecho = acciones"
+  ],
+  "Cena: prévia do palco/layout; duplo clique corta para a Cena": [
+    "Scene: preview the stage/layout; double-click cuts to Scene",
+    "Escena: vista previa del escenario/diseño; doble clic corta a la Escena"
+  ],
+  "Agrupado por tipo": "Grouped by type",
+  "Agrupado por tipo — clique para ordem livre": [
+    "Grouped by type — click for free order",
+    "Agrupado por tipo — clic para orden libre"
+  ],
+  "Ordem livre": "Free order",
+  "Ordem livre — clique para agrupar por tipo": [
+    "Free order — click to group by type",
+    "Orden libre — clic para agrupar por tipo"
   ]
 }

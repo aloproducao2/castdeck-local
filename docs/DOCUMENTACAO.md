@@ -6,7 +6,7 @@
 
 | | |
 | --- | --- |
-| **Projeto** | CastDeck Local (`castdeck-local` v1.4.3, 2026-11-07) |
+| **Projeto** | CastDeck Local (`castdeck-local` v1.4.4, 2026-11-07) |
 | **Licença** | AGPL-3.0 (código aberto) + licença comercial |
 | **Autoria / desenvolvimento** | **Miguel Kallemback** (desenvolvedor e idealizador) |
 | **Desenvolvimento assistido por IA** | Claude (Anthropic), Gemini / Antigravity (Google DeepMind) e DeepSeek |
@@ -157,6 +157,8 @@ O NDI é opcional e fica **desligado por padrão** para economizar CPU, rede e m
 - Segue o preset da mesa: 720p30/60, 1080p30/60 e 4K30/60 quando configurado.
 - Áudio da página entra no Mixer como canal BROWSER.
 - **Interagir**: prévia ampliada com clique, texto, scroll, troca de URL e recarregar.
+- **PGM** usa uma única superfície de fontes: miniaturas agrupadas, prévia por clique e corte por duplo clique.
+- Miniaturas podem ser agrupadas por tipo (modo opcional) e mídias aparecem em lista.
 - Idioma do navegador segue o idioma da interface (pt-BR/en-US/es-ES).
 - Adblock básico ativado por padrão, com botão ON/OFF.
 - Lixeira na miniatura e menu de ações com botão direito.
@@ -698,7 +700,7 @@ Depuração do WebView: `adb forward tcp:9222 localabstract:webview_devtools_rem
 
 ### Usuário final (PC)
 
-1. Execute `CastDeck.exe` (portátil) ou o **instalador** `CastDeck-Setup-1.4.3.exe` no Windows — FFmpeg e cloudflared já vêm embutidos. O instalador cria atalhos, início automático opcional e desinstalador, sem apagar `%LOCALAPPDATA%\CastDeck`.
+1. Execute `CastDeck.exe` (portátil) ou o **instalador** `CastDeck-Setup-1.4.4.exe` no Windows — FFmpeg e cloudflared já vêm embutidos. O instalador cria atalhos, início automático opcional e desinstalador, sem apagar `%LOCALAPPDATA%\CastDeck`.
 2. Crie um estúdio no painel.
 3. **Convidar** → copie o link `https://….trycloudflare.com/join/…` e envie.
 4. Cadastre destinos (YouTube, Facebook, Twitch, RTMP) e clique em **Transmitir**.

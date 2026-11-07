@@ -145,7 +145,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.4.3** — Native CEF browser source on Windows with audio, 4K, scroll, UI language and adblock toggle.
+Version **1.4.4** — Unified PGM source rail, collapsible/reorderable thumbnail groups, media list, CEF audio/4K/scroll/adblock.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

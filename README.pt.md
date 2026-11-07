@@ -147,7 +147,7 @@ incorporar o código em produto fechado. Componentes de terceiros mantêm suas l
 
 ## Status
 
-Versão **1.4.3** — fonte Browser CEF no Windows com áudio, 4K, scroll, idioma da UI e adblock.
+Versão **1.4.4** — modo PGM com fonte única, grupos reordenáveis, mídias em lista e Browser CEF com áudio/4K/scroll/adblock.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Feito por **Miguel Kallemback / flue.live**, de brasileiros para o mundo. 🌎

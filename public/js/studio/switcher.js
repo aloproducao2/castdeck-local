@@ -16,11 +16,8 @@ const SCENE = '__scene__';
 const KEY = 'castdeck.switcher';
 const MS_OPTS = [300, 500, 1000];
 const BUS_KINDS = new Set(['camera', 'screen', 'media', 'image']);
-const THUMB_W = 192;
-const THUMB_H = 108;
-const THUMB_GAP = 125; // ms entre miniaturas (~8 fps): só para reconhecer a imagem, sem pesar no PC
 
-export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, toggleStage, addCamera, onMode, openFx, fxActive, toggleCohost, isCohost }) {
+export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, onPreview, toggleStage, addCamera, onMode, openFx, fxActive, toggleCohost, isCohost }) {
   let pref = {};
   try {
     pref = JSON.parse(localStorage.getItem(KEY) || '{}');
@@ -31,11 +28,7 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
   S.pvw = null;
   S.ftb = false;
   let preview = null;
-  let sceneView = null; // miniatura da "Cena" (palco + layout)
   let fadeWas = false; // para reabilitar CUT/AUTO quando a transição termina
-  let busKey = '';
-  let thumbT = 0;
-  const thumbs = new Map(); // id -> canvas da miniatura
   const tallySent = new Map(); // guestId -> 'pgm' | 'pvw' | ''
   // T-bar: rest = ponta onde a alavanca está parada (0 = em cima, 1 = embaixo). Cada transição leva para a outra ponta.
   const tb = { rest: 1, pos: 1, drag: false, started: false, anim: false, from: 1, to: 0 };
@@ -80,20 +73,20 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
       </div>
       <div class="sw-ms" id="sw-ms" role="group" aria-label="Duração do AUTO">${MS_OPTS.map((ms) => `<button data-ms="${ms}">${ms < 1000 ? String(ms / 1000).replace('.', ',') : '1'}s</button>`).join('')}</div>
       <button class="sw-ftb" id="sw-ftb" title="Fade to black: escurece o programa inteiro (gráficos inclusive). Clique de novo para voltar">FTB</button>`;
-    // barra de fontes (multiview)
+    // A lista de fontes é o backstage agrupado. Não existe uma segunda barra de miniaturas.
     $('#switcher').innerHTML = `
       <div class="sw-bus-head">
         <strong>Fontes</strong>
-        <span class="sw-help" title="Atalhos: Shift+número = corte direto · Espaço corta · T dissolve · Shift+F tela cheia">Clique = prévia · duplo clique = corte direto</span>
+        <span class="sw-help" title="Atalhos: Shift+número = corte direto · Espaço corta · T dissolve · Shift+F tela cheia">Clique na miniatura = prévia · duplo clique = corte direto · botão direito = ações</span>
         <span class="sw-help-touch">Toque = prévia · toque duplo = corte direto</span>
         <span class="sw-legend"><i class="lg pgm"></i>No ar <i class="lg pvw"></i>Prévia</span>
+        <button class="btn sm ghost" id="sw-scene" type="button" title="Cena: prévia do palco/layout; duplo clique corta para a Cena">Cena</button>
         <button class="btn sm ghost icon sw-fs" data-fs="wall" data-label="Tela cheia" title="Mesa inteira em tela cheia (Shift+F)" data-tip="Mesa inteira em tela cheia (Shift+F)" aria-label="Tela cheia">${icons.expand}</button>
-        <button class="btn sm ghost" id="sw-bs" aria-pressed="false" title="Mostrar os bastidores completos (ajustes de cada câmera, mudo, efeitos)">Bastidores</button>
-      </div>
-      <div class="sw-bus" id="sw-bus" role="toolbar" aria-label="Fontes da mesa de corte"></div>`;
+      </div>`;
     preview = new PreviewView(comp, $('#sw-pvw-canvas'), { fps: programFps() });
-    sceneView = new PreviewView(comp, document.createElement('canvas'), { width: THUMB_W * 2, height: THUMB_H * 2, fps: 8 });
     // e.detail > 0 = clique/ponteiro; teclado mantém o foco para a ativação nativa.
+    $('#sw-scene').onclick = () => setPreview(null);
+    $('#sw-scene').ondblclick = () => cutTo(null);
     $('#sw-cut').onclick = (e) => { take('cut'); if (e.detail) e.currentTarget.blur(); };
     $('#sw-auto').onclick = (e) => { take('mix'); if (e.detail) e.currentTarget.blur(); };
     $('#sw-ftb').onclick = () => setBlack(!S.ftb);
@@ -104,39 +97,8 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
       save();
       refresh();
     };
-    $('#sw-bs').onclick = () => {
-      const on = !$('.studio').classList.contains('sw-bs');
-      $('.studio').classList.toggle('sw-bs', on);
-      $('#sw-bs').setAttribute('aria-pressed', String(on));
-    };
-    const bus = $('#sw-bus');
-    bus.onclick = (e) => {
-      if (e.target.closest('#sw-add')) return addCamera?.();
-      const tool = e.target.closest('[data-tool]');
-      if (tool) {
-        e.stopPropagation();
-        if (tool.dataset.tool === 'fx') openFx?.(tool.dataset.id);
-        else toggleCohost?.(tool.dataset.id);
-        return;
-      }
-      const st = e.target.closest('[data-stage]');
-      if (st) {
-        // botão "palco" da miniatura: põe/tira da Cena sem mudar a prévia
-        e.stopPropagation();
-        return toggleStage?.(st.dataset.stage);
-      }
-      const b = e.target.closest('[data-src]');
-      if (b) {
-        setPreview(b.dataset.src === SCENE ? null : b.dataset.src);
-        if (e.detail) b.blur(); // devolve o foco ao documento para Espaço/Enter continuarem atalhos
-      }
-    };
-    bus.ondblclick = (e) => {
-      if (e.target.closest('[data-stage], [data-tool], #sw-add')) return;
-      const b = e.target.closest('[data-src]');
-      if (b) cutTo(b.dataset.src === SCENE ? null : b.dataset.src);
-    };
     bindTbar();
+
     window.addEventListener('keydown', onKey);
     setMode(S.switcher, { silent: true });
   }
@@ -172,7 +134,6 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
     save();
     const studio = $('.studio');
     studio?.classList.toggle('sw-on', S.switcher);
-    if (!S.switcher) studio?.classList.remove('sw-bs');
     $('#switcher').hidden = !S.switcher;
     $('#sw-pvw-box').hidden = !S.switcher;
     $('#sw-tcol').hidden = !S.switcher;
@@ -194,11 +155,9 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
     } else {
       S.pvw = S.pvw ?? busList().find((s) => s.id !== S.take && s.kind === 'camera')?.id ?? null;
       preview.set({ take: S.pvw });
-      sceneView.set({ take: null });
       if (!silent) toast('Mesa de corte ligada: escolha a prévia e corte com Espaço (ou T para dissolver).', 'ok');
     }
     onMode?.(S.switcher);
-    busKey = '';
     refresh();
     syncTally();
   }
@@ -208,6 +167,7 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
     S.pvw = id;
     preview?.set({ take: id });
     refresh();
+    onPreview?.();
     syncTally();
   }
 
@@ -359,52 +319,11 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
     }
     if (changed) onAir(id);
     tallySent.delete(id.split(':')[0]);
-    thumbs.delete(id);
     refresh();
   }
 
   function refresh() {
     if (!S.switcher) return;
-    const list = busList();
-    const bus = $('#sw-bus');
-    if (!bus) return;
-    const stage = new Set(S.stage);
-    const k = JSON.stringify([list.map((s) => [s.id, s.label, s.camOff, s.remoteCam]), S.take, S.pvw, S.stage, S.solo, list.map((s) => [fxActive?.(s.id), isCohost?.(s.ownerId)])]);
-    if (k !== busKey) {
-      busKey = k;
-      // fontes que aparecem na Cena acendem fraco quando a Cena está no ar/na prévia (tally do ATEM)
-      const sceneAir = S.take === null;
-      const scenePvw = S.pvw === null;
-      const kindTag = (s) => (s.kind === 'screen' ? 'tela' : s.kind === 'media' ? 'vídeo' : s.kind === 'image' ? 'imagem' : s.remoteCam ? 'remota' : '');
-      const card = (id, n, name, kind, src) => {
-        const realId = id === SCENE ? null : id;
-        const inScene = src && stage.has(id);
-        const cls = [
-          realId === S.take ? 'pgm' : '',
-          realId === S.pvw ? 'pvw' : '',
-          inScene && sceneAir && realId !== S.take ? 'pgm-soft' : '',
-          inScene && scenePvw && realId !== S.pvw ? 'pvw-soft' : '',
-          id === SCENE ? 'scene' : '',
-        ].join(' ');
-        const guestCam = src && src.kind === 'camera' && src.ownerId !== 'host' && !src.remoteCam && !src.ingest;
-        const tools = src && src.kind === 'camera' && !src.ingest
-          ? `<span class="sw-tools">${`<span class="sw-tool ${fxActive?.(id) ? 'on' : ''}" data-tool="fx" data-id="${esc(id)}" title="Efeitos de vídeo: fundo virtual e enquadramento automático">✦</span>`}${guestCam ? `<span class="sw-tool cohost ${isCohost?.(src.ownerId) ? 'on' : ''}" data-tool="cohost" data-id="${esc(src.ownerId)}" title="${isCohost?.(src.ownerId) ? 'Remover co-host' : 'Tornar co-host (pode editar a live)'}">${isCohost?.(src.ownerId) ? '★' : '☆'}</span>` : ''}</span>`
-          : '';
-        const actions = (src ? `<span class="sw-stg ${inScene ? 'on' : ''}" data-stage="${esc(id)}" title="${inScene ? 'Está no palco: clique para tirar' : 'Pôr no palco'}">${inScene ? 'Tirar do palco' : 'Pôr no palco'}</span>` : '') + tools;
-        return `<button class="sw-card ${cls}" data-src="${esc(id)}" title="${esc(name)}${n ? ` (tecla ${n})` : ' (tecla 0)'}">
-          <span class="sw-thumb"><canvas width="${THUMB_W}" height="${THUMB_H}"></canvas><b class="sw-num">${n || '0'}</b>${kind ? `<i class="sw-kind">${kind}</i>` : ''}${realId === S.take ? '<em class="sw-live">NO AR</em>' : ''}</span>
-          <span class="sw-name">${esc(name)}</span>
-          ${actions ? `<span class="sw-actions">${actions}</span>` : ''}
-        </button>`;
-      };
-      bus.innerHTML =
-        card(SCENE, 0, label(null), 'layout', null) +
-        list.map((s, i) => card(s.id, i < 9 ? i + 1 : '', s.label || 'Fonte', kindTag(s), s)).join('') +
-        `<button class="sw-card add" id="sw-add" title="Adicionar câmera: USB/captura deste computador ou celular pelo QR Code"><span class="sw-thumb"><span class="add-ico">＋</span></span><span class="sw-name">Câmera</span></button>`;
-      thumbs.clear();
-      for (const el of bus.querySelectorAll('[data-src]')) thumbs.set(el.dataset.src, el.querySelector('canvas'));
-      thumbT = 0; // desenha as miniaturas novas já no próximo quadro
-    }
     const nm = $('#sw-pvw-name');
     if (nm) nm.textContent = label(S.pvw);
     const pn = $('#sw-pgm-name');
@@ -421,6 +340,8 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
       auto.disabled = !ready;
       auto.title = ready ? 'Transição suave (dissolve) da prévia para o ar (T)' : 'AUTO indisponível durante a transição ou sem prévia diferente';
     }
+    const scene = $('#sw-scene');
+    if (scene) scene.classList.toggle('active', S.pvw === null);
   }
 
   // luz de "no ar"/"prévia" no celular das câmeras remotas (também funciona no modo Estúdio: no palco = no ar)
@@ -438,34 +359,6 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
   }
   function guestReset(id) {
     tallySent.delete(id);
-  }
-
-  // miniatura: imagem crua da fonte (sem efeitos, que custam caro), cortada para 16:9
-  function drawThumb(cv, s) {
-    const x = cv.getContext('2d');
-    const W = cv.width;
-    const H = cv.height;
-    x.fillStyle = '#0b0b12';
-    x.fillRect(0, 0, W, H);
-    const el = s?.el;
-    const img = el instanceof HTMLImageElement;
-    const vw = img ? el?.naturalWidth : el?.videoWidth;
-    const vh = img ? el?.naturalHeight : el?.videoHeight;
-    if (el && vw > 0 && (img || el.readyState >= 2) && !s.camOff) {
-      if (s.adjust) {
-        drawFramed(x, el, 0, 0, W, H, vw, vh, s.adjust);
-      } else {
-        const contain = s.kind !== 'camera';
-        const sc = contain ? Math.min(W / vw, H / vh) : Math.max(W / vw, H / vh);
-        x.drawImage(el, (W - vw * sc) / 2, (H - vh * sc) / 2, vw * sc, vh * sc);
-      }
-    } else {
-      x.fillStyle = '#7d7d92';
-      x.font = '600 13px Inter, sans-serif';
-      x.textAlign = 'center';
-      x.textBaseline = 'middle';
-      x.fillText(t(s?.camOff ? 'Câmera desligada' : 'Sem sinal'), W / 2, H / 2);
-    }
   }
 
   function render() {
@@ -498,18 +391,6 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, tog
       f.style.height = `${p * 100}%`;
     }
     $('.studio')?.classList.toggle('sw-mixing', prog !== null);
-    // miniaturas da barra de fontes
-    if (now - thumbT < THUMB_GAP) return;
-    thumbT = now;
-    for (const [id, cv] of thumbs) {
-      if (!cv) continue;
-      if (id === SCENE) {
-        sceneView.lastT = 0; // a miniatura já é limitada por THUMB_GAP
-        sceneView.render();
-        const x = cv.getContext('2d');
-        x.drawImage(sceneView.view.canvas, 0, 0, cv.width, cv.height);
-      } else drawThumb(cv, S.sources.get(id));
-    }
   }
 
   return { mount, setMode, take, cutTo, setPreview, setPreviewFps, sourceGone, refresh, syncTally, guestReset, render, setBlack, toggle: () => setMode(!S.switcher) };

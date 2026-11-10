@@ -1,0 +1,42 @@
+﻿name: Build AppImages
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (without v)
+        required: true
+        default: "1.5.2"
+permissions:
+  contents: write
+jobs:
+  appimage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p artifacts
+          gh release download "v${{ inputs.version }}" --repo "$GITHUB_REPOSITORY" --pattern 'castdeck-*-source.zip' --pattern 'CastDeck-*-linux-*' --dir artifacts
+          ls -lh artifacts
+      - name: Extract source and stage binaries
+        run: |
+          mkdir -p src/dist
+          unzip artifacts/castdeck-*-source.zip -d src
+          cp artifacts/CastDeck-*-linux-x64 src/dist/CastDeck-linux-x64
+          cp artifacts/CastDeck-*-linux-arm64 src/dist/CastDeck-linux-arm64
+          chmod +x src/build/build-appimage.sh src/dist/CastDeck-linux-*
+          test -f src/build/assets/icon-256.png
+      - name: Build AppImages
+        env:
+          CASTDECK_ROOT: ${{ github.workspace }}/src
+        run: |
+          cd src
+          bash build/build-appimage.sh
+          ls -lh dist/*.AppImage
+      - name: Upload AppImages to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "v${{ inputs.version }}" src/dist/CastDeck-x86_64.AppImage src/dist/CastDeck-aarch64.AppImage --repo "$GITHUB_REPOSITORY" --clobber

@@ -1,7 +1,7 @@
 # PTZ USB, NDI e câmera remota — plano EGM
 
-**Status:** fases locais 1–4 + PTZ remoto + digital no host + ONVIF + UX inspirada no VDO.Ninja em 1.5.1; validação com hardware real ainda pendente. Nada publicado.
-**Base:** CastDeck Local 1.5.1 (Windows desktop).
+**Status:** fases locais 1–4 + PTZ remoto + digital no host + ONVIF + UX inspirada no VDO.Ninja em 1.5.2; validação com hardware real ainda pendente. Nada publicado.
+**Base:** CastDeck Local 1.5.2 (Windows desktop).
 **Data:** 2026-11-09.
 
 ---

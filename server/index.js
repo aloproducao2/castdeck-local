@@ -878,7 +878,7 @@ api.post('/update/install', async (req, res) => {
 // usados pelo CastDeck.exe (janela nativa/splash/bandeja)
 // exe: nome do executável extraído pelo lançador (castdeck-server-<versão>-<hash>.exe). O lançador compara com o
 // próprio build para não reaproveitar um servidor antigo que ficou aberto (senão a versão nova abre com o código velho)
-api.get('/health', (req, res) => res.json({ ok: true, app: 'castdeck', live: broadcasts.list?.().length || 0, exe: path.basename(process.execPath) }));
+api.get('/health', (req, res) => res.json({ ok: true, app: 'castdeck', live: broadcasts.list?.().length || 0, exe: path.basename(process.execPath), version: APP_VERSION, platform: process.platform }));
 // WhatsApp local (Baileys/WhatsApp Web, experimental): só neste PC; a live não depende dele.
 api.get('/whatsapp/status', (req, res) => res.set('Cache-Control', 'no-store').json(whatsapp.info()));
 api.get('/whatsapp/media/:id', async (req, res) => {

@@ -286,6 +286,14 @@ async function boot() {
   Object.assign(S.local, { cam: res.camStream, mic: res.micStream, camOn: res.camOn, micOn: res.micOn, name: res.name, media: res.media || null });
   await Promise.allSettled([document.fonts.load('600 20px Inter'), document.fonts.load('800 20px Outfit'), document.fonts.load('500 20px Inter')]);
   await buildStudio();
+  window.CastDeckTelemetry?.bindState?.(() => ({
+    onAir: !!S.streaming || !!S.vlive?.destinationIds?.length,
+    recording: !!S.recording || !!S.vlive?.record,
+    guestCount: S.guests?.size || 0,
+    sourceCount: S.sources?.size || 0,
+    outputCount: (S.destinations?.length || 0) + (S.vlive?.destinationIds?.length || 0),
+    appVersion: S.system?.version || '',
+  }));
 }
 
 // =====================================================================

@@ -1824,3 +1824,7 @@ body.platform-android #btn-replay {
 
 .bs-group-btn{width:30px;min-width:30px;padding:0;font-size:15px;line-height:1}
 .bs-group-btn.on{color:var(--accent-2);border-color:var(--accent-2);background:var(--accent-soft)}
+
+/* PTZ */
+.ptz-top{font-weight:800;letter-spacing:.03em;padding:0 10px}
+.studio.is-mobile #btn-ptz,.studio.platform-android #btn-ptz{display:none}

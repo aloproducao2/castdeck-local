@@ -36,6 +36,7 @@ import { createMeters } from './meters.js';
 import { createScenes } from './scenes.js';
 import { createDsk } from './dsk.js';
 import { createCameraPanel } from './camera-panel.js';
+import { createPtzHud } from './ptz-hud.js';
 import { createWhatsApp } from './whatsapp.js';
 import { makeQR } from './qr.js';
 import { toggleFull, exitFull, isFull, onFullChange } from '../fullscreen.js';
@@ -115,6 +116,7 @@ let scenes; // cenas rápidas F1–F6
 let dsk; // DSK 1 e 2 (camadas por cima do programa)
 let browserSources; // fonte Browser (página URL em navegador headless)
 let cameras; // painel "Câmeras": preview e ajustes das câmeras locais/remotas
+let ptz; // HUD PTZ: UVC, presets, teclado e MIDI
 let whatsapp; // ponte local WhatsApp (desktop)
 let ytJob = null; // download yt-dlp em andamento
 let ytTimer = null;
@@ -357,6 +359,7 @@ async function buildStudio() {
       ${window.CDi18n ? window.CDi18n.selectHTML({ className: 'btn', short: true, id: 'studio-lang' }) : ''}
       ${S.system.platform === 'android' ? '' : `<button class="btn icon" id="btn-whatsapp" title="WhatsApp local: QR, caixa de entrada e fila do programa" aria-label="WhatsApp">${icons.whatsapp}</button>`}
       <button class="btn icon" id="btn-cameras" title="Painel de câmeras: preview e ajustes de zoom, foco, ISO, exposição e lanterna" aria-label="Câmeras">${icons.cam}</button>
+      <button class="btn ptz-top" id="btn-ptz" type="button" title="PTZ experimental: pan, tilt, zoom, presets, atalhos e MIDI" aria-label="Controle PTZ">PTZ</button>
       <button class="btn icon" id="btn-intercom-mini" title="Mini intercom: PTT e corte de câmeras juntos" aria-label="Mini intercom" aria-pressed="false">${icons.mic}</button>
       <button class="btn icon" id="btn-remote" title="Controle remoto no celular: leia o QR e comande a mesa de corte" aria-label="Controle remoto">${REMOTE_ICON}</button>
       <button class="btn icon" data-fs="studio" data-tip="Tela cheia do estúdio" title="Tela cheia do estúdio" aria-label="Tela cheia do estúdio">${icons.expand}</button>
@@ -804,6 +807,7 @@ async function buildStudio() {
   });
   $('#btn-whatsapp')?.addEventListener('click', () => whatsapp?.open());
   $('#btn-cameras').onclick = () => cameras.open();
+  $('#btn-ptz').onclick = () => ptz?.open();
   if ($('#btn-ndi')) {
     $('#btn-ndi').onclick = async () => {
       const next = !ndiEnabled;
@@ -874,6 +878,19 @@ async function buildStudio() {
     onAddCamera: () => openAddCamera(),
   });
   window.__castdeck.cameras = cameras;
+  ptz = createPtzHud({
+    S,
+    getSig: () => sig,
+    applyAdjust: (id, adjust) => {
+      const src = S.sources.get(id);
+      if (!src) return;
+      setSourceAdjust(src, normalizeAdjust(adjust));
+      S.brand.sourceAdjust = { ...(S.brand.sourceAdjust || {}), [id]: src.adjust };
+      saveStudio();
+    },
+  });
+  ptz.mount();
+  window.__castdeck.ptz = ptz;
 
   // fontes locais
   addVideoSource('host:cam', S.local.cam, { kind: 'camera', label: S.local.name, ownerId: 'host', camOff: !S.local.camOn || !S.local.cam });

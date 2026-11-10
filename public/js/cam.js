@@ -29,7 +29,7 @@ const PICTURE = [
 ];
 // Tudo que o host pode ajustar remotamente. Só é aplicado o que a câmera informar em getCapabilities().
 const REMOTE_CTL = [
-  'zoom', 'focusMode', 'focusDistance', 'exposureMode', 'exposureCompensation', 'exposureTime', 'iso',
+  'pan', 'tilt', 'zoom', 'focusMode', 'focusDistance', 'exposureMode', 'exposureCompensation', 'exposureTime', 'iso',
   'whiteBalanceMode', 'colorTemperature', 'brightness', 'contrast', 'saturation', 'sharpness', 'torch',
 ];
 
@@ -363,6 +363,8 @@ function resetCtlPatch() {
   if (Array.isArray(caps.exposureMode) && caps.exposureMode.includes('continuous')) p.exposureMode = 'continuous';
   if (Array.isArray(caps.whiteBalanceMode) && caps.whiteBalanceMode.includes('continuous')) p.whiteBalanceMode = 'continuous';
   if (caps.exposureCompensation) p.exposureCompensation = Math.max(caps.exposureCompensation.min, Math.min(caps.exposureCompensation.max, 0));
+  if (caps.pan) p.pan = (caps.pan.min + caps.pan.max) / 2;
+  if (caps.tilt) p.tilt = (caps.tilt.min + caps.tilt.max) / 2;
   if (caps.zoom) p.zoom = caps.zoom.min;
   if (caps.torch === true) p.torch = false;
   return p;
@@ -467,6 +469,7 @@ const stateMsg = () => ({
   camAudioDevices: devList(C.devices.a || [], 'Microfone'),
   camVideoId: C.videoId || '',
   camAudioId: C.audioId || '',
+  camVisible: document.visibilityState === 'visible',
 });
 function pushState() {
   if (sig?.joinMsg) sig.joinMsg = { ...sig.joinMsg, state: stateMsg() };

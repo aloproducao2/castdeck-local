@@ -33,6 +33,7 @@ import { Ytdlp } from './ytdlp.js';
 import { DskHost } from './dsk.js';
 import { CefBrowserHost } from './cef.js';
 import { NdiOutputServer, NdiSourceServer } from './ndi.js';
+import { onvifProbe, onvifCommand, onvifDiscover } from './onvif.js';
 import { SocialScraper } from './social-scraper.js';
 import { ReplayStore } from './replay.js';
 import { CaptionService } from './caption.js';
@@ -402,6 +403,39 @@ api.post('/ndi/sources', ndiLocalOnly, async (req, res) => {
 api.delete('/ndi/sources/:key', ndiLocalOnly, (req, res) => {
   const ok = ndiSource.stop(req.params.key);
   res.status(ok ? 200 : 404).json({ ok });
+});
+api.get('/ndi/ptz/:key', ndiLocalOnly, (req, res) => {
+  const st = ndiSource.ptzStatus(req.params.key);
+  if (!st) return res.status(404).json({ error: 'Fonte NDI não encontrada.' });
+  res.set('Cache-Control', 'no-store').json(st);
+});
+api.post('/ndi/ptz/:key', ndiLocalOnly, (req, res) => {
+  try {
+    res.json(ndiSource.ptzCommand(req.params.key, req.body || {}));
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+api.post('/ptz/onvif/discover', ndiLocalOnly, async (req, res) => {
+  try {
+    res.json({ cameras: await onvifDiscover({ timeout: 2500 }) });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Falha na descoberta ONVIF' });
+  }
+});
+api.post('/ptz/onvif/test', ndiLocalOnly, async (req, res) => {
+  try {
+    res.json(await onvifProbe(req.body || {}));
+  } catch (e) {
+    res.status(502).json({ error: e.message || 'Falha ONVIF' });
+  }
+});
+api.post('/ptz/onvif/command', ndiLocalOnly, async (req, res) => {
+  try {
+    res.json(await onvifCommand(req.body || {}));
+  } catch (e) {
+    res.status(502).json({ error: e.message || 'Falha ONVIF' });
+  }
 });
 api.put('/dsk/:key', async (req, res) => {
   try {

@@ -202,7 +202,7 @@ export class NdiSourceServer {
   }
 
   active() {
-    return [...this.sessions.values()].map((s) => ({ key: s.key, ndiName: s.ndiName }));
+    return [...this.sessions.values()].map((s) => ({ key: s.key, ndiName: s.ndiName, ptz: !!s.ptzSupported }));
   }
 
   // Entradas NDI órfãs (de uma sessão anterior que fechou sem limpar) apareciam como
@@ -258,7 +258,7 @@ export class NdiSourceServer {
     const srt = `srt://127.0.0.1:${this.ingest.info().ports.srt || 8890}?streamid=publish:${key}&latency=100000&pkt_size=1316`;
     const bridgeArgs = ['extract', name];
     if (url) bridgeArgs.push(url);
-    const session = { key, ndiName: name, bridge: null, ff: null, stopped: false, frameBytes: 0, meta: null, retries: 0, pacer: null, latest: null, bridgeTimer: null };
+    const session = { key, ndiName: name, ndiUrl: url || '', bridge: null, ff: null, stopped: false, frameBytes: 0, meta: null, retries: 0, pacer: null, latest: null, bridgeTimer: null, ptz: null, ptzBuf: '', ptzSupported: false, ptzState: 'starting', ptzTimer: null };
     this.sessions.set(key, session);
     let buf = Buffer.alloc(0);
     let metaPromise;
@@ -415,6 +415,7 @@ export class NdiSourceServer {
     };
 
     spawnBridge();
+    if (process.env.CASTDECK_NDI_PTZ !== '0') this.spawnPtz(session);
 
     try {
       await waitMeta;
@@ -425,13 +426,108 @@ export class NdiSourceServer {
     return { key, name: src.name, ndiName: name, live: !!session.meta };
   }
 
+
+  // PTZ roda em um receiver NDI separado, sem tocar no pipe de mídia do extract.
+  spawnPtz(session) {
+    if (!this.bridgePath || session.stopped) return;
+    if (session.ptz) { try { session.ptz.kill(); } catch {} session.ptz = null; }
+    if (session.ptzTimer) { clearTimeout(session.ptzTimer); session.ptzTimer = null; }
+    const args = ['ptz', session.ndiName];
+    if (session.ndiUrl) args.push(session.ndiUrl);
+    const p = spawn(this.bridgePath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+    session.ptz = p;
+    session.ptzSupported = false;
+    session.ptzState = 'starting';
+    session.ptzBuf = '';
+    for (const st of [p.stdin, p.stdout, p.stderr]) st?.on('error', () => {});
+    p.stdout.on('data', (d) => {
+      if (session.stopped || session.ptz !== p) return;
+      session.ptzBuf += String(d);
+      let nl;
+      while ((nl = session.ptzBuf.indexOf('\n')) >= 0) {
+        const line = session.ptzBuf.slice(0, nl).trim();
+        session.ptzBuf = session.ptzBuf.slice(nl + 1);
+        if (!line) continue;
+        try {
+          const msg = JSON.parse(line);
+          if (msg.type === 'ptz' && typeof msg.supported === 'boolean') {
+            session.ptzSupported = msg.supported;
+            session.ptzState = msg.supported ? 'ready' : 'unsupported';
+          }
+        } catch {}
+      }
+    });
+    p.stderr.on('data', (d) => {
+      const t = String(d).trim();
+      if (t) this.logger.warn?.('[ndi-ptz] ' + t.slice(-250));
+    });
+    p.on('error', (e) => {
+      if (session.stopped || session.ptz !== p) return;
+      session.ptzState = 'error';
+      this.logger.warn?.('[ndi-ptz] ' + e.message);
+    });
+    p.on('exit', (code) => {
+      if (session.stopped || session.ptz !== p) return;
+      session.ptz = null;
+      session.ptzSupported = false;
+      session.ptzState = 'error';
+      this.logger.warn?.('[ndi-ptz] saiu (' + code + '); nova tentativa em 5 s');
+      session.ptzTimer = setTimeout(() => {
+        session.ptzTimer = null;
+        if (!session.stopped) this.spawnPtz(session);
+      }, 5000);
+      session.ptzTimer.unref?.();
+    });
+  }
+
+  ptzStatus(key) {
+    const s = this.sessions.get(key);
+    if (!s) return null;
+    return { key, ndiName: s.ndiName, supported: !!s.ptzSupported, state: s.ptzState || (s.ptz ? 'starting' : 'off') };
+  }
+
+  ptzCommand(key, body = {}) {
+    const s = this.sessions.get(key);
+    if (!s) { const e = new Error('Fonte NDI não encontrada.'); e.status = 404; throw e; }
+    if (!s.ptzSupported || !s.ptz) { const e = new Error('Esta fonte NDI não aceita PTZ.'); e.status = 409; throw e; }
+    if (!s.ptz.stdin || s.ptz.stdin.destroyed) { const e = new Error('Controle PTZ NDI não está disponível.'); e.status = 503; throw e; }
+    const action = String(body.action || '').trim();
+    const num = (v, a, b, d) => {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return d;
+      return Math.max(a, Math.min(b, n));
+    };
+    const preset = Math.round(num(body.preset, 1, 99, 1));
+    let lines = [];
+    if (action === 'stop') lines = ['stop'];
+    else if (action === 'home') lines = ['pan_tilt 0 0', 'zoom 0.5'];
+    else if (action === 'pan_tilt') lines = ['pan_tilt ' + num(body.pan, -1, 1, 0).toFixed(4) + ' ' + num(body.tilt, -1, 1, 0).toFixed(4)];
+    else if (action === 'zoom') lines = ['zoom ' + num(body.value, 0, 1, 0.5).toFixed(4)];
+    else if (action === 'pan_tilt_speed') lines = ['pan_tilt_speed ' + num(body.pan, -1, 1, 0).toFixed(4) + ' ' + num(body.tilt, -1, 1, 0).toFixed(4)];
+    else if (action === 'zoom_speed') lines = ['zoom_speed ' + num(body.value, -1, 1, 0).toFixed(4)];
+    else if (action === 'preset_store') lines = ['preset_store ' + preset];
+    else if (action === 'preset_recall') lines = ['preset_recall ' + preset + ' ' + num(body.speed, 0, 1, 0.4).toFixed(3)];
+    else { const e = new Error('Comando PTZ NDI inválido.'); e.status = 400; throw e; }
+    try {
+      s.ptz.stdin.write(lines.join('\n') + '\n');
+    } catch (e) {
+      const err = new Error('Falha ao enviar comando PTZ: ' + e.message);
+      err.status = 503;
+      throw err;
+    }
+    return { ok: true, supported: true, action };
+  }
+
   stop(key) {
     const s = this.sessions.get(key);
     if (!s || s.stopped) return false;
     s.stopped = true;
     this.sessions.delete(key);
     if (s.bridgeTimer) clearTimeout(s.bridgeTimer);
+    if (s.ptzTimer) clearTimeout(s.ptzTimer);
     if (s.pacer) clearInterval(s.pacer);
+    try { s.ptz?.stdin?.end(); } catch {}
+    setTimeout(() => { try { s.ptz?.kill(); } catch {} }, 200);
     try { s.bridge?.stdin?.end(); } catch {}
     setTimeout(() => { try { s.bridge?.kill(); } catch {} }, 200);
     try { s.ff?.stdin?.end(); } catch {}
@@ -449,3 +545,4 @@ export class NdiSourceServer {
 function fpsOf(n, d) {
   return d ? n / d : 30;
 }
+

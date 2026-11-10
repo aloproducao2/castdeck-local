@@ -126,7 +126,7 @@ export function createAutoVoice({ S, comp, mixer, switcher, $, toast, setSolo, o
           <summary>${t('Áudio inteligente')}</summary>
           <div class="gc-acc-body">
             <section class="dp-sec dp-duck">
-              <label class="check dp-row"><span><b>${t('Ativar áudio inteligente')}</b><small>${t('Quem fala abaixa música e vídeos; volta quando termina')}</small></span><span class="switch"><input type="checkbox" id="dp-duck"><span></span></span></label>
+              <label class="check dp-row"><span><b>${t('Ativar áudio inteligente')}</b><small>${t('Quem fala abaixa música, vídeos, telas e abas; pessoas têm prioridade')}</small></span><span class="switch"><input type="checkbox" id="dp-duck"><span></span></span></label>
               <div class="dp-lbl">${t('Quanto abaixar')}</div>
               ${seg('dp-duck-lvl', 'dl', [['soft', 'Leve −8 dB', 'Música ainda audível'], ['mid', 'Média −14 dB', 'Equilibrado'], ['hard', 'Forte −22 dB', 'Quase some']])}
               <div class="dp-lbl">${t('Demora para voltar')}</div>
@@ -151,6 +151,7 @@ export function createAutoVoice({ S, comp, mixer, switcher, $, toast, setSolo, o
                 <li>${t('Perfil Ritmo: alterna layouts, tira do palco quem não fala por um tempo e reage a quem começa a falar. Ao desligar, o palco volta como estava.')}</li>
                 <li>${t('Um corte manual seu pausa o Diretor por 10 s.')}</li>
                 <li>${t('O áudio inteligente funciona nos dois modos, com o corte ligado ou não.')}</li>
+                <li>${t('Pessoas (host e convidados) têm prioridade: telas e abas são abaixadas, nunca a voz das pessoas.')}</li>
               </ul>
             </section>
           </div>
@@ -215,7 +216,7 @@ export function createAutoVoice({ S, comp, mixer, switcher, $, toast, setSolo, o
   function setDuck(v) {
     duckOn = !!v;
     save();
-    if (duckOn) toast?.(t('Áudio inteligente ligado: música e vídeos abaixam quando alguém fala.'), 'ok');
+    if (duckOn) toast?.(t('Áudio inteligente ligado: música, vídeos, telas e abas abaixam quando alguém fala. Pessoas têm prioridade.'), 'ok');
     paint();
   }
 
@@ -251,10 +252,12 @@ export function createAutoVoice({ S, comp, mixer, switcher, $, toast, setSolo, o
     const md = $('#dp-mode');
     if (md) md.textContent = S.switcher ? t('Mesa de corte: corta para quem fala') : t('Modo normal: quem fala vai para tela cheia');
     const ds = $('#dp-duck-st');
-    if (ds) ds.textContent = !duckOn ? '' : duckState ? `${t('Reduzindo música e vídeos')} (${DUCK_DB[duckLvl]} dB)` : t('Aguardando fala');
+    if (ds) ds.textContent = !duckOn ? '' : duckState ? `${t('Reduzindo música, vídeos, telas e abas')} (${DUCK_DB[duckLvl]} dB)` : t('Aguardando fala');
   }
 
-  // ===== Áudio inteligente (ducking): voz no ar abaixa música/vídeos pelo ganho 'pre' do mixer (não mexe no fader) =====
+  // ===== Áudio inteligente (ducking): voz de pessoas abaixa mídia, telas e abas pelo ganho 'pre' do mixer =====
+  // Pessoas (host/convidados) têm prioridade: seus canais nunca entram no ganho de ducking.
+  const DUCK_KINDS = new Set(['media', 'screen', 'browser']);
   let duckUntil = 0;
   let duckStreak = 0;
   let duckState = false;
@@ -263,7 +266,8 @@ export function createAutoVoice({ S, comp, mixer, switcher, $, toast, setSolo, o
     const g = active ? 10 ** (DUCK_DB[duckLvl] / 20) : 1;
     const at = mixer.ctx.currentTime;
     for (const src of mixer.sources.values()) {
-      if (S.sources.get(src.stageKey)?.kind !== 'media') continue;
+      const s = S.sources.get(src.stageKey);
+      if (!s || !DUCK_KINDS.has(s.kind) || src.muted) continue;
       src.pre.gain.cancelScheduledValues(at);
       src.pre.gain.setTargetAtTime(g, at, active ? 0.06 : 0.45); // ataque rápido, volta suave
     }
@@ -282,7 +286,8 @@ export function createAutoVoice({ S, comp, mixer, switcher, $, toast, setSolo, o
     let voice = false;
     for (const src of mixer.sources.values()) {
       const s = S.sources.get(src.stageKey);
-      if (!s || s.kind === 'media' || s.kind === 'image' || s.kind === 'screen' || src.muted || s.micOn === false || !stage.has(src.stageKey)) continue;
+      // Somente pessoas (cÃ¢meras host/convidados) podem disparar o ducking.
+      if (!s || s.kind !== 'camera' || src.muted || s.micOn === false || !stage.has(src.stageKey)) continue;
       if (mixer.levelDb(src.id).rms > thr) {
         voice = true;
         break;
@@ -290,7 +295,12 @@ export function createAutoVoice({ S, comp, mixer, switcher, $, toast, setSolo, o
     }
     duckStreak = voice ? duckStreak + 1 : 0;
     if (duckStreak >= 2) duckUntil = now + DUCK_HOLD[duckRel]; // 200 ms seguidos: ignora estalos
-    const playing = [...S.sources.values()].some((m) => m.kind === 'media' && m.el && !m.el.paused);
+    const playing = [...mixer.sources.values()].some((src) => {
+      const s = S.sources.get(src.stageKey);
+      if (!s || !DUCK_KINDS.has(s.kind) || src.muted) return false;
+      if (s.kind === 'media') return !!(s.el && !s.el.paused);
+      return true;
+    });
     const act = now < duckUntil && playing;
     if (act !== duckState || (act && now - duckApplied > 1000)) {
       const changed = act !== duckState;
@@ -545,7 +555,7 @@ export function createAutoVoice({ S, comp, mixer, switcher, $, toast, setSolo, o
       }
     }
     const swDuck = $('#sw-duck');
-    if (swDuck) swDuck.title = t('Áudio inteligente: quando alguém fala, música e vídeos abaixam sozinhos');
+    if (swDuck) swDuck.title = t('Áudio inteligente: quando alguém fala, música, vídeos, telas e abas abaixam sozinhos; pessoas têm prioridade');
     const dirOpen = $('#dir-open');
     if (dirOpen) dirOpen.title = t('Painel do Diretor');
     paint();

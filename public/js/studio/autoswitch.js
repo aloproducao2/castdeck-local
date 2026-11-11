@@ -34,7 +34,7 @@ const MV_ON = 3.5; // diferença média (0-255) acima da qual a câmera "está s
 // sensibilidade = limiar de RMS em dBFS (alta = pega voz mais baixa, mas também mais ruído)
 const SENS = { low: -36, mid: -44, high: -52 };
 // Áudio inteligente (ducking): quanto música/vídeos abaixam quando alguém fala e quanto tempo demoram a voltar
-const DUCK_DB = { soft: -8, mid: -14, hard: -22 };
+const DUCK_DB = { soft: -12, mid: -20, hard: -30 };
 const DUCK_HOLD = { fast: 600, mid: 1400, slow: 2800 };
 
 export function createAutoVoice({ S, comp, mixer, switcher, $, toast, setSolo, openTab, ritmoApi }) {
@@ -81,7 +81,7 @@ export function createAutoVoice({ S, comp, mixer, switcher, $, toast, setSolo, o
     col.insertAdjacentHTML(
       'beforeend',
       `<span class="deck-lbl">Diretor Auto-Voz</span><div class="deck-dir-body"><button class="sw-voice" id="sw-voice" aria-pressed="false" title="${t('DIRETOR AUTO: corta sozinho para quem fala, para vídeos/telas com som e (Show) para quem se mexe. No modo normal, destaca em tela cheia quem fala. Um corte manual pausa por 10 s')}"><i class="sw-voice-dot"></i>${t('DIRETOR AUTO')}<small id="sw-voice-st">${t('desligado')}</small></button>
-      <button class="btn sm dir-ico" id="sw-duck" aria-pressed="false" title="${t('Áudio inteligente: quando alguém fala, música e vídeos abaixam sozinhos')}">♪↓</button>
+      <button class="btn sm dir-ico" id="sw-duck" aria-pressed="false" title="${t('Áudio inteligente: quando alguém fala, música, vídeos, telas e abas abaixam sozinhos; pessoas têm prioridade')}">♪↓</button>
       <button class="btn sm icon dir-ico" id="dir-open" title="${t('Painel do Diretor')}">⚙</button></div>`,
     );
     $('#sw-voice').onclick = () => setOn(!on);
@@ -128,7 +128,7 @@ export function createAutoVoice({ S, comp, mixer, switcher, $, toast, setSolo, o
             <section class="dp-sec dp-duck">
               <label class="check dp-row"><span><b>${t('Ativar áudio inteligente')}</b><small>${t('Quem fala abaixa música, vídeos, telas e abas; pessoas têm prioridade')}</small></span><span class="switch"><input type="checkbox" id="dp-duck"><span></span></span></label>
               <div class="dp-lbl">${t('Quanto abaixar')}</div>
-              ${seg('dp-duck-lvl', 'dl', [['soft', 'Leve −8 dB', 'Música ainda audível'], ['mid', 'Média −14 dB', 'Equilibrado'], ['hard', 'Forte −22 dB', 'Quase some']])}
+              ${seg('dp-duck-lvl', 'dl', [['soft', 'Leve −12 dB', 'Música ainda audível'], ['mid', 'Média −20 dB', 'Equilibrado'], ['hard', 'Forte −30 dB', 'Quase some']])}
               <div class="dp-lbl">${t('Demora para voltar')}</div>
               ${seg('dp-duck-rel', 'dr', [['fast', 'Rápida', 'Volta em ~0,6 s'], ['mid', 'Normal', 'Volta em ~1,4 s'], ['slow', 'Lenta', 'Volta em ~2,8 s']])}
               <div class="dp-st" id="dp-duck-st"></div>
@@ -199,7 +199,9 @@ export function createAutoVoice({ S, comp, mixer, switcher, $, toast, setSolo, o
     paint();
   }
 
-  function setOn(v) {
+  function setOn(v, { source = 'local' } = {}) {
+    // Ligar o diretor automatico exige uma acao local no app; comandos remotos so podem desligar.
+    if (v && source !== 'local') return false;
     on = !!v;
     if (!on) ritmoStop();
     talk.clear();
@@ -211,6 +213,7 @@ export function createAutoVoice({ S, comp, mixer, switcher, $, toast, setSolo, o
     if (!on) for (const el of document.querySelectorAll('#sw-bus .sw-talk')) el.classList.remove('sw-talk');
     if (on) toast?.(S.switcher ? t('DIRETOR AUTO ligado: quem fala (ou vídeo com som) vai para o ar. Corte manual pausa por 10 s.') : t('DIRETOR AUTO ligado: quem fala fica em tela cheia; silêncio ou conversa volta ao layout normal.'), 'ok');
     paint();
+    return true;
   }
 
   function setDuck(v) {

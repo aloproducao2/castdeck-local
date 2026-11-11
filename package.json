@@ -1,6 +1,6 @@
 {
   "name": "castdeck-local",
-  "version": "1.5.4",
+  "version": "1.5.5",
   "description": "EstÃºdio de transmissÃ£o ao vivo 100% local para Windows: chamadas de vÃ­deo com convidados, composiÃ§Ã£o de cena e multistream RTMP via FFmpeg.",
   "type": "module",
   "main": "server/index.js",

@@ -310,7 +310,7 @@ export function createRemote({ S, comp, mixer, getSig, studioId, getSwitcher, ge
       case 'director': {
         const au = getAuto();
         if (au && au.on !== !!c.on) {
-          au.setOn(!!c.on);
+          au.setOn(!!c.on, { source: 'remote' });
           au.paint?.();
         }
         return;

@@ -2096,7 +2096,8 @@ let lastBsThumbT = 0;
 function uiTick() {
   if (document.hidden) return;
   const inSwitcher = !!S.switcher;
-  const showBackstage = !inSwitcher || !!document.querySelector('.studio.sw-bs');
+  const backstageEl = document.getElementById('backstage');
+  const showBackstage = !!backstageEl && backstageEl.getClientRects().length > 0 && getComputedStyle(backstageEl).display !== 'none';
   const now = performance.now();
   // Miniaturas são monitoração, não programa: ~6-8 fps e só quando o bastidor está visível.
   const thumbGap = inSwitcher ? 135 : 160;

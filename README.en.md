@@ -145,7 +145,8 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.4.4** — Unified PGM source rail, collapsible/reorderable thumbnail groups, media list, CEF audio/4K/scroll/adblock.
+Version **1.5.4** — smart audio ducking for screen, tab and browser audio (people always take priority),
+experimental PTZ control (UVC, ONVIF and NDI) and telemetry reliability work.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

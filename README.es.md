@@ -73,7 +73,7 @@ Sin login, sin tarjeta y sin mensualidad. FFmpeg y cloudflared vienen incluidos 
 | GC de telediario y banners | Buses A–G y monitorización | 16:9 y 9:16 al mismo tiempo |
 | Replay & VAR con IN/OUT | Música, medios y jingles | Replay, stinger y cámara lenta |
 | Overlays y galería de imágenes | Talkback e invitados | Control remoto desde el móvil |
-| Subtítulos en vivo (Whisper/Parakeet) | Audio del sistema e invitados | Android como cámara/control |
+| Subtítulos en vivo (Whisper/Parakeet) | Audio inteligente (personas primero) | Android como cámara/control |
 
 ## Comparación honesta
 
@@ -148,7 +148,8 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **1.4.4** — modo PGM con fuente única, grupos reordenables, medios en lista y Browser CEF con audio/4K/scroll/adblock.
+Versión **1.5.4** — audio inteligente que baja pantalla, pestaña y fuente de navegador (las personas siempre
+tienen prioridad), PTZ experimental (UVC, ONVIF y NDI) y ajustes de telemetría.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

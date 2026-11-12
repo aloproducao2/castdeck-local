@@ -34,6 +34,7 @@ import { DskHost } from './dsk.js';
 import { CefBrowserHost } from './cef.js';
 import { NdiOutputServer, NdiSourceServer } from './ndi.js';
 import { onvifProbe, onvifCommand, onvifDiscover } from './onvif.js';
+import { MultiRecorder } from './multirec.js';
 import { SocialScraper } from './social-scraper.js';
 import { ReplayStore } from './replay.js';
 import { CaptionService } from './caption.js';
@@ -114,6 +115,7 @@ if (!(await detectFfmpeg())) {
 
 const hub = new SignalingHub({ studioExists: (id) => !!store.getStudio(id), outKey: (id) => store.studioOutKey(id) });
 const broadcasts = new BroadcastManager({ ffmpegInfo, recordingsDir: recDir, store });
+const multirec = new MultiRecorder({ recordingsDir: recDir, ffmpegPath: () => ffmpegInfo.path, encoders: () => ffmpegInfo.encoders });
 const ndiOutput = new NdiOutputServer({ root: ROOT, ffmpegPath: ffmpegInfo.path, binDir: BIN });
 const pollHub = new PollHub();
 const msgHub = new MsgHub();
@@ -1010,6 +1012,44 @@ api.post('/recordings/open-folder', async (req, res) => {
   openFolder(recDir());
   res.json({ ok: true });
 });
+// Multigravação: sessão independente; cada fonte chega por WebSocket e vira um WebM.
+api.post('/multirec/start', async (req, res) => {
+  try {
+    res.status(201).json(await multirec.start({ studioId: req.body?.studioId, sources: req.body?.sources, convertMp4: !!req.body?.convertMp4, videoKbps: req.body?.videoKbps }));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+api.post('/multirec/:id/convert', async (req, res) => {
+  try {
+    res.json(await multirec.convertSession(req.params.id));
+  } catch (e) {
+    res.status(404).json({ error: e.message });
+  }
+});
+api.post('/multirec/:id/stop', async (req, res) => {
+  try {
+    res.json(await multirec.stop(req.params.id));
+  } catch (e) {
+    res.status(404).json({ error: e.message });
+  }
+});
+api.get('/multirec/:id', (req, res) => {
+  try {
+    res.json(multirec.status(req.params.id));
+  } catch (e) {
+    res.status(404).json({ error: e.message });
+  }
+});
+api.post('/multirec/:id/open-folder', (req, res) => {
+  try {
+    const s = multirec.status(req.params.id);
+    openFolder(s.dir);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(404).json({ error: e.message });
+  }
+});
 // só aceita um nome de arquivo de vídeo que exista na pasta das gravações (nada de caminhos)
 const recFile = async (name) => {
   const f = path.basename(String(name || ''));
@@ -1279,6 +1319,7 @@ const wssSocial = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 
 // áudio da legenda: PCM 16 kHz mono em blocos pequenos (~100 ms = 3,2 KB); sem deflate
 const wssCaption = new WebSocketServer({ noServer: true, maxPayload: 256 * 1024, perMessageDeflate: false });
 const wssNdi = new WebSocketServer({ noServer: true, maxPayload: 32 * 1024 * 1024, perMessageDeflate: false });
+const wssMultiRec = new WebSocketServer({ noServer: true, maxPayload: 32 * 1024 * 1024, perMessageDeflate: false });
 
 function attachUpgrade(server) {
   server.on('upgrade', (req, socket, head) => {
@@ -1296,6 +1337,11 @@ function attachUpgrade(server) {
       wssSocial.handleUpgrade(req, socket, head, (ws) => socialScraper.handleClient(ws));
     } else if (pathname === '/caption' && local) {
       wssCaption.handleUpgrade(req, socket, head, (ws) => caption.handleStudio(ws));
+    } else if (pathname === '/multirec' && local) {
+      const u = new URL(req.url, 'http://x');
+      wssMultiRec.handleUpgrade(req, socket, head, (ws) =>
+        multirec.attach(ws, { session: u.searchParams.get('session'), key: u.searchParams.get('key') }),
+      );
     } else if (pathname === '/ndi/output' && local) {
       ndiOutput.ffmpegPath = ffmpegInfo.path || 'ffmpeg';
       if (!ndiEnabled()) {

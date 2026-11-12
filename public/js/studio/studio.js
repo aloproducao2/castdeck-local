@@ -4,7 +4,7 @@
 import { $, $$, h, esc, icons, toast, modal, confirmDialog, promptDialog, api, copyText, fmtTime, fmtBytes, initials, PLATFORMS, destFormat, fmtBadge } from '../ui.js';
 import { Signaling, Peer, loadIce } from '../rtc.js';
 import { lobby, getCamera, getMic, getScreen, getTab, cursorOn, cursorSupported, setCursor, listDevices, savePrefs, loadPrefs } from '../media.js';
-import { Compositor, GuestView, VerticalView, VERTICAL_LAYOUTS, LAYOUTS, DEFAULT_BRAND, normalizeAdjust, drawFramed } from './compositor.js';
+import { Compositor, GuestView, VerticalView, PreviewView, VERTICAL_LAYOUTS, LAYOUTS, DEFAULT_BRAND, normalizeAdjust, drawFramed } from './compositor.js';
 import { openLayoutEditor, slotsIcon } from './layout-editor.js';
 import { createJournal, newsPayload } from './journal.js';
 import { createGcDesigner } from './gc-designer.js';
@@ -42,6 +42,7 @@ import { makeQR } from './qr.js';
 import { toggleFull, exitFull, isFull, onFullChange } from '../fullscreen.js';
 import { createReplayEngine } from './replay-engine.js';
 import { createCaptions } from './captions.js';
+import { createMultiRecorder } from './multirec.js';
 
 // celular/tablet e o app Android (WebView): não existe captura de tela/aba nem cursor de mouse
 const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile|Silk|CastDeckAndroid/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
@@ -101,7 +102,7 @@ const S = {
   intercom: { talk: {}, listen: {}, ifb: true, ifbLevel: 0.18, ptt: false, latch: false },
 };
 
-let comp, mixer, sig, programStream, broadcaster, ticker, social, news, gcDesigner, audioPanel, vfx;
+let comp, mixer, sig, programStream, broadcaster, ticker, social, news, gcDesigner, audioPanel, vfx, multiRec;
 // FPS real do render do programa (janela de 1 s). Serve de medidor do custo dos 4 ISOs no replay.
 let renderFps = 0;
 let renderFrames = 0;
@@ -138,6 +139,8 @@ let ndiEnabled = false; // liga/desliga o subsistema NDI (economiza recursos)
 let ndiState = 'off';
 let ndiDetail = '';
 const tileEls = new Map();
+let sceneTile = null; // card "Cena (palco)" na mesa de corte
+let sceneTileView = null;
 
 // Menu do painel lateral: grupos em ordem de uso durante a live (o que vai para a tela → visual → público → som → ajustes).
 // Cada item: [id do painel, rótulo, ícone, dica]. Os ids são os mesmos dos painéis (#panel-<id>).
@@ -380,6 +383,7 @@ async function buildStudio() {
       <button class="btn icon" data-fs="studio" data-tip="Tela cheia do estúdio" title="Tela cheia do estúdio" aria-label="Tela cheia do estúdio">${icons.expand}</button>
       <button class="btn icon tools-toggle" id="btn-tools" title="Ferramentas: NDI, câmeras, PTZ, remote, intercom e mais" aria-label="Ferramentas" aria-expanded="false">${icons.sliders}</button>
       <button class="btn" id="btn-panel" title="Abrir painel de controle (mídia, banners, jornal...)" aria-expanded="false">Painel</button>
+      <button class="btn oa-multi" id="btn-multirec" type="button" title="Multigravação: grave cada fonte em um arquivo separado, sem alterar Gravar/Transmitir" aria-pressed="false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 9h4v6H7zM15 9h2v6h-2z"></path></svg><span class="mr-lbl">Fontes</span></button>
       <button class="btn oa-rec" id="btn-record" title="Gravar o programa localmente em MP4 (independente da transmissão)" aria-pressed="false"><span class="oa-dot"></span><span class="lbl">Gravar</span></button>
       <button class="btn primary oa-live" id="btn-live" title="Transmitir ao vivo (independente da gravação)" aria-pressed="false">${icons.broadcast}<span class="lbl">Transmitir</span></button>
     </header>
@@ -388,6 +392,7 @@ async function buildStudio() {
       <div class="tools-body" id="tools-body"></div>
       <button class="tool-row tool-help" id="tools-panel" type="button"><span class="tool-ico">▤</span><span>Painel</span></button>
       <button class="tool-row tool-help" id="tools-safe" type="button"><span class="tool-ico">◈</span><span>Configurar cena segura</span></button>
+      <button class="tool-row tool-help" id="tools-multirec" type="button"><span class="tool-ico">⧉</span><span>Multigravação</span></button>
       <button class="tool-row tool-help" id="tools-help" type="button"><span class="tool-ico">?</span><span>Atalhos e ajuda</span></button>
     </div>
 
@@ -610,6 +615,7 @@ async function buildStudio() {
   // Sem watchdog automático: a câmera nunca é parada sozinha. Se o track terminar/mutar,
   // o usuário recebe o botão "Reabrir câmera" e o áudio continua.
   programStream = new MediaStream([comp.canvas.captureStream().getVideoTracks()[0], mixer.programTrack]);
+  multiRec = createMultiRecorder({ S, $, $$, esc, toast, modal, api, studioId, getProgramStream: () => programStream, getMixer: () => mixer });
   vview = new VerticalView(comp, S.system.presets[vPresetId()]);
   vview.layout = S.brand.vlayout || 'auto';
   vStream = new MediaStream([vview.track, mixer.programTrack]);
@@ -672,6 +678,7 @@ async function buildStudio() {
     S,
     comp,
     mixer,
+    multiRec,
     music,
     get ndi() { return ndiOut; },
     applySpeakerMode: (safe) => applySpeakerMode(safe),
@@ -1232,6 +1239,10 @@ async function buildStudio() {
       applyDeckState();
     });
     let safeOn = false;
+    $('#tools-multirec')?.addEventListener('click', () => {
+      set(false);
+      multiRec?.open();
+    });
     $('#btn-safe')?.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       openSafeConfig();
@@ -1243,9 +1254,10 @@ async function buildStudio() {
       }
       safeOn = !safeOn;
       comp.safe = safeOn;
+      mixer.setSafeMuted(safeOn);
       $('#btn-safe').classList.toggle('on', safeOn);
       $('#btn-safe').setAttribute('aria-pressed', String(safeOn));
-      toast(safeOn ? 'Cena segura ativada: o programa está coberto pela marca.' : 'Cena segura desativada.', safeOn ? 'warn' : 'ok');
+      toast(safeOn ? 'Cena segura ativada: o programa e o áudio do PGM estão cobertos.' : 'Cena segura desativada: áudio do PGM restaurado.', safeOn ? 'warn' : 'ok');
     });
     document.addEventListener('keydown', (e) => {
       if (e.key !== '?' || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1402,6 +1414,7 @@ async function buildStudio() {
   browserSources.restore().catch(() => {});
 
   window.addEventListener('beforeunload', (e) => {
+    multiRec?.shutdown();
     if (S.live || S.vlive) {
       e.preventDefault();
       e.returnValue = '';
@@ -1561,6 +1574,7 @@ function startRenderLoop() {
       if (vview && (S.brand.vOn || S.vlive || S.vstarting || S.vOut)) safe('vertical', () => vview.render());
       for (const g of S.guests.values()) safe(`guest:${g.id}`, () => g.view?.render());
       safe('switcher', () => switcher?.render());
+      if (S.switcher) safe('scene-tile', () => sceneTileView?.render());
       safe('auto', () => autoVoice?.tick());
       renderFrames++;
       const now = performance.now();
@@ -2478,6 +2492,31 @@ function renderTiles() {
     }
   }
 
+  // A Cena (palco) volta a ser um card selecionável na mesa de corte, como uma fonte.
+  if (S.switcher) {
+    if (!sceneTile) {
+      sceneTile = h(`<div class="tile scene-tile" id="bs-scene-tile"><div class="tv"><canvas width="320" height="180"></canvas><span class="pill badge">CENA</span></div><div class="tbar"><span class="nm">Cena (palco)</span><span class="acts"></span></div></div>`);
+      const cvs = sceneTile.querySelector('canvas');
+      sceneTileView = new PreviewView(comp, cvs, { width: 320, height: 180, fps: 10 });
+      sceneTileView.set({ take: null, stage: S.stage, layout: S.layout });
+      sceneTile.title = 'Cena (palco): clique para a prévia, duplo clique para cortar';
+      sceneTile.onclick = (e) => { if (S.switcher && !e.target.closest('button')) switcher?.setPreview(null); };
+      sceneTile.ondblclick = (e) => { if (S.switcher && !e.target.closest('button')) switcher?.cutTo(null); };
+    }
+    box.prepend(sceneTile);
+    sceneTileView?.set({ take: null, stage: S.stage, layout: S.layout });
+    const pgm = S.take === null;
+    const pvw = S.pvw === null;
+    sceneTile.classList.toggle('pgm', pgm);
+    sceneTile.classList.toggle('pvw', pvw && !pgm);
+    const b = sceneTile.querySelector('.badge');
+    if (b) { b.textContent = pgm ? 'NO AR' : pvw ? 'PRÉVIA' : 'CENA'; b.className = 'pill badge' + (pgm ? ' live' : pvw ? ' pvw' : ''); }
+  } else if (sceneTile) {
+    sceneTile.remove();
+    sceneTile = null;
+    sceneTileView = null;
+  }
+
   // Miniaturas: botão de minimizar fica na barra de layouts acima do backstage + ordem persistente (arrastar reordena, como no vMix).
   let minBtn = $('#bs-min');
   if (!minBtn) {
@@ -3128,6 +3167,7 @@ function bindUI() {
   });
   $('#btn-live').onclick = () => (S.streaming ? stopLive() : openGoLive());
   $('#btn-record').onclick = () => (S.recording ? stopRecord() : openRecordModal());
+  $('#btn-multirec')?.addEventListener('click', () => multiRec?.open());
   $$('.tab[data-tab]').forEach((t) => (t.onclick = () => switchTab(t.dataset.tab)));
   $$('.grp[data-group]').forEach(
     (g) =>

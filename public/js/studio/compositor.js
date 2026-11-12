@@ -606,24 +606,28 @@ export class Compositor {
     };
     const drawText = () => {
       if (!showText) return;
-      // Texto no centro vertical da cartela (título e apoio formam um bloco único).
-      const g = ctx.createLinearGradient(0, H * 0.32, 0, H * 0.74);
-      g.addColorStop(0, 'rgba(4,4,10,0)');
-      g.addColorStop(0.42, 'rgba(4,4,10,.34)');
-      g.addColorStop(1, 'rgba(4,4,10,.62)');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, H * 0.32, W, H * 0.42);
+      // Texto no centro vertical da cartela. A legibilidade vem de sombra/contorno,
+      // sem uma faixa escura por cima do fundo (a faixa cortava o layout da cartela).
+      ctx.save();
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.shadowColor = 'rgba(0,0,0,.7)';
-      ctx.shadowBlur = Math.round(H * 0.022);
+      ctx.lineJoin = 'round';
+      ctx.shadowColor = 'rgba(4,4,10,.72)';
+      ctx.shadowBlur = Math.round(H * 0.024);
       ctx.fillStyle = '#fff';
       ctx.font = `800 ${Math.round(H * 0.052)}px Outfit, Inter, sans-serif`;
+      ctx.lineWidth = Math.max(1, Math.round(H * 0.006));
+      ctx.strokeStyle = 'rgba(4,4,10,.42)';
+      ctx.strokeText(title, W / 2, H * 0.5);
       ctx.fillText(title, W / 2, H * 0.5);
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = 'rgba(255,255,255,.8)';
+      ctx.shadowBlur = Math.round(H * 0.016);
+      ctx.fillStyle = 'rgba(255,255,255,.82)';
       ctx.font = `500 ${Math.round(H * 0.025)}px Inter, sans-serif`;
+      ctx.lineWidth = Math.max(1, Math.round(H * 0.0035));
+      ctx.strokeStyle = 'rgba(4,4,10,.32)';
+      ctx.strokeText(subtitle, W / 2, H * 0.575);
       ctx.fillText(subtitle, W / 2, H * 0.575);
+      ctx.restore();
     };
 
     ctx.save();

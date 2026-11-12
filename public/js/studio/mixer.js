@@ -69,6 +69,7 @@ export class AudioMixer {
       this.buses.set(id, { id, gain, dest, analyser: an, pull, mute: false, level: 1, deviceId: '', el: null });
     });
     this.masterMuted = false;
+    this.safeMuted = false; // Cena segura: corta o áudio do PGM sem perder o estado do master
     this.dim = false;
     this.masterDeviceId = '';
     this.masterEl = null;
@@ -508,7 +509,7 @@ export class AudioMixer {
 
   // fader master do programa (antes do limitador), com mute/dim independentes
   _applyMaster() {
-    const v = this.masterMuted ? 0 : this.master * (this.dim ? 0.2 : 1);
+    const v = this.safeMuted || this.masterMuted ? 0 : this.master * (this.dim ? 0.2 : 1);
     this.programBus.gain.setTargetAtTime(v, this.ctx.currentTime, 0.03);
   }
   setMaster(v) {
@@ -520,6 +521,13 @@ export class AudioMixer {
     this.masterMuted = !!on;
     this._applyMaster();
     this.onChange?.('__master', 'master-mute');
+  }
+  // Cena segura: corta o áudio do programa (PGM/gravação/transmissão), mantendo o estado
+  // do master para restaurar exatamente o que estava antes. Não mexe nos buses auxiliares.
+  setSafeMuted(on) {
+    this.safeMuted = !!on;
+    this._applyMaster();
+    this.onChange?.('__master', 'safe-mute');
   }
   setDim(on) {
     this.dim = !!on;

@@ -124,10 +124,20 @@ export function createExtras(ctx) {
   // Modal com prévia ao vivo: escolher câmera, qualidade, áudio e nome
   async function camDialog(id) {
     const cur = id ? cams.get(id) : null;
-    let { cams: vids, mics } = await listDevices();
+    let vids = [];
+    let mics = [];
+    try {
+      ({ cams: vids, mics } = await listDevices({ cached: true }));
+    } catch (e) {
+      // A lista pode falhar enquanto uma câmera está soltando o driver; o modal ainda
+      // abre e o usuário pode tentar de novo em vez de ficar sem resposta.
+      toast('Não foi possível listar as câmeras agora: ' + e.message, 'err');
+    }
     const used = new Set([...cams.values()].map((c) => c.videoId));
     const firstFree = vids.find((d) => !used.has(d.deviceId))?.deviceId || vids[0]?.deviceId || '';
     let preview = null;
+    let loadSeq = 0;
+    const delay = (ms) => new Promise((r) => setTimeout(r, ms));
     const stopPreview = () => {
       if (preview && preview !== cur?.stream) preview.getTracks().forEach((t) => t.stop());
       preview = null;
@@ -153,16 +163,35 @@ export function createExtras(ctx) {
           const label = () => sel.selectedOptions[0]?.textContent.replace(' (já em uso)', '') || 'Câmera';
           if (!name.value) name.placeholder = label();
           const load = async () => {
+            const seq = ++loadSeq;
             msg.textContent = 'Carregando prévia…';
             msg.hidden = false;
             stopPreview();
+            const open = async () => {
+              return cur && sel.value === cur.videoId && q.value === cur.quality ? cur.stream : await getCamera(sel.value || undefined, q.value);
+            };
             try {
-              preview = cur && sel.value === cur.videoId && q.value === cur.quality ? cur.stream : await getCamera(sel.value, q.value);
+              let next;
+              try {
+                next = await open();
+              } catch (first) {
+                if (seq !== loadSeq) return;
+                msg.textContent = 'Ajustando a câmera…';
+                await delay(500);
+                next = await open();
+              }
+              if (seq !== loadSeq) {
+                if (next !== cur?.stream) next.getTracks().forEach((t) => t.stop());
+                return;
+              }
+              preview = next;
               v.srcObject = preview;
+              v.play?.().catch(() => {});
               const s = preview.getVideoTracks()[0]?.getSettings() || {};
               msg.textContent = s.width ? `${s.width}×${s.height}` : '';
               msg.hidden = !s.width;
             } catch (e) {
+              if (seq !== loadSeq) return;
               msg.textContent = 'Não foi possível abrir esta câmera: ' + e.message;
             }
           };

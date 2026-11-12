@@ -54,6 +54,11 @@ const app = $('#app');
 // idioma escolhido no estúdio também vale para o painel, o launcher e a notificação do Android
 window.CD_I18N_ONSET = (l) => api('/settings', { method: 'PUT', body: { lang: l } }).catch(() => {});
 
+const safeCopy = () => ({
+  title: window.CDi18n?.t?.('Voltamos em instantes') || 'Voltamos em instantes',
+  subtitle: window.CDi18n?.t?.('Estamos ajustando o sinal.') || 'Estamos ajustando o sinal.',
+});
+
 const COLORS = ['#7c5cff', '#e2336b', '#ff6b3d', '#f5b400', '#18b47b', '#1fa2ff', '#3d5afe', '#111827', '#f1f1f1'];
 const BUILTIN_BG = [
   { type: 'image', value: '/assets/backgrounds/aurora.jpg' },
@@ -359,9 +364,11 @@ async function buildStudio() {
         <button class="btn mode-pill active" id="btn-mode-studio" type="button" title="Modo Estúdio: palco principal, cenas e bastidores">Estúdio</button>
         <button class="btn mode-pill" id="btn-switcher" title="Mesa de corte (como OBS/vMix): prévia + programa, corte entre câmeras com CORTE/AUTO e atalhos de teclado" aria-pressed="false">${SW_ICON}<span>Mesa de corte</span></button>
         ${IS_MOBILE || S.system.platform === 'android' ? '' : `<button class="btn" id="btn-replay" title="Abrir Console de Replay & VAR em janela separada (Shift+R)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:2px"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8" fill="currentColor"></polygon></svg><span>Replay & VAR</span></button>`}
-        <button class="btn mode-pill" id="btn-vertical" title="Painel de vídeo vertical 9:16 (Instagram, TikTok, Reels, Shorts) ao lado do preview" aria-pressed="false">${VERT_ICON}<span>9:16 Vertical</span></button>
       </div>
+      <button class="btn mode-pill vertical-top" id="btn-vertical" title="Painel de vídeo vertical 9:16 (Instagram, TikTok, Reels, Shorts) ao lado do preview" aria-pressed="false">${VERT_ICON}<span>9:16 Vertical</span></button>
       <button class="btn autoplay" id="btn-autoplay" type="button" aria-pressed="true" title="Auto play de vídeos ao entrar no PGM ou ao colocar no palco">${icons.play}<span class="auto-dot"></span><span class="lbl">Auto play</span><span class="auto-state">ON</span></button>
+      <button class="btn ready-chip" id="btn-ready" type="button" title="Ver o que está pronto para ir ao vivo" aria-haspopup="dialog"><span class="ready-dot" aria-hidden="true"></span><span class="ready-lbl">Pronto</span><b id="ready-score">—</b></button>
+      <button class="btn safe-btn" id="btn-safe" type="button" title="Cena segura: cobre o programa com a marca para uma emergência. Shift+clique ou menu Ferramentas para trocar a cartela." aria-pressed="false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg><span class="lbl">Seguro</span></button>
       ${IS_MOBILE || S.system.platform === 'android' ? '' : `<button class="btn ndi-top" id="btn-ndi" type="button" title="NDI: clique para ativar/desativar e abrir o painel" aria-label="NDI" aria-pressed="false"><span class="ndi-top-ico">${icons.ndi}</span><span class="ndi-top-lbl">NDI</span><span class="ndi-top-dot" aria-hidden="true"></span></button>`}
       <div class="spacer"></div>
       ${window.CDi18n ? window.CDi18n.selectHTML({ className: 'btn', short: true, id: 'studio-lang' }) : ''}
@@ -371,12 +378,25 @@ async function buildStudio() {
       <button class="btn icon" id="btn-intercom-mini" title="Mini intercom: PTT e corte de câmeras juntos" aria-label="Mini intercom" aria-pressed="false">${icons.mic}</button>
       <button class="btn icon" id="btn-remote" title="Controle remoto no celular: leia o QR e comande a mesa de corte" aria-label="Controle remoto">${REMOTE_ICON}</button>
       <button class="btn icon" data-fs="studio" data-tip="Tela cheia do estúdio" title="Tela cheia do estúdio" aria-label="Tela cheia do estúdio">${icons.expand}</button>
+      <button class="btn icon tools-toggle" id="btn-tools" title="Ferramentas: NDI, câmeras, PTZ, remote, intercom e mais" aria-label="Ferramentas" aria-expanded="false">${icons.sliders}</button>
       <button class="btn" id="btn-panel" title="Abrir painel de controle (mídia, banners, jornal...)" aria-expanded="false">Painel</button>
       <button class="btn oa-rec" id="btn-record" title="Gravar o programa localmente em MP4 (independente da transmissão)" aria-pressed="false"><span class="oa-dot"></span><span class="lbl">Gravar</span></button>
       <button class="btn primary oa-live" id="btn-live" title="Transmitir ao vivo (independente da gravação)" aria-pressed="false">${icons.broadcast}<span class="lbl">Transmitir</span></button>
     </header>
+    <div class="tools-menu" id="tools-menu" role="dialog" aria-label="Ferramentas" tabindex="-1" hidden>
+      <div class="tools-head"><strong>Ferramentas</strong><button class="btn sm ghost icon" id="tools-close" title="Fechar (Esc)" aria-label="Fechar">✕</button></div>
+      <div class="tools-body" id="tools-body"></div>
+      <button class="tool-row tool-help" id="tools-panel" type="button"><span class="tool-ico">▤</span><span>Painel</span></button>
+      <button class="tool-row tool-help" id="tools-safe" type="button"><span class="tool-ico">◈</span><span>Configurar cena segura</span></button>
+      <button class="tool-row tool-help" id="tools-help" type="button"><span class="tool-ico">?</span><span>Atalhos e ajuda</span></button>
+    </div>
 
     <section class="stage-wrap">
+      <div class="mode-notice" id="mode-notice" role="status" hidden>
+        <span><b>Mesa de corte</b> · este é o último modo usado neste estúdio.</span>
+        <button class="btn sm" id="mode-notice-studio" type="button">Voltar ao Estúdio</button>
+        <button class="btn sm ghost icon" id="mode-notice-close" type="button" aria-label="Fechar aviso">✕</button>
+      </div>
       <div class="stage-row" id="stage-row">
         <div class="sw-pvw-box" id="sw-pvw-box" hidden></div>
         <div class="sw-tcol" id="sw-tcol" hidden aria-label="Transição"></div>
@@ -395,6 +415,7 @@ async function buildStudio() {
         <aside class="vdock" id="vdock" hidden aria-label="Saída vertical 9:16"></aside>
       </div>
       <div class="rz rz-h" id="rz-stage" role="separator" aria-orientation="horizontal" title="Arraste para mudar a altura do preview (duplo clique restaura)"></div>
+      <div class="deck-toggle-row"><button class="deck-chip" id="btn-deck" type="button" aria-expanded="true" title="Recolher o deck de cenas e fontes para dar mais altura ao programa"><span class="deck-chev" aria-hidden="true">▾</span><span>Recolher deck</span></button></div>
       <div class="gcbar deck" id="gcbar"></div>
       <div class="qscenes" id="qscenes" role="toolbar" aria-label="Cenas rápidas"></div>
       <div class="stagebar" id="stagebar"></div>
@@ -468,6 +489,8 @@ async function buildStudio() {
   });
 
   comp = new Compositor($('#program-canvas'));
+  comp.safeDefaults = safeCopy();
+  window.CDi18n?.onChange?.(() => { comp.safeDefaults = safeCopy(); });
   // efeitos de câmera (fundo virtual, enquadramento automático): motores só carregam quando usados
   vfx = new VideoFx();
   comp.vfx = vfx;
@@ -844,6 +867,411 @@ async function buildStudio() {
   }
   $('#btn-intercom-mini').onclick = () => toggleIntercomMini();
   $('#btn-remote').onclick = () => remote.openModal();
+
+  // ---------- Ferramentas, prontidão, cena segura e deck ----------
+  // A topbar fica com as decisões da live; ferramentas de nicho entram neste menu.
+  function setupToolsMenu() {
+    const labels = {
+      'btn-replay': 'Replay & VAR',
+      'btn-ndi': 'NDI',
+      'btn-whatsapp': 'WhatsApp',
+      'btn-cameras': 'Câmeras',
+      'btn-ptz': 'PTZ',
+      'btn-intercom-mini': 'Intercom',
+      'btn-remote': 'Controle remoto',
+    };
+    const body = $('#tools-body');
+    if (!body) return;
+    const sepAfter = new Set(['btn-whatsapp', 'btn-remote']);
+    for (const [id, label] of Object.entries(labels)) {
+      const btn = document.getElementById(id);
+      if (!btn) continue;
+      const row = document.createElement('div');
+      row.className = 'tool-row';
+      btn.classList.add('tool-btn');
+      // PTZ é só texto no topbar; no menu ganha um ícone para alinhar com os demais.
+      if (id === 'btn-ptz' && !btn.querySelector('svg')) btn.insertAdjacentHTML('afterbegin', icons.sliders);
+      const hasText = !!btn.textContent.trim();
+      if (!hasText) {
+        const span = document.createElement('span');
+        span.className = 'tool-name';
+        span.textContent = label;
+        btn.appendChild(span);
+      }
+      row.appendChild(btn);
+      body.appendChild(row);
+      if (sepAfter.has(id)) {
+        const sep = document.createElement('div');
+        sep.className = 'tools-sep';
+        body.appendChild(sep);
+      }
+    }
+    // Auto play e idioma são preferências: saem da topbar e continuam acessíveis aqui.
+    const auto = document.getElementById('btn-autoplay');
+    if (auto) {
+      const row = document.createElement('div');
+      row.className = 'tool-row';
+      auto.classList.add('tool-btn');
+      row.appendChild(auto);
+      body.appendChild(row);
+    }
+    const lang = document.getElementById('studio-lang');
+    if (lang) {
+      const row = document.createElement('div');
+      row.className = 'tool-row tool-lang';
+      const span = document.createElement('span');
+      span.className = 'tool-name';
+      span.textContent = 'Idioma';
+      row.append(span, lang);
+      body.appendChild(row);
+    }
+    const menu = $('#tools-menu');
+    const toggle = $('#btn-tools');
+    if (!menu || !toggle) return;
+    const place = () => {
+      const r = toggle.getBoundingClientRect();
+      menu.style.top = Math.round(r.bottom + 8) + 'px';
+      menu.style.right = Math.max(8, Math.round(innerWidth - r.right)) + 'px';
+    };
+    const set = (on) => {
+      menu.hidden = !on;
+      toggle.setAttribute('aria-expanded', String(on));
+      if (on) {
+        place();
+        // Foca o menu, não o primeiro item: evita parecer que a primeira ferramenta está selecionada.
+        menu.focus?.({ preventScroll: true });
+      }
+    };
+    toggle.onclick = (e) => {
+      e.stopPropagation();
+      set(menu.hidden);
+    };
+    $('#tools-close').onclick = () => set(false);
+    $('#tools-help').onclick = () => {
+      set(false);
+      openShortcuts();
+    };
+    $('#tools-panel').onclick = () => {
+      set(false);
+      $('#btn-panel')?.click();
+    };
+    $('#tools-safe').onclick = () => {
+      set(false);
+      openSafeConfig();
+    };
+    document.addEventListener('pointerdown', (e) => {
+      if (menu.hidden) return;
+      if (!menu.contains(e.target) && !toggle.contains(e.target)) set(false);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !menu.hidden) set(false);
+    });
+  }
+
+  function guestOnline(g) {
+    if (!g) return false;
+    if (g.peer?.pc?.connectionState === 'connected') return true;
+    for (const stream of g.streams?.values?.() || []) {
+      if (stream.getTracks?.().some((t) => t.readyState === 'live')) return true;
+    }
+    return false;
+  }
+
+  function readinessChecks() {
+    const guests = [...(S.guests?.values?.() || [])];
+    const online = guests.filter(guestOnline).length;
+    const dests = (S.destinations || []).filter((d) => d.enabled !== false);
+    const camOk = !!S.local?.camOn && !!S.local?.cam?.getVideoTracks?.().some((t) => t.readyState === 'live');
+    const micOk = !!S.local?.micOn && !!S.local?.mic?.getAudioTracks?.().some((t) => t.readyState === 'live');
+    const audioOk = !!mixer && !mixer.masterMuted && (mixer.master ?? 1) > 0.01;
+    const stageOk = !!(S.stage?.length || S.take);
+    const tunnelOn = S.system?.tunnel?.status === 'on';
+    const ffmpegOk = S.system?.ffmpeg?.available !== false;
+    return [
+      { id: 'cam', ok: camOk, level: 'warn', label: 'Câmera do host', detail: camOk ? 'Imagem chegando.' : 'Abra a câmera antes de entrar no ar.', action: 'cam', actionLabel: camOk ? '' : 'Abrir câmeras' },
+      { id: 'mic', ok: micOk, level: 'warn', label: 'Microfone do host', detail: micOk ? 'Microfone aberto.' : 'O microfone está fechado ou sem sinal.', action: 'audio', actionLabel: micOk ? '' : 'Abrir áudio' },
+      { id: 'audio', ok: audioOk, level: 'warn', label: 'Mixer / master', detail: audioOk ? 'Master audível.' : 'O master está mudo ou no zero.', action: 'audio', actionLabel: audioOk ? '' : 'Abrir mixer' },
+      { id: 'guests', ok: online > 0 || guests.length === 0, level: 'warn', label: 'Convidados', detail: guests.length ? `${online}/${guests.length} conectado(s).` : 'Nenhum convidado — tudo bem para uma live solo.', action: 'invite', actionLabel: guests.length ? '' : 'Convidar' },
+      { id: 'dest', ok: dests.length > 0, level: 'warn', label: 'Destinos', detail: dests.length ? `${dests.length} destino(s) ligado(s).` : 'Sem destino: a live seria só gravação local.', action: 'dest', actionLabel: dests.length ? '' : 'Configurar' },
+      { id: 'net', ok: tunnelOn || guests.length === 0, level: 'warn', label: 'Conexão dos convidados', detail: tunnelOn ? 'Túnel público ativo.' : guests.length ? 'Túnel desligado; convidados só pela rede local.' : 'Sem convidados; não é necessário agora.', action: 'net', actionLabel: tunnelOn || guests.length === 0 ? '' : 'Ver conexão' },
+      { id: 'stage', ok: stageOk, level: 'warn', label: 'Cena / palco', detail: stageOk ? 'Há conteúdo no programa.' : 'O palco está vazio; coloque alguém ou uma mídia.', action: 'stage', actionLabel: stageOk ? '' : 'Abrir mídia' },
+      { id: 'ffmpeg', ok: ffmpegOk, level: 'bad', label: 'Motor de transmissão', detail: ffmpegOk ? 'FFmpeg disponível.' : 'FFmpeg não foi encontrado; a transmissão não vai iniciar.', action: 'system', actionLabel: ffmpegOk ? '' : 'Ver ajustes' },
+    ];
+  }
+
+  function readinessSummary() {
+    const checks = readinessChecks();
+    return { checks, ok: checks.filter((c) => c.ok).length, total: checks.length, bad: checks.find((c) => !c.ok && c.level === 'bad') };
+  }
+
+  let readyOpen = false;
+
+  function updateReadyChip() {
+    const btn = $('#btn-ready');
+    const score = $('#ready-score');
+    if (!btn || !score) return;
+    const s = readinessSummary();
+    // O chip é um convite, não um alerta. O detalhe fica no painel do canto.
+    score.textContent = '';
+    const lbl = btn.querySelector('.ready-lbl');
+    if (lbl) lbl.textContent = s.bad ? 'Revisar' : 'Pronto';
+    btn.classList.toggle('warn', !s.bad && s.ok < s.total);
+    btn.classList.toggle('bad', !!s.bad);
+    const pending = s.checks.filter((c) => !c.ok);
+    btn.title = pending.length ? `Prontidão: ${pending.map((c) => c.label).join(' · ')}` : 'Tudo pronto para ir ao vivo';
+    btn.setAttribute('aria-label', `Prontidão ${s.ok} de ${s.total}. ${pending.length ? pending.map((c) => c.label).join(', ') : 'Tudo pronto'}`);
+  }
+
+  function readinessAction(act) {
+    const actions = {
+      cam: () => $('#btn-cameras')?.click(),
+      audio: () => openSideTab('audio'),
+      invite: () => $('#c-invite')?.click(),
+      dest: () => openSideTab('output'),
+      net: () => toast('Abra Painel → Conexão para conferir o túnel e o TURN.', 'info'),
+      stage: () => openSideTab('media'),
+      system: () => openSideTab('devices'),
+    };
+    actions[act]?.();
+  }
+
+  function ensureReadyPop() {
+    let pop = $('#ready-pop');
+    if (pop) return pop;
+    pop = document.createElement('div');
+    pop.id = 'ready-pop';
+    pop.className = 'ready-pop';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'Prontidão para ir ao vivo');
+    pop.tabIndex = -1;
+    pop.hidden = true;
+    document.body.append(pop);
+    pop.addEventListener('click', (e) => {
+      if (e.target.closest('[data-ready-close]')) return setReadyPop(false);
+      const act = e.target.closest('[data-ready-act]');
+      if (act) {
+        const id = act.dataset.readyAct;
+        setReadyPop(false);
+        setTimeout(() => readinessAction(id), 0);
+      }
+      if (e.target.closest('#ready-go')) {
+        setReadyPop(false);
+        setTimeout(() => $('#btn-live')?.click(), 0);
+      }
+      if (e.target.closest('#ready-more')) {
+        pop.classList.toggle('ready-all');
+        const btn = $('#ready-more');
+        if (btn) btn.textContent = pop.classList.contains('ready-all') ? 'Mostrar só pendências' : 'Ver todos os checks';
+      }
+    });
+    document.addEventListener('pointerdown', (e) => {
+      if (!readyOpen) return;
+      if (!pop.contains(e.target) && !e.target.closest('#btn-ready')) setReadyPop(false);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && readyOpen) setReadyPop(false);
+    });
+    addEventListener('resize', () => readyOpen && placeReadyPop());
+    return pop;
+  }
+
+  function placeReadyPop() {
+    const pop = $('#ready-pop');
+    if (!pop) return;
+    // Canto superior direito, não no meio do programa.
+    pop.style.top = '64px';
+    pop.style.right = innerWidth <= 480 ? '6px' : '12px';
+  }
+
+  function setReadyPop(on) {
+    const pop = ensureReadyPop();
+    readyOpen = !!on;
+    pop.hidden = !readyOpen;
+    $('#btn-ready')?.setAttribute('aria-expanded', String(readyOpen));
+    if (readyOpen) {
+      placeReadyPop();
+      pop.focus?.({ preventScroll: true });
+    }
+  }
+
+  function openReadiness() {
+    const s = readinessSummary();
+    const pending = s.checks.filter((c) => !c.ok);
+    const state = s.bad ? 'bad' : pending.length ? 'warn' : 'ok';
+    const title = s.bad ? 'Corrija antes de transmitir' : pending.length ? 'Tudo certo para começar' : 'Tudo pronto';
+    const sub = s.bad
+      ? 'Há um bloqueio que impede a transmissão.'
+      : pending.length
+        ? `${pending.length} ${pending.length === 1 ? 'ajuste opcional' : 'ajustes opcionais'} — nada impede gravar ou testar.`
+        : 'Nenhum bloqueio encontrado nos checks.';
+    const row = (c) => `<div class="ready-row ${c.ok ? 'ok' : c.level === 'bad' ? 'bad' : 'warn'}">
+      <span class="ready-ico">${c.ok ? '✓' : c.level === 'bad' ? '!' : '•'}</span>
+      <div class="ready-copy"><b>${esc(c.label)}</b><small>${esc(c.detail)}</small></div>
+      ${c.actionLabel ? `<button class="btn sm ghost" data-ready-act="${esc(c.action)}">${esc(c.actionLabel)}</button>` : ''}
+    </div>`;
+    const pendingRows = pending.length ? pending.map(row).join('') : `<div class="ready-clear">Tudo certo — pode ir ao vivo quando quiser.</div>`;
+    const allRows = s.checks.filter((c) => c.ok).map(row).join('');
+    const pop = ensureReadyPop();
+    pop.innerHTML = `
+      <div class="ready-pop-head">
+        <div><span class="ready-pop-kicker">PRONTIDÃO</span><strong>${title}</strong><small>${sub}</small></div>
+        <button class="ready-pop-x" type="button" data-ready-close aria-label="Fechar">✕</button>
+      </div>
+      <div class="ready-pop-status ${state}"><span class="ready-pop-dot"></span><b>${s.ok}/${s.total}</b><small>${pending.length ? 'checks ok' : 'tudo certo'}</small></div>
+      <div class="ready-pop-list">${pendingRows}</div>
+      ${allRows ? `<div class="ready-pop-list ready-ok-list">${allRows}</div><button class="ready-pop-more" id="ready-more" type="button">Ver todos os checks</button>` : ''}
+      <div class="ready-pop-foot"><button class="btn sm" type="button" data-ready-close>Fechar</button>${S.streaming ? '' : '<button class="btn sm primary" type="button" id="ready-go">Transmitir</button>'}</div>`;
+    pop.classList.remove('ready-all');
+    setReadyPop(true);
+  }
+
+  function openShortcuts() {
+    modal(`<h3>Atalhos do estúdio</h3>
+      <p class="sub">Atalhos funcionam fora de campos de texto e com o estúdio em foco.</p>
+      <div class="shortcut-grid">
+        <span><kbd>F</kbd> Tela cheia do programa</span><span><kbd>Shift</kbd> + <kbd>F</kbd> Tela cheia da mesa</span>
+        <span><kbd>Shift</kbd> + <kbd>P</kbd> Projetor em outra tela</span><span><kbd>Shift</kbd> + <kbd>R</kbd> Replay &amp; VAR</span>
+        <span><kbd>F8</kbd> Replay 5 s</span><span><kbd>F9</kbd> Replay 10 s</span>
+        <span><kbd>F10</kbd> Replay 15 s</span><span><kbd>?</kbd> Abrir esta ajuda</span>
+      </div>
+      <div class="modal-actions"><button class="btn primary" data-close>Entendi</button></div>`);
+  }
+
+  function applyDeckState() {
+    const wrap = $('.stage-wrap');
+    const btn = $('#btn-deck');
+    if (!wrap || !btn) return;
+    let collapsed = false;
+    try { collapsed = localStorage.getItem('castdeck.deckCollapsed') === '1'; } catch {}
+    wrap.classList.toggle('deck-collapsed', collapsed);
+    btn.setAttribute('aria-expanded', String(!collapsed));
+    btn.querySelector('span:last-child').textContent = collapsed ? 'Abrir deck' : 'Recolher deck';
+    btn.querySelector('.deck-chev').textContent = collapsed ? '▸' : '▾';
+  }
+
+  function openSafeConfig() {
+    const fallback = safeCopy();
+    const initial = { ...(S.brand.safe || {}) };
+    const apply = (patch) => {
+      const next = { ...(S.brand.safe || {}), ...patch };
+      setBrand({ safe: next });
+      saveStudio();
+    };
+    const previewHTML = () => {
+      const s = S.brand.safe || {};
+      const title = s.title || fallback.title;
+      const sub = s.subtitle || fallback.subtitle;
+      if (s.image) {
+        return `<div class="safe-prev has-img"><img src="${s.image}" alt="" style="object-fit:${s.fit === 'contain' ? 'contain' : 'cover'}">${s.showText ? `<div class="safe-prev-txt"><b>${esc(title)}</b><small>${esc(sub)}</small></div>` : ''}</div>`;
+      }
+      const bg = S.brand.background || {};
+      const style = bg.type === 'image' ? `background-image:url('${bg.value}');background-size:cover;background-position:center;` : bg.type === 'color' ? `background:${bg.value};` : '';
+      const logo = S.brand.logo ? `<img class="safe-prev-logo" src="${S.brand.logo}" alt="">` : '';
+      return `<div class="safe-prev" style="${style}">${logo}<div class="safe-prev-txt"><b>${esc(title)}</b><small>${esc(sub)}</small></div></div>`;
+    };
+    modal(`<div class="safe-config">
+      <div class="safe-config-head"><div><h3>Cena segura</h3><p class="sub">A cartela que cobre o programa em uma emergência. Pode ser uma imagem pronta ou um logo sobre a marca.</p></div></div>
+      <div class="safe-config-grid">
+        <div class="safe-prev-wrap"><span class="safe-prev-lbl">Prévia</span><div id="safe-prev">${previewHTML()}</div></div>
+        <div class="safe-config-fields">
+          <div class="safe-actions-row">
+            <button class="btn sm primary" type="button" id="safe-upload">${icons.film}<span>Enviar imagem ou logo</span></button>
+            ${S.brand.logo ? `<button class="btn sm" type="button" id="safe-brand-logo">${icons.brand}<span>Usar logo da marca</span></button>` : ''}
+            <button class="btn sm ghost" type="button" id="safe-remove" ${S.brand.safe?.image ? '' : 'hidden'}>Usar fundo do projeto</button>
+          </div>
+          <label class="field"><span>Texto principal</span><input class="input" id="safe-title" maxlength="80" value="${esc(S.brand.safe?.title || fallback.title)}" placeholder="${esc(fallback.title)}"></label>
+          <label class="field"><span>Texto de apoio</span><input class="input" id="safe-sub" maxlength="120" value="${esc(S.brand.safe?.subtitle || fallback.subtitle)}" placeholder="${esc(fallback.subtitle)}"></label>
+          <div class="safe-row">
+            <label class="check"><input type="checkbox" id="safe-showtext" ${S.brand.safe?.showText ? 'checked' : ''}> <span>Mostrar texto sobre a imagem</span></label>
+            <label class="field safe-fit"><span>Imagem</span><select class="input" id="safe-fit"><option value="cover" ${(S.brand.safe?.fit || 'cover') === 'cover' ? 'selected' : ''}>Preencher a tela</option><option value="contain" ${S.brand.safe?.fit === 'contain' ? 'selected' : ''}>Ajustar sem cortar</option></select></label>
+          </div>
+          <p class="hint">Sem imagem, usamos o fundo e o logo atuais do projeto.</p>
+        </div>
+      </div>
+      <div class="modal-actions"><button class="btn primary" type="button" data-close>Fechar</button></div>
+    </div>`, {
+      onMount(m) {
+        const repaint = () => { $('#safe-prev', m).innerHTML = previewHTML(); $('#safe-remove', m).hidden = !S.brand.safe?.image; };
+        const update = (patch) => { apply(patch); repaint(); };
+        $('#safe-upload', m).onclick = async () => {
+          const file = await pickFile('image/*');
+          if (!file) return;
+          if (file.size > 40 * 1024 * 1024) return toast('Imagem muito grande (máx. 40 MB)', 'err');
+          const type = /png|webp|svg/i.test(file.type) ? 'image/png' : 'image/jpeg';
+          try {
+            const data = await readImage(file, 1800, type);
+            update({ image: data, fit: S.brand.safe?.fit || 'cover', showText: false });
+            toast('Imagem da cena segura atualizada', 'ok');
+          } catch (e) {
+            toast('Não foi possível usar esta imagem: ' + e.message, 'err');
+          }
+        };
+        const brandLogo = $('#safe-brand-logo', m);
+        if (brandLogo) brandLogo.onclick = () => update({ image: S.brand.logo, fit: 'contain', showText: true });
+        $('#safe-remove', m).onclick = () => update({ image: null, showText: false });
+        const bindText = (sel, key, fallback) => {
+          const el = $(sel, m);
+          el.oninput = () => update({ [key]: el.value.trim() || fallback });
+        };
+        bindText('#safe-title', 'title', fallback.title);
+        bindText('#safe-sub', 'subtitle', fallback.subtitle);
+        $('#safe-showtext', m).onchange = (e) => update({ showText: e.target.checked });
+        $('#safe-fit', m).onchange = (e) => update({ fit: e.target.value });
+        repaint();
+      },
+    });
+  }
+
+  function bindToolsAndLayout() {
+    setupToolsMenu();
+    $('#btn-ready')?.addEventListener('click', openReadiness);
+    $('#btn-deck')?.addEventListener('click', () => {
+      const wrap = $('.stage-wrap');
+      const next = !wrap.classList.contains('deck-collapsed');
+      try { localStorage.setItem('castdeck.deckCollapsed', next ? '1' : '0'); } catch {}
+      applyDeckState();
+    });
+    let safeOn = false;
+    $('#btn-safe')?.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openSafeConfig();
+    });
+    $('#btn-safe')?.addEventListener('click', (e) => {
+      if (e.shiftKey) {
+        openSafeConfig();
+        return;
+      }
+      safeOn = !safeOn;
+      comp.safe = safeOn;
+      $('#btn-safe').classList.toggle('on', safeOn);
+      $('#btn-safe').setAttribute('aria-pressed', String(safeOn));
+      toast(safeOn ? 'Cena segura ativada: o programa está coberto pela marca.' : 'Cena segura desativada.', safeOn ? 'warn' : 'ok');
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== '?' || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.target?.closest?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('.modal-back')) return;
+      e.preventDefault();
+      openShortcuts();
+    });
+    applyDeckState();
+    updateReadyChip();
+    setInterval(updateReadyChip, 2500);
+    const notice = $('#mode-notice');
+    if (notice) {
+      if (S.switcher) {
+        notice.hidden = false;
+        $('#mode-notice-studio').onclick = () => {
+          switcher?.setMode(false);
+          notice.hidden = true;
+        };
+        $('#mode-notice-close').onclick = () => { notice.hidden = true; };
+      } else {
+        notice.hidden = true;
+      }
+    }
+  }
+
+  bindToolsAndLayout();
   floatWins = createFloatWins({
     $,
     $$,
@@ -879,7 +1307,7 @@ async function buildStudio() {
     S,
     getSig: () => sig,
     modal,
-    getDevices: () => listDevices(),
+    getDevices: () => listDevices({ cached: true }),
     getInterface: (id) => getCameraInterface(id),
     onVideoDevice: (id, deviceId) => setCameraVideoInterface(id, deviceId),
     onAudioDevice: (id, deviceId) => setCameraAudioInterface(id, deviceId),
@@ -944,7 +1372,7 @@ async function buildStudio() {
   initVerticalDock();
   switchTab('media');
   extras = createExtras({
-    S, studioId, api, $, $$, esc, toast, modal, fmtBytes, listDevices, getCamera, getMic,
+    S, studioId, api, $, $, esc, toast, modal, fmtBytes, listDevices, getCamera, getMic,
     mixer: () => mixer, addVideoSource, removeSource, setStage, setSolo, addMediaFile, applyName,
     toggleBanner, stopScreen, renderMediaPanel, renderAudioPanel,
     onRestoreProgress: (p) => updateRestoreStatus(p),
@@ -1661,13 +2089,55 @@ function placeInSlot(id, sl) {
 }
 
 function toggleStage(id) {
-  if (S.stage.includes(id)) setStage(S.stage.filter((x) => x !== id));
-  else {
+  const before = [...S.stage];
+  const beforeSolo = S.solo;
+  if (S.stage.includes(id)) {
+    setStage(S.stage.filter((x) => x !== id));
+    showUndoToast(`${S.sources.get(id)?.label || 'Item'} saiu do palco.`, () => {
+      setStage(before);
+      if (beforeSolo) setSolo(beforeSolo);
+    });
+  } else {
     if (S.stage.length >= 10) return toast('Máximo de 10 itens no palco.', 'err');
     const s = S.sources.get(id);
     // tela/mídia entram como item principal (primeiro); pessoas entram no fim
     setStage(s && (s.kind === 'screen' || s.kind === 'media') ? [id, ...S.stage] : [...S.stage, id]);
   }
+}
+
+// Ação destrutiva reversível: um toast com botão, em vez de confirmar tudo.
+function showUndoToast(text, action) {
+  let box = document.getElementById('toasts');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'toasts';
+    document.body.append(box);
+  }
+  const el = document.createElement('div');
+  el.className = 'toast undo';
+  el.setAttribute('role', 'status');
+  el.setAttribute('aria-live', 'polite');
+  const span = document.createElement('span');
+  span.textContent = text;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn sm ghost';
+  btn.textContent = 'Desfazer';
+  let done = false;
+  const close = () => {
+    if (done) return;
+    done = true;
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 160);
+  };
+  btn.onclick = () => {
+    if (done) return;
+    action();
+    close();
+  };
+  el.append(span, btn);
+  box.append(el);
+  setTimeout(close, 8000);
 }
 
 function pushStudioState() {
@@ -2079,7 +2549,7 @@ function renderTiles() {
   // "＋ Câmera" sempre no fim dos bastidores
   let addTile = $('#add-cam-tile');
   if (!addTile) {
-    addTile = h(`<button class="add-tile" id="add-cam-tile" title="Adicionar câmera: USB/captura deste computador ou celular pelo QR Code"><span class="add-ico">＋</span><span>Câmera</span></button>`);
+    addTile = h(`<button class="add-tile" id="add-cam-tile" title="Fontes: câmera USB, celular, drone, browser, NDI ou mídia local"><span class="add-ico">＋</span><span>Fontes</span></button>`);
     addTile.onclick = () => openAddCamera();
   }
   box.append(addTile);
@@ -7166,17 +7636,45 @@ function qrSvg(text) {
 // "＋ Câmera": câmera ligada neste computador (USB/captura) ou um celular/aparelho pela rede (QR Code)
 async function openAddCamera() {
   const pick = await modal(
-    `<div class="addcam-head"><div><h3>Adicionar câmera ou fonte</h3><p class="sub">Escolha de onde vem a imagem para o estúdio.</p></div><span class="addcam-kicker">${icons.cam} ENTRADAS</span></div>
-    <div class="addcam-opts">
-      <button class="addcam-opt" data-pick="remote"><span class="addcam-ico">${icons.remote}</span><span class="addcam-info"><strong>Celular ou outro aparelho</strong><small>Leia o QR Code com a câmera do celular. Funciona no mesmo Wi‑Fi ou pela internet.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
-      <button class="addcam-opt" data-pick="usb"><span class="addcam-ico">${icons.usbCam}</span><span class="addcam-info"><strong>Câmera deste computador</strong><small>Webcam USB, placa de captura ou câmera virtual, com áudio próprio.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
-      <button class="addcam-opt" data-pick="ingest"><span class="addcam-ico">${icons.drone}</span><span class="addcam-info"><strong>Drone ou câmera profissional</strong><small>Recebe RTMP ou SRT (H.264/H.265) de drones, câmeras, encoders e apps da mesma rede.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
-      ${S.system.platform === 'android' ? '' : `<button class="addcam-opt" data-pick="browser"><span class="addcam-ico">${icons.display}</span><span class="addcam-info"><strong>Browser — página web</strong><small>Abra um painel, placar, YouTube ou dashboard como fonte. Segue a resolução/FPS da mesa.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>`}
-      <button class="addcam-opt addcam-ndi" data-pick="ndi"><span class="addcam-ico">${icons.ndi}</span><span class="addcam-info"><strong>Fonte NDI</strong><small>Receba NDI de outro PC, câmera ou encoder. O NDI fica desligado até você ativar.</small></span><span class="addcam-badge">NDI</span></button>
-      <button class="addcam-opt" data-pick="manage"><span class="addcam-ico">${icons.sliders}</span><span class="addcam-info"><strong>Gerenciar câmeras</strong><small>Preview, zoom, foco, ISO, exposição, cor, lanterna e interfaces de vídeo/áudio.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
+    `<div class="addcam-head"><div><h3>Fontes</h3><p class="sub">Adicione o que entra no estúdio. Você pode combinar câmeras, telas e mídia.</p></div></div>
+    <div class="addcam-groups">
+      <section class="addcam-group">
+        <div class="addcam-group-hd"><b>Arquivos</b><span>Mídia local</span></div>
+        <button class="addcam-opt addcam-media" data-pick="media"><span class="addcam-ico">${icons.film}</span><span class="addcam-info"><strong>Adicionar mídia</strong><small>Vídeos, áudios e imagens deste computador.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
+      </section>
+      <section class="addcam-group">
+        <div class="addcam-group-hd"><b>Câmeras e pessoas</b><span>Imagem ao vivo</span></div>
+        <div class="addcam-grid">
+          <button class="addcam-opt" data-pick="remote"><span class="addcam-ico">${icons.remote}</span><span class="addcam-info"><strong>Celular como câmera</strong><small>QR Code no celular; mesma rede ou internet.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
+          <button class="addcam-opt" data-pick="usb"><span class="addcam-ico">${icons.usbCam}</span><span class="addcam-info"><strong>Câmera deste PC</strong><small>Webcam, placa de captura ou câmera virtual.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
+          <button class="addcam-opt addcam-wide" data-pick="ingest"><span class="addcam-ico">${icons.drone}</span><span class="addcam-info"><strong>Entrada RTMP/SRT</strong><small>Recebe drone, câmera, encoder ou app na mesma rede.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
+        </div>
+      </section>
+      <section class="addcam-group">
+        <div class="addcam-group-hd"><b>Outras fontes</b><span>Conteúdo externo</span></div>
+        <div class="addcam-grid">
+          ${S.system.platform === 'android' ? '' : `<button class="addcam-opt" data-pick="browser"><span class="addcam-ico">${icons.display}</span><span class="addcam-info"><strong>Página web</strong><small>Painel, placar, YouTube ou dashboard como fonte.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>`}
+          <button class="addcam-opt addcam-ndi" data-pick="ndi"><span class="addcam-ico">${icons.ndi}</span><span class="addcam-info"><strong>Fonte NDI</strong><small>Recebe NDI de outro PC, câmera ou encoder.</small></span><span class="addcam-badge">NDI</span></button>
+        </div>
+      </section>
     </div>
-    <div class="modal-actions"><button class="btn" data-close>Cancelar</button></div>`,
-    { onMount: (m, close) => m.querySelectorAll('[data-pick]').forEach((b) => (b.onclick = () => close(b.dataset.pick))) },
+    <div class="modal-actions addcam-actions"><button class="btn ghost" data-pick="manage">${icons.sliders} Gerenciar câmeras</button><span class="grow"></span><button class="btn" data-close>Cancelar</button></div>`,
+    {
+      onMount: (m, close) => {
+        m.querySelectorAll('[data-pick]').forEach((b) => {
+          b.onclick = () => {
+            // O seletor de arquivos precisa abrir no mesmo gesto do clique.
+            if (b.dataset.pick === 'media') {
+              close(null);
+              $('#media-file')?.click();
+              return;
+            }
+            close(b.dataset.pick);
+          };
+        });
+        m.querySelector('[data-pick="media"]')?.focus({ preventScroll: true });
+      },
+    },
   );
   if (pick === 'usb') extras?.camDialog();
   else if (pick === 'remote') showRemoteCam();

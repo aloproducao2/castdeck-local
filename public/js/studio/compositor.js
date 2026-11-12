@@ -284,6 +284,7 @@ export class Compositor {
     this.fade = null; // { from: Compositor da cena anterior, t0, ms, manual, p } dissolve em andamento
     this.keepLayer = false; // guarda a camada de imagens de cada quadro (usado pela cena anterior durante o dissolve)
     this.ftb = null; // { on, t0, ms } fade to black (FTB) da mesa de corte
+    this.safe = false; // cena segura: cobre o programa com a marca (emergência, não altera o take)
     this.replayWipe = null; // { t0, ms, kind } transição de replay desenhada no PGM (não só no console)
     this.varOverlay = null; // { on, lines, stamp } linhas/carimbo do VAR no PGM
     this.cc = null; // legenda ao vivo { show, text, partial, t, style } (objeto compartilhado com o estúdio)
@@ -568,6 +569,92 @@ export class Compositor {
     else Object.assign(this.ticker, { text, label: opts.label || '', speed: opts.speed || 0.09 }); // mantém a posição da rolagem
   }
 
+  // Cena segura: usa a cartela enviada ou, sem imagem, o fundo atual do projeto
+  // (imagem, vídeo, cor ou gradiente da marca). Não inventa um avatar "CD".
+  drawSafe() {
+    const { ctx, W, H } = this;
+    const brand = this.brand || {};
+    const safe = brand.safe || {};
+    const img = safe.image ? this.image(safe.image) : null;
+    const defaults = this.safeDefaults || {};
+    const title = safe.title || defaults.title || 'Voltamos em instantes';
+    const subtitle = safe.subtitle || defaults.subtitle || 'Estamos ajustando o sinal.';
+    const showText = !img || safe.showText === true;
+    const bg = brand.background || {};
+    const bgVideo = bg.type === 'video' ? this.bgVideo(bg.value) : null;
+    const bgGif = bg.type === 'image' ? this.bgGif(bg.value) : null;
+    const bgGifFrame = this.gifFrame(bgGif);
+    const bgImg = bg.type === 'image' ? this.image(bg.value) : null;
+    const gradient = () => {
+      const color = hexToRgb(brand.color || '#7c5cff');
+      const g = ctx.createLinearGradient(0, 0, W, H);
+      g.addColorStop(0, rgb(mix(color, [8, 8, 16], 0.72)));
+      g.addColorStop(1, rgb(mix(color, [4, 4, 10], 0.92)));
+      return g;
+    };
+    const paintBackground = () => {
+      if (bgVideo) this.drawCover(bgVideo, 0, 0, W, H, bgVideo.videoWidth, bgVideo.videoHeight);
+      else if (bgGifFrame) this.drawCover(bgGifFrame, 0, 0, W, H, bgGifFrame.width, bgGifFrame.height);
+      else if (bgImg) this.drawCover(bgImg, 0, 0, W, H, bgImg.naturalWidth, bgImg.naturalHeight);
+      else if (bg.type === 'color') {
+        ctx.fillStyle = bg.value || '#111';
+        ctx.fillRect(0, 0, W, H);
+      } else {
+        ctx.fillStyle = gradient();
+        ctx.fillRect(0, 0, W, H);
+      }
+    };
+    const drawText = () => {
+      if (!showText) return;
+      // Texto no centro vertical da cartela (título e apoio formam um bloco único).
+      const g = ctx.createLinearGradient(0, H * 0.32, 0, H * 0.74);
+      g.addColorStop(0, 'rgba(4,4,10,0)');
+      g.addColorStop(0.42, 'rgba(4,4,10,.34)');
+      g.addColorStop(1, 'rgba(4,4,10,.62)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, H * 0.32, W, H * 0.42);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,.7)';
+      ctx.shadowBlur = Math.round(H * 0.022);
+      ctx.fillStyle = '#fff';
+      ctx.font = `800 ${Math.round(H * 0.052)}px Outfit, Inter, sans-serif`;
+      ctx.fillText(title, W / 2, H * 0.5);
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,.8)';
+      ctx.font = `500 ${Math.round(H * 0.025)}px Inter, sans-serif`;
+      ctx.fillText(subtitle, W / 2, H * 0.575);
+    };
+
+    ctx.save();
+    if (img) {
+      if (safe.fit === 'contain') {
+        paintBackground();
+        const sc = Math.min(W / img.naturalWidth, H / img.naturalHeight);
+        const iw = img.naturalWidth * sc;
+        const ih = img.naturalHeight * sc;
+        ctx.drawImage(img, (W - iw) / 2, (H - ih) / 2, iw, ih);
+      } else {
+        this.drawCover(img, 0, 0, W, H, img.naturalWidth, img.naturalHeight);
+      }
+      drawText();
+    } else {
+      paintBackground();
+      const logo = this.image(brand.logo);
+      if (logo) {
+        const cy = H * 0.3;
+        const maxH = H * 0.14;
+        const maxW = W * 0.36;
+        const sc = Math.min(maxH / logo.naturalHeight, maxW / logo.naturalWidth);
+        const lw = logo.naturalWidth * sc;
+        const lh = logo.naturalHeight * sc;
+        ctx.drawImage(logo, (W - lw) / 2, cy - lh / 2, lw, lh);
+      }
+      drawText();
+    }
+    ctx.restore();
+  }
+
   // ---------- render ----------
   render() {
     const now = performance.now();
@@ -808,6 +895,9 @@ export class Compositor {
 
     // Stinger de entrada/saída desenhado no próprio programa (antes era só CSS no console)
     if (this.replayWipe) this.drawReplayWipe(now);
+
+    // Cena segura por cima de tudo, inclusive DSK, GC e replay; o FTB continua por cima.
+    if (this.safe) this.drawSafe();
 
     // FTB por cima de tudo (no ar some até o letreiro, como no vMix/ATEM)
     const bl = this.blackLevel(now);
@@ -1512,6 +1602,8 @@ export class VerticalView {
     v.solo = m.solo;
     v.take = m.take;
     v.ftb = m.ftb; // FTB vale para as duas saídas (horizontal e vertical)
+    v.safe = m.safe; // cena segura também cobre a saída vertical
+    v.safeDefaults = m.safeDefaults;
     v.dsk = m.dsk; // DSKs marcados "também no vertical" (com posição/corte próprios, ver dsk.js)
     v.cc = m.cc; // legenda ao vivo: mesma camada no retorno, no vertical e na prévia
     v.stage = m.stage;

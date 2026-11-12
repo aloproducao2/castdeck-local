@@ -1828,3 +1828,47 @@ body.platform-android #btn-replay {
 /* PTZ */
 .ptz-top{font-weight:800;letter-spacing:.03em;padding:0 10px}
 .studio.is-mobile #btn-ptz,.studio.platform-android #btn-ptz{display:none}
+
+/* Painel Fontes: mídia em destaque + entradas em duas colunas */
+.addcam-opts .addcam-opt[data-pick="ingest"],
+.addcam-opts .addcam-opt[data-pick="ndi"] { grid-column: auto; }
+.addcam-opt.addcam-media {
+  grid-column: 1 / -1;
+  border-color: hsl(252 80% 65% / .38);
+  background: linear-gradient(110deg, hsl(252 45% 18% / .55), hsl(228 25% 10% / .7));
+}
+.addcam-opt.addcam-media:hover,
+.addcam-opt.addcam-media:focus-visible {
+  border-color: var(--accent);
+  background: linear-gradient(110deg, hsl(252 55% 22% / .65), hsl(228 25% 12% / .8));
+}
+.addcam-opt.addcam-media .addcam-ico {
+  color: hsl(252 100% 82%);
+  background: hsl(252 70% 30% / .35);
+  border-color: hsl(252 80% 68% / .35);
+}
+.addcam-opt.addcam-media .addcam-info strong { font-size: 14px; }
+@media (max-width: 640px) {
+  .addcam-opt.addcam-media { grid-column: auto; }
+}
+
+/* Organização do painel Fontes: grupos e hierarquia */
+.modal:has(.addcam-groups) { width: min(760px, 96vw); max-height: calc(100vh - 24px); overflow-y: auto; overscroll-behavior: contain; }
+.addcam-groups { display: flex; flex-direction: column; gap: 13px; }
+.addcam-group { display: flex; flex-direction: column; gap: 6px; }
+.addcam-group-hd { display: flex; align-items: baseline; gap: 8px; padding: 0 2px; }
+.addcam-group-hd b { font: 800 9.5px var(--font); letter-spacing: .1em; text-transform: uppercase; color: var(--text-2); }
+.addcam-group-hd span { font-size: 10.5px; color: var(--text-3); }
+.addcam-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.addcam-opt.addcam-wide { grid-column: 1 / -1; }
+.addcam-actions { align-items: center; gap: 8px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+.addcam-actions .grow { flex: 1; }
+.addcam-actions .btn.ghost { color: var(--text-2); }
+.addcam-actions .btn.ghost:hover { color: var(--text-0); }
+@media (max-width: 640px) {
+  .addcam-grid { grid-template-columns: 1fr; }
+  .addcam-opt.addcam-wide { grid-column: auto; }
+  .addcam-actions { flex-wrap: wrap; }
+  .addcam-actions .grow { display: none; }
+  .addcam-actions .btn { flex: 1 1 auto; justify-content: center; }
+}

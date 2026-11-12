@@ -14,31 +14,34 @@ export const loadPrefs = () => {
 };
 export const savePrefs = (p) => localStorage.setItem(PREFS_KEY, JSON.stringify({ ...loadPrefs(), ...p }));
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const transientCameraError = (e) =>
+  ['NotReadableError', 'TrackStartError', 'AbortError', 'SourceUnavailableError'].includes(e?.name);
+
 export async function getCamera(deviceId, quality = '720') {
   const sizes = { 1080: [1920, 1080], 720: [1280, 720], 480: [854, 480] };
   const [w, hh] = sizes[quality] || sizes[720];
   const base = { width: { ideal: w }, height: { ideal: hh }, frameRate: { ideal: 30 } };
-  // Se o dispositivo salvo sumiu (webcam trocada/plugada em outra porta), tenta o padrão
-  // em vez de deixar a câmera preta. Também cai para constraints simples se a resolução falhar.
-  if (deviceId) {
-    try {
-      return await navigator.mediaDevices.getUserMedia({ video: { ...base, deviceId: { exact: deviceId } }, audio: false });
-    } catch (first) {
-      try {
-        return await navigator.mediaDevices.getUserMedia({ video: base, audio: false });
-      } catch {
-        try {
-          return await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        } catch {
-          throw first;
-        }
-      }
-    }
-  }
+  // `ideal` (em vez de `exact`) evita falhar de primeira quando o ID salvo mudou de porta
+  // ou quando o Windows ainda está enumerando muitos dispositivos. O navegador cai para
+  // a câmera padrão sozinho, sem a sequência de três getUserMedia que atrasava o lobby.
+  const preferred = deviceId ? { ...base, deviceId: { ideal: deviceId } } : base;
   try {
-    return await navigator.mediaDevices.getUserMedia({ video: base, audio: false });
-  } catch {
-    return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    return await navigator.mediaDevices.getUserMedia({ video: preferred, audio: false });
+  } catch (first) {
+    if (first?.name === 'NotAllowedError' || first?.name === 'SecurityError') throw first;
+    // Muitos drivers falham na primeira abertura enquanto soltam o dispositivo anterior.
+    if (transientCameraError(first)) {
+      await sleep(350);
+      try {
+        return await navigator.mediaDevices.getUserMedia({ video: preferred, audio: false });
+      } catch {}
+    }
+    try {
+      return await navigator.mediaDevices.getUserMedia({ video: base, audio: false });
+    } catch {
+      return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    }
   }
 }
 
@@ -116,13 +119,46 @@ export async function getTab() {
   });
 }
 
-export async function listDevices() {
-  const all = await navigator.mediaDevices.enumerateDevices();
-  return {
-    cams: all.filter((d) => d.kind === 'videoinput'),
-    mics: all.filter((d) => d.kind === 'audioinput'),
-    speakers: all.filter((d) => d.kind === 'audiooutput'),
-  };
+let deviceCache = { cams: [], mics: [], speakers: [], at: 0 };
+let deviceRequest = null;
+
+export function cachedDevices() {
+  return deviceCache;
+}
+
+export async function listDevices({ cached = false } = {}) {
+  // O painel de câmeras e o diálogo de câmera extra abrem em sequência depois do lobby.
+  // Reutilizar a última enumeração por alguns segundos evita reabrir todos os drivers.
+  if (cached && deviceCache.at && Date.now() - deviceCache.at < 30000) return deviceCache;
+  // Uma enumeração por vez. O lobby e o painel de câmeras pedem a lista quase juntos;
+  // antes cada chamada acordava o driver para todos os dispositivos de novo.
+  if (deviceRequest) return deviceRequest;
+  deviceRequest = (async () => {
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      const uniq = (kind) => {
+        const seen = new Set();
+        return all.filter((d) => {
+          if (d.kind !== kind || !d.deviceId || seen.has(d.deviceId)) return false;
+          seen.add(d.deviceId);
+          return true;
+        });
+      };
+      const out = { cams: uniq('videoinput'), mics: uniq('audioinput'), speakers: uniq('audiooutput'), at: Date.now() };
+      deviceCache = out;
+      return out;
+    } catch (e) {
+      // Em alguns drivers a enumeração falha enquanto uma câmera abre; a última lista
+      // continua válida e evita mostrar "nenhuma câmera" no meio da inicialização.
+      if (deviceCache.at) return deviceCache;
+      throw e;
+    }
+  })();
+  try {
+    return await deviceRequest;
+  } finally {
+    deviceRequest = null;
+  }
 }
 
 // Teste curto de saída: toca um tom suave no dispositivo padrão. Usado no lobby do host/convidado
@@ -301,49 +337,83 @@ export function lobby({ mount, title, subtitle, askName = true, defaultName = ''
       if (prefs.micId && mics.some((c) => c.deviceId === prefs.micId)) micSel.value = prefs.micId;
     };
 
-    // Mostra a câmera no <video> de forma garantida: força play() (o autoplay falha de vez em quando) e
-    // vigia o primeiro quadro; se a prévia ficar preta, reinicia a câmera sozinho (o que antes exigia trocar de item e voltar).
+    // Mostra a câmera no <video> de forma garantida: força play() e só considera falha
+    // depois de um tempo real de inicialização. Com muitos dispositivos o primeiro quadro
+    // pode levar vários segundos; o watchdog antigo de 1,8 s reiniciava a câmera no meio
+    // da abertura e produzia o erro que aparecia antes de funcionar.
     let camRetries = 0;
     let camWatch = null;
+    let camReq = 0;
     const showCam = (stream) => {
       video.muted = true;
       video.playsInline = true;
       video.srcObject = stream;
       video.play?.().catch(() => {});
       clearTimeout(camWatch);
+      camWatch = null;
+      const frameOk = () => {
+        if (camStream !== stream || !video.videoWidth || video.readyState < 2) return;
+        clearTimeout(camWatch);
+        camWatch = null;
+        camRetries = 0;
+        if (err.textContent.startsWith('Câmera')) err.textContent = '';
+      };
+      video.onloadeddata = frameOk;
+      video.onplaying = frameOk;
+      video.oncanplay = frameOk;
       const check = () => {
         if (!camStream || camStream !== stream) return;
-        if (document.hidden) return void (camWatch = setTimeout(check, 2500)); // aba em segundo plano n\u00e3o renderiza v\u00eddeo
+        if (document.hidden) {
+          camWatch = setTimeout(check, 3000);
+          return;
+        }
         const t = stream.getVideoTracks()[0];
         const dead = !t || t.readyState === 'ended';
         const black = video.readyState < 2 || !video.videoWidth;
-        if (!dead && !black) return;
-        if (camRetries++ < 3) {
-          console.warn('[lobby] prévia sem imagem; reiniciando a câmera (' + camRetries + ')');
-          startCam('Reconectando a câmera…');
+        if (!dead && !black) {
+          camRetries = 0;
+          return;
+        }
+        if (camRetries++ < 2) {
+          console.warn('[lobby] prévia ainda sem imagem; reabrindo a câmera (' + camRetries + ')');
+          startCam('Ajustando a câmera…');
         } else {
           err.textContent = 'A câmera não enviou imagem. Escolha outra câmera na lista ou recarregue a página.';
         }
       };
       stream.getVideoTracks()[0]?.addEventListener('ended', () => {
         clearTimeout(camWatch);
-        check(); // a câmera caiu: não espera o prazo
+        check();
       });
-      camWatch = setTimeout(check, 1800);
+      // 7 s: tempo suficiente para drivers com muitos dispositivos abrirem sem falso erro.
+      camWatch = setTimeout(check, 7000);
     };
     const startCam = async (title = 'Trocando de câmera…') => {
+      const req = ++camReq;
       camStream?.getTracks().forEach((t) => t.stop());
       camStream = null;
-      loading(true, typeof title === 'string' ? title : 'Trocando de câmera…');
+      loading(true, typeof title === 'string' ? title : 'Trocando de câmera…', true);
       try {
-        camStream = await getCamera(camSel.value || undefined, qSel.value);
+        const stream = await getCamera(camSel.value || undefined, qSel.value);
+        if (req !== camReq) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        camStream = stream;
         showCam(camStream);
+        // Se o ID salvo não existia mais, o navegador abriu a câmera padrão:
+        // reflete a escolha real na lista em vez de continuar num item fantasma.
+        const actual = stream.getVideoTracks()[0]?.getSettings?.().deviceId;
+        if (actual && [...camSel.options].some((o) => o.value === actual)) camSel.value = actual;
         err.textContent = '';
       } catch (e) {
-        err.textContent = 'Câmera indisponível: ' + e.message;
+        if (req === camReq) err.textContent = 'Câmera indisponível: ' + e.message;
+      } finally {
+        if (req === camReq) {
+          loading(false);
+          paint();
+        }
       }
-      loading(false);
-      paint();
     };
     const setVu = (v) => {
       const lv = micOn ? Math.min(1, v) : 0;
@@ -433,14 +503,23 @@ export function lobby({ mount, title, subtitle, askName = true, defaultName = ''
       const pAudio = !rawMic();
       const videoC = { ...ideal(prefs.camId), width: { ideal: sz[0] }, height: { ideal: sz[1] }, frameRate: { ideal: 30 } };
       const audioC = { ...ideal(prefs.micId), echoCancellation: pAudio, noiseSuppression: pAudio, autoGainControl: pAudio, channelCount: 1 };
+      const combined = () => navigator.mediaDevices.getUserMedia({ video: videoC, audio: audioC });
       let first = null;
       try {
-        first = await navigator.mediaDevices.getUserMedia({ video: videoC, audio: audioC });
-      } catch {
-        const parts = await Promise.allSettled([navigator.mediaDevices.getUserMedia({ video: videoC }), navigator.mediaDevices.getUserMedia({ audio: audioC })]);
-        first = new MediaStream(parts.flatMap((p) => (p.status === 'fulfilled' ? p.value.getTracks() : [])));
-        const denied = parts.find((p) => p.status === 'rejected');
-        if (denied && !first.getTracks().length) err.textContent = 'Permita o acesso à câmera e ao microfone: ' + denied.reason.message;
+        first = await combined();
+      } catch (firstErr) {
+        // Uma falha passageira de driver é comum com muitas câmeras/microfones.
+        // Tenta de novo uma vez antes de separar vídeo e áudio (cada nova chamada custa).
+        if (firstErr?.name !== 'NotAllowedError' && firstErr?.name !== 'SecurityError') {
+          await sleep(350);
+          try { first = await combined(); } catch {}
+        }
+        if (!first) {
+          const parts = await Promise.allSettled([navigator.mediaDevices.getUserMedia({ video: videoC }), navigator.mediaDevices.getUserMedia({ audio: audioC })]);
+          first = new MediaStream(parts.flatMap((p) => (p.status === 'fulfilled' ? p.value.getTracks() : [])));
+          const denied = parts.find((p) => p.status === 'rejected');
+          if (denied && !first.getTracks().length) err.textContent = 'Permita o acesso à câmera e ao microfone: ' + denied.reason.message;
+        }
       }
       if (first.getVideoTracks().length) {
         camStream = new MediaStream(first.getVideoTracks());

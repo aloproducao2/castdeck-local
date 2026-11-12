@@ -8596,5 +8596,65 @@
   "Ordem livre — clique para agrupar por tipo": [
     "Free order — click to group by type",
     "Orden libre — clic para agrupar por tipo"
+  ],
+  "Voltamos em instantes": [
+    "Back in a moment",
+    "Volvemos en un momento"
+  ],
+  "Estamos ajustando o sinal.": [
+    "We're adjusting the signal.",
+    "Estamos ajustando la señal."
+  ],
+  "Cena segura": [
+    "Safe scene",
+    "Escena segura"
+  ],
+  "Configurar cena segura": [
+    "Configure safe scene",
+    "Configurar escena segura"
+  ],
+  "Texto principal": [
+    "Main text",
+    "Texto principal"
+  ],
+  "Texto de apoio": [
+    "Supporting text",
+    "Texto de apoyo"
+  ],
+  "Mostrar texto sobre a imagem": [
+    "Show text over the image",
+    "Mostrar texto sobre la imagen"
+  ],
+  "Preencher a tela": [
+    "Fill the screen",
+    "Rellenar la pantalla"
+  ],
+  "Ajustar sem cortar": [
+    "Fit without cropping",
+    "Ajustar sin recortar"
+  ],
+  "Sem imagem, usamos o fundo e o logo atuais do projeto.": [
+    "Without an image, we use the project's current background and logo.",
+    "Sin imagen, usamos el fondo y el logo actuales del proyecto."
+  ],
+  "Enviar imagem ou logo": [
+    "Upload image or logo",
+    "Subir imagen o logo"
+  ],
+  "Usar logo da marca": [
+    "Use brand logo",
+    "Usar logo de la marca"
+  ],
+  "Usar fundo do projeto": [
+    "Use project background",
+    "Usar fondo del proyecto"
+  ],
+  "Imagem da cena segura atualizada": [
+    "Safe scene image updated",
+    "Imagen de la escena segura actualizada"
+  ],
+  "Imagem muito grande (máx. 40 MB)": [
+    "Image too large (max. 40 MB)",
+    "Imagen demasiado grande (máx. 40 MB)"
   ]
 }

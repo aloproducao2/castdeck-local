@@ -179,7 +179,14 @@ export function createCameraPanel({ S, getSig, modal, getDevices, getInterface, 
     if (!getDevices || devicesLoading) return;
     devicesLoading = true;
     try {
-      const d = await getDevices();
+      let d;
+      try {
+        d = await getDevices();
+      } catch {
+        // Enumeração pode falhar no instante em que uma câmera está abrindo.
+        await new Promise((r) => setTimeout(r, 350));
+        d = await getDevices();
+      }
       devices = { cams: Array.isArray(d?.cams) ? d.cams : [], mics: Array.isArray(d?.mics) ? d.mics : [] };
       devicesLoaded = true;
     } catch {

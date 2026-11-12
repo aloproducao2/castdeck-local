@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=CastDeck
+GenericName=Estúdio de transmissão ao vivo
+Comment=Estúdio de lives local: convidados, cenas e multistream RTMP
+Exec=castdeck
+Icon=castdeck
+Terminal=false
+Categories=AudioVideo;Video;
+Keywords=live;stream;rtmp;studio;transmissão;
+StartupNotify=true
+X-AppImage-Version=1.7.0

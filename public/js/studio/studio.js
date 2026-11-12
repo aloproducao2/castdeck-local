@@ -142,6 +142,11 @@ const tileEls = new Map();
 let sceneTile = null; // card "Cena (palco)" na mesa de corte
 let sceneTileView = null;
 
+// A miniatura da Cena é a referência do layout: atualiza junto com o palco e o layout.
+function syncSceneTile() {
+  sceneTileView?.set({ take: null, stage: S.stage, layout: S.layout });
+}
+
 // Menu do painel lateral: grupos em ordem de uso durante a live (o que vai para a tela → visual → público → som → ajustes).
 // Cada item: [id do painel, rótulo, ícone, dica]. Os ids são os mesmos dos painéis (#panel-<id>).
 // Eram 7 grupos em 3 linhas; viraram 5 numa linha só (Interação entrou em Público, Exibição em Visual, Sinais em Ajustes).
@@ -2495,16 +2500,16 @@ function renderTiles() {
   // A Cena (palco) volta a ser um card selecionável na mesa de corte, como uma fonte.
   if (S.switcher) {
     if (!sceneTile) {
-      sceneTile = h(`<div class="tile scene-tile" id="bs-scene-tile"><div class="tv"><canvas width="320" height="180"></canvas><span class="pill badge">CENA</span></div><div class="tbar"><span class="nm">Cena (palco)</span><span class="acts"></span></div></div>`);
+      sceneTile = h(`<div class="tile scene-tile" id="bs-scene-tile"><div class="tv"><canvas width="320" height="180" style="width:100%;height:100%;display:block"></canvas><span class="pill badge">CENA</span></div><div class="tbar"><span class="nm">Cena (palco)</span><span class="acts"></span></div></div>`);
       const cvs = sceneTile.querySelector('canvas');
-      sceneTileView = new PreviewView(comp, cvs, { width: 320, height: 180, fps: 10 });
+      sceneTileView = new PreviewView(comp, cvs, { width: 320, height: 180, fps: 30 });
       sceneTileView.set({ take: null, stage: S.stage, layout: S.layout });
       sceneTile.title = 'Cena (palco): clique para a prévia, duplo clique para cortar';
       sceneTile.onclick = (e) => { if (S.switcher && !e.target.closest('button')) switcher?.setPreview(null); };
       sceneTile.ondblclick = (e) => { if (S.switcher && !e.target.closest('button')) switcher?.cutTo(null); };
     }
     box.prepend(sceneTile);
-    sceneTileView?.set({ take: null, stage: S.stage, layout: S.layout });
+    syncSceneTile();
     const pgm = S.take === null;
     const pvw = S.pvw === null;
     sceneTile.classList.toggle('pgm', pgm);
@@ -3331,6 +3336,7 @@ function cohostSync() {
 }
 
 function renderLayouts() {
+  syncSceneTile();
   const box = $('#layouts');
   if (!box) return;
   const custom = S.brand.customLayouts || [];

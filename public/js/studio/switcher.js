@@ -15,7 +15,7 @@ import { icons } from '../ui.js';
 const SCENE = '__scene__';
 const KEY = 'castdeck.switcher';
 const MS_OPTS = [300, 500, 1000];
-const BUS_KINDS = new Set(['camera', 'screen', 'media', 'image']);
+const BUS_KINDS = new Set(['camera', 'screen', 'media', 'image', 'uvc']);
 
 export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, onPreview, toggleStage, addCamera, onMode, openFx, fxActive, toggleCohost, isCohost }) {
   let pref = {};

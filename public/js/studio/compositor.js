@@ -1167,7 +1167,7 @@ export class Compositor {
       ctx.font = `700 ${rad * 0.8}px Inter, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const ini = String(s.label || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('');
+      const ini = s.kind === 'uvc' ? 'UVC' : String(s.label || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('');
       ctx.fillText(ini || '?', a.x + a.w / 2, a.y + a.h / 2 + rad * 0.04);
     }
     ctx.restore();

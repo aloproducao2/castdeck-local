@@ -91,6 +91,7 @@ public class LocalServer {
     final PollHub polls = new PollHub();
     final MsgHub msgs = new MsgHub();
     final Updater updater;
+    final UvcManager uvc;
     public Runnable onQuit;
 
     public LocalServer(Context ctx) {
@@ -105,6 +106,7 @@ public class LocalServer {
         ingest = new IngestManager(this.ctx, store, this::recDir);
         tunnel = new AndroidTunnel(this.ctx, () -> store.getSettings().optString("tunnelProvider", "cloudflare"), HTTP_PORT);
         updater = new Updater(this.ctx);
+        uvc = new UvcManager(this.ctx);
     }
 
     private File pickDefaultRecDir() {
@@ -134,6 +136,7 @@ public class LocalServer {
     }
 
     public void start() throws IOException {
+        uvc.start();
         http = new Http("127.0.0.1", HTTP_PORT);
         http.start(0, false); // timeout 0: WebSockets ficam abertos
         List<String> ips = new ArrayList<>();
@@ -154,6 +157,7 @@ public class LocalServer {
     }
 
     public void stop() {
+        uvc.stop();
         tunnel.stop();
         ingest.stopAll();
         store.flushNow();
@@ -178,7 +182,13 @@ public class LocalServer {
     }
 
     static NanoHTTPD.Response json(int code, Object body) {
-        NanoHTTPD.Response r = NanoHTTPD.newFixedLengthResponse(status(code), "application/json; charset=utf-8", String.valueOf(body));
+        Object out = body;
+        try {
+            if (body instanceof Map) out = new JSONObject((Map<?, ?>) body);
+            else if (body instanceof List) out = new JSONArray((List<?>) body);
+        } catch (Exception ignored) {}
+        String text = (out instanceof JSONObject || out instanceof JSONArray) ? out.toString() : String.valueOf(body);
+        NanoHTTPD.Response r = NanoHTTPD.newFixedLengthResponse(status(code), "application/json; charset=utf-8", text);
         r.addHeader("Cache-Control", "no-store");
         return r;
     }
@@ -285,9 +295,11 @@ public class LocalServer {
         }
         if (b == null) return null;
         boolean isHtml = p.endsWith(".html");
+        boolean isCode = p.endsWith(".js") || p.endsWith(".css");
         NanoHTTPD.Response r = NanoHTTPD.newFixedLengthResponse(status(200), mime(p), new ByteArrayInputStream(b), b.length);
-        // HTML fica sempre fresco; scripts, estilos, fontes e imagens embutidos no APK usam cache para máxima velocidade
-        r.addHeader("Cache-Control", isHtml ? "no-cache" : "public, max-age=86400");
+        // HTML, JS e CSS nunca podem ficar presos no cache do WebView depois de uma atualização do APK.
+        // Imagens, fontes e mídia estática continuam em cache para velocidade.
+        r.addHeader("Cache-Control", (isHtml || isCode) ? "no-cache" : "public, max-age=86400");
         return r;
     }
 
@@ -728,12 +740,59 @@ public class LocalServer {
         return v == null ? "" : v;
     }
 
+    private NanoHTTPD.Response uvcHttp(NanoHTTPD.IHTTPSession s) throws IOException, NanoHTTPD.ResponseException {
+        String uri = s.getUri();
+        if (uri.equals("/uvc/devices")) return json(200, uvc.deviceList());
+        if (uri.equals("/uvc/diag")) return json(200, uvc.diagnostics());
+        if (uri.equals("/uvc/status")) return json(200, uvc.status());
+        if (uri.equals("/uvc/close")) { uvc.closeCamera(); return json(200, uvc.status()); }
+        if (uri.equals("/uvc/dismiss")) { uvc.dismissOffer(); return json(200, uvc.status()); }
+        if (uri.equals("/uvc/open")) {
+            Map<String, String> p = s.getParms();
+            int w = 640, h = 480, fps = 0;
+            try { w = Integer.parseInt(p.getOrDefault("w", "640")); } catch (Exception ignored) {}
+            try { h = Integer.parseInt(p.getOrDefault("h", "480")); } catch (Exception ignored) {}
+            try { fps = Integer.parseInt(p.getOrDefault("fps", "0")); } catch (Exception ignored) {}
+            String r = uvc.open(p.getOrDefault("id", ""), w, h, fps);
+            Map<String, Object> out = uvc.status();
+            out.put("result", r);
+            return json(200, out);
+        }
+        if (uri.equals("/uvc/frame.jpg")) {
+            byte[] jpg = uvc.latestJpeg();
+            if (jpg == null) return err(503, "Aguardando o primeiro quadro da câmera USB");
+            NanoHTTPD.Response fr = NanoHTTPD.newFixedLengthResponse(status(200), "image/jpeg", new java.io.ByteArrayInputStream(jpg), jpg.length);
+            fr.addHeader("Cache-Control", "no-store");
+            return fr;
+        }
+        if (uri.equals("/uvc/audio")) {
+            NanoHTTPD.Response r = NanoHTTPD.newChunkedResponse(status(200), "application/octet-stream", uvc.audioStream());
+            r.addHeader("Cache-Control", "no-store");
+            r.addHeader("X-Audio-Rate", String.valueOf(uvc.audioRate()));
+            r.addHeader("X-Audio-Channels", String.valueOf(uvc.audioChannels()));
+            r.addHeader("X-Audio-Bits", String.valueOf(uvc.audioBits()));
+            return r;
+        }
+        if (uri.equals("/uvc/stream")) {
+            NanoHTTPD.Response r = NanoHTTPD.newChunkedResponse(status(200), "multipart/x-mixed-replace; boundary=frame", uvc.mjpegStream());
+            r.addHeader("Cache-Control", "no-store");
+            r.addHeader("Pragma", "no-cache");
+            r.addHeader("Connection", "close");
+            return r;
+        }
+        return err(404, "UVC desconhecido");
+    }
+
     private NanoHTTPD.Response route(NanoHTTPD.IHTTPSession s) {
         String uri = s.getUri();
         NanoHTTPD.Method m = s.getMethod();
         try {
             if (uri.startsWith("/api/")) return api(s, uri.substring(4), m);
             boolean local = isLocal(s);
+            if (uri.startsWith("/uvc/")) {
+                if (!local) return err(403, "Câmera USB disponível apenas no aparelho do estúdio.");
+                return uvcHttp(s);
+            }
             if (uri.equals("/") || uri.equals("/index.html")) return local ? page("index.html", true) : err(403, "Disponível apenas no aparelho do estúdio.");
             if (uri.matches("^/studio/[^/]+/?$")) return local ? page("studio.html", true) : err(403, "Disponível apenas no aparelho do estúdio.");
             if (uri.matches("^/join/[^/]+/?$")) return page("join.html", false);

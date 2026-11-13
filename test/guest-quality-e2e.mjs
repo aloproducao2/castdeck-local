@@ -90,7 +90,7 @@ try {
   console.log('     caminho da mídia (convidado):', JSON.stringify(pair));
   if (RELAY) check('mídia passando pelo TURN oficial (turn.flue.live)', pair?.local === 'relay' && /turn\.flue\.live/.test(pair.url || ''), JSON.stringify(pair));
 
-  const hv = await host.ev(`(()=>{const g=__castdeck.S.guests.get('${gid}');return {w:g.view.view.canvas.width,h:g.view.view.canvas.height}})()`);
+  const hv = await host.ev(`(()=>{const g=__castdeck.S.guests.get('${gid}');const c=g.view.canvas||g.view.view.canvas;return {w:c.width,h:c.height}})()`);
   console.log('     retorno (GuestView):', JSON.stringify(hv));
 
   // mídia fluindo: convidado recebe programa e host recebe câmera do convidado

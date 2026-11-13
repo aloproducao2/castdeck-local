@@ -76,6 +76,13 @@ tasks.named('preBuild') { dependsOn 'copyWebAssets', 'copyCloudflared' }
 
 dependencies {
     implementation 'org.nanohttpd:nanohttpd-websocket:2.3.1'
+    // UVC: webcams/placas USB (AUSBC, Apache-2.0)
+    implementation('com.github.jiangdongguo.AndroidUSBCamera:libausbc:3.3.3') {
+        // Substituído pelo AAR local corrigido para Android 14+ (FLAG_IMMUTABLE).
+        exclude group: 'com.github.jiangdongguo.AndroidUSBCamera', module: 'libuvc'
+    }
+    implementation files('libs/libuvc-3.3.3-fixed.aar')
+    implementation 'com.github.jiangdongguo.AndroidUSBCamera:libuvccommon:3.3.3'
     // localhost.run (provedor reserva do link externo) via SSH puro em Java
     implementation 'com.github.mwiede:jsch:0.2.20'
     // Mesmo contrato de estado de câmera do Node, testado na JVM (sem precisar de aparelho).

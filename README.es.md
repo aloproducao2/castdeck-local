@@ -148,8 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **1.5.4** — audio inteligente que baja pantalla, pestaña y fuente de navegador (las personas siempre
-tienen prioridad), PTZ experimental (UVC, ONVIF y NDI) y ajustes de telemetría.
+Versión **1.8.0** — soporte de cámara USB/UVC y audio UAC en Android (detección automática, resolución/FPS y mezcla), mesa de audio en la barra superior, miniatura de escena en vivo y correcciones de caché/Android 14+.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

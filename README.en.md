@@ -145,8 +145,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.5.4** — smart audio ducking for screen, tab and browser audio (people always take priority),
-experimental PTZ control (UVC, ONVIF and NDI) and telemetry reliability work.
+Version **1.8.0** — USB/UVC camera & UAC audio support on Android (with automatic detection, resolution/FPS and mixer routing), top-bar audio mixer, live Scene Thumbnail and WebView cache/Android 14+ compatibility fixes.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

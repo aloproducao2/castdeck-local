@@ -1,6 +1,6 @@
 [package]
 name = "castdeck-launcher"
-version = "1.4.4"
+version = "1.8.0"
 description = "CastDeck Local - Lançador Desktop em Rust"
 authors = ["Miguel Kallemback <miguel@flue.live>"]
 license = "AGPL-3.0-only"

@@ -353,6 +353,7 @@ async function buildStudio() {
     document.body.classList.add('is-mobile');
     if (S.system.platform === 'android') document.body.classList.add('platform-android');
   }
+  if (S.system.platform === 'android') startUvcOfferPolling();
   app.innerHTML = `
   <div class="studio ${IS_MOBILE || S.system.platform === 'android' ? 'is-mobile' : ''} ${S.system.platform === 'android' ? 'platform-android' : ''}">
     <div class="restore-banner" id="restore-banner" role="status" aria-live="polite" hidden>
@@ -375,13 +376,14 @@ async function buildStudio() {
       </div>
       <button class="btn mode-pill vertical-top" id="btn-vertical" title="Painel de vídeo vertical 9:16 (Instagram, TikTok, Reels, Shorts) ao lado do preview" aria-pressed="false">${VERT_ICON}<span>9:16 Vertical</span></button>
       <button class="btn autoplay" id="btn-autoplay" type="button" aria-pressed="true" title="Auto play de vídeos ao entrar no PGM ou ao colocar no palco">${icons.play}<span class="auto-dot"></span><span class="lbl">Auto play</span><span class="auto-state">ON</span></button>
-      <button class="btn ready-chip" id="btn-ready" type="button" title="Ver o que está pronto para ir ao vivo" aria-haspopup="dialog"><span class="ready-dot" aria-hidden="true"></span><span class="ready-lbl">Pronto</span><b id="ready-score">—</b></button>
+      ${S.system.platform === 'android' ? '' : `<button class="btn ready-chip" id="btn-ready" type="button" title="Ver o que está pronto para ir ao vivo" aria-haspopup="dialog"><span class="ready-dot" aria-hidden="true"></span><span class="ready-lbl">Pronto</span><b id="ready-score">—</b></button>`}
       <button class="btn safe-btn" id="btn-safe" type="button" title="Cena segura: cobre o programa com a marca para uma emergência. Shift+clique ou menu Ferramentas para trocar a cartela." aria-pressed="false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg><span class="lbl">Seguro</span></button>
       ${IS_MOBILE || S.system.platform === 'android' ? '' : `<button class="btn ndi-top" id="btn-ndi" type="button" title="NDI: clique para ativar/desativar e abrir o painel" aria-label="NDI" aria-pressed="false"><span class="ndi-top-ico">${icons.ndi}</span><span class="ndi-top-lbl">NDI</span><span class="ndi-top-dot" aria-hidden="true"></span></button>`}
       <div class="spacer"></div>
       ${window.CDi18n ? window.CDi18n.selectHTML({ className: 'btn', short: true, id: 'studio-lang' }) : ''}
       ${S.system.platform === 'android' ? '' : `<button class="btn icon" id="btn-whatsapp" title="WhatsApp local: QR, caixa de entrada e fila do programa" aria-label="WhatsApp">${icons.whatsapp}</button>`}
       <button class="btn icon" id="btn-cameras" title="Painel de câmeras: preview e ajustes de zoom, foco, ISO, exposição e lanterna" aria-label="Câmeras">${icons.cam}</button>
+      <button class="btn icon" id="btn-audio" title="Abrir mesa de áudio" aria-label="Mesa de áudio"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h7M15 18h5"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="13" cy="18" r="2"/></svg></button>
       <button class="btn ptz-top" id="btn-ptz" type="button" title="PTZ experimental: pan, tilt, zoom, presets, atalhos e MIDI" aria-label="Controle PTZ">PTZ</button>
       <button class="btn icon" id="btn-intercom-mini" title="Mini intercom: PTT e corte de câmeras juntos" aria-label="Mini intercom" aria-pressed="false">${icons.mic}</button>
       <button class="btn icon" id="btn-remote" title="Controle remoto no celular: leia o QR e comande a mesa de corte" aria-label="Controle remoto">${REMOTE_ICON}</button>
@@ -850,6 +852,7 @@ async function buildStudio() {
   });
   $('#btn-whatsapp')?.addEventListener('click', () => whatsapp?.open());
   $('#btn-cameras').onclick = () => cameras.open();
+  $('#btn-audio').onclick = () => openSideTab('audio');
   $('#btn-ptz').onclick = () => ptz?.open();
   if ($('#btn-ndi')) {
     $('#btn-ndi').onclick = async () => {
@@ -1774,6 +1777,12 @@ function removeSource(id) {
   browserSources?.stop?.(id, { remove: false });
   const s = S.sources.get(id);
   if (!s) return;
+  if (s.kind === 'uvc') {
+    stopUvcVideo(s);
+    stopUvcAudio(s);
+    fetch('/uvc/close', { method: 'POST' }).catch(() => {});
+    try { s.el.src = ''; } catch {}
+  }
   comp.removeSource(id);
   mixer.remove(id + ':audio');
   if (s.kind === 'media') {
@@ -2418,7 +2427,7 @@ function renderTiles() {
     nmEl.textContent = s.label || '';
     nmEl.title = s.label || '';
     el.title = s.label || '';
-    const badge = { camera: s.ingest ? (s.ingestLive ? 'Drone/RTMP' : 'Sem sinal') : s.extraCam ? 'Câmera' : s.remoteCam ? 'Câmera remota' : s.ownerId === 'host' ? 'Você' : S.guests.get(s.ownerId)?.cohost ? 'Co-host' : 'Convidado', screen: 'Tela', media: 'Mídia', image: 'Imagem' }[s.kind];
+    const badge = { camera: s.ingest ? (s.ingestLive ? 'Drone/RTMP' : 'Sem sinal') : s.extraCam ? 'Câmera' : s.remoteCam ? 'Câmera remota' : s.ownerId === 'host' ? 'Você' : S.guests.get(s.ownerId)?.cohost ? 'Co-host' : 'Convidado', screen: 'Tela', media: 'Mídia', image: 'Imagem', uvc: 'USB' }[s.kind];
     const b = el.querySelector('.badge');
     b.textContent = air ? 'NO AR' : pvw ? 'PRÉVIA' : on ? 'NO PALCO' : badge;
     b.className = 'pill badge' + (air ? ' live' : pvw ? ' pvw' : on ? ' live' : '');
@@ -2462,6 +2471,11 @@ function renderTiles() {
       });
     }
     if (s.kind === 'media' || s.kind === 'image') add(icons.trash, s.recordingName ? 'Apagar do palco e o arquivo das Gravações' : 'Remover do palco e apagar o arquivo', () => deleteMediaFile(s), 'danger');
+    if (s.kind === 'uvc') {
+      add(icons.sliders, 'Resolução e FPS da câmera USB', () => openUvcSettings(s), 'act-sec');
+      add(icons.mic, 'Escolher a fonte de áudio da câmera USB', () => openUvcAudioDialog(s), 'act-sec');
+      add(icons.trash, 'Remover câmera USB', () => removeSource(s.id), 'danger');
+    }
     if (s.extraCam) {
       add('⚙', 'Trocar câmera, qualidade ou áudio', () => extras.camDialog(s.id), 'act-sec');
       add(icons.trash, 'Remover câmera', () => extras.removeCam(s.id), 'danger');
@@ -2658,7 +2672,7 @@ function uiTick() {
           ctx.font = '700 26px Inter, sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(initials(s.label), 160, 92);
+          ctx.fillText(s.kind === 'uvc' ? 'UVC' : initials(s.label), 160, 92);
         }
       }
     }
@@ -7679,6 +7693,322 @@ function qrSvg(text) {
   return `<svg width="100%" height="100%" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" preserveAspectRatio="xMidYMid meet" role="img" aria-label="QR Code" style="width:100%;height:100%;max-width:100%;display:block;image-rendering:pixelated"><rect width="${n}" height="${n}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
 }
 
+// Câmera USB/UVC no Android: o WebView não a enxerga via getUserMedia; o servidor
+// nativo abre a AUSBC e publica JPEGs em /uvc/stream. A fonte abaixo é uma imagem MJPEG.
+let uvcOfferLast = '';
+
+function startUvcOfferPolling() {
+  setInterval(async () => {
+    const src = S.sources.get('uvc:1');
+    if (src) {
+      // Se a fonte ficou de uma sessão anterior mas o dispositivo não está aberto,
+      // remove o card para o fluxo de "detectou → pergunta" rodar limpo.
+      try {
+        const st = await uvcJson('/uvc/status');
+        if (!st.open) {
+          removeSource('uvc:1');
+          uvcOfferLast = '';
+          return;
+        }
+      } catch { return; }
+      // A sessão pode restaurar a fonte de vídeo sem o áudio; religa o UAC quando falta.
+      if (!src.uvcAudio && !src.uvcAudioStarting) {
+        src.uvcAudioStarting = true;
+        stopUvcAudio(src);
+        startUvcAudio(src, 'usb')
+          .catch(() => {})
+          .finally(() => { src.uvcAudioStarting = false; });
+      }
+      return;
+    }
+    try {
+      const st = await uvcJson('/uvc/status');
+      if (st.offer && st.offerId && st.offerId !== uvcOfferLast) {
+        uvcOfferLast = st.offerId;
+        await offerUvcSource(st);
+      }
+    } catch {}
+  }, 1200);
+}
+
+async function offerUvcSource(st) {
+  const name = st.device || 'Câmera USB';
+  const use = await modal(
+    `<div class="addcam-head"><div><h3>Câmera USB conectada</h3><p class="sub">O Android detectou <b>${esc(name)}</b>. Deseja colocá-la como fonte do estúdio?</p></div></div>
+     <div class="modal-actions"><button class="btn ghost" type="button" data-close>Não</button><button class="btn primary" type="button" id="uvc-offer-yes">Usar como fonte</button></div>`,
+    { onMount(m, close) { $('#uvc-offer-yes', m).onclick = () => close('yes'); } },
+  );
+  if (use === 'yes') {
+    try {
+      const st = await uvcJson('/uvc/status');
+      const devId = Array.isArray(st.devices) ? st.devices[0]?.id : null;
+      if (!devId) throw new Error('dispositivo não encontrado');
+      const q = new URLSearchParams({ id: devId, w: '1280', h: '720', fps: '30' });
+      const oj = await uvcJson('/uvc/open?' + q.toString(), { method: 'POST' });
+      if (oj.error) throw new Error(oj.error);
+      await waitUvcStream();
+      await addUvcSource(name, 'usb');
+      toast('Câmera USB adicionada ao palco.', 'ok');
+    } catch (e) {
+      toast('Câmera USB: ' + e.message, 'err');
+    }
+  } else {
+    await uvcJson('/uvc/dismiss', { method: 'POST' }).catch(() => {});
+  }
+}
+
+// Câmera USB/UVC no Android: o WebView não a enxerga via getUserMedia; o servidor
+// nativo abre a AUSBC e publica JPEGs em /uvc/stream. A fonte abaixo é uma imagem MJPEG.
+async function uvcJson(url, options = {}) {
+  const r = await fetch(url, { cache: 'no-store', ...options });
+  const text = await r.text();
+  let data;
+  try { data = JSON.parse(text); } catch {
+    throw new Error(`resposta inválida do servidor (${r.status})`);
+  }
+  if (!r.ok && !data.error) throw new Error(`servidor respondeu ${r.status}`);
+  return data;
+}
+async function openUvcDialog() {
+  let list = [];
+  try {
+    list = await uvcJson('/uvc/devices');
+  } catch (e) {
+    toast('Não foi possível consultar as câmeras USB: ' + e.message, 'err');
+    return;
+  }
+  if (!Array.isArray(list) || !list.length) {
+    let extra = '';
+    try {
+      const d = await uvcJson('/uvc/diag');
+      extra = d && typeof d.usbDevices === 'number' ? ` O Android vê ${d.usbDevices} dispositivo(s) USB no total.` : '';
+    } catch {}
+    toast('Nenhuma câmera UVC encontrada.' + extra + ' Conecte a webcam/placa por OTG e tente de novo.', 'err');
+    return;
+  }
+  const choice = await modal(
+    `<div class="addcam-head"><div><h3>Câmera USB</h3><p class="sub">Webcam ou placa de captura UVC conectada por OTG. O vídeo entra como uma fonte do estúdio; use o microfone do aparelho para o áudio nesta primeira versão.</p></div></div>
+     <label class="field"><span>Dispositivo</span><select class="input" id="uvc-device">${list.map((d) => `<option value="${esc(d.id)}">${esc(d.name || 'Câmera USB')}</option>`).join('')}</select></label>
+     <label class="field" style="margin-top:10px"><span>Resolução</span><select class="input" id="uvc-size"><option value="640x480" selected>640 × 480</option><option value="1280x720">1280 × 720</option><option value="1920x1080">1920 × 1080</option></select></label>
+     <label class="field" style="margin-top:10px"><span>Quadros por segundo</span><select class="input" id="uvc-fps"><option value="15">15</option><option value="25">25</option><option value="30" selected>30</option><option value="50">50</option><option value="60">60</option></select></label>
+     <label class="field" style="margin-top:10px"><span>Áudio</span><select class="input" id="uvc-audio"><option value="usb" selected>Áudio da câmera USB (UAC)</option><option value="device">Microfone do aparelho</option><option value="none">Sem áudio</option></select></label>
+     <div class="modal-actions"><button class="btn ghost" type="button" data-close>Cancelar</button><button class="btn primary" type="button" id="uvc-open">Abrir câmera USB</button></div>`,
+    { onMount(m, close) { $('#uvc-open', m).onclick = () => { const id = $('#uvc-device', m).value; const [w, h] = ($('#uvc-size', m).value || '640x480').split('x'); close({ id, w: +w, h: +h, fps: +($('#uvc-fps', m).value || 30), audio: $('#uvc-audio', m).value || 'usb' }); }; } },
+  );
+  if (!choice) return;
+  try {
+    toast('Abrindo câmera USB… autorize o acesso se o Android pedir.', 'info');
+    const q = new URLSearchParams({ id: choice.id, w: String(choice.w), h: String(choice.h), fps: String(choice.fps || 30) });
+    const j = await uvcJson('/uvc/open?' + q.toString(), { method: 'POST' });
+    if (j.error) throw new Error(j.error);
+    const st = await waitUvcStream();
+    const audioOk = await addUvcSource(st.device || 'Câmera USB', choice.audio);
+    toast(audioOk ? 'Câmera USB adicionada ao palco.' : 'Câmera USB adicionada ao palco, mas sem áudio USB.', audioOk ? 'ok' : 'err');
+  } catch (e) {
+    toast('Câmera USB: ' + e.message, 'err');
+  }
+}
+
+async function waitUvcStream() {
+  for (let i = 0; i < 80; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    try {
+      const st = await uvcJson('/uvc/status');
+      if (st.state === 'streaming') return st;
+      if (st.state === 'error') throw new Error(st.error || 'falha ao abrir');
+    } catch (e) {
+      if (e.message && !/fetch|Network|Failed/.test(e.message)) throw e;
+    }
+  }
+  throw new Error('tempo esgotado. Verifique o cabo OTG e a permissão USB.');
+}
+
+async function addUvcSource(label, audio = 'usb') {
+  const id = 'uvc:1';
+  let s = S.sources.get(id);
+  if (!s) {
+    const img = document.createElement('img');
+    img.alt = label;
+    img.style.width = '100%';
+    img.style.height = '100%';
+    img.style.objectFit = 'contain';
+    s = { id, el: img, kind: 'uvc', label, ownerId: 'host', camOff: false, uvc: true };
+    S.sources.set(id, s);
+  }
+  s.label = label || 'Câmera USB';
+  stopUvcVideo(s);
+  s.el.src = '/uvc/stream?t=' + Date.now();
+  s.el.onload = () => { clearTimeout(s.uvcFallback); s.uvcFallback = null; };
+  s.el.onerror = () => { if (!s.uvcPolling) startUvcPolling(s); };
+  // Alguns WebViews não renderizam multipart/x-mixed-replace; se o primeiro quadro
+  // não chegar, troca para JPEGs atualizados em /uvc/frame.jpg.
+  s.uvcFallback = setTimeout(() => { if (S.sources.has(id) && !s.el.naturalWidth) startUvcPolling(s); }, 2500);
+  comp.upsertSource(id, { kind: 'uvc', label: s.label, el: s.el, camOff: false });
+  if (!S.stage.includes(id) && S.stage.length < 10) setStage([...S.stage, id]);
+  renderTiles();
+  renderControls();
+  try {
+    await startUvcAudio(s, audio);
+    return true;
+  } catch (e) {
+    toast('Vídeo USB pronto, mas o áudio USB falhou: ' + e.message + ' Escolha o microfone do aparelho na ação de áudio da miniatura.', 'err');
+    return false;
+  }
+}
+
+function stopUvcVideo(s) {
+  if (!s) return;
+  if (s.uvcFallback) { clearTimeout(s.uvcFallback); s.uvcFallback = null; }
+  if (s.uvcPollTimer) { clearTimeout(s.uvcPollTimer); s.uvcPollTimer = null; }
+  s.uvcPolling = false;
+}
+
+function startUvcPolling(s) {
+  if (!s || s.uvcPolling) return;
+  s.uvcPolling = true;
+  const tick = () => {
+    if (!S.sources.has(s.id)) { stopUvcVideo(s); return; }
+    s.el.src = '/uvc/frame.jpg?t=' + Date.now();
+    s.el.onload = () => { s.uvcPollTimer = setTimeout(tick, 80); };
+    s.el.onerror = () => { s.uvcPollTimer = setTimeout(tick, 400); };
+  };
+  tick();
+}
+
+function stopUvcAudio(s) {
+  const a = s?.uvcAudio;
+  if (!a) return;
+  s.uvcAudio = null;
+  try { a.controller?.abort(); } catch {}
+  try { a.reader?.cancel(); } catch {}
+  try { a.node?.disconnect(); } catch {}
+  try { a.stream?.getTracks().forEach((t) => t.stop()); } catch {}
+  mixer.remove('uvc:1:audio');
+}
+
+async function startUvcAudio(s, mode) {
+  stopUvcAudio(s);
+  if (!s || mode === 'none') return;
+  if (mode === 'device') {
+    let mic = S.local.mic;
+    if (!mic) mic = await getMic(loadPrefs().micId || '');
+    const clone = new MediaStream(mic.getAudioTracks().map((t) => t.clone()));
+    mixer.addStream('uvc:1:audio', clone, { ownerId: 'host', stageKey: 'uvc:1', monitor: true });
+    s.uvcAudio = { mode: 'device', stream: clone };
+    return;
+  }
+  // UAC: o servidor nativo publica PCM cru; o worklet reamostra para 48 kHz e entra no mixer.
+  if (!mixer.ctx?.audioWorklet) throw new Error('AudioWorklet indisponível neste WebView');
+  await mixer.resume();
+  const controller = new AbortController();
+  const res = await fetch('/uvc/audio', { cache: 'no-store', signal: controller.signal });
+  if (!res.ok || !res.body) throw new Error('o áudio USB não está disponível');
+  const rate = Number(res.headers.get('X-Audio-Rate')) || 48000;
+  const channels = Math.max(1, Number(res.headers.get('X-Audio-Channels')) || 2);
+  const bits = Number(res.headers.get('X-Audio-Bits')) || 16;
+  await mixer.ctx.audioWorklet.addModule('/js/studio/uvc-audio-worklet.js');
+  const node = new AudioWorkletNode(mixer.ctx, 'castdeck-uvc-audio', {
+    numberOfInputs: 0,
+    numberOfOutputs: 1,
+    outputChannelCount: [2],
+  });
+  mixer.addNode('uvc:1:audio', node, { ownerId: 'host', stageKey: 'uvc:1', monitor: true });
+  const reader = res.body.getReader();
+  const st = { mode: 'usb', controller, reader, node, stream: null, posted: 0, err: '' };
+  s.uvcAudio = st;
+  let leftover = new Uint8Array(0);
+  let pending = new Uint8Array(0);
+  const frameBytes = channels * (bits === 8 ? 1 : 2);
+  const postEvery = frameBytes * 512; // ~10 ms por mensagem: menos troca de mensagens e menos "fritada"
+  const cat = (a, b) => {
+    if (!b || !b.length) return a;
+    const out = new Uint8Array(a.length + b.length);
+    out.set(a);
+    out.set(b, a.length);
+    return out;
+  };
+  (async () => {
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (!value?.length) continue;
+        const merged = cat(leftover, value);
+        const usable = merged.length - (merged.length % frameBytes);
+        if (!usable) { leftover = merged; continue; }
+        leftover = merged.slice(usable);
+        pending = cat(pending, merged.slice(0, usable));
+        if (pending.length < postEvery) continue;
+        const frames = pending.length / frameBytes;
+        const samples = new Float32Array(frames * channels);
+        const dv = new DataView(pending.buffer, pending.byteOffset, pending.length);
+        for (let i = 0; i < frames; i++) {
+          for (let c = 0; c < channels; c++) {
+            const off = i * frameBytes + c * (bits === 8 ? 1 : 2);
+            samples[i * channels + c] = bits === 8
+              ? (pending[off] - 128) / 128
+              : dv.getInt16(off, true) / 32768;
+          }
+        }
+        node.port.postMessage({ samples, rate, channels });
+        st.posted++;
+        pending = new Uint8Array(0);
+      }
+    } catch (e) {
+      st.err = String(e?.message || e);
+    }
+  })();
+}
+
+async function openUvcSettings(s) {
+  const id = 'uvc:1';
+  let st = { width: 640, height: 480, fps: 30 };
+  try { st = await uvcJson('/uvc/status'); } catch {}
+  const res = st.width + 'x' + st.height;
+  const opt = (val, cur) => `<option value="${val}" ${String(val) === String(cur) ? 'selected' : ''}>${val}</option>`;
+  const choice = await modal(
+    `<div class="addcam-head"><div><h3>Configurações da câmera USB</h3><p class="sub">Alterar resolução e quadros por segundo. O dispositivo será reaberto com os novos valores.</p></div></div>
+     <label class="field"><span>Resolução</span><select class="input" id="uvc-cfg-size">${['640x480', '1280x720', '1920x1080'].map((r) => `<option value="${r}" ${r === res ? 'selected' : ''}>${r.replace('x', ' × ')}</option>`).join('')}</select></label>
+     <label class="field" style="margin-top:10px"><span>Quadros por segundo</span><select class="input" id="uvc-cfg-fps">${[15, 25, 30, 50, 60].map((f) => opt(f, st.fps || 30)).join('')}</select></label>
+     <div class="modal-actions"><button class="btn ghost" type="button" data-close>Cancelar</button><button class="btn primary" type="button" id="uvc-cfg-apply">Aplicar</button></div>`,
+    { onMount(m, close) { $('#uvc-cfg-apply', m).onclick = () => { const [w, h] = ($('#uvc-cfg-size', m).value || '640x480').split('x'); close({ w: +w, h: +h, fps: +($('#uvc-cfg-fps', m).value || 30) }); }; } },
+  );
+  if (!choice) return;
+  try {
+    const q = new URLSearchParams({ id, w: String(choice.w), h: String(choice.h), fps: String(choice.fps) });
+    const j = await uvcJson('/uvc/open?' + q.toString(), { method: 'POST' });
+    if (j.error) throw new Error(j.error);
+    const nst = await waitUvcStream();
+    // Reabre o áudio com a mesma fonte escolhida antes (USB/mic/none).
+    const mode = s.uvcAudio?.mode || 'usb';
+    try { await startUvcAudio(s, mode); } catch (e) { toast('Vídeo alterado, mas o áudio USB falhou: ' + e.message, 'err'); }
+    toast(`Câmera USB: ${nst.width}×${nst.height} a ${choice.fps} fps.`, 'ok');
+  } catch (e) {
+    toast('Configuração USB: ' + e.message, 'err');
+  }
+}
+
+async function openUvcAudioDialog(s) {
+  const cur = s.uvcAudio?.mode || 'none';
+  const mode = await modal(
+    `<div class="addcam-head"><div><h3>Áudio da câmera USB</h3><p class="sub">Escolha de onde vem o som desta fonte. O áudio USB (UAC) depende da placa/câmera expor microfone.</p></div></div>
+     <label class="field"><span>Fonte de áudio</span><select class="input" id="uvc-audio-mode">
+       <option value="usb" ${cur === 'usb' ? 'selected' : ''}>Áudio da câmera USB (UAC)</option>
+       <option value="device" ${cur === 'device' ? 'selected' : ''}>Microfone do aparelho</option>
+       <option value="none" ${cur === 'none' ? 'selected' : ''}>Sem áudio</option>
+     </select></label>
+     <div class="modal-actions"><button class="btn ghost" type="button" data-close>Cancelar</button><button class="btn primary" type="button" id="uvc-audio-apply">Aplicar</button></div>`,
+    { onMount(m, close) { $('#uvc-audio-apply', m).onclick = () => close($('#uvc-audio-mode', m).value); } },
+  );
+  if (!mode) return;
+  try {
+    await startUvcAudio(s, mode);
+    toast('Áudio da câmera USB atualizado.', 'ok');
+  } catch (e) {
+    toast('Áudio USB: ' + e.message + ' Use o microfone do aparelho.', 'err');
+  }
+}
+
 // "＋ Câmera": câmera ligada neste computador (USB/captura) ou um celular/aparelho pela rede (QR Code)
 async function openAddCamera() {
   const pick = await modal(
@@ -7692,7 +8022,8 @@ async function openAddCamera() {
         <div class="addcam-group-hd"><b>Câmeras e pessoas</b><span>Imagem ao vivo</span></div>
         <div class="addcam-grid">
           <button class="addcam-opt" data-pick="remote"><span class="addcam-ico">${icons.remote}</span><span class="addcam-info"><strong>Celular como câmera</strong><small>QR Code no celular; mesma rede ou internet.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
-          <button class="addcam-opt" data-pick="usb"><span class="addcam-ico">${icons.usbCam}</span><span class="addcam-info"><strong>Câmera deste PC</strong><small>Webcam, placa de captura ou câmera virtual.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
+          ${S.system.platform === 'android' ? '' : `<button class="addcam-opt" data-pick="usb"><span class="addcam-ico">${icons.usbCam}</span><span class="addcam-info"><strong>Câmera deste PC</strong><small>Webcam, placa de captura ou câmera virtual.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>`}
+          ${S.system.platform === 'android' ? `<button class="addcam-opt addcam-wide" data-pick="uvc"><span class="addcam-ico">${icons.usbCam}</span><span class="addcam-info"><strong>Câmera USB</strong><small>Webcam ou placa UVC conectada por OTG.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>` : ''}
           <button class="addcam-opt addcam-wide" data-pick="ingest"><span class="addcam-ico">${icons.drone}</span><span class="addcam-info"><strong>Entrada RTMP/SRT</strong><small>Recebe drone, câmera, encoder ou app na mesma rede.</small></span><span class="addcam-arrow">${icons.arrowRight}</span></button>
         </div>
       </section>
@@ -7722,7 +8053,8 @@ async function openAddCamera() {
       },
     },
   );
-  if (pick === 'usb') extras?.camDialog();
+  if (pick === 'uvc') openUvcDialog();
+  else if (pick === 'usb') extras?.camDialog();
   else if (pick === 'remote') showRemoteCam();
   else if (pick === 'ingest') ingest?.openPanel();
   else if (pick === 'browser') browserSources?.openDialog();

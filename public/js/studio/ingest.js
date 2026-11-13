@@ -77,23 +77,26 @@ export function createIngest(ctx) {
       pc.addTransceiver('audio', { direction: 'recvonly' });
       const stream = new MediaStream();
       c.stream = stream;
-      const isNdi = /^NDI\b/i.test(si.name || '');
       // O ontrack de áudio pode chegar depois do setRemoteDescription; não basta ler
-      // stream.getAudioTracks()[0] imediatamente, senão a fonte NDI fica sem canal no Mixer.
+      // stream.getAudioTracks()[0] imediatamente, senão a fonte MediaMTX fica sem canal no Mixer.
       const syncAudio = () => {
         if (conns.get(key) !== c || c.stream !== stream) return;
         const at = stream.getAudioTracks()[0];
         if (!at || c.audioTrack === at) return;
         c.audioTrack = at;
-        // NDI é retorno de monitor por padrão: o operador ouve a fonte no FONE
-        // antes/junto de colocá-la no palco, como nas câmeras locais.
-        mixer()?.addStream(sid(key) + ':audio', new MediaStream([at]), { ownerId: 'host', stageKey: sid(key), monitor: isNdi });
+        // Toda fonte MediaMTX (RTMP, SRT ou NDI) vai para o retorno padrão do host (monitorBus)
+        // para que o operador ouça a entrada no fone antes/junto de colocá-la no palco.
+        mixer()?.addStream(sid(key) + ':audio', new MediaStream([at]), { ownerId: 'host', stageKey: sid(key), monitor: true });
         if (S.tab === 'audio') renderAudioPanel?.();
       };
       pc.ontrack = (e) => {
         stream.addTrack(e.track);
         if (e.track.kind === 'audio') {
-          e.track.onunmute = () => syncAudio();
+          e.track.onunmute = () => {
+            syncAudio();
+            mixer()?.sources?.get(sid(key) + ':audio')?.keepAlive?.play?.().catch(() => {});
+            mixer()?.resume?.();
+          };
           e.track.onended = () => { c.audioTrack = null; mixer()?.remove(sid(key) + ':audio'); };
           syncAudio();
         }

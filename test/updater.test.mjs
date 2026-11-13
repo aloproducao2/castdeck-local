@@ -47,7 +47,26 @@ try {
   const up2 = new Updater({ dataDir: dir, target: 'windows-x64', version: '1.0.0', packaged: true });
   await assert.rejects(() => up2.run(), /SHA-256/);
   assert.equal(up2.st.state, 'idle');
-  console.log('OK updater download/hash/build2');
+  // Pasta update ocupada (CWD dentro dela + arquivo bloqueado): não pode falhar com EBUSY.
+  const prevCwd = process.cwd();
+  const up3 = new Updater({ dataDir: dir, target: 'windows-x64', version: '1.0.0', packaged: true });
+  await fs.mkdir(up3.dir, { recursive: true });
+  const lockedFile = path.join(up3.dir, path.basename(artifact.file));
+  const fh = await fs.open(lockedFile, 'w');
+  try {
+    process.chdir(up3.dir);
+    globalThis.fetch = async (url) => {
+      if (String(url).includes('/releases.json')) return new Response(JSON.stringify({ releases: [{ version: '9.9.9', artifacts: [artifact] }] }), { status: 200 });
+      return new Response(payload, { status: 200, headers: { 'Content-Length': String(payload.length) } });
+    };
+    await up3.run();
+    assert.equal(up3.st.state, 'ready', 'download deve concluir mesmo com pasta/arquivo travado');
+    assert.equal(await fs.readFile(up3.file, 'utf8'), payload.toString());
+  } finally {
+    process.chdir(prevCwd);
+    await fh.close().catch(() => {});
+  }
+  console.log('OK updater download/hash/build2/ebusy');
 } finally {
   globalThis.fetch = realFetch;
   await fs.rm(dir, { recursive: true, force: true }).catch(() => {});

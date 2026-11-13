@@ -33,9 +33,11 @@ const WIN_APPLY = [
   '  move /y "%CD_NEW%" "%CD_DST%" >nul 2>&1 && goto ok',
   '  ping -n 2 127.0.0.1 >nul',
   ')',
+  'cd /d "%TEMP%" >nul 2>&1',
   'start "" "%CD_NEW%"',
   'goto end',
   ':ok',
+  'cd /d "%TEMP%" >nul 2>&1',
   'start "" "%CD_DST%"',
   ':end',
   '(goto) 2>nul & del "%~f0"',
@@ -88,10 +90,19 @@ export class Updater {
     if (this.version !== 'dev' && cmp(rel.version, this.version) <= 0) throw new Error('Você já está na versão mais recente.');
     if (!/^downloads\/[\w.\-/]+$/.test(art.file)) throw new Error('Arquivo de atualização inválido.');
 
-    await fsp.rm(this.dir, { recursive: true, force: true });
+    // Nunca apaga this.dir com rmdir: no Windows o antivírus, o Explorer ou o CWD herdado
+    // pode segurar a pasta (EBUSY) e abortar o download mesmo sem precisar removê-la.
     await fsp.mkdir(this.dir, { recursive: true });
-    const out = path.join(this.dir, path.basename(art.file));
-    const part = out + '.part';
+    for (const name of await fsp.readdir(this.dir).catch(() => [])) {
+      await fsp.rm(path.join(this.dir, name), { recursive: true, force: true, maxRetries: 4, retryDelay: 150 }).catch(() => {});
+    }
+    const base = path.basename(art.file);
+    let out = path.join(this.dir, base);
+    if (fs.existsSync(out)) {
+      const ext = path.extname(base);
+      out = path.join(this.dir, `${path.basename(base, ext)}-${Date.now()}${ext}`);
+    }
+    const part = `${out}.${Date.now()}.part`;
     Object.assign(this.st, { version: rel.version, total: art.size || 0 });
     console.log(`[update] baixando v${rel.version} (${art.file})`);
 
@@ -109,11 +120,16 @@ export class Updater {
       }
       await new Promise((ok, ko) => ws.end((e) => (e ? ko(e) : ok())));
     } catch (e) {
-      ws.destroy();
+      await new Promise((ok) => {
+        if (ws.closed || ws.destroyed) return ok();
+        ws.once('close', ok);
+        ws.destroy();
+      });
+      await fsp.rm(part, { force: true, maxRetries: 3, retryDelay: 100 }).catch(() => {});
       throw new Error('Download interrompido: ' + e.message);
     }
     if (art.sha256 && hash.digest('hex') !== art.sha256) {
-      await fsp.rm(part, { force: true });
+      await fsp.rm(part, { force: true, maxRetries: 3, retryDelay: 100 }).catch(() => {});
       throw new Error('O arquivo baixado está corrompido (SHA-256 não confere). Tente de novo.');
     }
     await fsp.rename(part, out);
@@ -143,9 +159,10 @@ export class Updater {
       // O lançador põe o servidor num Job que encerra a árvore inteira quando ele fecha; um filho comum (mesmo
       // detached) morreria junto e a troca do exe nunca aconteceria. Criado pelo WMI, o script fica fora do Job.
       const q = (s) => String(s).replace(/'/g, "''");
+      const safeCwd = os.tmpdir();
       const ps =
         `$si = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ShowWindow=[uint16]0}; ` +
-        `$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine='cmd.exe /d /c "${q(script)}"'; CurrentDirectory='${q(this.dir)}'; ProcessStartupInformation=$si}; ` +
+        `$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine='cmd.exe /d /c "${q(script)}"'; CurrentDirectory='${q(safeCwd)}'; ProcessStartupInformation=$si}; ` +
         `exit [int]$r.ReturnValue`;
       const viaWmi = await new Promise((res) => {
         const k = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, stdio: 'ignore' });
@@ -159,7 +176,7 @@ export class Updater {
           detached: true,
           stdio: 'ignore',
           windowsHide: true,
-          cwd: this.dir,
+          cwd: safeCwd,
           env: { ...process.env, CD_NEW: this.file, CD_DST: process.env.CASTDECK_EXE },
         });
         p.unref();

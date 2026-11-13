@@ -102,6 +102,7 @@ try {
   check('câmera RTMP com imagem no estúdio', await waitFor(host, `${vid(b.key)}>0`, 15000), String(await host.ev(vid(b.key))));
   check('resolução do drone preservada (1080p)', (await host.ev(`__castdeck.S.sources.get('ingest:${a.key}').el.videoHeight`)) === 1080);
   check('trilha de áudio recebida', await host.ev(`(__castdeck.S.sources.get('ingest:${b.key}')?.stream?.getAudioTracks().length||0)>0`));
+  check('áudio MediaMTX sai no retorno padrão (monitor)', await waitFor(host, `(()=>{const s=__castdeck.mixer?.sources?.get('ingest:${b.key}:audio');return !!(s && s.monitor && s.toMonitor?.gain?.value>0)})()`, 8000));
   await host.ev(`document.querySelector('.modal-back .modal-actions [data-close]')?.click()`);
   await sleep(600);
   check('miniatura com selo Drone/RTMP', await host.ev(`[...document.querySelectorAll('.tile .badge')].filter(b=>b.textContent==='Drone/RTMP').length>=2`));

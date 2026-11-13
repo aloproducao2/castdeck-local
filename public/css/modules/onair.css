@@ -1121,11 +1121,11 @@ body:has(.studio) #toasts { bottom: 112px; }
 }
 /* Mídia Player maior, GC mais compacto (desktop) */
 @media (min-width: 901px) and (min-height: 641px) {
-  #gcbar.deck > .deck-gc { flex: 0.82 1 145px; min-width: 128px; }
-  #gcbar.deck > .deck-media { flex: 2.55 1 360px; min-width: 235px; }
+  #gcbar.deck > .deck-gc { flex: 1 1 240px; min-width: 215px; overflow: hidden; }
+  #gcbar.deck > .deck-media { flex: 1.8 1 280px; min-width: 220px; }
   #gcbar.deck > .deck-sec { min-height: 48px; padding: 4px 8px; }
   #gcbar.deck .deck-sel,
-  #gcbar.deck .gc-sel { height: 26px !important; min-height: 26px !important; font-size: 11.5px; }
+  #gcbar.deck .gc-sel { height: 26px !important; min-height: 26px !important; font-size: 11.5px; min-width: 72px; }
   #gcbar.deck .btn.sm { height: 26px !important; min-height: 26px !important; }
   #gcbar.deck .btn.sm.icon { width: 26px !important; }
   #gcbar.deck .dm-prog { height: 14px; flex: 1 1 80px; }

@@ -383,12 +383,12 @@ async function buildStudio() {
       ${window.CDi18n ? window.CDi18n.selectHTML({ className: 'btn', short: true, id: 'studio-lang' }) : ''}
       ${S.system.platform === 'android' ? '' : `<button class="btn icon" id="btn-whatsapp" title="WhatsApp local: QR, caixa de entrada e fila do programa" aria-label="WhatsApp">${icons.whatsapp}</button>`}
       <button class="btn icon" id="btn-cameras" title="Painel de câmeras: preview e ajustes de zoom, foco, ISO, exposição e lanterna" aria-label="Câmeras">${icons.cam}</button>
-      <button class="btn icon" id="btn-audio" title="Abrir mesa de áudio" aria-label="Mesa de áudio"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h7M15 18h5"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="13" cy="18" r="2"/></svg></button>
+      <button class="btn icon" id="btn-audio" title="Abrir mesa de áudio" aria-label="Mesa de áudio"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4v10M6 18v2M12 4v3M12 11v9M18 4v9M18 17v3"/><circle cx="6" cy="16" r="2"/><circle cx="12" cy="9" r="2"/><circle cx="18" cy="15" r="2"/></svg></button>
       <button class="btn ptz-top" id="btn-ptz" type="button" title="PTZ experimental: pan, tilt, zoom, presets, atalhos e MIDI" aria-label="Controle PTZ">PTZ</button>
       <button class="btn icon" id="btn-intercom-mini" title="Mini intercom: PTT e corte de câmeras juntos" aria-label="Mini intercom" aria-pressed="false">${icons.mic}</button>
       <button class="btn icon" id="btn-remote" title="Controle remoto no celular: leia o QR e comande a mesa de corte" aria-label="Controle remoto">${REMOTE_ICON}</button>
       <button class="btn icon" data-fs="studio" data-tip="Tela cheia do estúdio" title="Tela cheia do estúdio" aria-label="Tela cheia do estúdio">${icons.expand}</button>
-      <button class="btn icon tools-toggle" id="btn-tools" title="Ferramentas: NDI, câmeras, PTZ, remote, intercom e mais" aria-label="Ferramentas" aria-expanded="false">${icons.sliders}</button>
+      <button class="btn icon tools-toggle" id="btn-tools" title="Ferramentas: NDI, câmeras, PTZ, remote, intercom e mais" aria-label="Ferramentas" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
       <button class="btn" id="btn-panel" title="Abrir painel de controle (mídia, banners, jornal...)" aria-expanded="false">Painel</button>
       <button class="btn oa-multi" id="btn-multirec" type="button" title="Multigravação: grave cada fonte em um arquivo separado, sem alterar Gravar/Transmitir" aria-pressed="false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 9h4v6H7zM15 9h2v6h-2z"></path></svg><span class="mr-lbl">Fontes</span></button>
       <button class="btn oa-rec" id="btn-record" title="Gravar o programa localmente em MP4 (independente da transmissão)" aria-pressed="false"><span class="oa-dot"></span><span class="lbl">Gravar</span></button>
@@ -1497,14 +1497,35 @@ function updateModeHint(on) {
       : 'Estúdio: o próximo vídeo assume o Solo ou o slot do palco quando o atual termina';
   }
 }
-// abre uma seção no painel flutuante (modo ícones) ou só troca a aba (painel fixo)
+// abre uma seção no painel flutuante (modo ícones), na gaveta mobile, ou só troca a aba (painel fixo)
 function openSideTab(tab) {
-  switchTab(tab);
   const st = $('.studio');
-  if (st.classList.contains('side-mini')) {
+  const side = $('#side');
+  const isDrawer = !!(side && getComputedStyle(side).position === 'fixed');
+  const alreadyAudio = isDrawer && st?.classList.contains('panel-open') && $(`#side .tab.active[data-tab="${tab}"]`);
+  if (alreadyAudio) {
+    // Segundo toque no mesmo atalho fecha a gaveta no mobile
+    st.classList.remove('panel-open');
+    const b = $('#btn-panel');
+    if (b) {
+      b.setAttribute('aria-expanded', 'false');
+      b.title = 'Abrir painel de controle (mídia, banners, jornal...)';
+    }
+    return;
+  }
+  switchTab(tab);
+  if (st?.classList.contains('side-mini')) {
     st.classList.add('side-fly');
     const grp = TAB_GROUPS.find((g) => g.tabs.some(([id]) => id === tab));
     $('#side-fly-title').textContent = grp?.label || '';
+  } else if (isDrawer) {
+    // No mobile o painel vira gaveta fixa; abrir a aba precisa revelar a gaveta
+    st?.classList.add('panel-open');
+    const b = $('#btn-panel');
+    if (b) {
+      b.setAttribute('aria-expanded', 'true');
+      b.title = 'Fechar o painel de controle';
+    }
   }
 }
 function closeSideFly() {

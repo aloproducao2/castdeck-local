@@ -69,6 +69,8 @@ public class MainActivity extends Activity {
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.parseColor("#0B0D17"));
         web = new StudioWebView(this);
+        // limpa cache de disco do WebView para não servir CSS/JS antigos após atualização do APK
+        web.clearCache(true);
         web.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         // o renderer do WebView é outro processo: sem isso o Android o rebaixa/congela quando o app sai da tela
         if (Build.VERSION.SDK_INT >= 26) web.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);

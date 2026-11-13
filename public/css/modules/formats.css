@@ -118,9 +118,9 @@
   .studio .stagebar > .hint { display: none; }
   .studio .stagebar .chip { flex: none; }
   .studio .stagebar .chip .nm { max-width: 96px; }
-  .studio .layouts { flex-wrap: nowrap; justify-content: safe center; overflow-x: auto; gap: 6px; scrollbar-width: none; }
-  .studio .layout-btn { flex: none; width: 48px; height: 32px; min-height: 32px; padding: 4px; }
-  .studio .layout-btn.add { width: 32px; }
+  .studio .layouts { flex-wrap: wrap; justify-content: center; overflow: visible; gap: 5px; }
+  .studio .layout-btn { flex: none; width: 42px; height: 30px; min-height: 30px; padding: 3px; }
+  .studio .layout-btn.add { width: 30px; }
   .studio .backstage { justify-content: flex-start; gap: 8px; scrollbar-width: none; }
   .studio .tile { width: 132px; }
   .studio .add-tile { width: 92px; min-height: 80px; }
@@ -143,7 +143,7 @@
   .studio { height: 100dvh; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 44px minmax(0, 1fr); }
   .studio .topbar { grid-column: 1 / -1; height: 44px; padding: 0 calc(10px + env(safe-area-inset-right)) 0 calc(10px + env(safe-area-inset-left)); gap: 6px; }
   .studio .topbar .btn { height: 34px; min-height: 34px; padding: 0 10px; }
-  .studio .stage-wrap { grid-column: 1; grid-row: 2; padding: 6px 8px 8px calc(8px + env(safe-area-inset-left)); gap: 8px; overflow-y: auto; overscroll-behavior: contain; }
+  .studio .stage-wrap { grid-column: 1; grid-row: 2; padding: 4px 8px 6px calc(8px + env(safe-area-inset-left)); gap: 6px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
   .studio .stage-row, .studio .stage-row.has-v, .studio.has-stage-h .stage-row, .studio.has-stage-h .stage-row.has-v { flex: none; min-height: 0; height: calc(100dvh - 44px - 64px); flex-direction: row; gap: 8px; }
   .studio .stage-row .program-box { flex: 1 1 0; min-width: 0; height: 100%; container-type: size; display: grid; place-items: center; }
   .studio .program { width: min(100cqw, calc(100cqh * 16 / 9)); max-width: none; min-width: 0; aspect-ratio: 16 / 9; border-radius: 10px; }
@@ -162,9 +162,10 @@
   .studio .stagebar { flex-wrap: nowrap; justify-content: safe center; overflow-x: auto; min-height: 0; scrollbar-width: none; }
   .studio .stagebar > .hint { display: none; }
   .studio .stagebar .chip { flex: none; }
-  .studio .layouts { flex-wrap: nowrap; justify-content: safe center; overflow-x: auto; gap: 6px; scrollbar-width: none; }
-  .studio .layout-btn { flex: none; width: 48px; height: 32px; min-height: 32px; padding: 4px; }
-  .studio .backstage { justify-content: safe center; }
+  .studio .layouts { flex-wrap: wrap; justify-content: flex-start; overflow: visible; gap: 4px; }
+  .studio .layout-btn { flex: none; width: 38px; height: 28px; min-height: 28px; padding: 3px; }
+  .studio .layout-btn.add { width: 28px; }
+  .studio .backstage { justify-content: flex-start; gap: 6px; padding: 2px 2px 4px; }
   .studio .tile { width: 140px; }
   .studio .bottombar {
     grid-column: 2; grid-row: 2; flex-direction: column; flex-wrap: nowrap; justify-content: safe center; align-items: center;
@@ -268,12 +269,28 @@
   .studio .stage-wrap {
     --pv: min(calc(100vw - 56px - 16px - 10px - 320px - env(safe-area-inset-left) - env(safe-area-inset-right)), calc((100dvh - 44px - 14px) * 1.7778));
     display: grid; grid-template-columns: var(--pv) minmax(290px, 1fr); grid-auto-rows: max-content;
-    align-content: start; align-items: start; column-gap: 10px; row-gap: 0; padding: 6px 8px 8px calc(8px + env(safe-area-inset-left));
+    align-content: start; align-items: start; column-gap: 10px; row-gap: 0; padding: 4px calc(8px + env(safe-area-inset-right)) 6px calc(8px + env(safe-area-inset-left));
   }
-  .studio .stage-wrap > * { grid-column: 2; margin-bottom: 8px; min-width: 0; }
+  .studio .stage-wrap > * { grid-column: 2; margin-bottom: 4px; min-width: 0; }
   .studio .stage-wrap > .rz { display: none; }
   .studio .stage-wrap > .stage-row, .studio .stage-wrap > .stage-row.has-v {
     grid-column: 1; grid-row: 1 / span 12; margin: 0; padding: 0; box-shadow: none; background: transparent;
+  }
+  .studio .stage-wrap .layouts { justify-content: flex-start; overflow: visible; }
+  .studio .stage-wrap.deck-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    --pv: min(calc(100vw - 56px - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)), calc((100dvh - 44px - 76px) * 1.7778));
+  }
+  .studio .stage-wrap.deck-collapsed > .deck-toggle-row {
+    grid-column: 1; grid-row: 1; margin: 0 0 2px;
+  }
+  .studio .stage-wrap.deck-collapsed > .stagebar {
+    grid-column: 1; grid-row: 2; margin: 0 0 4px; width: 100%; max-width: 100%;
+  }
+  .studio .stage-wrap.deck-collapsed > .stage-row,
+  .studio .stage-wrap.deck-collapsed > .stage-row.has-v {
+    grid-column: 1; grid-row: 3; justify-self: center;
   }
   .studio .stage-row .program-box { width: var(--pv); max-width: 100%; }
   .studio .stage-row.has-v { --ph: min(calc(100dvh - 44px - 14px), calc((var(--pv) - 8px) * .4267)); }
@@ -287,7 +304,8 @@
   .studio .vdock .vd-layouts .vl { font-size: 11px; min-height: 30px; }
   .studio .vdock .vd-actions .btn { min-height: 36px; }
   .studio .vdock .vd-actions .btn.icon { width: 36px; }
-  .studio .tile { width: 124px; }
+  .studio .tile { width: 112px; }
+  .studio .add-tile { width: 76px; min-height: 74px; }
   /* trilho de funções: os 7 botões cabem na altura sem rolar */
   .studio .bottombar { justify-content: space-evenly; gap: 0; padding-top: 2px; padding-bottom: calc(2px + env(safe-area-inset-bottom)); padding-right: calc(4px + env(safe-area-inset-right)); }
   .studio .ctrl { width: 50px; font-size: 8.5px; line-height: 1.1; gap: 1px; }

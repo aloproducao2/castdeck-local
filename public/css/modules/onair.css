@@ -1417,3 +1417,17 @@ body:has(.studio) #toasts { bottom: 112px; }
 .gc-dz-acc > summary::-webkit-details-marker { display: none; }
 .gc-dz-acc > summary::before { content: '▸ '; color: var(--muted); }
 .gc-dz-acc[open] > summary::before { content: '▾ '; }
+/* No celular (em pé e deitado), evita que o #gcbar corte controles ou estoure a largura da coluna */
+@media (max-width: 700px), (orientation: landscape) and (max-height: 640px) and (max-width: 1100px) {
+  .studio #gcbar.deck { overflow: hidden; padding: 4px; gap: 4px; }
+  .studio #gcbar .deck-sec { flex: 1 1 100%; min-width: 0; }
+  .studio #gcbar .deck-row-main .deck-gc-body,
+  .studio #gcbar .deck-row-media .deck-media-body { flex-wrap: wrap; gap: 4px; overflow: hidden; }
+  .studio #gcbar .deck-row-main .deck-gc .deck-sel,
+  .studio #gcbar .deck-row-media .deck-sel { flex: 1 1 110px; min-width: 0; max-width: none; }
+  .studio #gcbar .dm-prog { flex: 1 1 48px; min-width: 32px; }
+  .studio #gcbar .dm-time { min-width: 0; font-size: 10.5px; white-space: nowrap; }
+}
+@media (orientation: landscape) and (max-height: 640px) and (max-width: 1100px) {
+  .studio #gcbar .dm-prog { display: none; }
+}

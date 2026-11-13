@@ -299,7 +299,7 @@ public class LocalServer {
         NanoHTTPD.Response r = NanoHTTPD.newFixedLengthResponse(status(200), mime(p), new ByteArrayInputStream(b), b.length);
         // HTML, JS e CSS nunca podem ficar presos no cache do WebView depois de uma atualização do APK.
         // Imagens, fontes e mídia estática continuam em cache para velocidade.
-        r.addHeader("Cache-Control", (isHtml || isCode) ? "no-cache" : "public, max-age=86400");
+        r.addHeader("Cache-Control", (isHtml || isCode) ? "no-store, no-cache, must-revalidate" : "public, max-age=86400");
         return r;
     }
 

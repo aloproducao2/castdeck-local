@@ -186,6 +186,9 @@ export class Ingest {
       '  - action: api',
       'api: yes',
       `apiAddress: 127.0.0.1:${API_PORT}`,
+      // Drone RTMP via Wi-Fi chega em rajadas; a fila padrão (512) do MediaMTX descarta
+      // quadros na saída WebRTC (outboundFramesDiscarded) e congela o vídeo até o próximo keyframe.
+      'writeQueueSize: 4096',
       'metrics: no',
       'pprof: no',
       'playback: no',
@@ -380,13 +383,14 @@ export class Ingest {
       return;
     }
     const enc = this.encoder();
-    const args = ['-hide_banner', '-loglevel', 'error', '-fflags', 'nobuffer', '-flags', 'low_delay'];
+    const args = ['-hide_banner', '-loglevel', 'error', '-fflags', '+genpts+discardcorrupt'];
     if (need.video) {
+      args.push('-flags', 'low_delay');
       // NVIDIA: decodifica e codifica na GPU sem passar os quadros pela memória do sistema
       if (enc.id === 'h264_nvenc') args.push('-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda');
       else args.push('-hwaccel', 'auto');
     }
-    args.push('-rtsp_transport', 'tcp', '-i', `rtsp://127.0.0.1:${RTSP_PORT}/${key}`, '-map', '0:v:0?', '-map', '0:a:0?');
+    args.push('-rtsp_transport', 'tcp', '-probesize', '500000', '-analyzeduration', '500000', '-i', `rtsp://127.0.0.1:${RTSP_PORT}/${key}`, '-map', '0:v:0?', '-map', '0:a:0?');
     if (!need.video) args.push('-c:v', 'copy');
     else if (enc.id === 'h264_nvenc') args.push('-c:v', 'h264_nvenc', '-preset', 'p2', '-tune', 'ull', '-rc', 'cbr', '-b:v', '8M', '-g', '60', '-bf', '0', '-profile:v', 'high');
     else if (enc.id === 'h264_qsv') args.push('-c:v', 'h264_qsv', '-preset', 'veryfast', '-b:v', '8M', '-g', '60', '-bf', '0', '-look_ahead', '0');
@@ -394,7 +398,7 @@ export class Ingest {
     else if (enc.id === 'h264_videotoolbox') args.push('-c:v', 'h264_videotoolbox', '-realtime', '1', '-b:v', '8M', '-g', '60', '-bf', '0');
     // sem GPU: limita a 1080p para não pesar (4K de drone em x264 ocuparia vários núcleos)
     else args.push('-vf', "scale='min(1920,iw)':'min(1080,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2", '-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'zerolatency', '-b:v', '6M', '-g', '60', '-bf', '0', '-pix_fmt', 'yuv420p');
-    if (need.audio) args.push('-c:a', 'libopus', '-b:a', '128k', '-ar', '48000', '-ac', '2');
+    if (need.audio) args.push('-c:a', 'libopus', '-application', 'lowdelay', '-frame_duration', '20', '-b:a', '128k', '-ar', '48000', '-ac', '2');
     else args.push('-c:a', 'copy');
     args.push('-f', 'rtsp', '-rtsp_transport', 'tcp', `rtsp://127.0.0.1:${RTSP_PORT}/${key}_web`);
     const proc = spawn(ff, args, { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });

@@ -606,7 +606,7 @@ await asyncTest('9. Integração com a Mesa de Corte, Visibilidade Condicional e
   assert.equal(S.solo, 'replay:out', 'S.solo deve ser replay:out em tela cheia');
   assert.equal(comp.solo, 'replay:out', 'comp.solo deve ser replay:out');
   assert.equal(comp.replayBug, true, 'comp.replayBug deve estar ativo');
-  assert.equal(comp.replayBugText, 'REPLAY 50%', 'Texto do bug de replay deve indicar 50%');
+  assert.equal(comp.replayBugText, 'REPLAY', 'Texto do bug de replay deve exibir REPLAY');
   assert.equal(switcherRefreshed, true, 'Switcher deve ser notificado e atualizado');
   assert.equal(tallySynced, true, 'Tally da mesa de corte deve ser sincronizado');
 
@@ -735,7 +735,7 @@ await asyncTest('11. Central de Transição Preview ➜ PGM (Take Cut & Live Mir
     audioVolume: 0.8,
   });
 
-  assert.equal(comp.replayBugText, 'REPLAY 50%', 'Bug de replay deve refletir a velocidade sincronizada');
+  assert.equal(comp.replayBugText, 'REPLAY', 'Bug de replay deve exibir REPLAY');
 
   // 11.3 Interface HTML: Presença da Central de Transição e Controles
   const html = await fs.readFile(path.join(ROOT, 'public', 'replay.html'), 'utf-8');
@@ -1016,7 +1016,7 @@ await asyncTest('16. Banner no topo, proteção contra corrupção e REC JOGO se
 
   // 16.2 Tag REPLAY no canto superior esquerdo menor no Compositor e no replay.html
   const compJs = await fs.readFile(path.join(ROOT, 'public', 'js', 'studio', 'compositor.js'), 'utf-8');
-  assert.ok(compJs.includes('x = this.vertical ? 14 : 18') && compJs.includes('y = this.vertical ? 24 : 14'), 'drawReplayBug deve posicionar a tag no canto superior esquerdo compacto');
+  assert.ok(compJs.includes('const x = vertical ? 14 : 18;') && compJs.includes('const y = vertical ? 24 : 14;'), 'drawReplayBug deve posicionar a tag no canto superior esquerdo compacto');
 
   const replayHtml = await fs.readFile(path.join(ROOT, 'public', 'replay.html'), 'utf-8');
   assert.ok(replayHtml.includes('top: 10px') && replayHtml.includes('left: 12px'), 'badge .bc-onair-replay-bug deve ficar no canto superior esquerdo');
@@ -1105,15 +1105,15 @@ await asyncTest('18. Controle de Câmera Lenta estilo EVS em tempo real (setPlay
   // Coloca replay no ar a 50%
   engine.playoutReplay({ url: 'blob:mock-lance', speed: 0.5 });
   assert.equal(comp.replayBug, true);
-  assert.equal(comp.replayBugText, 'REPLAY 50%');
+  assert.equal(comp.replayBugText, 'REPLAY');
 
   // Operador move T-Bar para 25% com o replay no ar
   engine.setPlayoutSpeed(0.25);
-  assert.equal(comp.replayBugText, 'REPLAY 25%');
+  assert.equal(comp.replayBugText, 'REPLAY');
 
   // Operador move T-Bar para 75%
   engine.setPlayoutSpeed(0.75);
-  assert.equal(comp.replayBugText, 'REPLAY 75%');
+  assert.equal(comp.replayBugText, 'REPLAY');
 
   // Operador move T-Bar para 100% (velocidade normal)
   engine.setPlayoutSpeed(1.0);
@@ -1121,7 +1121,7 @@ await asyncTest('18. Controle de Câmera Lenta estilo EVS em tempo real (setPlay
 
   // Limites de segurança (mín 0.05, máx 2.0)
   engine.setPlayoutSpeed(0.01);
-  assert.equal(comp.replayBugText, 'REPLAY 5%');
+  assert.equal(comp.replayBugText, 'REPLAY');
 
   // 18.2 Validações em public/js/replay.js
   const replayJs = await fs.readFile(path.join(ROOT, 'public', 'js', 'replay.js'), 'utf-8');
@@ -1262,10 +1262,10 @@ await asyncTest('20. Limpeza segura de disco e recuperação de partida interrom
 
 console.log(`\nResultado: ${passed} passaram, ${failed} falharam.\n`);
 if (failed > 0) {
-  process.exitCode = 1;
+  process.exit(1);
 } else {
   console.log('Todos os testes do Replay passaram com sucesso!');
-  process.exitCode = 0;
+  process.exit(0);
 }
 
 

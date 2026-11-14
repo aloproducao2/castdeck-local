@@ -90,6 +90,11 @@ export function createIngest(ctx) {
         if (S.tab === 'audio') renderAudioPanel?.();
       };
       pc.ontrack = (e) => {
+        // Absorve rajadas de Wi-Fi do RTMP/SRT sem congelar o vídeo no jitter buffer do Chromium.
+        try {
+          if (e.receiver && 'jitterBufferTarget' in e.receiver) e.receiver.jitterBufferTarget = 120;
+          if (e.receiver && 'playoutDelayHint' in e.receiver) e.receiver.playoutDelayHint = 0.12;
+        } catch {}
         stream.addTrack(e.track);
         if (e.track.kind === 'audio') {
           e.track.onunmute = () => {

@@ -2108,10 +2108,17 @@ function setStage(ids) {
   switcher?.syncTally();
 }
 
-// áudio no ar = palco + o que a mesa de corte pôs no ar (cortar para outra câmera não cala quem está falando)
+// áudio no ar = somente quem está no palco/no ar no PGM (convidado fora do palco vai só para o retorno do host)
 // + fontes que estão no ar como DSK (vídeo em loop num DSK toca com som, como no vMix)
 function airKeys() {
-  const keys = S.take && !S.stage.includes(S.take) ? [...S.stage, S.take] : [...S.stage];
+  if (S.solo) {
+    const keys = [S.solo];
+    for (const id of dsk?.airIds() || []) if (!keys.includes(id)) keys.push(id);
+    return keys;
+  }
+  const keys = S.take
+    ? [S.take, ...S.stage.filter((id) => id !== S.take && id.startsWith('host:'))]
+    : [...S.stage];
   for (const id of dsk?.airIds() || []) if (!keys.includes(id)) keys.push(id);
   return keys;
 }
@@ -2152,6 +2159,7 @@ function applyDskAir({ on, sourceId, prev, ms = 0 } = {}) {
 function setSolo(id) {
   S.solo = id && S.stage.includes(id) && S.solo !== id ? id : null;
   comp.solo = S.solo;
+  mixer.setStage(airKeys());
   renderStagebar();
   renderTiles();
   switcher?.syncTally();

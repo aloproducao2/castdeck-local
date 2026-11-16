@@ -701,10 +701,18 @@ function render() {
         <div id="cam-q" class="cam-q"></div>
       </div>
       <nav class="cam-bar cam-ui" id="cam-bar"></nav>
-      <div class="cam-ifb" id="cam-ifb">
-        <div class="cam-ifb-top"><span class="cam-ifb-led"></span><b>INTERCOM</b><button type="button" id="ci-listen" class="on">Ouvindo</button><button type="button" id="ci-lock" title="Travar o microfone aberto">Travar</button></div>
-        <button type="button" id="ci-ptt">SEGURE PARA FALAR</button>
+      <div class="cam-ifb compact" id="cam-ifb">
+        <div class="cam-ifb-top">
+          <span class="cam-ifb-led"></span>
+          <b>IFB</b>
+          <button type="button" id="ci-listen" class="on" title="Ouvir retorno do diretor">Ouvindo</button>
+          <button type="button" id="ci-lock" title="Travar o microfone aberto">Travar</button>
+          <button type="button" id="ci-expand" title="Expandir / compactar intercom" aria-label="Expandir intercom">⤢</button>
+          <button type="button" id="ci-hide" title="Minimizar intercom" aria-label="Minimizar intercom">—</button>
+        </div>
+        <button type="button" id="ci-ptt">FALAR</button>
       </div>
+      <button type="button" class="cam-ifb-pill cam-ui" id="cam-ifb-pill" hidden title="Abrir intercom"><span class="cam-ifb-led"></span><span>IFB</span></button>
       <div class="cam-sheet" id="cam-sheet" hidden role="dialog" aria-label="Ajustes da câmera">
         <div class="cam-sheet-head">
           <div class="cam-tabs" role="tablist">
@@ -774,18 +782,57 @@ function setupCameraMediaSession() {
 }
 
 function bindIntercom() {
+  const box = $('#cam-ifb');
+  const pill = $('#cam-ifb-pill');
   const ptt = $('#ci-ptt');
   const listen = $('#ci-listen');
   const lock = $('#ci-lock');
+  const expand = $('#ci-expand');
+  const hideBtn = $('#ci-hide');
   if (!ptt || !listen) return;
+  let expanded = localStorage.getItem('castdeck.cam.ifb.exp') === '1';
+  let minimized = localStorage.getItem('castdeck.cam.ifb.min') === '1';
+  const syncLayout = () => {
+    if (box) {
+      box.classList.toggle('compact', !expanded);
+      box.hidden = minimized;
+    }
+    if (pill) pill.hidden = !minimized;
+    if (expand) {
+      expand.textContent = expanded ? '⤡' : '⤢';
+      expand.title = expanded ? 'Modo compacto' : 'Expandir botão de falar';
+    }
+    paintLock();
+  };
   const paintLock = () => {
     if (!lock) return;
     lock.classList.toggle('on', C.pttLatch);
     lock.textContent = C.pttLatch ? 'Travado' : 'Travar';
     lock.setAttribute('aria-pressed', String(C.pttLatch));
-    if (C.ptt) ptt.textContent = C.pttLatch ? 'MIC ABERTO · CLIQUE PARA FECHAR' : 'FALANDO...';
-    else ptt.textContent = C.pttLatch ? 'CLIQUE PARA ABRIR O MIC' : 'SEGURE PARA FALAR';
+    if (C.ptt) ptt.textContent = C.pttLatch ? (expanded ? 'MIC ABERTO · TOQUE P/ FECHAR' : 'ABERTO') : (expanded ? 'FALANDO...' : 'FALANDO');
+    else ptt.textContent = C.pttLatch ? (expanded ? 'TOQUE P/ ABRIR O MIC' : 'ABRIR MIC') : (expanded ? 'SEGURE PARA FALAR' : 'FALAR');
   };
+  if (expand) {
+    expand.onclick = () => {
+      expanded = !expanded;
+      try { localStorage.setItem('castdeck.cam.ifb.exp', expanded ? '1' : '0'); } catch {}
+      syncLayout();
+    };
+  }
+  if (hideBtn) {
+    hideBtn.onclick = () => {
+      minimized = true;
+      try { localStorage.setItem('castdeck.cam.ifb.min', '1'); } catch {}
+      syncLayout();
+    };
+  }
+  if (pill) {
+    pill.onclick = () => {
+      minimized = false;
+      try { localStorage.setItem('castdeck.cam.ifb.min', '0'); } catch {}
+      syncLayout();
+    };
+  }
   const off = () => {
     if (!C.ptt) return;
     C.ptt = false;
@@ -838,7 +885,7 @@ function bindIntercom() {
   ptt.addEventListener('pointerup', release);
   ptt.addEventListener('pointercancel', release);
   ptt.addEventListener('lostpointercapture', release);
-  paintLock();
+  syncLayout();
 }
 window.addEventListener('blur', () => { const b = $('#ci-ptt'); if (b?.classList.contains('on') && !C.pttLatch) b.dispatchEvent(new Event('pointerup')); });
 

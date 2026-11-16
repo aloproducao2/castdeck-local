@@ -276,6 +276,21 @@ export function createOutputs({
     return c;
   };
 
+  const accState = () => {
+    try { return JSON.parse(localStorage.getItem('castdeck.acc') || '{}'); } catch { return {}; }
+  };
+  const accOpen = (k, def) => {
+    const s = accState();
+    return typeof s[k] === 'boolean' ? s[k] : def;
+  };
+  const saveAcc = (k, on) => {
+    try {
+      const s = accState();
+      s[k] = !!on;
+      localStorage.setItem('castdeck.acc', JSON.stringify(s));
+    } catch {}
+  };
+
   function render() {
     const el = $('#panel-outputs');
     if (!el) return;
@@ -285,73 +300,95 @@ export function createOutputs({
     const liveInputs = (ingestInfo?.sources || []).filter((s) => s.live);
     lastSig = list.map((x) => x.src + x.label).join('|') + net + '|' + (localOn ? 1 : 0) + '|' + liveInputs.map((s) => s.key).join(',');
     const c = counts();
+    const totalOutConns = [...c.values()].reduce((a, b) => a + b, 0);
     const bs = bases();
     el.innerHTML = `
       <div class="out-head">
-        <h4>Saídas</h4>
-        <p class="hint">Cada saída tem um link próprio, limpo (sem a interface), para usar como fonte de navegador no OBS ou vMix.</p>
+        <h4>Sinais e Saídas</h4>
+        <p class="hint">Envie o programa ou fontes isoladas para OBS, vMix, VLC ou player WebRTC.</p>
       </div>
       ${document.querySelector('#btn-projector') ? `<button class="btn sm out-proj" id="out-projector" title="Programa em tela cheia em outro monitor, TV ou saída HDMI (Shift+P)">${icons.display} <span>Projetor em outra tela / HDMI</span></button>` : ''}
       <label class="field"><span>Onde está o OBS / vMix / Player?</span><select class="input" id="out-net">${bs.map((b) => `<option value="${esc(b.id)}" ${b.id === net ? 'selected' : ''}>${esc(b.label)}</option>`).join('')}</select></label>
-      <div class="out-stream-box">
-        <div class="out-stream-head">
-          <div>
-            <strong>Saída RTMP / SRT / WebRTC</strong>
-            <span class="hint">Para abrir o Programa (PGM) no VLC, OBS (Fonte de Mídia), vMix ou player WebRTC.</span>
-          </div>
-          <button class="btn sm ${localOn ? 'danger' : 'primary'}" id="out-local-toggle" ${localBusy ? 'disabled' : ''}>
-            ${localOn ? 'Desligar saída' : 'Ligar saída'}
-          </button>
+
+      <details class="out-acc" data-acc="out-browser" ${accOpen('out-browser', true) ? 'open' : ''}>
+        <summary>
+          <span>Links de navegador (OBS / vMix)</span>
+          <span class="out-acc-badge ${totalOutConns ? 'on' : ''}">${totalOutConns ? `● ${totalOutConns} ativo(s)` : `${list.length} sinais`}</span>
+        </summary>
+        <div class="out-acc-body">
+          <label class="field"><span>Qualidade do sinal (/out)</span><select class="input" id="out-quality">
+            <option value="auto" ${quality === 'auto' ? 'selected' : ''}>Automática (local alto · internet moderado)</option>
+            ${Object.entries(QUALITY).map(([k, q]) => `<option value="${k}" ${quality === k ? 'selected' : ''}>${esc(q.label)}</option>`).join('')}
+          </select></label>
+          <p class="hint" id="out-quality-note"></p>
+          <div class="out-list">${list
+            .map((x) => {
+              const n = c.get(x.src) || 0;
+              return `<div class="out-row" data-src="${esc(x.src)}">
+                <div class="out-thumb ${esc(x.kind)}" ${x.sid ? `data-thumb="${esc(x.sid)}"` : ''}>${x.kind === 'pgm' ? '<i class="out-ar h"></i>' : x.kind === 'vpgm' ? '<i class="out-ar v"></i>' : ''}</div>
+                <div class="out-meta"><strong>${esc(x.label)}</strong><span>${esc(x.sub)}</span>
+                  <span class="out-on ${n ? 'on' : ''}" data-count="${esc(x.src)}">${n ? `● <span>Em uso</span> (${n})` : '<span>Sem conexão</span>'}</span></div>
+                <div class="out-act">
+                  <button class="btn sm" data-out-copy title="Copiar o link desta saída">${icons.copy} <span>Copiar link</span></button>
+                  <a class="btn sm ghost icon" data-out-open href="${esc(linkFor(x.src))}" target="_blank" rel="noopener" title="Abrir o sinal numa aba (pré-visualização)">↗</a>
+                </div>
+              </div>`;
+            })
+            .join('')}</div>
+          <p class="hint" style="margin:6px 0 0">${bs.find((b) => b.id === net)?.key ? 'O link de outro computador leva uma chave secreta: não compartilhe publicamente.' : 'Links “localhost” funcionam só neste computador.'}</p>
         </div>
-        <div class="out-stream-status ${localOn ? 'on' : ''}">
-          ${localOn ? '● Saída ativa — pronta para VLC, SRT, RTSP e WebRTC' : '○ Desligada — clique em “Ligar saída” para publicar o PGM localmente'}
-        </div>
-        <div class="out-stream-links">
-          <div class="out-srow"><span class="out-proto">RTMP</span><code title="${esc(pgmLinks.rtmp)}">${esc(pgmLinks.rtmp)}</code><button class="btn sm ghost" data-scopy="${esc(pgmLinks.rtmp)}">${icons.copy} Copiar</button></div>
-          <div class="out-srow"><span class="out-proto">SRT</span><code title="${esc(pgmLinks.srt)}">${esc(pgmLinks.srt)}</code><button class="btn sm ghost" data-scopy="${esc(pgmLinks.srt)}">${icons.copy} Copiar</button></div>
-          <div class="out-srow"><span class="out-proto">RTSP</span><code title="${esc(pgmLinks.rtsp)}">${esc(pgmLinks.rtsp)}</code><button class="btn sm ghost" data-scopy="${esc(pgmLinks.rtsp)}">${icons.copy} Copiar</button></div>
-          <div class="out-srow"><span class="out-proto">WebRTC</span><code title="${esc(pgmLinks.player)}">${esc(pgmLinks.player)}</code><button class="btn sm ghost" data-scopy="${esc(pgmLinks.player)}">${icons.copy} Copiar</button><a class="btn sm ghost icon" href="${esc(pgmLinks.player)}" target="_blank" rel="noopener" title="Abrir Player WebRTC em nova aba">↗</a></div>
-          <div class="out-srow"><span class="out-proto">WHEP</span><code title="${esc(pgmLinks.whep)}">${esc(pgmLinks.whep)}</code><button class="btn sm ghost" data-scopy="${esc(pgmLinks.whep)}">${icons.copy} Copiar</button></div>
-        </div>
-        ${liveInputs.length ? `<div class="out-ing-sub">
-          <span class="hint" style="display:block;margin:8px 0 4px"><strong>Entradas RTMP/SRT ao vivo (assistir direto):</strong></span>
-          ${liveInputs.map((s) => {
-            const lk = streamLinks(s.key);
-            return `<div class="out-srow"><span class="out-proto">${esc(s.name)}</span><code>${esc(lk.rtmp)}</code><button class="btn sm ghost" data-scopy="${esc(lk.rtmp)}">${icons.copy}</button><button class="btn sm ghost" data-scopy="${esc(lk.srt)}" title="Copiar link SRT">SRT</button><a class="btn sm ghost icon" href="${esc(lk.player)}" target="_blank" rel="noopener" title="Abrir no Player WebRTC">↗</a></div>`;
-          }).join('')}
-        </div>` : ''}
-        <details class="out-how" style="margin-top:8px">
-          <summary>Como abrir no VLC</summary>
-          <p><b>VLC:</b> <span>Menu Mídia → Abrir Fluxo de Rede (<code>Ctrl+N</code>), cole o link <b>RTMP</b>, <b>SRT</b> ou <b>RTSP</b> e clique em Reproduzir.</span></p>
-          <p><b>Navegador:</b> <span>Clique em <b>↗</b> na linha <b>WebRTC</b> para assistir em tempo real com latência ultrabaixa.</span></p>
-        </details>
-      </div>
-      <label class="field"><span>Qualidade do sinal (links /out)</span><select class="input" id="out-quality">
-        <option value="auto" ${quality === 'auto' ? 'selected' : ''}>Automática (local alto · internet moderado)</option>
-        ${Object.entries(QUALITY).map(([k, q]) => `<option value="${k}" ${quality === k ? 'selected' : ''}>${esc(q.label)}</option>`).join('')}
-      </select></label>
-      <p class="hint" id="out-quality-note"></p>
-      <details class="out-how">
-        <summary>Como adicionar</summary>
-        <p><b>OBS:</b> <span>Fontes → + → Navegador. Cole o link, defina largura e altura iguais às do sinal e marque “Controlar áudio pelo OBS”.</span></p>
-        <p><b>vMix:</b> <span>Add Input → Web Browser. Cole o link e escolha a resolução. O áudio entra no mixer do vMix.</span></p>
-        <p class="hint">Convidados ficam em vagas fixas (Convidado 1, 2…): se a pessoa reconectar com o mesmo nome, o link continua o mesmo.</p>
       </details>
-      <div class="out-list">${list
-        .map((x) => {
-          const n = c.get(x.src) || 0;
-          return `<div class="out-row" data-src="${esc(x.src)}">
-            <div class="out-thumb ${esc(x.kind)}" ${x.sid ? `data-thumb="${esc(x.sid)}"` : ''}>${x.kind === 'pgm' ? '<i class="out-ar h"></i>' : x.kind === 'vpgm' ? '<i class="out-ar v"></i>' : ''}</div>
-            <div class="out-meta"><strong>${esc(x.label)}</strong><span>${esc(x.sub)}</span>
-              <span class="out-on ${n ? 'on' : ''}" data-count="${esc(x.src)}">${n ? `● <span>Em uso</span> (${n})` : '<span>Sem conexão</span>'}</span></div>
-            <div class="out-act">
-              <button class="btn sm" data-out-copy title="Copiar o link desta saída">${icons.copy} <span>Copiar link</span></button>
-              <a class="btn sm ghost icon" data-out-open href="${esc(linkFor(x.src))}" target="_blank" rel="noopener" title="Abrir o sinal numa aba (pré-visualização)">↗</a>
+
+      <details class="out-acc" data-acc="out-stream" ${accOpen('out-stream', localOn || liveInputs.length > 0) ? 'open' : ''}>
+        <summary>
+          <span>Saída RTMP / SRT / WebRTC (VLC & Players)</span>
+          <span class="out-acc-badge ${localOn ? 'on' : ''}">${localOn ? '● No ar' : 'Desligada'}</span>
+        </summary>
+        <div class="out-acc-body">
+          <div class="out-stream-head">
+            <div>
+              <strong>Programa (PGM) via MediaMTX</strong>
+              <span class="hint">Para abrir no VLC, OBS (Fonte de Mídia), vMix ou player WebRTC.</span>
             </div>
-          </div>`;
-        })
-        .join('')}</div>
-      <p class="hint" style="margin-top:10px">${bs.find((b) => b.id === net)?.key ? 'O link de outro computador leva uma chave secreta: não compartilhe publicamente.' : 'Links “localhost” funcionam só neste computador.'}</p>`;
+            <button class="btn sm ${localOn ? 'danger' : 'primary'}" id="out-local-toggle" ${localBusy ? 'disabled' : ''}>
+              ${localOn ? 'Desligar saída' : 'Ligar saída'}
+            </button>
+          </div>
+          <div class="out-stream-status ${localOn ? 'on' : ''}">
+            ${localOn ? '● Saída ativa — pronta para VLC, SRT, RTSP e WebRTC' : '○ Desligada — clique em “Ligar saída” para publicar o PGM localmente'}
+          </div>
+          <div class="out-stream-links">
+            <div class="out-srow"><span class="out-proto">RTMP</span><code title="${esc(pgmLinks.rtmp)}">${esc(pgmLinks.rtmp)}</code><button class="btn sm ghost" data-scopy="${esc(pgmLinks.rtmp)}">${icons.copy} Copiar</button></div>
+            <div class="out-srow"><span class="out-proto">SRT</span><code title="${esc(pgmLinks.srt)}">${esc(pgmLinks.srt)}</code><button class="btn sm ghost" data-scopy="${esc(pgmLinks.srt)}">${icons.copy} Copiar</button></div>
+            <div class="out-srow"><span class="out-proto">RTSP</span><code title="${esc(pgmLinks.rtsp)}">${esc(pgmLinks.rtsp)}</code><button class="btn sm ghost" data-scopy="${esc(pgmLinks.rtsp)}">${icons.copy} Copiar</button></div>
+            <div class="out-srow"><span class="out-proto">WebRTC</span><code title="${esc(pgmLinks.player)}">${esc(pgmLinks.player)}</code><button class="btn sm ghost" data-scopy="${esc(pgmLinks.player)}">${icons.copy} Copiar</button><a class="btn sm ghost icon" href="${esc(pgmLinks.player)}" target="_blank" rel="noopener" title="Abrir Player WebRTC em nova aba">↗</a></div>
+            <div class="out-srow"><span class="out-proto">WHEP</span><code title="${esc(pgmLinks.whep)}">${esc(pgmLinks.whep)}</code><button class="btn sm ghost" data-scopy="${esc(pgmLinks.whep)}">${icons.copy} Copiar</button></div>
+          </div>
+          ${liveInputs.length ? `<div class="out-ing-sub">
+            <span class="hint" style="display:block;margin:6px 0 4px"><strong>Entradas RTMP/SRT ao vivo (assistir direto):</strong></span>
+            ${liveInputs.map((s) => {
+              const lk = streamLinks(s.key);
+              return `<div class="out-srow"><span class="out-proto">${esc(s.name)}</span><code>${esc(lk.rtmp)}</code><button class="btn sm ghost" data-scopy="${esc(lk.rtmp)}">${icons.copy}</button><button class="btn sm ghost" data-scopy="${esc(lk.srt)}" title="Copiar link SRT">SRT</button><a class="btn sm ghost icon" href="${esc(lk.player)}" target="_blank" rel="noopener" title="Abrir no Player WebRTC">↗</a></div>`;
+            }).join('')}
+          </div>` : ''}
+        </div>
+      </details>
+
+      <details class="out-acc" data-acc="out-how" ${accOpen('out-how', false) ? 'open' : ''}>
+        <summary>
+          <span>Como conectar (OBS, vMix, VLC e WebRTC)</span>
+        </summary>
+        <div class="out-acc-body out-how-txt">
+          <p><b>OBS (Navegador):</b> Fontes → + → Navegador. Cole o link <code>/out</code>, defina largura e altura iguais às do sinal e marque “Controlar áudio pelo OBS”.</p>
+          <p><b>vMix (Web Browser):</b> Add Input → Web Browser. Cole o link <code>/out</code> e escolha a resolução.</p>
+          <p><b>VLC (RTMP / SRT / RTSP):</b> Mídia → Abrir Fluxo de Rede (<code>Ctrl+N</code>), cole o link <b>RTMP</b>, <b>SRT</b> ou <b>RTSP</b> e clique em Reproduzir.</p>
+          <p><b>Player WebRTC:</b> Clique em <b>↗</b> na linha <b>WebRTC</b> para assistir em qualquer navegador com latência ultrabaixa.</p>
+          <p class="hint" style="margin:0">Convidados ficam em vagas fixas (Convidado 1, 2…): se a pessoa reconectar com o mesmo nome, o link continua o mesmo.</p>
+        </div>
+      </details>`;
+    $$('.out-acc[data-acc]', el).forEach((det) => {
+      det.addEventListener('toggle', () => saveAcc(det.dataset.acc, det.open));
+    });
     $('#out-net', el).onchange = (e) => {
       net = e.target.value;
       if (quality === 'auto') for (const o of outs.values()) applyBitrate(o);

@@ -114,13 +114,13 @@ if (!(await detectFfmpeg())) {
 }
 
 const hub = new SignalingHub({ studioExists: (id) => !!store.getStudio(id), outKey: (id) => store.studioOutKey(id) });
-const broadcasts = new BroadcastManager({ ffmpegInfo, recordingsDir: recDir, store });
+// entradas e saídas RTMP/SRT/WebRTC (MediaMTX embutido)
+const ingest = new Ingest({ deps, store, ffmpegInfo, dataDir: DATA, lanIps });
+const broadcasts = new BroadcastManager({ ffmpegInfo, recordingsDir: recDir, store, ingest });
 const multirec = new MultiRecorder({ recordingsDir: recDir, ffmpegPath: () => ffmpegInfo.path, encoders: () => ffmpegInfo.encoders });
 const ndiOutput = new NdiOutputServer({ root: ROOT, ffmpegPath: ffmpegInfo.path, binDir: BIN });
 const pollHub = new PollHub();
 const msgHub = new MsgHub();
-// entradas RTMP/SRT (drones e câmeras da rede local) pelo MediaMTX embutido
-const ingest = new Ingest({ deps, store, ffmpegInfo, dataDir: DATA, lanIps });
 const ndiSource = new NdiSourceServer({ root: ROOT, ffmpegPath: ffmpegInfo.path, ingest, binDir: BIN });
 const whatsapp = new WhatsAppService({ dataDir: DATA });
 await whatsapp.init();
@@ -195,6 +195,8 @@ app.get('/vote/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'vote.html')))
 app.get('/msg/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'msg.html')));
 // saídas individuais para OBS/vMix (fonte de navegador); fora deste PC exigem a chave do link
 app.get('/out/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'out.html')));
+// player WebRTC (WHEP) para reproduzir saídas ou entradas RTMP/SRT em navegador externo/LAN
+app.get('/player/:key', (req, res) => res.sendFile(path.join(PUBLIC, 'player.html')));
 app.get('/remote/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'remote.html')));
 // as p\u00e1ginas do host tamb\u00e9m seriam servidas pelo static (/studio.html, /index.html): bloqueia para quem n\u00e3o \u00e9 local
 app.use((req, res, next) => (/^\/(index|studio|replay)(\.html)?\/?$/i.test(req.path) ? localOnly(req, res, next) : next()));
@@ -205,6 +207,59 @@ app.get('/api/public/studios/:id', (req, res) => {
   const s = store.getStudio(req.params.id);
   if (!s) return res.status(404).json({ error: 'Estúdio não encontrado' });
   res.json({ id: s.id, name: s.name, color: s.brand?.color || null });
+});
+
+function hasPlayerAccess(req) {
+  if (isLoopback(req.socket.remoteAddress) && !req.headers['cf-connecting-ip']) return true;
+  const k = String(req.query.k || req.headers['x-castdeck-key'] || '').trim();
+  if (!k) return false;
+  return (store.listStudios() || []).some((s) => store.studioOutKey(s.id) === k);
+}
+
+app.get('/api/public/player-info/:key', (req, res) => {
+  if (!hasPlayerAccess(req)) return res.status(403).json({ error: 'Chave de acesso inválida.' });
+  const key = String(req.params.key || '');
+  const info = ingest.info();
+  const host = req.hostname || info.lan?.[0] || 'localhost';
+  if (key === 'out-pgm' || key === 'out-vpgm') {
+    const live = key === 'out-pgm' ? !!info.localOut?.live : !!ingest.paths?.get(key)?.ready;
+    return res.json({
+      key,
+      label: key === 'out-vpgm' ? 'Programa Vertical (9:16)' : 'Programa CastDeck (PGM)',
+      live,
+      ports: info.ports,
+      urls: {
+        rtmp: `rtmp://${host}:${info.ports.rtmp}/${key}`,
+        srt: `srt://${host}:${info.ports.srt}?streamid=read:${key}`,
+        rtsp: `rtsp://${host}:${info.ports.rtsp}/${key}`,
+      },
+    });
+  }
+  const src = info.sources.find((s) => s.key === key);
+  if (!src) return res.status(404).json({ error: 'Fluxo não encontrado.' });
+  return res.json({
+    key: src.key,
+    label: src.name,
+    live: !!src.live,
+    ports: info.ports,
+    urls: {
+      rtmp: `rtmp://${host}:${info.ports.rtmp}/${src.key}`,
+      srt: `srt://${host}:${info.ports.srt}?streamid=read:${src.key}`,
+      rtsp: `rtsp://${host}:${info.ports.rtsp}/${src.key}`,
+    },
+  });
+});
+
+app.post('/api/public/whep/:key', express.text({ type: ['application/sdp', 'text/plain'], limit: '256kb' }), async (req, res) => {
+  if (!hasPlayerAccess(req)) return res.status(403).type('text/plain').send('Chave de acesso inválida.');
+  try {
+    const r = await ingest.whep(req.params.key, String(req.body || ''));
+    res.status(r.status).set('Content-Type', r.status < 300 ? 'application/sdp' : 'text/plain; charset=utf-8');
+    if (r.play) res.set('X-Ingest-Path', r.play);
+    res.send(r.body);
+  } catch (e) {
+    res.status(502).type('text/plain').send('MediaMTX não respondeu: ' + e.message);
+  }
 });
 
 // votação do público pelo celular

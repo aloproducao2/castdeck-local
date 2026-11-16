@@ -157,6 +157,7 @@ function build() {
       <button class="ctrl" id="g-full" title="Ver o programa em tela cheia"><span class="ctrl-ico">⛶</span><span>Tela cheia</span></button>
       <button class="ctrl" id="g-mic"><span class="ctrl-ico"></span><span>Microfone</span></button>
       <button class="ctrl" id="g-cam"><span class="ctrl-ico"></span><span>Câmera</span></button>
+      <button class="ctrl" id="g-flip" title="Virar / trocar câmera" hidden><span class="ctrl-ico">${icons.flip}</span><span>Virar</span></button>
       <button class="ctrl" id="g-share" title="Compartilhar tela, aba ou vídeo com o host" aria-haspopup="menu"><span class="ctrl-ico">${icons.screen}</span><span>Compartilhar</span></button>
       <button class="ctrl" id="g-dev" title="Trocar câmera ou microfone"><span class="ctrl-ico">${ICO.dev}</span><span>Dispositivos</span></button>
       <button class="ctrl" id="g-chat"><span class="ctrl-ico">${icons.chat}</span><span>Chat</span></button>
@@ -212,25 +213,37 @@ function build() {
   svEl.srcObject = G.cam || G.local;
   const sv = $('#g-selfview');
   const flipSelfBtn = $('#g-self-flip');
+  const flipBarBtn = $('#g-flip');
   const updateSelfFlipVisibility = () => {
-    if (flipSelfBtn) flipSelfBtn.hidden = !(IS_MOBILE || (G.devices?.cams?.length || 0) >= 2);
+    const show = IS_MOBILE || (G.devices?.cams?.length || 0) >= 2;
+    if (flipSelfBtn) flipSelfBtn.hidden = !show;
+    if (flipBarBtn) flipBarBtn.hidden = !show;
   };
   G.updateSelfFlipVisibility = updateSelfFlipVisibility;
   updateSelfFlipVisibility();
-  if (flipSelfBtn) {
-    flipSelfBtn.onclick = async (e) => {
-      e.stopPropagation();
-      flipSelfBtn.disabled = true;
-      try {
-        await switchGuestCamera('', { flip: true });
-        toast('Câmera trocada.', 'ok');
-      } catch (ex) {
-        toast('Não foi possível trocar de câmera: ' + (ex.message || ex.name), 'err');
-      } finally {
-        flipSelfBtn.disabled = false;
+  const handleFlipClick = async (e) => {
+    e?.stopPropagation?.();
+    if (flipSelfBtn?.disabled || flipBarBtn?.disabled) return;
+    for (const b of [flipSelfBtn, flipBarBtn]) {
+      if (!b) continue;
+      b.disabled = true;
+      b.classList.add('is-flipping');
+    }
+    try {
+      await switchGuestCamera('', { flip: true });
+      toast('Câmera trocada.', 'ok');
+    } catch (ex) {
+      toast('Não foi possível trocar de câmera: ' + (ex.message || ex.name), 'err');
+    } finally {
+      for (const b of [flipSelfBtn, flipBarBtn]) {
+        if (!b) continue;
+        b.disabled = false;
+        b.classList.remove('is-flipping');
       }
-    };
-  }
+    }
+  };
+  if (flipSelfBtn) flipSelfBtn.onclick = handleFlipClick;
+  if (flipBarBtn) flipBarBtn.onclick = handleFlipClick;
   const toggleBtn = $('#g-self-toggle');
   if (toggleBtn && sv) {
     toggleBtn.onclick = (e) => {
@@ -565,7 +578,7 @@ async function openDevices() {
       <div class="card modal">
         <h3>Dispositivos</h3>
         <div class="sub">Troque durante a chamada, sem sair do estúdio.</div>
-        <label class="field"><span>Câmera</span><div class="row" style="gap:8px;align-items:center"><select class="input" id="dev-cam" style="flex:1;min-width:0">${opts(cams, cur.cam, 'Câmera')}</select><button class="btn sm" id="dev-flip" type="button" title="Alternar entre as câmeras disponíveis"${showFlip ? '' : ' hidden'}>Virar</button></div></label>
+        <label class="field"><span>Câmera</span><div class="row" style="gap:8px;align-items:center"><select class="input" id="dev-cam" style="flex:1;min-width:0">${opts(cams, cur.cam, 'Câmera')}</select><button class="btn sm" id="dev-flip" type="button" title="Alternar entre as câmeras disponíveis"${showFlip ? '' : ' hidden'}>${icons.flip} Virar</button></div></label>
         <label class="field"><span>Microfone</span><select class="input" id="dev-mic">${opts(mics, cur.mic, 'Microfone')}</select></label>
         <div class="hint" id="dev-err" style="color:hsl(354 90% 72%)"></div>
         <div class="modal-actions"><button class="btn primary" id="dev-close">Fechar</button></div>

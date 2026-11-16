@@ -6,10 +6,28 @@
 // Convidados usam vagas fixas (guest:1, guest:2…) que acompanham o nome: o link continua valendo se ele reconectar.
 import { Peer } from '../rtc.js';
 
-export function createOutputs({ S, studioId, getSig, getMixer, getStreams, $, $$, esc, icons, copyText, api, vNeeded = () => false }) {
+export function createOutputs({
+  S,
+  studioId,
+  getSig,
+  getMixer,
+  getStreams,
+  $,
+  $$,
+  esc,
+  icons,
+  copyText,
+  api,
+  vNeeded = () => false,
+  startLocalOutput = null,
+  stopLocalOutput = null,
+  isLocalOutputActive = () => false,
+}) {
   const outs = new Map(); // id da página de saída -> { id, src, peer, vs, as, v, a, signal }
   const known = new Set(); // ids de saídas (sinais atrasados nunca viram "convidado fantasma")
   let outKey = '';
+  let ingestInfo = null;
+  let localBusy = false;
   const SLOT_KEY = `castdeck.outslots.${studioId}`;
   let slots = [];
   try {
@@ -207,6 +225,32 @@ export function createOutputs({ S, studioId, getSig, getMixer, getStreams, $, $$
     return `${b.url}/out/${studioId}?src=${encodeURIComponent(src)}${b.key && outKey ? `&k=${outKey}` : ''}`;
   }
 
+  function streamHost() {
+    if (net.startsWith('lan:')) return net.slice(4);
+    return 'localhost';
+  }
+
+  function streamBase() {
+    const b = bases().find((x) => x.id === net) || bases()[0];
+    if (b.id === 'net') return `http://${(S.system.lan?.[0]?.address) || 'localhost'}:${httpPort()}`;
+    return b.url;
+  }
+
+  function streamLinks(key) {
+    const host = streamHost();
+    const ports = ingestInfo?.ports || { rtmp: 1935, srt: 8890, rtsp: 19998 };
+    const base = streamBase();
+    const isLan = net.startsWith('lan:') && outKey;
+    const q = isLan ? `?k=${outKey}` : '';
+    return {
+      rtmp: `rtmp://${host}:${ports.rtmp}/${key}`,
+      srt: `srt://${host}:${ports.srt}?streamid=read:${key}`,
+      rtsp: `rtsp://${host}:${ports.rtsp}/${key}`,
+      player: `${base}/player/${encodeURIComponent(key)}${q}`,
+      whep: `${base}/api/public/whep/${encodeURIComponent(key)}${q}`,
+    };
+  }
+
   // lista de sinais disponíveis agora
   function signals() {
     const p = S.system.presets?.[S.preset] || { width: 1280, height: 720 };
@@ -236,7 +280,10 @@ export function createOutputs({ S, studioId, getSig, getMixer, getStreams, $, $$
     const el = $('#panel-outputs');
     if (!el) return;
     const list = signals();
-    lastSig = list.map((x) => x.src + x.label).join('|') + net;
+    const localOn = !!isLocalOutputActive();
+    const pgmLinks = streamLinks('out-pgm');
+    const liveInputs = (ingestInfo?.sources || []).filter((s) => s.live);
+    lastSig = list.map((x) => x.src + x.label).join('|') + net + '|' + (localOn ? 1 : 0) + '|' + liveInputs.map((s) => s.key).join(',');
     const c = counts();
     const bs = bases();
     el.innerHTML = `
@@ -245,8 +292,41 @@ export function createOutputs({ S, studioId, getSig, getMixer, getStreams, $, $$
         <p class="hint">Cada saída tem um link próprio, limpo (sem a interface), para usar como fonte de navegador no OBS ou vMix.</p>
       </div>
       ${document.querySelector('#btn-projector') ? `<button class="btn sm out-proj" id="out-projector" title="Programa em tela cheia em outro monitor, TV ou saída HDMI (Shift+P)">${icons.display} <span>Projetor em outra tela / HDMI</span></button>` : ''}
-      <label class="field"><span>Onde está o OBS / vMix?</span><select class="input" id="out-net">${bs.map((b) => `<option value="${esc(b.id)}" ${b.id === net ? 'selected' : ''}>${esc(b.label)}</option>`).join('')}</select></label>
-      <label class="field"><span>Qualidade do sinal</span><select class="input" id="out-quality">
+      <label class="field"><span>Onde está o OBS / vMix / Player?</span><select class="input" id="out-net">${bs.map((b) => `<option value="${esc(b.id)}" ${b.id === net ? 'selected' : ''}>${esc(b.label)}</option>`).join('')}</select></label>
+      <div class="out-stream-box">
+        <div class="out-stream-head">
+          <div>
+            <strong>Saída RTMP / SRT / WebRTC</strong>
+            <span class="hint">Para abrir o Programa (PGM) no VLC, OBS (Fonte de Mídia), vMix ou player WebRTC.</span>
+          </div>
+          <button class="btn sm ${localOn ? 'danger' : 'primary'}" id="out-local-toggle" ${localBusy ? 'disabled' : ''}>
+            ${localOn ? 'Desligar saída' : 'Ligar saída'}
+          </button>
+        </div>
+        <div class="out-stream-status ${localOn ? 'on' : ''}">
+          ${localOn ? '● Saída ativa — pronta para VLC, SRT, RTSP e WebRTC' : '○ Desligada — clique em “Ligar saída” para publicar o PGM localmente'}
+        </div>
+        <div class="out-stream-links">
+          <div class="out-srow"><span class="out-proto">RTMP</span><code title="${esc(pgmLinks.rtmp)}">${esc(pgmLinks.rtmp)}</code><button class="btn sm ghost" data-scopy="${esc(pgmLinks.rtmp)}">${icons.copy} Copiar</button></div>
+          <div class="out-srow"><span class="out-proto">SRT</span><code title="${esc(pgmLinks.srt)}">${esc(pgmLinks.srt)}</code><button class="btn sm ghost" data-scopy="${esc(pgmLinks.srt)}">${icons.copy} Copiar</button></div>
+          <div class="out-srow"><span class="out-proto">RTSP</span><code title="${esc(pgmLinks.rtsp)}">${esc(pgmLinks.rtsp)}</code><button class="btn sm ghost" data-scopy="${esc(pgmLinks.rtsp)}">${icons.copy} Copiar</button></div>
+          <div class="out-srow"><span class="out-proto">WebRTC</span><code title="${esc(pgmLinks.player)}">${esc(pgmLinks.player)}</code><button class="btn sm ghost" data-scopy="${esc(pgmLinks.player)}">${icons.copy} Copiar</button><a class="btn sm ghost icon" href="${esc(pgmLinks.player)}" target="_blank" rel="noopener" title="Abrir Player WebRTC em nova aba">↗</a></div>
+          <div class="out-srow"><span class="out-proto">WHEP</span><code title="${esc(pgmLinks.whep)}">${esc(pgmLinks.whep)}</code><button class="btn sm ghost" data-scopy="${esc(pgmLinks.whep)}">${icons.copy} Copiar</button></div>
+        </div>
+        ${liveInputs.length ? `<div class="out-ing-sub">
+          <span class="hint" style="display:block;margin:8px 0 4px"><strong>Entradas RTMP/SRT ao vivo (assistir direto):</strong></span>
+          ${liveInputs.map((s) => {
+            const lk = streamLinks(s.key);
+            return `<div class="out-srow"><span class="out-proto">${esc(s.name)}</span><code>${esc(lk.rtmp)}</code><button class="btn sm ghost" data-scopy="${esc(lk.rtmp)}">${icons.copy}</button><button class="btn sm ghost" data-scopy="${esc(lk.srt)}" title="Copiar link SRT">SRT</button><a class="btn sm ghost icon" href="${esc(lk.player)}" target="_blank" rel="noopener" title="Abrir no Player WebRTC">↗</a></div>`;
+          }).join('')}
+        </div>` : ''}
+        <details class="out-how" style="margin-top:8px">
+          <summary>Como abrir no VLC</summary>
+          <p><b>VLC:</b> <span>Menu Mídia → Abrir Fluxo de Rede (<code>Ctrl+N</code>), cole o link <b>RTMP</b>, <b>SRT</b> ou <b>RTSP</b> e clique em Reproduzir.</span></p>
+          <p><b>Navegador:</b> <span>Clique em <b>↗</b> na linha <b>WebRTC</b> para assistir em tempo real com latência ultrabaixa.</span></p>
+        </details>
+      </div>
+      <label class="field"><span>Qualidade do sinal (links /out)</span><select class="input" id="out-quality">
         <option value="auto" ${quality === 'auto' ? 'selected' : ''}>Automática (local alto · internet moderado)</option>
         ${Object.entries(QUALITY).map(([k, q]) => `<option value="${k}" ${quality === k ? 'selected' : ''}>${esc(q.label)}</option>`).join('')}
       </select></label>
@@ -296,6 +376,23 @@ export function createOutputs({ S, studioId, getSig, getMixer, getStreams, $, $$
     const pj = $('#out-projector', el);
     if (pj) pj.onclick = () => document.querySelector('#btn-projector')?.click();
     $$('[data-out-copy]', el).forEach((b) => (b.onclick = () => copyText(linkFor(b.closest('[data-src]').dataset.src))));
+    $$('[data-scopy]', el).forEach((b) => (b.onclick = () => copyText(b.dataset.scopy)));
+    const lbtn = $('#out-local-toggle', el);
+    if (lbtn) {
+      lbtn.onclick = async () => {
+        if (localBusy) return;
+        localBusy = true;
+        render();
+        try {
+          if (isLocalOutputActive()) stopLocalOutput?.();
+          else await startLocalOutput?.();
+          try { ingestInfo = await api('/ingest'); } catch {}
+        } finally {
+          localBusy = false;
+          render();
+        }
+      };
+    }
     // miniaturas ao vivo das fontes (reaproveita o vídeo já decodificado)
     $$('[data-thumb]', el).forEach((box) => {
       const s = S.sources.get(box.dataset.thumb);
@@ -315,7 +412,9 @@ export function createOutputs({ S, studioId, getSig, getMixer, getStreams, $, $$
   function refresh() {
     const el = $('#panel-outputs');
     if (!el || !el.classList.contains('active')) return;
-    const sigNow = signals().map((x) => x.src + x.label).join('|') + net;
+    const localOn = !!isLocalOutputActive();
+    const liveInputs = (ingestInfo?.sources || []).filter((s) => s.live);
+    const sigNow = signals().map((x) => x.src + x.label).join('|') + net + '|' + (localOn ? 1 : 0) + '|' + liveInputs.map((s) => s.key).join(',');
     if (sigNow !== lastSig) return render();
     const c = counts();
     $$('[data-count]', el).forEach((s) => {
@@ -327,7 +426,9 @@ export function createOutputs({ S, studioId, getSig, getMixer, getStreams, $, $$
 
   async function open() {
     try {
-      S.system = { ...S.system, ...(await api('/system')) }; // IPs da rede e túnel atualizados
+      const [sys, ing] = await Promise.all([api('/system').catch(() => null), api('/ingest').catch(() => null)]);
+      if (sys) S.system = { ...S.system, ...sys }; // IPs da rede e túnel atualizados
+      if (ing) ingestInfo = ing;
     } catch {}
     render();
   }

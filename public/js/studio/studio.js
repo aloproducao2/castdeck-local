@@ -639,7 +639,24 @@ async function buildStudio() {
   vview = new VerticalView(comp, S.system.presets[vPresetId()]);
   vview.layout = S.brand.vlayout || 'auto';
   vStream = new MediaStream([vview.track, mixer.programTrack]);
-  outputs = createOutputs({ S, studioId, getSig: () => sig, getMixer: () => mixer, getStreams: () => ({ programStream, vStream }), $, $$, esc, icons, copyText, api, vNeeded: () => !!projectors?.active('vpgm') });
+  outputs = createOutputs({
+    S,
+    studioId,
+    getSig: () => sig,
+    getMixer: () => mixer,
+    getStreams: () => ({ programStream, vStream }),
+    $,
+    $$,
+    esc,
+    icons,
+    copyText,
+    api,
+    toast,
+    vNeeded: () => !!projectors?.active('vpgm'),
+    startLocalOutput,
+    stopLocalOutput,
+    isLocalOutputActive: () => !!broadcaster?.active && !!S.status?.isLocalOutput,
+  });
   projectors = createProjectors({ S, getStreams: () => ({ programStream, vStream }), getMixer: () => mixer, getVfx: () => vfx, $, esc, toast, modal, icons });
   ndiOut = createNdiOutput({
     onStatus: ({ state, detail }) => {
@@ -7467,6 +7484,7 @@ function setupBroadcasterEvents() {
     syncLiveCompat();
     renderLiveStats();
     if (tabOpen('output')) renderOutputPanel();
+    outputs?.refresh?.();
   });
   broadcaster.on('error', (msg) => toast(msg, 'err'));
   broadcaster.on('ended', () => {
@@ -7477,8 +7495,48 @@ function setupBroadcasterEvents() {
     broadcaster = null;
     renderLiveStats();
     if (tabOpen('output')) renderOutputPanel();
+    outputs?.refresh?.();
     pushStudioState();
   });
+}
+
+async function startLocalOutput() {
+  if (broadcaster?.active) {
+    broadcaster.startLocal();
+    if (S.status) S.status = { ...S.status, isLocalOutput: true };
+    outputs?.refresh?.();
+    toast('Saída RTMP/SRT/WebRTC ativada!', 'ok');
+    return true;
+  }
+  setupBroadcasterEvents();
+  try {
+    const st = await broadcaster.start({
+      studioId,
+      stream: programStream,
+      destinationIds: [],
+      record: false,
+      localOut: true,
+      preset: S.preset,
+      presetInfo: S.system.presets[S.preset],
+      encoder: S.encoder,
+      videoKbps: S.bitrate || S.system.presets[S.preset].videoKbps,
+    });
+    S.status = st;
+    outputs?.refresh?.();
+    toast('Saída RTMP/SRT/WebRTC ativada!', 'ok');
+    return true;
+  } catch (e) {
+    toast(e.message || 'Falha ao iniciar saída RTMP/SRT/WebRTC.', 'err');
+    return false;
+  }
+}
+
+function stopLocalOutput() {
+  if (!broadcaster?.active) return;
+  broadcaster.stopLocal();
+  if (S.status) S.status = { ...S.status, isLocalOutput: false };
+  outputs?.refresh?.();
+  toast('Saída RTMP/SRT/WebRTC desligada.');
 }
 
 // =====================================================================

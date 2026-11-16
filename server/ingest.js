@@ -19,10 +19,11 @@ import { spawn, spawnSync } from 'node:child_process';
 export const RTMP_PORT = Number(process.env.CD_RTMP_PORT) || 1935;
 export const SRT_PORT = Number(process.env.CD_SRT_PORT) || 8890;
 const API_PORT = Number(process.env.CD_MTX_API_PORT) || 19997;
-const RTSP_PORT = API_PORT + 1; // 19998: conversão (FFmpeg lê e devolve por aqui)
-const WEBRTC_PORT = API_PORT + 2; // 19999: WHEP para o estúdio
+export const RTSP_PORT = API_PORT + 1; // 19998: conversão e leitura RTSP (VLC/FFplay)
+const WEBRTC_PORT = API_PORT + 2; // 19999: WHEP para o estúdio e player
 const WEBRTC_UDP = API_PORT + 3; // 20000: mídia WebRTC
 const MAX_SOURCES = 12;
+const OUT_KEYS = ['out-pgm', 'out-vpgm'];
 // codecs que o WebRTC do navegador aceita sem conversão
 const WEB_VIDEO = ['H264'];
 const WEB_AUDIO = ['Opus', 'G711', 'G722'];
@@ -49,6 +50,7 @@ export class Ingest {
     this.stopping = false;
     this.restartTimer = null;
     this.fails = 0;
+    this.localOutEnabled = false;
   }
 
   // ---------- configuração salva ----------
@@ -72,14 +74,24 @@ export class Ingest {
     const { enabled, sources } = this.cfg();
     const ips = this.lanIps().map((i) => i.address);
     const host = ips[0] || 'IP-DESTE-PC';
+    const pOut = this.paths.get('out-pgm');
+    const pOutNeed = pOut ? this.needs(pOut.tracks || []) : { video: false, audio: false };
+    const pOutWeb = this.paths.get('out-pgm_web');
+    const outPlay = !pOut?.ready ? null : pOutNeed.video || pOutNeed.audio ? (pOutWeb?.ready ? 'out-pgm_web' : null) : 'out-pgm';
     return {
       available: this.available(),
       enabled,
       status: this.status,
       error: this.error,
-      ports: { rtmp: RTMP_PORT, srt: SRT_PORT },
+      ports: { rtmp: RTMP_PORT, srt: SRT_PORT, rtsp: RTSP_PORT },
       lan: ips,
       encoder: this.encoder().id,
+      localOut: {
+        enabled: this.localOutEnabled,
+        key: 'out-pgm',
+        live: !!pOut?.ready,
+        play: outPlay,
+      },
       sources: sources.map((src) => {
         const p = this.paths.get(src.key);
         const tracks = p?.tracks || [];
@@ -107,6 +119,11 @@ export class Ingest {
             // drones/apps que pedem "servidor" e "chave" separados (DJI, Larix, OBS)
             rtmpServer: `rtmp://${host}:${RTMP_PORT}/`,
             rtmpKey: src.key,
+          },
+          playUrls: {
+            rtmp: `rtmp://${host}:${RTMP_PORT}/${src.key}`,
+            srt: `srt://${host}:${SRT_PORT}?streamid=read:${src.key}`,
+            rtsp: `rtsp://${host}:${RTSP_PORT}/${src.key}`,
           },
         };
       }),
@@ -160,7 +177,23 @@ export class Ingest {
   async setEnabled(on) {
     this.save({ enabled: !!on });
     if (on) await this.start();
-    else this.stop();
+    else if (!this.localOutEnabled) this.stop();
+    return this.info();
+  }
+
+  async setLocalOut(on) {
+    this.localOutEnabled = !!on;
+    if (on) {
+      if (!this.available()) throw new Error('Esta versão não traz o MediaMTX embutido.');
+      await this.start();
+      // espera rápida para o MediaMTX abrir a porta RTMP antes do FFmpeg conectar
+      const deadline = Date.now() + 4000;
+      while (this.status === 'starting' && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 150));
+      }
+    } else if (!this.cfg().enabled) {
+      this.stop();
+    }
     return this.info();
   }
 
@@ -172,7 +205,7 @@ export class Ingest {
       'logLevel: info',
       'logDestinations: [stdout]',
       // publicar: qualquer aparelho da rede, mas só nas chaves cadastradas (os caminhos abaixo)
-      // ler/assistir e API: só este PC
+      // ler/assistir: este PC e rede local privada (VLC/OBS/vMix na mesma LAN); API restrita a este PC
       'authMethod: internal',
       'authInternalUsers:',
       '- user: any',
@@ -180,9 +213,12 @@ export class Ingest {
       '  permissions:',
       '  - action: publish',
       '- user: any',
-      "  ips: ['127.0.0.1', '::1']",
+      "  ips: ['127.0.0.1', '::1', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']",
       '  permissions:',
       '  - action: read',
+      '- user: any',
+      "  ips: ['127.0.0.1', '::1']",
+      '  permissions:',
       '  - action: api',
       'api: yes',
       `apiAddress: 127.0.0.1:${API_PORT}`,
@@ -195,7 +231,7 @@ export class Ingest {
       'hls: no',
       'moq: no',
       'rtsp: yes',
-      `rtspAddress: 127.0.0.1:${RTSP_PORT}`,
+      `rtspAddress: :${RTSP_PORT}`,
       'rtspTransports: [tcp]',
       'rtmp: yes',
       `rtmpAddress: :${RTMP_PORT}`,
@@ -213,6 +249,8 @@ export class Ingest {
       'paths:',
       // versão convertida (H.264/Opus) publicada pelo FFmpeg deste PC
       `  ${q('~^cam-[a-z0-9]+_web$')}:`,
+      `  ${q('~^out-(pgm|vpgm)_web$')}:`,
+      ...OUT_KEYS.map((k) => `  ${q(k)}:`),
       ...sources.map((s) => `  ${q(s.key)}:`),
     ];
     return lines.join('\n') + '\n';
@@ -318,7 +356,7 @@ export class Ingest {
       this.error = this.error || `O MediaMTX encerrou (código ${code}). ${this.logTail.slice(-1)[0] || ''}`.trim();
       console.warn('[ingest] ' + this.error);
       // caiu sozinho: tenta de novo (com espera crescente), a não ser que a porta esteja ocupada
-      if (this.cfg().enabled && !/porta/.test(this.error) && this.fails++ < 5) {
+      if ((this.cfg().enabled || this.localOutEnabled) && !/porta/.test(this.error) && this.fails++ < 5) {
         this.restartTimer = setTimeout(() => this.start(), 2000 * this.fails);
       }
     });
@@ -354,7 +392,7 @@ export class Ingest {
       return;
     }
     const now = Date.now();
-    const keys = new Set(this.cfg().sources.map((s) => s.key));
+    const keys = new Set([...this.cfg().sources.map((s) => s.key), ...OUT_KEYS]);
     for (const key of keys) {
       const p = this.paths.get(key);
       // taxa de entrada (kbps) para mostrar no painel
@@ -425,18 +463,32 @@ export class Ingest {
     this.conv.delete(key);
   }
 
-  // ---------- WHEP (estúdio -> MediaMTX), via este servidor para não depender de CORS nem expor a porta ----------
+  // ---------- WHEP (estúdio/player -> MediaMTX), via este servidor para não depender de CORS nem expor a porta ----------
   async whep(key, sdp) {
-    const src = this.info().sources.find((s) => s.key === key);
-    if (!src) return { status: 404, body: 'Entrada não encontrada.' };
-    if (!src.play) return { status: 409, body: src.live ? 'Preparando a conversão da imagem…' : 'Sem sinal desta entrada.' };
-    const r = await fetch(`http://127.0.0.1:${WEBRTC_PORT}/${src.play}/whep`, {
+    let play = null;
+    let live = false;
+    if (OUT_KEYS.includes(key)) {
+      const p = this.paths.get(key);
+      live = !!p?.ready;
+      if (live) {
+        const need = this.needs(p.tracks || []);
+        const web = this.paths.get(`${key}_web`);
+        play = need.video || need.audio ? (web?.ready ? `${key}_web` : null) : key;
+      }
+      if (!play) return { status: 409, body: live ? 'Preparando fluxo WebRTC do programa…' : 'Saída local do programa ainda está desligada ou sem sinal.' };
+    } else {
+      const src = this.info().sources.find((s) => s.key === key);
+      if (!src) return { status: 404, body: 'Entrada não encontrada.' };
+      if (!src.play) return { status: 409, body: src.live ? 'Preparando a conversão da imagem…' : 'Sem sinal desta entrada.' };
+      play = src.play;
+    }
+    const r = await fetch(`http://127.0.0.1:${WEBRTC_PORT}/${play}/whep`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/sdp' },
       body: sdp,
       signal: AbortSignal.timeout(8000),
     });
     const body = await r.text();
-    return { status: r.status, body, play: src.play };
+    return { status: r.status, body, play };
   }
 }

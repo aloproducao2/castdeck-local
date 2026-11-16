@@ -846,28 +846,42 @@ function renderControls() {
   const bar = $('#cam-bar');
   if (!bar) return;
   const torchOk = !!C.video?.getCapabilities?.().torch;
+  const curId = C.video?.getSettings?.().deviceId || C.videoId || '';
+  const list = C.devices.v || [];
+  const idx = curId ? list.findIndex((d) => d.deviceId === curId) : -1;
+  const flipLabel = list.length >= 2 && idx >= 0
+    ? `Virar (${idx + 1}/${list.length})`
+    : C.videoId
+      ? 'Virar câmera'
+      : C.facing === 'environment'
+        ? 'Virar · Frontal'
+        : 'Virar · Traseira';
   const btn = (id, ico, label, on = false, extra = '') => `<button class="cam-btn ${on ? 'on' : ''}" id="${id}" ${extra}><span class="ico">${ico}</span><span>${label}</span></button>`;
   bar.innerHTML = [
-    btn('cb-flip', icons.flip, C.videoId ? 'Trocar' : C.facing === 'environment' ? 'Traseira' : 'Frontal'),
+    btn('cb-flip', icons.flip, flipLabel),
     btn('cb-q', 'HD', `${C.quality}p${C.fps === 60 ? '60' : ''}`),
     btn('cb-mic', C.micOn ? icons.mic : icons.micOff, C.micOn ? 'Mic ligado' : 'Mic desligado', C.micOn),
     torchOk ? btn('cb-torch', '🔦', 'Lanterna', C.torch) : '',
     btn('cb-set', icons.settings, 'Ajustes', C.sheet === 'dev'),
   ].join('');
-  $('#cb-flip').onclick = async () => {
+  const flipBtn = $('#cb-flip');
+  flipBtn.onclick = async () => {
+    if (flipBtn.disabled) return;
+    flipBtn.disabled = true;
+    flipBtn.classList.add('is-flipping');
     const curSettings = C.video?.getSettings?.() || {};
-    const curId = curSettings.deviceId || C.videoId || '';
+    const activeId = curSettings.deviceId || C.videoId || '';
     const curFacing = curSettings.facingMode || C.facing;
     const nextFacing = curFacing === 'environment' ? 'user' : 'environment';
     if (!C.devices.v.length) await loadDevices();
-    const list = C.devices.v || [];
+    const cams = C.devices.v || [];
     const nextDeviceId = () => {
-      if (list.length < 2) return '';
-      const idx = curId ? list.findIndex((d) => d.deviceId === curId) : -1;
-      return list[(idx + 1) % list.length]?.deviceId || '';
+      if (cams.length < 2) return '';
+      const i = activeId ? cams.findIndex((d) => d.deviceId === activeId) : -1;
+      return cams[(i + 1) % cams.length]?.deviceId || '';
     };
     try {
-      if (!IS_MOBILE && list.length >= 2) {
+      if (!IS_MOBILE && cams.length >= 2) {
         const nextId = nextDeviceId();
         if (nextId) {
           C.videoId = nextId;
@@ -881,9 +895,9 @@ function renderControls() {
       savePrefs();
       await openVideo();
       const gotId = C.video?.getSettings?.().deviceId || '';
-      if (IS_MOBILE && curId && gotId === curId && list.length >= 2) {
+      if (IS_MOBILE && activeId && gotId === activeId && cams.length >= 2) {
         const nextId = nextDeviceId();
-        if (nextId && nextId !== curId) {
+        if (nextId && nextId !== activeId) {
           C.videoId = nextId;
           savePrefs();
           await openVideo();
@@ -891,6 +905,10 @@ function renderControls() {
       }
     } catch (e) {
       toast('Não deu para trocar de câmera: ' + (e.message || e.name), 'err');
+    } finally {
+      flipBtn.disabled = false;
+      flipBtn.classList.remove('is-flipping');
+      renderControls();
     }
   };
   $('#cb-q').onclick = () => setQuality(C.quality === '1080' ? '720' : '1080');

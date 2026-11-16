@@ -232,13 +232,22 @@ export function createIngest(ctx) {
     }[info.status] || '';
   }
 
-  function sourceCard(s) {
-    const inStudio = conns.has(s.key);
-    const meta = s.live
+  const metaText = (s) =>
+    s.live
       ? [s.protocol, s.video && (s.converting && s.video !== 'H264' ? `${s.video} → H.264` : s.video), s.audio && s.audio.replace('MPEG-4 Audio', 'AAC'), fmtRate(s.kbps)].filter(Boolean).join(' · ')
       : 'Sem sinal — configure o aparelho com um dos endereços abaixo';
+
+  function sourceCard(s) {
+    const inStudio = conns.has(s.key);
+    const meta = metaText(s);
     const open = openKey === s.key;
     const urls = s.urls;
+    const playUrls = s.playUrls || {
+      rtmp: urls.rtmp,
+      srt: `srt://${(info?.lan?.[0] || 'localhost')}:${info?.ports?.srt || 8890}?streamid=read:${s.key}`,
+      rtsp: `rtsp://${(info?.lan?.[0] || 'localhost')}:${info?.ports?.rtsp || 19998}/${s.key}`,
+    };
+    const playerUrl = `${location.origin}/player/${encodeURIComponent(s.key)}`;
     const qrUrl = qrMode === 'srt' ? urls.srt : urls.rtmp;
     const row = (label, val) => `<div class="ing-url"><span>${label}</span><code>${esc(val)}</code><button class="btn ghost sm icon" data-copy="${esc(val)}" title="Copiar">⧉</button></div>`;
     return `
@@ -247,7 +256,7 @@ export function createIngest(ctx) {
           <span class="ing-dot" title="${s.live ? 'Ao vivo' : 'Sem sinal'}"></span>
           <div class="ing-src-txt">
             <strong>${esc(s.name)}</strong>
-            <small>${esc(meta)}${s.converting ? ' <b class="ing-conv" title="O navegador não toca este formato direto: o CastDeck converte em tempo real">convertendo</b>' : ''}</small>
+            <small><span class="ing-meta-txt">${esc(meta)}</span>${s.converting ? ' <b class="ing-conv" title="O navegador não toca este formato direto: o CastDeck converte em tempo real">convertendo</b>' : ''}</small>
             ${s.convertError ? `<small class="ing-errtxt">${esc(s.convertError)}</small>` : ''}
           </div>
           <div class="ing-src-acts">
@@ -266,6 +275,11 @@ export function createIngest(ctx) {
             <p class="hint">Se o aparelho pede <b>servidor</b> e <b>chave</b> separados (OBS, vMix):</p>
             ${row('Servidor', urls.rtmpServer)}
             ${row('Chave', urls.rtmpKey)}
+            <p class="hint" style="margin-top:8px"><b>Assistir no VLC ou Player WebRTC externo:</b></p>
+            ${row('VLC RTMP', playUrls.rtmp)}
+            ${row('VLC SRT', playUrls.srt)}
+            ${row('VLC RTSP', playUrls.rtsp)}
+            <div class="ing-url"><span>WebRTC</span><code>${esc(playerUrl)}</code><button class="btn ghost sm icon" data-copy="${esc(playerUrl)}" title="Copiar">⧉</button><a class="btn ghost sm icon" href="${esc(playerUrl)}" target="_blank" rel="noopener" title="Abrir player WebRTC">↗</a></div>
           </div>
           <div class="ing-qr">
             <div class="ing-qr-code">${qrSvg(qrUrl)}</div>
@@ -275,13 +289,39 @@ export function createIngest(ctx) {
       </div>`;
   }
 
-  // assinatura do que aparece na lista: só redesenha quando algo mudou (não atrapalha cliques nem seleção de texto)
+  // assinatura estrutural (exclui kbps para não destruir/piscar o DOM a cada 750 ms)
   let lastSig = '';
   function renderList(force = false) {
     const m = modalEl;
     if (!m) return;
-    const sig = JSON.stringify([info, openKey, qrMode, [...conns.keys()]]);
-    if (!force && sig === lastSig) return;
+    const struct = info
+      ? {
+          available: info.available,
+          enabled: info.enabled,
+          status: info.status,
+          error: info.error,
+          lan: info.lan,
+          sources: (info.sources || []).map((s) => ({
+            key: s.key,
+            name: s.name,
+            live: s.live,
+            protocol: s.protocol,
+            video: s.video,
+            audio: s.audio,
+            converting: s.converting,
+            convertError: s.convertError,
+            play: s.play,
+          })),
+        }
+      : null;
+    const sig = JSON.stringify([struct, openKey, qrMode, [...conns.keys()]]);
+    if (!force && sig === lastSig) {
+      for (const s of info?.sources || []) {
+        const el = m.querySelector(`[data-key="${s.key}"] .ing-meta-txt`);
+        if (el) el.textContent = metaText(s);
+      }
+      return;
+    }
     lastSig = sig;
     const on = !!info?.enabled;
     $('#ing-status', m).innerHTML = statusPill();

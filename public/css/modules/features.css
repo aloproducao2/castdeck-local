@@ -95,6 +95,18 @@
 .out-act [data-out-copy] span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .out-act [data-out-open] { flex: none; }
 .out-act .btn svg { width: 14px; height: 14px; }
+.out-stream-box { margin: 10px 0 12px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--bg-2); display: flex; flex-direction: column; gap: 8px; }
+.out-stream-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.out-stream-head strong { display: block; font-size: 13px; margin-bottom: 2px; }
+.out-stream-head .hint { display: block; font-size: 11.5px; margin: 0; }
+.out-stream-status { font-size: 11.5px; font-weight: 700; color: var(--text-2); }
+.out-stream-status.on { color: hsl(145 70% 60%); }
+.out-stream-links { display: grid; gap: 6px; }
+.out-srow { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.out-proto { flex: none; min-width: 54px; font-size: 11px; font-weight: 700; color: var(--text-1); background: var(--bg-1); border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px; text-align: center; }
+.out-srow code { flex: 1; min-width: 0; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 4px 6px; background: var(--bg-0); border-radius: 5px; color: var(--text-1); }
+.out-srow .btn { flex: none; padding: 4px 8px; font-size: 11px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+.out-srow .btn svg { width: 12px; height: 12px; }
 /* =====================================================================
    Mesa de corte (modo OBS/vMix/ATEM): PRÉVIA | transição | PROGRAMA lado a lado + barra de fontes
    Cores de qualquer mesa broadcast: vermelho = no ar, verde = prévia.
@@ -676,12 +688,16 @@ html.fs-idle { cursor: none; }
 .selfview.talking { border-color: var(--ok); box-shadow: var(--shadow), 0 0 0 3px hsl(150 65% 46% / .3); }
 .selfview.onstage { border-color: var(--accent); box-shadow: var(--shadow), 0 0 0 2px var(--accent-soft); }
 .selfview.onair { border-color: var(--live); box-shadow: var(--shadow), 0 0 0 2px hsl(354 85% 57% / .4); }
-.self-toggle { position: absolute; top: 6px; right: 6px; z-index: 5; width: 22px; height: 22px; border-radius: 50%; border: 0; background: hsl(240 30% 5% / .65); backdrop-filter: blur(4px); color: var(--text-1); cursor: pointer; display: grid; place-items: center; opacity: 0; transition: opacity .15s, background .15s; }
-.self-flip { right: 32px; }
+.self-toggle { position: absolute; top: 6px; right: 6px; z-index: 5; width: 24px; height: 24px; border-radius: 50%; border: 0; background: hsl(240 30% 5% / .72); backdrop-filter: blur(4px); color: var(--text-1); cursor: pointer; display: grid; place-items: center; opacity: 0; transition: opacity .15s, background .15s, transform .15s; }
+.self-flip { right: 34px; width: 28px; height: 28px; top: 4px; opacity: .92; border: 1px solid hsl(0 0% 100% / .16); }
+.self-flip svg { width: 14px; height: 14px; }
 .selfview:hover .self-toggle, .selfview.minimized .self-toggle { opacity: 1; }
-@media (hover: none), (pointer: coarse) { .selfview .self-flip { opacity: .9; } }
+@media (hover: none), (pointer: coarse) { .selfview .self-flip { opacity: .96; } }
 .self-toggle:hover { background: var(--bg-4); color: #fff; }
 .self-toggle svg { width: 12px; height: 12px; }
+.self-flip svg { width: 14px; height: 14px; }
+.is-flipping svg { animation: cd-flip-spin .65s linear infinite; }
+@keyframes cd-flip-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .selfview.minimized { width: auto; aspect-ratio: auto; border-radius: 99px; padding: 4px 10px 4px 8px; background: hsl(240 25% 8% / .88); backdrop-filter: blur(8px); cursor: pointer; }
 .selfview.minimized video, .selfview.minimized .self-off, .selfview.minimized .self-flip { display: none; }
 .selfview.minimized .self-tag { position: static; }

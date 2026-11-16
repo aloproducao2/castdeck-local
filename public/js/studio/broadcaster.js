@@ -34,7 +34,7 @@ export class Broadcaster extends EventTarget {
     this.dispatchEvent(new CustomEvent(type, { detail }));
   }
 
-  start({ studioId, stream, destinationIds, record, preset, presetInfo, encoder, vertical, videoKbps }) {
+  start({ studioId, stream, destinationIds, record, localOut, preset, presetInfo, encoder, vertical, videoKbps }) {
     return new Promise((resolve, reject) => {
       const mime = pickMime();
       if (!mime) return reject(new Error('Este navegador não suporta MediaRecorder com WebM.'));
@@ -44,7 +44,7 @@ export class Broadcaster extends EventTarget {
       let started = false;
 
       const targetKbps = videoKbps || presetInfo?.videoKbps;
-      ws.onopen = () => ws.send(JSON.stringify({ type: 'start', studioId, destinationIds, record, preset, encoder, mime, vertical: !!vertical, videoKbps: targetKbps }));
+      ws.onopen = () => ws.send(JSON.stringify({ type: 'start', studioId, destinationIds, record, localOut: !!localOut, preset, encoder, mime, vertical: !!vertical, videoKbps: targetKbps }));
       ws.onerror = () => !started && reject(new Error('Não foi possível conectar ao servidor local de transmissão.'));
       ws.onclose = () => {
         this.stopRecorder();
@@ -142,6 +142,18 @@ export class Broadcaster extends EventTarget {
   stopRecord() {
     if (this.ws?.readyState === 1) {
       this.ws.send(JSON.stringify({ type: 'stop-record' }));
+    }
+  }
+
+  startLocal() {
+    if (this.ws?.readyState === 1) {
+      this.ws.send(JSON.stringify({ type: 'start-local' }));
+    }
+  }
+
+  stopLocal() {
+    if (this.ws?.readyState === 1) {
+      this.ws.send(JSON.stringify({ type: 'stop-local' }));
     }
   }
 

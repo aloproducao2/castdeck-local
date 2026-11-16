@@ -79,7 +79,7 @@ dependencies = [
 
 [[package]]
 name = "castdeck-launcher"
-version = "1.8.5"
+version = "1.8.6"
 dependencies = [
  "muda",
  "open",

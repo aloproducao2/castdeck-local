@@ -164,7 +164,7 @@ class Output extends EventEmitter {
 }
 
 export class Broadcast extends EventEmitter {
-  constructor({ ffmpegPath, recordingsDir, studio, destinations, record, presetId, encoder, inputMime, vertical, videoKbps, audioKbps }) {
+  constructor({ ffmpegPath, recordingsDir, studio, destinations, record, localUrl = null, presetId, encoder, inputMime, vertical, videoKbps, audioKbps }) {
     super();
     this.ffmpegPath = ffmpegPath;
     this.recordingsDir = recordingsDir;
@@ -195,6 +195,9 @@ export class Broadcast extends EventEmitter {
       if (!/^rtmps?:\/\//i.test(url) && !/^srt:\/\//i.test(url)) continue;
       this.outputs.push(new Output({ id: d.id, name: d.name, kind: 'rtmp', url, ffmpegPath }));
     }
+    if (localUrl) {
+      this.outputs.push(new Output({ id: 'local-pgm', name: 'Saída local (RTMP/SRT/WebRTC)', kind: 'local', url: localUrl, ffmpegPath }));
+    }
     if (record) {
       const recDir = typeof recordingsDir === 'function' ? recordingsDir() : recordingsDir;
       fs.mkdirSync(recDir, { recursive: true });
@@ -204,6 +207,35 @@ export class Broadcast extends EventEmitter {
       this.outputs.at(-1).on('recorded', (files) => files.forEach((f) => finalizeRecording(ffmpegPath, f)));
     }
     if (!this.outputs.length) throw new Error('Nenhum destino válido nem gravação selecionados.');
+  }
+
+  addLocalOutput(localUrl) {
+    if (this.ended || !localUrl) return null;
+    const existing = this.outputs.find((o) => o.kind === 'local' && !o.stopped);
+    if (existing) return existing;
+    const out = new Output({
+      id: 'local-pgm',
+      name: 'Saída local (RTMP/SRT/WebRTC)',
+      kind: 'local',
+      url: localUrl,
+      ffmpegPath: this.ffmpegPath,
+    });
+    out.on('change', () => this.emit('status'));
+    out.start();
+    this.outputs.push(out);
+    console.log(`[broadcast] ${this.studio.name}: saída local RTMP/SRT/WebRTC iniciada -> ${localUrl}`);
+    this.emit('status');
+    return out;
+  }
+
+  stopLocalOutput() {
+    const locals = this.outputs.filter((o) => o.kind === 'local' && !o.stopped);
+    for (const l of locals) l.end();
+    this.outputs = this.outputs.filter((o) => o.kind !== 'local' || !o.stopped);
+    this.emit('status');
+    if (!this.outputs.some((o) => !o.stopped)) {
+      this.stop();
+    }
   }
 
   addRecordOutput() {
@@ -372,6 +404,7 @@ export class Broadcast extends EventEmitter {
     const activeOutputs = this.outputs.filter((o) => !o.stopped);
     const isRecording = activeOutputs.some((o) => o.kind === 'record');
     const isStreaming = activeOutputs.some((o) => o.kind === 'rtmp');
+    const isLocalOutput = activeOutputs.some((o) => o.kind === 'local');
     return {
       type: 'status',
       vertical: this.vertical,
@@ -385,17 +418,30 @@ export class Broadcast extends EventEmitter {
       backlog: this.backlog,
       isRecording,
       isStreaming,
+      isLocalOutput,
       outputs: this.outputs.map((o) => o.status()),
     };
   }
 }
 
 export class BroadcastManager {
-  constructor({ ffmpegInfo, recordingsDir, store }) {
+  constructor({ ffmpegInfo, recordingsDir, store, ingest = null }) {
     this.ffmpegInfo = ffmpegInfo;
     this.recordingsDir = recordingsDir;
     this.store = store;
+    this.ingest = ingest;
     this.active = new Map(); // studioId -> Broadcast
+  }
+
+  localOutputUrl(vertical = false) {
+    const port = this.ingest?.info?.().ports?.rtmp || 1935;
+    return `rtmp://127.0.0.1:${port}/${vertical ? 'out-vpgm' : 'out-pgm'}`;
+  }
+
+  syncLocalOutIngest() {
+    if (!this.ingest?.setLocalOut) return;
+    const anyLocal = [...this.active.values()].some((b) => !b.ended && b.outputs.some((o) => o.kind === 'local' && !o.stopped));
+    if (!anyLocal) this.ingest.setLocalOut(false).catch(() => {});
   }
 
   // Cada conexão em /ingest é uma transmissão. 1ª mensagem (texto) = config; depois, binário = webm.
@@ -412,7 +458,7 @@ export class BroadcastManager {
       } catch {}
     };
 
-    ws.on('message', (data, isBinary) => {
+    ws.on('message', async (data, isBinary) => {
       if (isBinary) {
         if (!bc) return;
         const ok = bc.write(data);
@@ -436,6 +482,14 @@ export class BroadcastManager {
       if (msg.type === 'start') {
         if (bc) {
           if (msg.record) bc.addRecordOutput();
+          if (msg.localOut) {
+            try {
+              await this.ingest?.setLocalOut(true);
+              bc.addLocalOutput(this.localOutputUrl(bc.vertical));
+            } catch (e) {
+              send({ type: 'error', message: e.message });
+            }
+          }
           if (msg.destinationIds?.length) {
             const destinations = msg.destinationIds.map((id) => this.store.getDestination(id)).filter(Boolean);
             bc.addDestinations(destinations);
@@ -449,6 +503,15 @@ export class BroadcastManager {
         const key = studio.id + (vertical ? ':v' : '');
         if (this.active.has(key)) return send({ type: 'error', message: vertical ? 'A saída vertical deste estúdio já está ativa.' : 'Este estúdio já está transmitindo.' });
         const destinations = (msg.destinationIds || []).map((id) => this.store.getDestination(id)).filter(Boolean);
+        let localUrl = null;
+        if (msg.localOut) {
+          try {
+            await this.ingest?.setLocalOut(true);
+            localUrl = this.localOutputUrl(vertical);
+          } catch (e) {
+            return send({ type: 'error', message: e.message });
+          }
+        }
         const encoderOk = msg.encoder === 'libx264' || this.ffmpegInfo.encoders.some((e) => e.id === msg.encoder);
         try {
           bc = new Broadcast({
@@ -457,6 +520,7 @@ export class BroadcastManager {
             studio,
             destinations,
             record: !!msg.record,
+            localUrl,
             presetId: msg.preset,
             encoder: encoderOk ? msg.encoder : 'libx264',
             inputMime: msg.mime,
@@ -464,6 +528,7 @@ export class BroadcastManager {
             videoKbps: msg.videoKbps,
           });
         } catch (e) {
+          if (localUrl) this.syncLocalOutIngest();
           return send({ type: 'error', message: e.message });
         }
         this.active.set(key, bc);
@@ -471,6 +536,7 @@ export class BroadcastManager {
         bc.on('ended', () => {
           clearInterval(statusTimer);
           if (this.active.get(key) === bc) this.active.delete(key);
+          this.syncLocalOutIngest();
           send({ ...bc.status(), type: 'ended' });
           setTimeout(() => ws.readyState === 1 && ws.close(1000, 'ended'), 200);
         });
@@ -481,6 +547,19 @@ export class BroadcastManager {
         bc?.addRecordOutput();
       } else if (msg.type === 'stop-record') {
         bc?.stopRecordOutput();
+      } else if (msg.type === 'start-local') {
+        if (!bc) return;
+        try {
+          await this.ingest?.setLocalOut(true);
+          bc.addLocalOutput(this.localOutputUrl(bc.vertical));
+          send(bc.status());
+        } catch (e) {
+          send({ type: 'error', message: e.message });
+        }
+      } else if (msg.type === 'stop-local') {
+        bc?.stopLocalOutput();
+        this.syncLocalOutIngest();
+        if (bc) send(bc.status());
       } else if (msg.type === 'start-destinations') {
         const destinations = (msg.destinationIds || []).map((id) => this.store.getDestination(id)).filter(Boolean);
         bc?.addDestinations(destinations);

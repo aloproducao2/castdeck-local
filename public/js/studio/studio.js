@@ -53,7 +53,7 @@ const MOBILE_MQ = matchMedia('(max-width: 700px), (orientation: landscape) and (
 const studioId = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '');
 const app = $('#app');
 // idioma escolhido no estúdio também vale para o painel, o launcher e a notificação do Android
-window.CD_I18N_ONSET = (l) => api('/settings', { method: 'PUT', body: { lang: l } }).catch(() => {});
+window.CD_I18N_ONSET = (l) => api('/settings', { method: 'PUT', body: { lang: l } }).catch(() => { });
 
 const safeCopy = () => ({
   title: window.CDi18n?.t?.('Voltamos em instantes') || 'Voltamos em instantes',
@@ -82,7 +82,7 @@ const S = {
   bsOrder: (() => { try { return JSON.parse(localStorage.getItem('cd.bs.order') || '[]'); } catch { return []; } })(),
   bsGroup: (() => { try { return localStorage.getItem('cd.bs.group') === 'type' ? 'type' : 'free'; } catch { return 'free'; } })(),
   bsGroupsCollapsed: (() => { try { return JSON.parse(localStorage.getItem('cd.bs.collapsed') || '[]'); } catch { return []; } })(),
-  bsGroupOrder: (() => { try { const v = JSON.parse(localStorage.getItem('cd.bs.groupOrder') || '[]'); return Array.isArray(v) && v.length ? v : ['camera','guest','ingest','screen','media','browser','image','other']; } catch { return ['camera','guest','ingest','screen','media','browser','image','other']; } })(),
+  bsGroupOrder: (() => { try { const v = JSON.parse(localStorage.getItem('cd.bs.groupOrder') || '[]'); return Array.isArray(v) && v.length ? v : ['camera', 'guest', 'ingest', 'screen', 'media', 'browser', 'image', 'other']; } catch { return ['camera', 'guest', 'ingest', 'screen', 'media', 'browser', 'image', 'other']; } })(),
   banners: [],
   gcTemplates: [],
   activeBanner: null,
@@ -130,7 +130,7 @@ let ytLastUrl = '';
 let ytCollapsed = false;
 try {
   ytCollapsed = localStorage.getItem('castdeck.ytdl.collapsed') === '1';
-} catch {}
+} catch { }
 let replayEngine; // motor sob demanda de Replay & VAR (buffer circular em RAM e playout)
 let captions; // legenda ao vivo (aba Legendas): na tela (PGM) e por link /cc
 let music; // trilha sonora ambiente (aba Trilha), independente do Playout
@@ -199,7 +199,7 @@ const TAB_GROUPS = [
   { id: 'director', label: 'Diretor', icon: 'auto', hint: 'Diretor automático: corta ou destaca quem fala e abaixa a música quando alguém fala', tabs: [['director', 'Diretor', 'auto', 'Corte automático e áudio inteligente']] },
   { id: 'audio', label: 'Áudio', icon: 'mixer', hint: 'Mixer, trilha sonora e intercom de produção', tabs: [['audio', 'Mixer', 'mixer', 'Volume de cada fonte'], ['music', 'Trilha', 'music', 'Trilha sonora ambiente: lista de áudios, loop e volume'], ['intercom', 'Intercom', 'mic', 'Intercom do diretor com câmeras e repórteres']] },
   { id: 'captions', label: 'Legendas', icon: 'cc', hint: 'Legenda ao vivo da fala: na tela (PGM) e por link, com tradução opcional', tabs: [['captions', 'Legendas', 'cc', 'Legenda ao vivo: na tela e por link']] },
-  { id: 'outputs', label: 'Sinais', icon: 'signal', hint: 'Sinais para OBS/vMix e saída NDI do programa', tabs: [['outputs', 'Sinais', 'signal', 'Sinais separados para OBS e vMix: programa horizontal, vertical e cada pessoa'], ...(IS_MOBILE ? [] : [['ndi', 'NDI', 'signal', 'Saída NDI do programa']])] },
+  { id: 'outputs', label: 'Sinais', icon: 'signal', hint: 'Sinais para OBS/vMix, saída NDI e gravação Multi-Rec', tabs: [['outputs', 'Sinais', 'signal', 'Sinais separados para OBS e vMix: programa horizontal, vertical e cada pessoa'], ...(IS_MOBILE ? [] : [['ndi', 'NDI', 'signal', 'Saída NDI do programa']]), ['multirec', 'Multi-Rec', 'record', 'Multi-Rec: grave cada câmera, convidado ou fonte em arquivo separado (ISO)']] },
   {
     id: 'setup',
     label: 'Ajustes',
@@ -377,7 +377,10 @@ async function buildStudio() {
       <button class="btn mode-pill vertical-top" id="btn-vertical" title="Painel de vídeo vertical 9:16 (Instagram, TikTok, Reels, Shorts) ao lado do preview" aria-pressed="false">${VERT_ICON}<span>9:16 Vertical</span></button>
       <button class="btn autoplay" id="btn-autoplay" type="button" aria-pressed="true" title="Auto play de vídeos ao entrar no PGM ou ao colocar no palco">${icons.play}<span class="auto-dot"></span><span class="lbl">Auto play</span><span class="auto-state">ON</span></button>
       ${S.system.platform === 'android' ? '' : `<button class="btn ready-chip" id="btn-ready" type="button" title="Ver o que está pronto para ir ao vivo" aria-haspopup="dialog"><span class="ready-dot" aria-hidden="true"></span><span class="ready-lbl">Pronto</span><b id="ready-score">—</b></button>`}
-      <button class="btn safe-btn" id="btn-safe" type="button" title="Cena segura: cobre o programa com a marca para uma emergência. Shift+clique ou menu Ferramentas para trocar a cartela." aria-pressed="false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg><span class="lbl">Seguro</span></button>
+      <div class="safe-top-grp">
+        <button class="btn safe-btn" id="btn-safe" type="button" title="Cena segura: cobre o programa e silencia o áudio do PGM em uma emergência." aria-pressed="false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg><span class="lbl">Seguro</span></button>
+        <button class="btn safe-cfg-btn" id="btn-safe-cfg" type="button" title="Personalizar cartela Seguro (enviar PNG, cores e textos)" aria-label="Personalizar cartela Seguro">⚙</button>
+      </div>
       ${IS_MOBILE || S.system.platform === 'android' ? '' : `<button class="btn ndi-top" id="btn-ndi" type="button" title="NDI: clique para ativar/desativar e abrir o painel" aria-label="NDI" aria-pressed="false"><span class="ndi-top-ico">${icons.ndi}</span><span class="ndi-top-lbl">NDI</span><span class="ndi-top-dot" aria-hidden="true"></span></button>`}
       <div class="spacer"></div>
       ${window.CDi18n ? window.CDi18n.selectHTML({ className: 'btn', short: true, id: 'studio-lang' }) : ''}
@@ -388,27 +391,21 @@ async function buildStudio() {
       <button class="btn icon" id="btn-intercom-mini" title="Mini intercom: PTT e corte de câmeras juntos" aria-label="Mini intercom" aria-pressed="false">${icons.mic}</button>
       <button class="btn icon" id="btn-remote" title="Controle remoto no celular: leia o QR e comande a mesa de corte" aria-label="Controle remoto">${REMOTE_ICON}</button>
       <button class="btn icon" data-fs="studio" data-tip="Tela cheia do estúdio" title="Tela cheia do estúdio" aria-label="Tela cheia do estúdio">${icons.expand}</button>
-      <button class="btn icon tools-toggle" id="btn-tools" title="Ferramentas: NDI, câmeras, PTZ, remote, intercom e mais" aria-label="Ferramentas" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
+      <button class="btn tools-toggle" id="btn-tools" title="Painel de recursos: NDI, WhatsApp, Multi-Rec, Câmeras, PTZ, Intercom e Controle Remoto" aria-label="Painel de recursos" aria-expanded="false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="tools-lbl">Painel Rápido</span><span class="tools-chev" aria-hidden="true">▾</span></button>
       <button class="btn" id="btn-panel" title="Abrir painel de controle (mídia, banners, jornal...)" aria-expanded="false">Painel</button>
-      <button class="btn oa-multi" id="btn-multirec" type="button" title="Multigravação: grave cada fonte em um arquivo separado, sem alterar Gravar/Transmitir" aria-pressed="false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 9h4v6H7zM15 9h2v6h-2z"></path></svg><span class="mr-lbl">Fontes</span></button>
+      <button class="btn oa-multi" id="btn-multirec" type="button" title="Multi-Rec: grave cada câmera ou fonte em um arquivo separado (ISO), sem alterar Gravar/Transmitir" aria-pressed="false">${icons.record}<span class="mr-lbl">Multi-Rec</span></button>
       <button class="btn oa-rec" id="btn-record" title="Gravar o programa localmente em MP4 (independente da transmissão)" aria-pressed="false"><span class="oa-dot"></span><span class="lbl">Gravar</span></button>
       <button class="btn primary oa-live" id="btn-live" title="Transmitir ao vivo (independente da gravação)" aria-pressed="false">${icons.broadcast}<span class="lbl">Transmitir</span></button>
     </header>
-    <div class="tools-menu" id="tools-menu" role="dialog" aria-label="Ferramentas" tabindex="-1" hidden>
-      <div class="tools-head"><strong>Ferramentas</strong><button class="btn sm ghost icon" id="tools-close" title="Fechar (Esc)" aria-label="Fechar">✕</button></div>
+    <div class="tools-menu" id="tools-menu" role="dialog" aria-label="Painel de recursos" tabindex="-1" hidden>
+      <div class="tools-head"><div class="tools-head-t"><strong>Painel de Recursos</strong><small>NDI · WhatsApp · Multi-Rec · Câmeras</small></div><button class="btn sm ghost icon" id="tools-close" title="Fechar (Esc)" aria-label="Fechar">✕</button></div>
       <div class="tools-body" id="tools-body"></div>
-      <button class="tool-row tool-help" id="tools-panel" type="button"><span class="tool-ico">▤</span><span>Painel</span></button>
+      <button class="tool-row tool-help" id="tools-panel" type="button"><span class="tool-ico">▤</span><span>Abrir Painel de Controle</span></button>
       <button class="tool-row tool-help" id="tools-safe" type="button"><span class="tool-ico">◈</span><span>Configurar cena segura</span></button>
-      <button class="tool-row tool-help" id="tools-multirec" type="button"><span class="tool-ico">⧉</span><span>Multigravação</span></button>
       <button class="tool-row tool-help" id="tools-help" type="button"><span class="tool-ico">?</span><span>Atalhos e ajuda</span></button>
     </div>
 
     <section class="stage-wrap">
-      <div class="mode-notice" id="mode-notice" role="status" hidden>
-        <span><b>Mesa de corte</b> · este é o último modo usado neste estúdio.</span>
-        <button class="btn sm" id="mode-notice-studio" type="button">Voltar ao Estúdio</button>
-        <button class="btn sm ghost icon" id="mode-notice-close" type="button" aria-label="Fechar aviso">✕</button>
-      </div>
       <div class="stage-row" id="stage-row">
         <div class="sw-pvw-box" id="sw-pvw-box" hidden></div>
         <div class="sw-tcol" id="sw-tcol" hidden aria-label="Transição"></div>
@@ -457,9 +454,17 @@ async function buildStudio() {
     <aside class="side" id="side">
       <div class="rz rz-side" id="rz-side" role="separator" aria-orientation="vertical" title="Arraste para redimensionar o painel (duplo clique restaura)"></div>
       <div class="side-head">
-        <span class="side-title">Painel</span>
+        <span class="side-title">▤ Painel de Controle</span>
+        <span class="side-cur-badge" id="side-cur-tab">Mídia</span>
         <button class="side-mini-btn" id="btn-detach" aria-pressed="false" title="Destacar este painel em uma janela flutuante (também: duplo clique na aba)">⧉</button>
         <button class="side-mini-btn" id="btn-side-mini" aria-pressed="false" title="Recolher o painel em ícones (economiza espaço)">${SIDE_ICON}</button>
+      </div>
+      <div class="side-quick-strip" aria-label="Atalhos rápidos do painel">
+        <button type="button" class="sq-pill" data-goto-tab="banners" title="Abrir Grafismo e GCs">GC / Grafismo</button>
+        <button type="button" class="sq-pill" data-goto-tab="multirec" title="Abrir Multi-Rec (gravação ISO de fontes)">Multi-Rec</button>
+        ${IS_MOBILE ? '' : '<button type="button" class="sq-pill" data-goto-tab="ndi" title="Abrir painel NDI">NDI</button>'}
+        ${S.system.platform === 'android' ? '' : '<button type="button" class="sq-pill" data-goto-tab="whatsapp" title="Abrir WhatsApp no painel">WhatsApp</button>'}
+        <button type="button" class="sq-pill" data-goto-tab="audio" title="Abrir Mesa de Áudio">Áudio</button>
       </div>
       <nav class="grp-tabs" aria-label="Seções do painel">${TAB_GROUPS.map((g) => `<button class="grp" data-group="${g.id}" title="${esc(g.label)} — ${esc(g.hint)}">${icons[g.icon]}<span>${g.label}</span>${g.id === 'audience' ? '<i class="count chat-count" hidden></i>' : g.id === 'interaction' ? '<i class="count msg-count" hidden></i>' : g.id === 'content' ? '<i class="count gf-live-count" hidden></i>' : ''}</button>`).join('')}</nav>
       <div class="side-body" id="side-body">
@@ -490,6 +495,7 @@ async function buildStudio() {
       <div class="panel" id="panel-devices"></div>
       <div class="panel" id="panel-outputs"></div>
       <div class="panel" id="panel-ndi"></div>
+      <div class="panel" id="panel-multirec"></div>
       </div>
     </aside>
   </div>`;
@@ -506,7 +512,7 @@ async function buildStudio() {
   // efeitos de câmera (fundo virtual, enquadramento automático): motores só carregam quando usados
   vfx = new VideoFx();
   comp.vfx = vfx;
-  for (const [id, c] of Object.entries(loadPrefs().fx || {})) if (id.startsWith('host:')) vfx.set(id, c).catch(() => {});
+  for (const [id, c] of Object.entries(loadPrefs().fx || {})) if (id.startsWith('host:')) vfx.set(id, c).catch(() => { });
   applyPreset();
   // celular: a barra de baixo rola de lado; o degradê na borda direita avisa que há mais botões
   {
@@ -534,6 +540,13 @@ async function buildStudio() {
     brandColor: () => S.brand.color || '#7c5cff',
     render: () => renderBannersPanel(),
     onAir: () => renderGcBar(),
+    onSaveBanner: (item) => {
+      S.banners.push(item);
+      gcSel = item.id;
+      saveStudio();
+      renderBannersPanel();
+      toast(`GC “${item.title}” cadastrado na barra!`, 'ok');
+    },
     getGuest: () => [...S.guests.values()][0] || null,
     getHeadline: () => news.latestHeadline?.() || '',
     allowPopout: !IS_MOBILE && S.system?.platform !== 'android',
@@ -617,17 +630,17 @@ async function buildStudio() {
   // navegadores suspendem o áudio até haver interação: retoma em qualquer clique/tecla
   for (const ev of ['pointerdown', 'keydown']) window.addEventListener(ev, () => mixer.resume(), { passive: true });
   const spk = loadPrefs().speakerId;
-  if (spk) mixer.setSpeaker(spk).catch(() => {});
+  if (spk) mixer.setSpeaker(spk).catch(() => { });
   startRenderLoop();
   // Sem watchdog automático: a câmera nunca é parada sozinha. Se o track terminar/mutar,
   // o usuário recebe o botão "Reabrir câmera" e o áudio continua.
   programStream = new MediaStream([comp.canvas.captureStream().getVideoTracks()[0], mixer.programTrack]);
-  multiRec = createMultiRecorder({ S, $, $$, esc, toast, modal, api, studioId, getProgramStream: () => programStream, getMixer: () => mixer });
+  multiRec = createMultiRecorder({ S, $, $$, esc, toast, modal, api, studioId, getProgramStream: () => programStream, getMixer: () => mixer, openSideTab: (t) => openSideTab(t) });
   vview = new VerticalView(comp, S.system.presets[vPresetId()]);
   vview.layout = S.brand.vlayout || 'auto';
   vStream = new MediaStream([vview.track, mixer.programTrack]);
   outputs = createOutputs({ S, studioId, getSig: () => sig, getMixer: () => mixer, getStreams: () => ({ programStream, vStream }), $, $$, esc, icons, copyText, api, vNeeded: () => !!projectors?.active('vpgm') });
-  projectors = createProjectors({ S, getStreams: () => ({ programStream, vStream }), getMixer: () => mixer, $, esc, toast, modal, icons });
+  projectors = createProjectors({ S, getStreams: () => ({ programStream, vStream }), getMixer: () => mixer, getVfx: () => vfx, $, esc, toast, modal, icons });
   ndiOut = createNdiOutput({
     onStatus: ({ state, detail }) => {
       ndiState = state;
@@ -868,7 +881,7 @@ async function buildStudio() {
       openSideTab('ndi');
       renderNdiPanel();
     };
-    api('/ndi/status').then((st) => { ndiEnabled = !!st.enabled; syncNdiButton(); }).catch(() => {});
+    api('/ndi/status').then((st) => { ndiEnabled = !!st.enabled; syncNdiButton(); }).catch(() => { });
     // Reconcilia o botão com o servidor sem deixar uma falha passageira desligar o NDI.
     setInterval(async () => {
       try {
@@ -877,7 +890,7 @@ async function buildStudio() {
           ndiEnabled = st.enabled;
           syncNdiButton();
         }
-      } catch {}
+      } catch { }
     }, 8000);
   }
   $('#btn-intercom-mini').onclick = () => toggleIntercomMini();
@@ -890,6 +903,7 @@ async function buildStudio() {
       'btn-replay': 'Replay & VAR',
       'btn-ndi': 'NDI',
       'btn-whatsapp': 'WhatsApp',
+      'btn-multirec': 'Multi-Rec (gravação ISO)',
       'btn-cameras': 'Câmeras',
       'btn-ptz': 'PTZ',
       'btn-intercom-mini': 'Intercom',
@@ -897,7 +911,7 @@ async function buildStudio() {
     };
     const body = $('#tools-body');
     if (!body) return;
-    const sepAfter = new Set(['btn-whatsapp', 'btn-remote']);
+    const sepAfter = new Set(['btn-multirec', 'btn-remote']);
     for (const [id, label] of Object.entries(labels)) {
       const btn = document.getElementById(id);
       if (!btn) continue;
@@ -968,12 +982,18 @@ async function buildStudio() {
     };
     $('#tools-panel').onclick = () => {
       set(false);
-      $('#btn-panel')?.click();
+      const st = $('.studio');
+      if (st?.classList.contains('side-mini')) setSideMini(false);
+      else $('.studio')?.classList.add('panel-open');
+      syncPanelState?.();
     };
     $('#tools-safe').onclick = () => {
       set(false);
       openSafeConfig();
     };
+    body.addEventListener('click', (e) => {
+      if (e.target.closest('button')) set(false);
+    });
     document.addEventListener('pointerdown', (e) => {
       if (menu.hidden) return;
       if (!menu.contains(e.target) && !toggle.contains(e.target)) set(false);
@@ -1157,81 +1177,213 @@ async function buildStudio() {
     const btn = $('#btn-deck');
     if (!wrap || !btn) return;
     let collapsed = false;
-    try { collapsed = localStorage.getItem('castdeck.deckCollapsed') === '1'; } catch {}
+    try { collapsed = localStorage.getItem('castdeck.deckCollapsed') === '1'; } catch { }
     wrap.classList.toggle('deck-collapsed', collapsed);
     btn.setAttribute('aria-expanded', String(!collapsed));
     btn.querySelector('span:last-child').textContent = collapsed ? 'Abrir deck' : 'Recolher deck';
     btn.querySelector('.deck-chev').textContent = collapsed ? '▸' : '▾';
   }
 
+  let safeOn = false;
+  function setSafeMode(next, { silent = false } = {}) {
+    safeOn = !!next;
+    comp.safe = safeOn;
+    mixer.setSafeMuted(safeOn);
+    $('#btn-safe')?.classList.toggle('on', safeOn);
+    $('#btn-safe')?.setAttribute('aria-pressed', String(safeOn));
+    if (!silent) {
+      toast(safeOn ? 'Cena segura ativada: o programa e o áudio do PGM estão cobertos.' : 'Cena segura desativada: áudio do PGM restaurado.', safeOn ? 'warn' : 'ok');
+    }
+  }
+
   function openSafeConfig() {
     const fallback = safeCopy();
-    const initial = { ...(S.brand.safe || {}) };
+    const deleteAsset = (url) => {
+      if (/^\/api\/dsk\/assets\//.test(String(url || ''))) {
+        fetch(url, { method: 'DELETE' }).catch(() => { });
+      }
+    };
     const apply = (patch) => {
       const next = { ...(S.brand.safe || {}), ...patch };
       setBrand({ safe: next });
       saveStudio();
+      if (tabOpen('brand')) renderBrandPanel();
     };
     const previewHTML = () => {
       const s = S.brand.safe || {};
-      const title = s.title || fallback.title;
-      const sub = s.subtitle || fallback.subtitle;
-      if (s.image) {
-        return `<div class="safe-prev has-img"><img src="${s.image}" alt="" style="object-fit:${s.fit === 'contain' ? 'contain' : 'cover'}">${s.showText ? `<div class="safe-prev-txt"><b>${esc(title)}</b><small>${esc(sub)}</small></div>` : ''}</div>`;
-      }
+      const title = s.title !== undefined ? s.title : fallback.title;
+      const sub = s.subtitle !== undefined ? s.subtitle : fallback.subtitle;
+      const badge = String(s.badge || '').trim();
+      const showText = s.image ? s.showText === true : s.showText !== false;
+      const showLogo = (!s.image && s.showLogo !== false) || (s.image && s.showLogo === true);
+      const bgMode = s.bgMode || 'project';
       const bg = S.brand.background || {};
-      const style = bg.type === 'image' ? `background-image:url('${bg.value}');background-size:cover;background-position:center;` : bg.type === 'color' ? `background:${bg.value};` : '';
-      const logo = S.brand.logo ? `<img class="safe-prev-logo" src="${S.brand.logo}" alt="">` : '';
-      return `<div class="safe-prev" style="${style}">${logo}<div class="safe-prev-txt"><b>${esc(title)}</b><small>${esc(sub)}</small></div></div>`;
+      let style = '';
+      if (bgMode === 'solid') style = `background:${s.bgColor || '#0b0f1e'};`;
+      else if (bgMode === 'gradient') style = `background:linear-gradient(135deg, ${s.bgColor || S.brand.color || '#7c5cff'}, ${s.bgColor2 || '#090d1a'});`;
+      else if (bg.type === 'image') style = `background-image:url('${bg.value}');background-size:cover;background-position:center;`;
+      else if (bg.type === 'color') style = `background:${bg.value};`;
+      const fit = s.fit || 'cover';
+      const fitCls = fit === 'contain' ? 'fit-contain' : fit === 'center' ? 'fit-center' : 'fit-cover';
+      const pos = s.textPos || (s.image && fit === 'center' ? 'bottom' : 'center');
+      const posCls = pos === 'top' ? 'pos-top' : pos === 'bottom' ? 'pos-bottom' : 'pos-center';
+      const txtCol = s.textColor || '#ffffff';
+      const accentCol = s.accentColor || S.brand.color || '#7c5cff';
+      const logo = showLogo && S.brand.logo ? `<img class="safe-prev-logo" src="${S.brand.logo}" alt="">` : '';
+      const imgHtml = s.image ? `<img class="safe-prev-img ${fitCls}" src="${s.image}" alt="">` : '';
+      const txtHtml = showText
+        ? `<div class="safe-prev-txt ${posCls}" style="color:${esc(txtCol)}">
+             ${badge ? `<span class="safe-prev-badge" style="background:${esc(accentCol)}"><i></i>${esc(badge)}</span>` : ''}
+             ${title ? `<b>${esc(title)}</b>` : ''}
+             ${sub ? `<small style="color:${esc(txtCol)}">${esc(sub)}</small>` : ''}
+           </div>`
+        : '';
+      return `<div class="safe-prev ${s.image ? 'has-img' : ''}" style="${style}">${imgHtml}${logo}${txtHtml}</div>`;
     };
     modal(`<div class="safe-config">
-      <div class="safe-config-head"><div><h3>Cena segura</h3><p class="sub">A cartela que cobre o programa em uma emergência. Pode ser uma imagem pronta ou um logo sobre a marca.</p></div></div>
-      <div class="safe-config-grid">
-        <div class="safe-prev-wrap"><span class="safe-prev-lbl">Prévia</span><div id="safe-prev">${previewHTML()}</div></div>
-        <div class="safe-config-fields">
-          <div class="safe-actions-row">
-            <button class="btn sm primary" type="button" id="safe-upload">${icons.film}<span>Enviar imagem ou logo</span></button>
-            ${S.brand.logo ? `<button class="btn sm" type="button" id="safe-brand-logo">${icons.brand}<span>Usar logo da marca</span></button>` : ''}
-            <button class="btn sm ghost" type="button" id="safe-remove" ${S.brand.safe?.image ? '' : 'hidden'}>Usar fundo do projeto</button>
-          </div>
-          <label class="field"><span>Texto principal</span><input class="input" id="safe-title" maxlength="80" value="${esc(S.brand.safe?.title || fallback.title)}" placeholder="${esc(fallback.title)}"></label>
-          <label class="field"><span>Texto de apoio</span><input class="input" id="safe-sub" maxlength="120" value="${esc(S.brand.safe?.subtitle || fallback.subtitle)}" placeholder="${esc(fallback.subtitle)}"></label>
-          <div class="safe-row">
-            <label class="check"><input type="checkbox" id="safe-showtext" ${S.brand.safe?.showText ? 'checked' : ''}> <span>Mostrar texto sobre a imagem</span></label>
-            <label class="field safe-fit"><span>Imagem</span><select class="input" id="safe-fit"><option value="cover" ${(S.brand.safe?.fit || 'cover') === 'cover' ? 'selected' : ''}>Preencher a tela</option><option value="contain" ${S.brand.safe?.fit === 'contain' ? 'selected' : ''}>Ajustar sem cortar</option></select></label>
-          </div>
-          <p class="hint">Sem imagem, usamos o fundo e o logo atuais do projeto.</p>
+      <div class="safe-config-head">
+        <div>
+          <h3>Cartela Seguro</h3>
+          <p class="sub">Personalize textos, cores ou envie um PNG (inclusive transparente) que cobre o programa em emergências e pausas.</p>
         </div>
       </div>
-      <div class="modal-actions"><button class="btn primary" type="button" data-close>Fechar</button></div>
+      <div class="safe-config-grid">
+        <div class="safe-prev-wrap">
+          <span class="safe-prev-lbl">Prévia ao vivo <small>(arraste um PNG aqui)</small></span>
+          <div id="safe-prev" class="safe-prev-drop">${previewHTML()}</div>
+        </div>
+        <div class="safe-config-fields">
+          <div class="safe-actions-row">
+            <button class="btn sm primary" type="button" id="safe-upload">${icons.film}<span>Enviar PNG / Imagem</span></button>
+            ${S.brand.logo ? `<button class="btn sm" type="button" id="safe-brand-logo">${icons.brand}<span>Usar logo</span></button>` : ''}
+            <button class="btn sm ghost" type="button" id="safe-remove" ${S.brand.safe?.image ? '' : 'hidden'}>Remover imagem</button>
+          </div>
+          <div class="safe-row">
+            <label class="field grow"><span>Fundo da cartela</span>
+              <select class="input" id="safe-bgmode">
+                <option value="project" ${(S.brand.safe?.bgMode || 'project') === 'project' ? 'selected' : ''}>Fundo do estúdio</option>
+                <option value="gradient" ${S.brand.safe?.bgMode === 'gradient' ? 'selected' : ''}>Gradiente próprio</option>
+                <option value="solid" ${S.brand.safe?.bgMode === 'solid' ? 'selected' : ''}>Cor sólida</option>
+              </select>
+            </label>
+            <label class="field safe-fit"><span>Encaixe do PNG</span>
+              <select class="input" id="safe-fit">
+                <option value="cover" ${(S.brand.safe?.fit || 'cover') === 'cover' ? 'selected' : ''}>Preencher 16:9</option>
+                <option value="contain" ${S.brand.safe?.fit === 'contain' ? 'selected' : ''}>Ajustar inteiro (PNG transp.)</option>
+                <option value="center" ${S.brand.safe?.fit === 'center' ? 'selected' : ''}>Destaque central</option>
+              </select>
+            </label>
+          </div>
+          <div class="safe-colors-row" id="safe-colors-row" ${(S.brand.safe?.bgMode || 'project') === 'project' ? 'hidden' : ''}>
+            <label class="field"><span>Cor 1</span><input class="safe-col-in" type="color" id="safe-bgcolor" value="${esc(S.brand.safe?.bgColor || S.brand.color || '#7c5cff')}"></label>
+            <label class="field" id="safe-bg2-wrap" ${S.brand.safe?.bgMode === 'solid' ? 'hidden' : ''}><span>Cor 2</span><input class="safe-col-in" type="color" id="safe-bgcolor2" value="${esc(S.brand.safe?.bgColor2 || '#090d1a')}"></label>
+            <label class="field"><span>Texto</span><input class="safe-col-in" type="color" id="safe-textcolor" value="${esc(S.brand.safe?.textColor || '#ffffff')}"></label>
+            <label class="field"><span>Selo</span><input class="safe-col-in" type="color" id="safe-accent" value="${esc(S.brand.safe?.accentColor || S.brand.color || '#7c5cff')}"></label>
+          </div>
+          <div class="safe-row">
+            <label class="check"><input type="checkbox" id="safe-showtext" ${(S.brand.safe?.image ? S.brand.safe?.showText === true : S.brand.safe?.showText !== false) ? 'checked' : ''}> <span>Mostrar textos</span></label>
+            ${S.brand.logo ? `<label class="check"><input type="checkbox" id="safe-showlogo" ${(S.brand.safe?.image ? S.brand.safe?.showLogo === true : S.brand.safe?.showLogo !== false) ? 'checked' : ''}> <span>Mostrar logo</span></label>` : ''}
+          </div>
+          <div id="safe-text-fields">
+            <div class="safe-row">
+              <label class="field grow"><span>Etiqueta / selo (opcional)</span><input class="input" id="safe-badge" maxlength="28" value="${esc(S.brand.safe?.badge || '')}" placeholder="Ex.: VOLTAMOS JÁ"></label>
+              <label class="field safe-fit"><span>Posição do texto</span>
+                <select class="input" id="safe-textpos">
+                  <option value="center" ${(S.brand.safe?.textPos || 'center') === 'center' ? 'selected' : ''}>Centro</option>
+                  <option value="bottom" ${S.brand.safe?.textPos === 'bottom' ? 'selected' : ''}>Embaixo</option>
+                  <option value="top" ${S.brand.safe?.textPos === 'top' ? 'selected' : ''}>Em cima</option>
+                </select>
+              </label>
+            </div>
+            <label class="field"><span>Título principal</span><input class="input" id="safe-title" maxlength="80" value="${esc(S.brand.safe?.title !== undefined ? S.brand.safe.title : fallback.title)}" placeholder="${esc(fallback.title)}"></label>
+            <label class="field"><span>Subtítulo / mensagem</span><input class="input" id="safe-sub" maxlength="120" value="${esc(S.brand.safe?.subtitle !== undefined ? S.brand.safe.subtitle : fallback.subtitle)}" placeholder="${esc(fallback.subtitle)}"></label>
+          </div>
+          <p class="hint">Aceita PNG com fundo transparente, JPEG ou WebP. Quando ativo no botão Seguro, cobre o programa e silencia o áudio.</p>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ${safeOn ? 'danger' : ''}" type="button" id="safe-toggle-live">${safeOn ? '⏹ Tirar do PGM' : '▶ Testar no PGM'}</button>
+        <span class="grow"></span>
+        <button class="btn primary" type="button" data-close>Fechar</button>
+      </div>
     </div>`, {
       onMount(m) {
-        const repaint = () => { $('#safe-prev', m).innerHTML = previewHTML(); $('#safe-remove', m).hidden = !S.brand.safe?.image; };
+        const repaint = () => {
+          $('#safe-prev', m).innerHTML = previewHTML();
+          $('#safe-remove', m).hidden = !S.brand.safe?.image;
+          const mode = S.brand.safe?.bgMode || 'project';
+          $('#safe-colors-row', m).hidden = mode === 'project';
+          $('#safe-bg2-wrap', m).hidden = mode === 'solid';
+        };
         const update = (patch) => { apply(patch); repaint(); };
-        $('#safe-upload', m).onclick = async () => {
-          const file = await pickFile('image/*');
+        const uploadFile = async (file) => {
           if (!file) return;
-          if (file.size > 40 * 1024 * 1024) return toast('Imagem muito grande (máx. 40 MB)', 'err');
-          const type = /png|webp|svg/i.test(file.type) ? 'image/png' : 'image/jpeg';
+          if (!/^image\//.test(file.type) && !/\.(png|jpe?g|webp|gif|svg|bmp|avif)$/i.test(file.name)) {
+            return toast('Escolha um arquivo de imagem (PNG, JPEG, WebP ou GIF)', 'err');
+          }
           try {
-            const data = await readImage(file, 1800, type);
-            update({ image: data, fit: S.brand.safe?.fit || 'cover', showText: false });
-            toast('Imagem da cena segura atualizada', 'ok');
+            const prevUrl = S.brand.safe?.image;
+            const url = await readSafeImage(file);
+            if (!url) return;
+            const isPngLike = /png|webp|svg|gif/i.test(file.type) || /\.(png|webp|svg|gif)$/i.test(file.name);
+            update({
+              image: url,
+              fit: S.brand.safe?.fit || (isPngLike ? 'contain' : 'cover'),
+              showText: !!$('#safe-showtext', m)?.checked,
+            });
+            if (prevUrl && prevUrl !== url) deleteAsset(prevUrl);
+            toast('Imagem da cartela Seguro atualizada!', 'ok');
           } catch (e) {
             toast('Não foi possível usar esta imagem: ' + e.message, 'err');
           }
         };
+        $('#safe-upload', m).onclick = async () => uploadFile(await pickFile('image/*'));
+        const dropZone = $('#safe-prev', m);
+        dropZone.addEventListener('dragover', (e) => {
+          if (![...(e.dataTransfer?.types || [])].includes('Files')) return;
+          e.preventDefault();
+          dropZone.classList.add('drop-over');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drop-over'));
+        dropZone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          dropZone.classList.remove('drop-over');
+          const f = [...(e.dataTransfer?.files || [])].find((x) => /^image\//.test(x.type) || /\.(png|jpe?g|webp|gif|svg|bmp|avif)$/i.test(x.name));
+          if (f) uploadFile(f);
+          else toast('Solte um arquivo de imagem PNG, JPEG ou WebP', 'err');
+        });
         const brandLogo = $('#safe-brand-logo', m);
-        if (brandLogo) brandLogo.onclick = () => update({ image: S.brand.logo, fit: 'contain', showText: true });
-        $('#safe-remove', m).onclick = () => update({ image: null, showText: false });
-        const bindText = (sel, key, fallback) => {
-          const el = $(sel, m);
-          el.oninput = () => update({ [key]: el.value.trim() || fallback });
+        if (brandLogo) {
+          brandLogo.onclick = () => {
+            deleteAsset(S.brand.safe?.image);
+            update({ image: S.brand.logo, fit: 'contain', showText: true });
+            $('#safe-showtext', m).checked = true;
+            $('#safe-fit', m).value = 'contain';
+          };
+        }
+        $('#safe-remove', m).onclick = () => {
+          deleteAsset(S.brand.safe?.image);
+          update({ image: null, showText: true });
+          $('#safe-showtext', m).checked = true;
         };
-        bindText('#safe-title', 'title', fallback.title);
-        bindText('#safe-sub', 'subtitle', fallback.subtitle);
-        $('#safe-showtext', m).onchange = (e) => update({ showText: e.target.checked });
+        $('#safe-bgmode', m).onchange = (e) => update({ bgMode: e.target.value });
         $('#safe-fit', m).onchange = (e) => update({ fit: e.target.value });
+        $('#safe-bgcolor', m).oninput = (e) => update({ bgColor: e.target.value });
+        $('#safe-bgcolor2', m).oninput = (e) => update({ bgColor2: e.target.value });
+        $('#safe-textcolor', m).oninput = (e) => update({ textColor: e.target.value });
+        $('#safe-accent', m).oninput = (e) => update({ accentColor: e.target.value });
+        $('#safe-showtext', m).onchange = (e) => update({ showText: e.target.checked });
+        $('#safe-showlogo', m)?.addEventListener('change', (e) => update({ showLogo: e.target.checked }));
+        $('#safe-textpos', m).onchange = (e) => update({ textPos: e.target.value });
+        $('#safe-badge', m).oninput = (e) => update({ badge: e.target.value });
+        $('#safe-title', m).oninput = (e) => update({ title: e.target.value });
+        $('#safe-sub', m).oninput = (e) => update({ subtitle: e.target.value });
+        const liveBtn = $('#safe-toggle-live', m);
+        liveBtn.onclick = () => {
+          setSafeMode(!safeOn);
+          liveBtn.textContent = safeOn ? '⏹ Tirar do PGM' : '▶ Testar no PGM';
+          liveBtn.classList.toggle('danger', safeOn);
+        };
         repaint();
       },
     });
@@ -1243,14 +1395,10 @@ async function buildStudio() {
     $('#btn-deck')?.addEventListener('click', () => {
       const wrap = $('.stage-wrap');
       const next = !wrap.classList.contains('deck-collapsed');
-      try { localStorage.setItem('castdeck.deckCollapsed', next ? '1' : '0'); } catch {}
+      try { localStorage.setItem('castdeck.deckCollapsed', next ? '1' : '0'); } catch { }
       applyDeckState();
     });
-    let safeOn = false;
-    $('#tools-multirec')?.addEventListener('click', () => {
-      set(false);
-      multiRec?.open();
-    });
+    $('#btn-safe-cfg')?.addEventListener('click', openSafeConfig);
     $('#btn-safe')?.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       openSafeConfig();
@@ -1260,12 +1408,7 @@ async function buildStudio() {
         openSafeConfig();
         return;
       }
-      safeOn = !safeOn;
-      comp.safe = safeOn;
-      mixer.setSafeMuted(safeOn);
-      $('#btn-safe').classList.toggle('on', safeOn);
-      $('#btn-safe').setAttribute('aria-pressed', String(safeOn));
-      toast(safeOn ? 'Cena segura ativada: o programa e o áudio do PGM estão cobertos.' : 'Cena segura desativada: áudio do PGM restaurado.', safeOn ? 'warn' : 'ok');
+      setSafeMode(!safeOn);
     });
     document.addEventListener('keydown', (e) => {
       if (e.key !== '?' || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1276,19 +1419,6 @@ async function buildStudio() {
     applyDeckState();
     updateReadyChip();
     setInterval(updateReadyChip, 2500);
-    const notice = $('#mode-notice');
-    if (notice) {
-      if (S.switcher) {
-        notice.hidden = false;
-        $('#mode-notice-studio').onclick = () => {
-          switcher?.setMode(false);
-          notice.hidden = true;
-        };
-        $('#mode-notice-close').onclick = () => { notice.hidden = true; };
-      } else {
-        notice.hidden = true;
-      }
-    }
   }
 
   bindToolsAndLayout();
@@ -1373,7 +1503,7 @@ async function buildStudio() {
           renderControls();
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }
 
   initAccordions();
@@ -1392,7 +1522,7 @@ async function buildStudio() {
   initVerticalDock();
   switchTab('media');
   extras = createExtras({
-    S, studioId, api, $, $, esc, toast, modal, fmtBytes, listDevices, getCamera, getMic,
+    S, studioId, api, $, $$, esc, toast, modal, fmtBytes, listDevices, getCamera, getMic,
     mixer: () => mixer, addVideoSource, removeSource, setStage, setSolo, addMediaFile, applyName,
     toggleBanner, stopScreen, renderMediaPanel, renderAudioPanel,
     onRestoreProgress: (p) => updateRestoreStatus(p),
@@ -1418,8 +1548,8 @@ async function buildStudio() {
       finishRestoreStatus(false, e.message);
       toast('Não foi possível restaurar a sessão: ' + e.message, 'err');
     });
-  ingest.restore().catch(() => {});
-  browserSources.restore().catch(() => {});
+  ingest.restore().catch(() => { });
+  browserSources.restore().catch(() => { });
 
   window.addEventListener('beforeunload', (e) => {
     multiRec?.shutdown();
@@ -1463,10 +1593,18 @@ function setSideMini(on, { save = true } = {}) {
     p[S.switcher ? 'switcher' : 'studio'] = !!on;
     try {
       localStorage.setItem(SIDE_KEY, JSON.stringify(p));
-    } catch {}
+    } catch { }
   }
   // o palco muda de largura: compositor/monitores recalculam
   window.dispatchEvent(new Event('resize'));
+}
+function syncPanelState() {
+  const open = $('.studio')?.classList.contains('panel-open');
+  const b = $('#btn-panel');
+  if (b) {
+    b.setAttribute('aria-expanded', String(!!open));
+    b.title = open ? 'Fechar o painel de controle' : 'Abrir painel de controle (mídia, banners, jornal...)';
+  }
 }
 function applySideForMode(sw) {
   const v = sidePrefs()[sw ? 'switcher' : 'studio'];
@@ -1718,16 +1856,28 @@ function addVideoSource(id, stream, meta) {
     el.muted = true;
     el.playsInline = true;
     el.autoplay = true;
+    el.onloadedmetadata = () => el.play().catch(() => { });
+    el.onpause = () => {
+      if (!el.ended && el.srcObject && s.kind !== 'media' && s.kind !== 'image') el.play().catch(() => { });
+    };
+    el.onstalled = () => {
+      if (!el.ended && el.srcObject && s.kind !== 'media' && s.kind !== 'image') el.play().catch(() => { });
+    };
     s = { id, el, stream: null };
     S.sources.set(id, s);
   }
   applySourceAdjust(s);
   Object.assign(s, meta);
   if (s.custom) s.label = s.custom; // nome definido pelo host tem prioridade
-  if (stream !== undefined && s.stream !== stream && s.kind !== 'media' && s.kind !== 'image') {
-    s.stream = stream;
-    s.el.srcObject = stream;
-    if (stream) s.el.play().catch(() => {});
+  if (stream !== undefined && s.kind !== 'media' && s.kind !== 'image') {
+    if (s.stream !== stream) {
+      s.stream = stream;
+      s.el.srcObject = stream;
+      if (stream) s.el.play().catch(() => { });
+    } else if (stream) {
+      if (s.el.srcObject !== stream) s.el.srcObject = stream;
+      if (s.el.paused) s.el.play().catch(() => { });
+    }
   }
   comp.upsertSource(id, { kind: s.kind, label: s.label, el: s.el, camOff: s.camOff, adjust: s.adjust || null });
   if (id === 'host:cam') watchHostCamera();
@@ -1740,7 +1890,10 @@ function addVideoSource(id, stream, meta) {
 function getCameraInterface(id) {
   if (id === 'host:cam') {
     const p = loadPrefs();
-    return { videoId: p.camId || '', audioId: p.micId || '' };
+    return {
+      videoId: S.local.cam?.getVideoTracks?.()[0]?.getSettings?.().deviceId || p.camId || '',
+      audioId: S.local.mic?.getAudioTracks?.()[0]?.getSettings?.().deviceId || p.micId || '',
+    };
   }
   const c = extras?.cams?.get(id);
   return c ? { videoId: c.videoId || '', audioId: c.audioId || '' } : null;
@@ -1748,7 +1901,7 @@ function getCameraInterface(id) {
 
 async function setCameraVideoInterface(id, deviceId) {
   const src = S.sources.get(id);
-  if (src?.remoteCam) {
+  if (src?.remoteCam || (src?.ownerId && src.ownerId !== 'host')) {
     const g = S.guests.get(src.ownerId);
     if (!g || !sig) throw new Error('Câmera remota desconectada');
     sig.send({ type: 'control', to: g.id, action: 'camera-device', data: { kind: 'video', deviceId: deviceId || '' } });
@@ -1757,13 +1910,29 @@ async function setCameraVideoInterface(id, deviceId) {
   }
   if (id === 'host:cam') {
     const p = loadPrefs();
-    const stream = await getCamera(deviceId || '', p.quality || '720');
     const old = S.local.cam;
+    const prevCamId = old?.getVideoTracks?.()[0]?.getSettings?.().deviceId || p.camId || '';
+    const quality = p.quality || '720';
+    old?.getTracks().forEach((t) => t.stop());
+    let stream;
+    try {
+      stream = await getCamera(deviceId || '', quality, { strict: !!deviceId });
+    } catch (err) {
+      const rec = await getCamera(prevCamId || undefined, quality).catch(() => getCamera(undefined, '720').catch(() => null));
+      if (rec) {
+        S.local.cam = rec;
+        rec.getVideoTracks().forEach((t) => (t.enabled = S.local.camOn));
+        addVideoSource('host:cam', rec, { kind: 'camera', label: S.local.name, ownerId: 'host', camOff: !S.local.camOn });
+      } else {
+        S.local.cam = null;
+      }
+      throw err;
+    }
+    const actualId = stream.getVideoTracks?.()[0]?.getSettings?.().deviceId || deviceId || '';
     S.local.cam = stream;
     stream.getVideoTracks().forEach((t) => (t.enabled = S.local.camOn));
+    savePrefs({ camId: actualId });
     addVideoSource('host:cam', stream, { kind: 'camera', label: S.local.name, ownerId: 'host', camOff: !S.local.camOn });
-    old?.getTracks().forEach((t) => t.stop());
-    savePrefs({ camId: deviceId || '' });
     if (S.sources.has('host:screen')) addVideoSource('host:screen', undefined, { label: `Tela de ${S.local.name}` });
     return;
   }
@@ -1773,7 +1942,7 @@ async function setCameraVideoInterface(id, deviceId) {
 
 async function setCameraAudioInterface(id, deviceId) {
   const src = S.sources.get(id);
-  if (src?.remoteCam) {
+  if (src?.remoteCam || (src?.ownerId && src.ownerId !== 'host')) {
     const g = S.guests.get(src.ownerId);
     if (!g || !sig) throw new Error('Câmera remota desconectada');
     sig.send({ type: 'control', to: g.id, action: 'camera-device', data: { kind: 'audio', deviceId: deviceId || '' } });
@@ -1781,13 +1950,27 @@ async function setCameraAudioInterface(id, deviceId) {
     return;
   }
   if (id === 'host:cam') {
-    const mic = await getMic(deviceId || '');
+    const p = loadPrefs();
     const old = S.local.mic;
+    const prevMicId = old?.getAudioTracks?.()[0]?.getSettings?.().deviceId || p.micId || '';
+    old?.getTracks().forEach((t) => t.stop());
+    let mic;
+    try {
+      mic = await getMic(deviceId || '');
+    } catch (err) {
+      const rec = await getMic(prevMicId || undefined).catch(() => null);
+      if (rec) {
+        S.local.mic = rec;
+        mixer.addStream('host:mic', rec, { ownerId: 'host', stageKey: 'host:cam', monitor: false });
+        mixer.setMuted('host:mic', !S.local.micOn, { save: false });
+      }
+      throw err;
+    }
+    const actualMicId = mic.getAudioTracks?.()[0]?.getSettings?.().deviceId || deviceId || '';
     S.local.mic = mic;
+    savePrefs({ micId: actualMicId });
     mixer.addStream('host:mic', mic, { ownerId: 'host', stageKey: 'host:cam', monitor: false });
     mixer.setMuted('host:mic', !S.local.micOn, { save: false });
-    old?.getTracks().forEach((t) => t.stop());
-    savePrefs({ micId: deviceId || '' });
     return;
   }
   if (extras?.cams?.has(id)) return extras.updateCam(id, { audioId: deviceId || '' });
@@ -1801,8 +1984,8 @@ function removeSource(id) {
   if (s.kind === 'uvc') {
     stopUvcVideo(s);
     stopUvcAudio(s);
-    fetch('/uvc/close', { method: 'POST' }).catch(() => {});
-    try { s.el.src = ''; } catch {}
+    fetch('/uvc/close', { method: 'POST' }).catch(() => { });
+    try { s.el.src = ''; } catch { }
   }
   comp.removeSource(id);
   mixer.remove(id + ':audio');
@@ -1893,7 +2076,7 @@ function setStage(ids) {
       if (shouldPlay) {
         if (m.el.ended) m.el.currentTime = 0;
         pauseOtherVideos(id);
-        m.el.play().catch(() => {});
+        m.el.play().catch(() => { });
       }
     }
   }
@@ -1922,7 +2105,7 @@ function applyAir(prevTake) {
   if (now?.kind === 'media' && !now.camOff && now.el.paused && autoPlayMediaEnabled()) {
     if (now.el.ended) now.el.currentTime = 0;
     pauseOtherVideos(S.take);
-    now.el.play().catch(() => {});
+    now.el.play().catch(() => { });
   }
   const old = prevTake && prevTake !== S.take ? S.sources.get(prevTake) : null;
   if (old?.kind === 'media' && !S.stage.includes(prevTake) && !dsk?.uses(prevTake) && !old.el.paused) old.el.pause();
@@ -1935,7 +2118,7 @@ function applyDskAir({ on, sourceId, prev, ms = 0 } = {}) {
   const m = sourceId ? S.sources.get(sourceId) : null;
   if (on && m?.kind === 'media' && !m.camOff && m.el.paused && !m.el.ended) {
     pauseOtherVideos(sourceId);
-    m.el.play().catch(() => {});
+    m.el.play().catch(() => { });
   }
   // ao sair, pausa depois do fade (se a fonte não estiver no palco/no ar por outro caminho)
   const idle = (id) => {
@@ -2027,7 +2210,7 @@ function bindProgramDrag() {
     const id = comp.hit(...toCanvas(e));
     if (!id) return;
     drag = { id, sx: e.clientX, sy: e.clientY, moved: false, target: null };
-    try { cv.setPointerCapture(e.pointerId); } catch {}
+    try { cv.setPointerCapture(e.pointerId); } catch { }
   };
   cv.onpointermove = (e) => {
     if (!drag) {
@@ -2199,7 +2382,7 @@ function pushStudioState() {
 // Backstage (tiles)
 // =====================================================================
 function saveBsOrder() {
-  try { localStorage.setItem('cd.bs.order', JSON.stringify(S.bsOrder || [])); } catch {}
+  try { localStorage.setItem('cd.bs.order', JSON.stringify(S.bsOrder || [])); } catch { }
 }
 function moveBsOrder(from, before) {
   if (!from || from === before) return;
@@ -2214,7 +2397,7 @@ function moveBsOrder(from, before) {
 }
 function toggleBsMin() {
   S.bsMin = !S.bsMin;
-  try { localStorage.setItem('cd.bs.min', S.bsMin ? '1' : '0'); } catch {}
+  try { localStorage.setItem('cd.bs.min', S.bsMin ? '1' : '0'); } catch { }
   const box = $('#backstage');
   box?.classList.toggle('bs-min', S.bsMin);
   toast(S.bsMin ? 'Miniaturas minimizadas' : 'Miniaturas expandidas');
@@ -2270,7 +2453,7 @@ function saveBsGroupPrefs() {
     localStorage.setItem('cd.bs.group', S.bsGroup);
     localStorage.setItem('cd.bs.collapsed', JSON.stringify(S.bsGroupsCollapsed || []));
     localStorage.setItem('cd.bs.groupOrder', JSON.stringify(S.bsGroupOrder || []));
-  } catch {}
+  } catch { }
 }
 
 function orderedBsGroups() {
@@ -2448,7 +2631,7 @@ function renderTiles() {
     nmEl.textContent = s.label || '';
     nmEl.title = s.label || '';
     el.title = s.label || '';
-    const badge = { camera: s.ingest ? (s.ingestLive ? 'Drone/RTMP' : 'Sem sinal') : s.extraCam ? 'Câmera' : s.remoteCam ? 'Câmera remota' : s.ownerId === 'host' ? 'Você' : S.guests.get(s.ownerId)?.cohost ? 'Co-host' : 'Convidado', screen: 'Tela', media: 'Mídia', image: 'Imagem', uvc: 'USB' }[s.kind];
+    const badge = { camera: s.ingest ? (s.ingestLive ? 'Drone/RTMP' : 'Sem sinal') : s.extraCam ? 'Câmera' : s.remoteCam ? 'Câmera remota' : s.ownerId === 'host' ? 'Você' : S.guests.get(s.ownerId)?.cohost ? 'Co-host' : 'Convidado', screen: 'Tela', media: 'Mídia', image: 'Imagem', uvc: 'USB', browser: 'Web' }[s.kind];
     const b = el.querySelector('.badge');
     b.textContent = air ? 'NO AR' : pvw ? 'PRÉVIA' : on ? 'NO PALCO' : badge;
     b.className = 'pill badge' + (air ? ' live' : pvw ? ' pvw' : on ? ' live' : '');
@@ -2474,9 +2657,14 @@ function renderTiles() {
         sig.send({ type: 'control', to: s.ownerId, action: s.micOn === false ? 'unmute-request' : 'mute' }),
       );
     }
+    if (s.extraCam) {
+      add('⚙', 'Trocar câmera, qualidade ou áudio', () => extras.camDialog(s.id), 'act-sec');
+      add(icons.trash, 'Remover câmera', () => extras.removeCam(s.id), 'danger');
+    }
     if (!isBrowser) add('✎', 'Renomear', () => renameSource(s.id), 'act-sec');
     add(icons.crop, 'Ajustar posição, zoom e corte desta fonte', () => openSourceAdjust(s.id), s.adjust ? 'primary' : 'act-sec');
     if (isBrowser) add(icons.display, 'Interagir com a página (clicar, digitar, navegar)', () => browserSources?.openInteract(s.id), 'act-sec');
+    if (CAN_SHARE_SCREEN && projectors) add(icons.display, 'Projetar esta fonte em outra tela / janela (como no PGM)', () => projectors.openDialog('src:' + s.id), projectors.active('src:' + s.id) ? 'primary' : 'act-sec');
     if (s.kind === 'camera' && !s.ingest) add('✦', vfx?.active(s.id) ? 'Efeitos de vídeo (ligados)' : 'Efeitos de vídeo: fundo virtual e enquadramento automático', () => openFx(s.id), vfx?.active(s.id) ? 'primary' : 'act-sec');
     if (s.kind === 'camera' && s.ownerId !== 'host' && !s.ingest && !s.remoteCam) {
       add(icons.kick, 'Remover do estúdio', () => kickGuest(s.ownerId), 'danger');
@@ -2486,7 +2674,7 @@ function renderTiles() {
       add(s.el.paused ? icons.play : icons.stop, s.el.paused ? 'Reproduzir' : 'Pausar', () => {
         if (s.el.paused) {
           pauseOtherVideos(s.id);
-          s.el.play().catch(() => {});
+          s.el.play().catch(() => { });
         } else s.el.pause();
         renderTiles();
       });
@@ -2496,10 +2684,6 @@ function renderTiles() {
       add(icons.sliders, 'Resolução e FPS da câmera USB', () => openUvcSettings(s), 'act-sec');
       add(icons.mic, 'Escolher a fonte de áudio da câmera USB', () => openUvcAudioDialog(s), 'act-sec');
       add(icons.trash, 'Remover câmera USB', () => removeSource(s.id), 'danger');
-    }
-    if (s.extraCam) {
-      add('⚙', 'Trocar câmera, qualidade ou áudio', () => extras.camDialog(s.id), 'act-sec');
-      add(icons.trash, 'Remover câmera', () => extras.removeCam(s.id), 'danger');
     }
     if (s.ingest) {
       add('⚙', 'Endereços e status das entradas RTMP/SRT', () => ingest.openPanel(), 'act-sec');
@@ -3178,14 +3362,6 @@ function bindUI() {
     sig?.close();
     setTimeout(() => (location.href = '/'), S.live || S.vlive ? 1500 : 0);
   };
-  const syncPanelState = () => {
-    const open = $('.studio')?.classList.contains('panel-open');
-    const b = $('#btn-panel');
-    if (b) {
-      b.setAttribute('aria-expanded', String(!!open));
-      b.title = open ? 'Fechar o painel de controle' : 'Abrir painel de controle (mídia, banners, jornal...)';
-    }
-  };
   $('#btn-panel').onclick = () => { $('.studio').classList.toggle('panel-open'); syncPanelState(); };
   const btnModeStudio = $('#btn-mode-studio');
   if (btnModeStudio) btnModeStudio.onclick = () => { if (S.switcher) switcher.toggle(); };
@@ -3208,15 +3384,16 @@ function bindUI() {
   $('#btn-live').onclick = () => (S.streaming ? stopLive() : openGoLive());
   $('#btn-record').onclick = () => (S.recording ? stopRecord() : openRecordModal());
   $('#btn-multirec')?.addEventListener('click', () => multiRec?.open());
+  $$('.sq-pill[data-goto-tab]').forEach((b) => (b.onclick = () => openSideTab(b.dataset.gotoTab)));
   $$('.tab[data-tab]').forEach((t) => (t.onclick = () => switchTab(t.dataset.tab)));
   $$('.grp[data-group]').forEach(
     (g) =>
-      (g.onclick = () => {
-        const st = $('.studio');
-        // modo ícones: clicar no ícone da seção já aberta fecha o painel flutuante
-        if (st.classList.contains('side-fly') && g.classList.contains('active')) return closeSideFly();
-        openSideTab(lastTabOf[g.dataset.group] || TAB_GROUPS.find((x) => x.id === g.dataset.group).tabs[0][0]);
-      }),
+    (g.onclick = () => {
+      const st = $('.studio');
+      // modo ícones: clicar no ícone da seção já aberta fecha o painel flutuante
+      if (st.classList.contains('side-fly') && g.classList.contains('active')) return closeSideFly();
+      openSideTab(lastTabOf[g.dataset.group] || TAB_GROUPS.find((x) => x.id === g.dataset.group).tabs[0][0]);
+    }),
   );
   $('#btn-side-mini').onclick = () => setSideMini(!$('.studio').classList.contains('side-mini'));
   $('#side-pin').onclick = () => setSideMini(false);
@@ -3798,7 +3975,7 @@ function playMedia(id, { followOnPlay = true } = {}) {
     } else if (!S.stage.includes(id)) setStage([id, ...S.stage]);
   }
   if (s.el.ended) s.el.currentTime = 0;
-  s.el.play().catch(() => {});
+  s.el.play().catch(() => { });
   if (prev) followMedia(prev, id);
   armMediaAir(id);
 }
@@ -3871,7 +4048,7 @@ async function ensureMediaAudio(s, file) {
       'loadedmetadata',
       () => {
         el.currentTime = Math.min(t, el.duration || t);
-        if (!wasPaused) el.play().catch(() => {});
+        if (!wasPaused) el.play().catch(() => { });
       },
       { once: true },
     );
@@ -3894,12 +4071,12 @@ const YT_JOB_KEY = 'castdeck.ytdl.job';
 function ytSaveJob(job) {
   try {
     if (job?.id) localStorage.setItem(YT_JOB_KEY, JSON.stringify({ id: job.id, url: ytLastUrl || '' }));
-  } catch {}
+  } catch { }
 }
 function ytClearJob() {
   try {
     localStorage.removeItem(YT_JOB_KEY);
-  } catch {}
+  } catch { }
 }
 
 function ytInfo(j = ytJob) {
@@ -3951,7 +4128,7 @@ function ytPaint() {
 function ytRememberCollapsed() {
   try {
     localStorage.setItem('castdeck.ytdl.collapsed', ytCollapsed ? '1' : '0');
-  } catch {}
+  } catch { }
 }
 
 function ytToggle() {
@@ -4048,7 +4225,7 @@ async function ytImport(j) {
     const MIME_BY_EXT = { '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.webm': 'video/webm', '.m4a': 'audio/mp4', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.opus': 'audio/ogg' };
     const file = new File([blob], name, { type: MIME_BY_EXT[ext.toLowerCase()] || j.mime || 'video/mp4' });
     addMediaFile(file, { recordingName: j.recordingName || '' });
-    api('/media/ytdl/' + encodeURIComponent(j.id), { method: 'DELETE' }).catch(() => {});
+    api('/media/ytdl/' + encodeURIComponent(j.id), { method: 'DELETE' }).catch(() => { });
     ytJob = null;
     ytLastUrl = '';
     ytClearJob();
@@ -4132,7 +4309,7 @@ async function ytResume() {
   let saved;
   try {
     saved = JSON.parse(localStorage.getItem(YT_JOB_KEY) || 'null');
-  } catch {}
+  } catch { }
   if (!saved?.id) return;
   try {
     const j = await api('/media/ytdl/' + encodeURIComponent(saved.id));
@@ -4190,7 +4367,7 @@ async function ytCancel() {
   clearInterval(ytTimer);
   ytTimer = null;
   ytJob = null;
-  if (id) await api('/media/ytdl/' + encodeURIComponent(id), { method: 'DELETE' }).catch(() => {});
+  if (id) await api('/media/ytdl/' + encodeURIComponent(id), { method: 'DELETE' }).catch(() => { });
   ytClearJob();
   ytLastUrl = '';
   ytNotice = 'Download cancelado.';
@@ -4232,11 +4409,10 @@ function renderMediaPanel() {
       </div>
     </div>`}
     <h4>Imagens <span class="hint" style="text-transform:none;letter-spacing:0">(${imgs.length})</span></h4>
-    <div id="i-list">${
-      imgs.length
-        ? imgs
-            .map(
-              (s) => `<div class="card img-row" data-iid="${s.id}" style="padding:8px;box-shadow:none;margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <div id="i-list">${imgs.length
+      ? imgs
+        .map(
+          (s) => `<div class="card img-row" data-iid="${s.id}" style="padding:8px;box-shadow:none;margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <img src="${s.url}" alt="" style="width:72px;height:41px;object-fit:cover;border-radius:6px;background:#000;flex:none">
           <strong class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:80px">${esc(s.label)}</strong>
           <div class="row" style="gap:4px;flex-wrap:wrap">
@@ -4245,9 +4421,9 @@ function renderMediaPanel() {
             <button class="btn sm icon i-ren" title="Renomear">✎</button>
             <button class="btn sm danger icon i-del" title="Remover">${icons.trash}</button>
           </div></div>`,
-            )
-            .join('')
-        : '<div class="empty">Nenhuma imagem. Adicione logos, fotos ou slides para exibir ao vivo.</div>'
+        )
+        .join('')
+      : '<div class="empty">Nenhuma imagem. Adicione logos, fotos ou slides para exibir ao vivo.</div>'
     }</div>
     <h4>Vídeos e áudios</h4>
     <label class="check" style="justify-content:space-between;margin-bottom:8px"><span>Mostrar nomes dos vídeos</span><span class="switch"><input type="checkbox" id="m-names" ${S.brand.showMediaNames !== false ? 'checked' : ''}><span></span></span></label>
@@ -4268,21 +4444,20 @@ function renderMediaPanel() {
     </div>
     <div class="m-section-head"><h4>Biblioteca</h4><span class="hint">ordem = fila do Playout</span></div>
     <div class="row" style="gap:8px;align-items:center;margin:0 0 10px"><button class="btn sm primary" id="pl-open">▶ Abrir Playout</button><span class="hint">Fila, mini player e automação ficam no Playout.</span></div>
-    <div id="m-list" class="m-list ${mediaView}">${
-      items.length
-        ? items
-            .map((s, n) => {
-              const el = s.el;
-              const onAir = S.take === s.id;
-              const onStage = S.stage.includes(s.id);
-              const playing = !el?.paused && !el?.ended;
-              const ended = !!el?.ended;
-              const name = String(s.label || 'Mídia').replace(/^[^\p{L}\p{N}]+/u, '');
-              const badges = [
-                onAir ? '<span class="m-badge live">NO AR</span>' : onStage ? '<span class="m-badge stage">NO PALCO</span>' : '',
-                ended ? '<span class="m-badge ended">FIM</span>' : playing ? '<span class="m-badge playing">TOCANDO</span>' : '',
-              ].join('');
-              return `<div class="m-card ${s.camOff ? 'is-audio' : 'is-video'} ${onAir ? 'on-air' : onStage ? 'on-stage' : ''} ${playing ? 'playing' : ''} ${s.id === deckSel ? 'selected' : ''}" data-mid="${s.id}" data-name="${esc(name.toLocaleLowerCase('pt-BR'))}" data-kind="${s.camOff ? 'audio' : 'video'}" draggable="true">
+    <div id="m-list" class="m-list ${mediaView}">${items.length
+      ? items
+        .map((s, n) => {
+          const el = s.el;
+          const onAir = S.take === s.id;
+          const onStage = S.stage.includes(s.id);
+          const playing = !el?.paused && !el?.ended;
+          const ended = !!el?.ended;
+          const name = String(s.label || 'Mídia').replace(/^[^\p{L}\p{N}]+/u, '');
+          const badges = [
+            onAir ? '<span class="m-badge live">NO AR</span>' : onStage ? '<span class="m-badge stage">NO PALCO</span>' : '',
+            ended ? '<span class="m-badge ended">FIM</span>' : playing ? '<span class="m-badge playing">TOCANDO</span>' : '',
+          ].join('');
+          return `<div class="m-card ${s.camOff ? 'is-audio' : 'is-video'} ${onAir ? 'on-air' : onStage ? 'on-stage' : ''} ${playing ? 'playing' : ''} ${s.id === deckSel ? 'selected' : ''}" data-mid="${s.id}" data-name="${esc(name.toLocaleLowerCase('pt-BR'))}" data-kind="${s.camOff ? 'audio' : 'video'}" draggable="true">
                 <div class="m-thumb">
                   <canvas width="320" height="180" data-mthumb></canvas>
                   <span class="m-num">${n + 1}</span>
@@ -4297,9 +4472,9 @@ function renderMediaPanel() {
                   <div class="m-actions"><button class="btn sm m-stage"></button><button class="btn sm icon m-more" title="Mais ações" aria-label="Mais ações">⋯</button></div>
                 </div>
               </div>`;
-            })
-            .join('')
-        : '<div class="m-empty"><b>Nenhum arquivo ainda</b><span>Adicione vídeos, áudios ou importe do YouTube.</span></div>'
+        })
+        .join('')
+      : '<div class="m-empty"><b>Nenhum arquivo ainda</b><span>Adicione vídeos, áudios ou importe do YouTube.</span></div>'
     }</div>
     <p class="hint" style="margin:8px 0 0">A biblioteca acima é a fila. Para operar, abra o Playout.</p>`;
   // vídeos primeiro: é a seção que o operador mais usa ao vivo
@@ -4355,7 +4530,7 @@ function renderMediaPanel() {
       mediaView = b.dataset.mview === 'list' ? 'list' : 'grid';
       try {
         localStorage.setItem('cd.media.view', mediaView);
-      } catch {}
+      } catch { }
       $('#m-list', p)?.classList.toggle('list', mediaView === 'list');
       $('#m-list', p)?.classList.toggle('grid', mediaView === 'grid');
       $$('#m-view button', p).forEach((x) => x.classList.toggle('active', x === b));
@@ -4538,17 +4713,17 @@ function renderPlayoutPanel() {
     <section class="pl-queue">
       <div class="pl-queue-head"><b>Fila</b><span class="hint">${list.length} ${list.length === 1 ? 'item' : 'itens'} · arraste para ordenar</span></div>
       <div class="pl-list" id="pl-list">${list.map((s, i) => {
-        const onAir = S.take === s.id;
-        const onStage = S.stage.includes(s.id);
-        const playing = !s.el.paused && !s.el.ended;
-        return `<div class="pl-item ${s.id === curId ? 'current' : ''} ${onAir ? 'on-air' : onStage ? 'on-stage' : ''} ${playing ? 'playing' : ''}" data-plid="${esc(s.id)}" draggable="true">
+    const onAir = S.take === s.id;
+    const onStage = S.stage.includes(s.id);
+    const playing = !s.el.paused && !s.el.ended;
+    return `<div class="pl-item ${s.id === curId ? 'current' : ''} ${onAir ? 'on-air' : onStage ? 'on-stage' : ''} ${playing ? 'playing' : ''}" data-plid="${esc(s.id)}" draggable="true">
           <span class="pl-idx">${i + 1}</span>
           <canvas class="pl-item-thumb" width="128" height="72" data-plthumb></canvas>
           <div class="pl-item-info"><b>${esc(String(s.label).replace(/^[^\p{L}\p{N}]+/u, ''))}</b><small>${onAir ? 'No ar' : onStage ? 'No palco' : playing ? 'Tocando' : fmtClock(s.el.duration)}</small></div>
           <button class="btn sm icon" data-plcue title="Selecionar sem tocar">•</button>
           <button class="btn sm icon" data-plmore title="Mais ações">⋯</button>
         </div>`;
-      }).join('')}</div>
+  }).join('')}</div>
     </section>
     <section class="pl-auto">
       <label class="check pl-opt"><span>Tocar um após o outro</span><span class="switch"><input type="checkbox" id="pl-on" ${S.playlist.on ? 'checked' : ''}><span></span></span></label>
@@ -4745,7 +4920,7 @@ async function openMediaMenu(s) {
         $('.mm-restart', m).onclick = () => {
           el.currentTime = 0;
           pauseOtherVideos(s.id);
-          el.play().catch(() => {});
+          el.play().catch(() => { });
           close();
         };
         $('.mm-loop', m).onclick = () => {
@@ -4956,6 +5131,9 @@ function addGuest(info) {
   // Câmera remota e página de intercom usam o mesmo peer: um retorno de áudio pessoal
   // para o PTT do diretor/IFB, sem criar uma segunda conexão.
   if (g.cam) {
+    // Garante m=video no mid=0 antes do áudio do intercom (mid=1) para evitar colisão de
+    // header extension (id=1) no grupo BUNDLE quando o celular responde ou renegocia vídeo.
+    g.peer.pc.addTransceiver('video', { direction: 'recvonly' });
     const track = mixer.addIntercomOutput(g.id);
     if (track) {
       g.intercomTrack = track;
@@ -4993,8 +5171,8 @@ function addGuest(info) {
         const p = g.videoSender.getParameters();
         if (!p.encodings?.length) p.encodings = [{}];
         p.encodings[0].scaleResolutionDownBy = 1;
-        g.videoSender.setParameters(p).catch(() => {});
-      } catch {}
+        g.videoSender.setParameters(p).catch(() => { });
+      } catch { }
     }
   });
   g.peer.addEventListener('stuck', () => {
@@ -5041,21 +5219,35 @@ function resolveGuest(g) {
   const camId = `${g.id}:cam`;
   const scrId = `${g.id}:screen`;
   let camStream = null;
+  let camFallback = null;
   let scrStream = null;
+  const hasLiveVideo = (ms) => ms?.getVideoTracks?.().some((t) => t.readyState === 'live');
   for (const [sid, stream] of g.streams) {
     if (!stream.getTracks().some((t) => t.readyState === 'live')) {
       g.streams.delete(sid);
       continue;
     }
     if (st.screenStreamId && sid === st.screenStreamId) scrStream = stream;
-    else if (!st.camStreamId || sid === st.camStreamId) camStream ||= stream;
+    else if (st.camStreamId && sid === st.camStreamId) camStream = stream;
+    else if (hasLiveVideo(stream)) camFallback ||= stream;
+    else camFallback ||= stream;
   }
-  // Alguns navegadores entregam a faixa de áudio do PTT antes do evento `track` virar
-  // um MediaStream em g.streams. Usa o receiver vivo como fallback para o intercom.
+  if (!camStream || (!hasLiveVideo(camStream) && hasLiveVideo(camFallback))) {
+    camStream = camFallback || camStream;
+  }
+  // Alguns navegadores entregam a trilha de vídeo/áudio sem streams[0] ou antes de camStreamId casar.
+  const scrTrackIds = new Set(scrStream?.getTracks?.().map((t) => t.id) || []);
+  const liveReceivers = (g.peer?.pc?.getReceivers?.() || []).filter((r) => r.track && r.track.readyState === 'live' && !scrTrackIds.has(r.track.id));
   if (!camStream) {
-    const audio = (g.peer?.pc?.getReceivers?.() || []).find((r) => r.track?.kind === 'audio' && r.track.readyState === 'live');
-    if (audio) {
-      camStream = new MediaStream([audio.track]);
+    const rxTracks = liveReceivers.map((r) => r.track);
+    if (rxTracks.length) {
+      camStream = new MediaStream(rxTracks);
+      g.streams.set(camStream.id, camStream);
+    }
+  } else {
+    const liveVid = liveReceivers.find((r) => r.track.kind === 'video')?.track;
+    if (liveVid && !hasLiveVideo(camStream)) {
+      camStream = new MediaStream([liveVid, ...camStream.getAudioTracks().filter((t) => t.readyState === 'live')]);
       g.streams.set(camStream.id, camStream);
     }
   }
@@ -5123,6 +5315,12 @@ function switchTab(tab) {
   S.tab = tab;
   lastTabOf[grp.id] = tab;
   $$('.grp').forEach((g) => g.classList.toggle('active', g.dataset.group === grp.id));
+  const curTabEl = $('#side-cur-tab');
+  if (curTabEl) {
+    const tabTuple = grp.tabs.find(([id]) => id === tab);
+    curTabEl.textContent = tabTuple?.[1] || grp.label;
+  }
+  $$('.sq-pill[data-goto-tab]').forEach((b) => b.classList.toggle('active', b.dataset.gotoTab === tab));
   // sub-abas só do grupo atual; grupo de um item só não mostra a segunda linha
   $$('.subtabs .tab').forEach((t) => {
     t.hidden = t.dataset.group !== grp.id;
@@ -5146,7 +5344,7 @@ function tabOpen(t) {
   return S.tab === t || !!floatWins?.has(t);
 }
 function renderTabContent(tab) {
-  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, music: renderMusicPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, outputs: () => outputs.open(), ndi: renderNdiPanel, intercom: renderIntercomPanel })[tab]?.();
+  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, music: renderMusicPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, outputs: () => outputs.open(), ndi: renderNdiPanel, multirec: () => multiRec?.render?.(), intercom: renderIntercomPanel })[tab]?.();
 }
 
 // marca nas abas da lateral quais estão destacadas e cuida do botão ⧉
@@ -5263,7 +5461,7 @@ window.addEventListener('pagehide', () => {
   if (saver.rev !== null) body.baseRev = saver.rev;
   const json = JSON.stringify(body);
   // keepalive só aceita corpos pequenos (~64 KB); acima disso o beforeunload avisa o usuário
-  if (json.length < 60000) fetch(`/api/studios/${studioId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: json, keepalive: true }).catch(() => {});
+  if (json.length < 60000) fetch(`/api/studios/${studioId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: json, keepalive: true }).catch(() => { });
 });
 window.addEventListener('beforeunload', (e) => {
   if ((saver.dirty || saver.running) && !saver.conflict) {
@@ -5283,7 +5481,7 @@ function setBrand(patch) {
       // O player da biblioteca não deve continuar rodando escondido: quem toca é o vídeo dedicado do fundo.
       const s = S.sources.get(bgVideoId);
       if (s?.kind === 'media') {
-        try { s.el.pause(); } catch {}
+        try { s.el.pause(); } catch { }
         if (S.playlist.current === bgVideoId) S.playlist.current = null;
       }
     }
@@ -5358,6 +5556,34 @@ async function readBackground(file, maxSide) {
   const data = await r.json().catch(() => ({}));
   if (!r.ok || !data.url) throw new Error(data.error || 'não foi possível enviar o GIF');
   return data.url;
+}
+
+// Cartela Seguro: envia PNG/JPEG/WebP/GIF como asset no servidor para manter transparência e evitar exceder 2 MB no JSON do estúdio.
+async function readSafeImage(file) {
+  if (!file) return null;
+  if (file.size > 25 * 1024 * 1024) throw new Error('Arquivo maior que 25 MB');
+  const name = file.name || 'seguro.png';
+  const rawType = String(file.type || '').toLowerCase();
+  const mime = /^image\/(png|jpeg|webp|gif)$/.test(rawType)
+    ? rawType
+    : /\.png$/i.test(name) ? 'image/png'
+      : /\.webp$/i.test(name) ? 'image/webp'
+        : /\.gif$/i.test(name) ? 'image/gif'
+          : /\.jpe?g$/i.test(name) ? 'image/jpeg'
+            : null;
+  if (mime) {
+    try {
+      const r = await fetch(`/api/dsk/assets?name=${encodeURIComponent(name)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': mime },
+        body: file,
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.url) return data.url;
+    } catch { }
+  }
+  const outType = /png|webp|svg/i.test(rawType) || /\.(png|webp|svg)$/i.test(name) ? 'image/png' : 'image/jpeg';
+  return readImage(file, 1920, outType);
 }
 
 // O input precisa estar no DOM: inputs soltos podem ser coletados pelo navegador antes do evento 'change'.
@@ -5443,32 +5669,40 @@ function renderBrandPanel() {
       <button class="btn sm" id="b-ov">＋ Adicionar overlay</button>
     </div>
     <p class="hint" style="margin:8px 0 0">Dá para empilhar vários overlays; a ordem da lista é a ordem de desenho.</p>
+    <h4>Cartela Seguro (emergência / pausa)</h4>
+    <div class="row dropzone" data-drop="safe">
+      ${b.safe?.image ? `<img src="${esc(b.safe.image)}" alt="Cartela Seguro" style="height:44px;aspect-ratio:16/9;object-fit:contain;background:var(--bg-0);border-radius:6px;border:1px solid var(--line)">` : '<span class="hint grow">Arraste um PNG/imagem aqui ou personalize textos e cores</span>'}
+      <div class="grow"></div>
+      <button class="btn sm" id="b-safe-upload">${icons.film} ${b.safe?.image ? 'Trocar PNG' : 'Enviar PNG'}</button>
+      <button class="btn sm primary" id="b-safe-cfg">⚙ Personalizar</button>
+      ${b.safe?.image ? `<button class="btn sm danger icon" id="b-safe-del" title="Remover imagem da cartela Seguro">${icons.trash}</button>` : ''}
+    </div>
     <p class="hint" style="margin:14px 0 0">Nomes na tela, espaçamento e cantos dos vídeos ficam na aba <b>Exibição</b>, ao lado.</p>
   `;
   $$('[data-color]', p).forEach((el) => (el.onclick = () => (setBrand({ color: el.dataset.color }), renderBrandPanel())));
   $('#b-color', p).onchange = (e) => (setBrand({ color: e.target.value }), renderBrandPanel());
   $$('[data-bg]', p).forEach(
     (el) =>
-      (el.onclick = (e) => {
-        if (e.target.closest('.x')) return;
-        const x = bgs[+el.dataset.bg];
-        setBrand({ background: { type: x.type, value: x.value } });
-        renderBrandPanel();
-      }),
+    (el.onclick = (e) => {
+      if (e.target.closest('.x')) return;
+      const x = bgs[+el.dataset.bg];
+      setBrand({ background: { type: x.type, value: x.value } });
+      renderBrandPanel();
+    }),
   );
   $$('[data-delbg]', p).forEach(
     (el) =>
-      (el.onclick = () => {
-        const x = bgs[+el.dataset.delbg];
-        if (!x?.custom) return;
-        const patch = { customBackgrounds: (b.customBackgrounds || []).filter((v) => v !== x.value) };
-        if (S.brand.background?.type === 'image' && S.brand.background.value === x.value) {
-          patch.background = { type: 'gradient', value: '' };
-        }
-        setBrand(patch);
-        if (/^\/api\/dsk\/assets\//.test(x.value)) fetch(x.value, { method: 'DELETE' }).catch(() => {});
-        renderBrandPanel();
-      }),
+    (el.onclick = () => {
+      const x = bgs[+el.dataset.delbg];
+      if (!x?.custom) return;
+      const patch = { customBackgrounds: (b.customBackgrounds || []).filter((v) => v !== x.value) };
+      if (S.brand.background?.type === 'image' && S.brand.background.value === x.value) {
+        patch.background = { type: 'gradient', value: '' };
+      }
+      setBrand(patch);
+      if (/^\/api\/dsk\/assets\//.test(x.value)) fetch(x.value, { method: 'DELETE' }).catch(() => { });
+      renderBrandPanel();
+    }),
   );
   $('#b-bgvideo', p)?.addEventListener('change', (e) => {
     const id = e.target.value;
@@ -5510,11 +5744,34 @@ function renderBrandPanel() {
         setBrand({ overlays: list, overlay: null });
       },
     },
+    safe: {
+      maxSide: 1920,
+      type: 'image/png',
+      label: 'Cartela Seguro',
+      read: readSafeImage,
+      apply: (url) => {
+        const prev = S.brand.safe?.image;
+        const cur = S.brand.safe || {};
+        setBrand({ safe: { ...cur, image: url, fit: cur.fit || 'contain' } });
+        if (prev && prev !== url && /^\/api\/dsk\/assets\//.test(prev)) {
+          fetch(prev, { method: 'DELETE' }).catch(() => { });
+        }
+      },
+    },
   };
   const pickAndUpload = async (k) => uploadImage(await pickFile('image/*'), UP[k], UP[k].apply);
   $('#b-addbg', p).onclick = () => pickAndUpload('bg');
   $('#b-logo', p).onclick = () => pickAndUpload('logo');
   $('#b-ov', p).onclick = () => pickAndUpload('overlay');
+  $('#b-safe-upload', p)?.addEventListener('click', () => pickAndUpload('safe'));
+  $('#b-safe-cfg', p)?.addEventListener('click', () => $('#btn-safe-cfg')?.click());
+  $('#b-safe-del', p)?.addEventListener('click', () => {
+    const prev = S.brand.safe?.image;
+    const next = { ...(S.brand.safe || {}), image: null, showText: true };
+    setBrand({ safe: next });
+    if (prev && /^\/api\/dsk\/assets\//.test(prev)) fetch(prev, { method: 'DELETE' }).catch(() => { });
+    renderBrandPanel();
+  });
   // arrastar e soltar arquivos de imagem sobre cada área
   const dropOn = (el, k) => {
     if (!el) return;
@@ -5535,6 +5792,7 @@ function renderBrandPanel() {
   dropOn($('.thumbs', p), 'bg');
   dropOn($('[data-drop=logo]', p), 'logo');
   dropOn($('[data-drop=overlay]', p), 'overlay');
+  dropOn($('[data-drop=safe]', p), 'safe');
   $('#b-logo-del', p)?.addEventListener('click', () => (setBrand({ logo: null }), renderBrandPanel()));
   $$('#b-logopos button', p).forEach((el) => (el.onclick = () => (setBrand({ logoPos: el.dataset.v }), renderBrandPanel())));
   $('#b-logosize', p)?.addEventListener('input', (e) => setBrand({ logoSize: +e.target.value }));
@@ -5572,7 +5830,7 @@ function renderDisplayPanel() {
   $('#b-corner', p).oninput = (e) => setBrand({ corner: +e.target.value });
 }
 
-const BN_STYLES = [['news', 'Jornal'], ['bar', 'Barra'], ['card', 'Cartão'], ['clean', 'Limpo'], ['center', 'Centro']];
+const BN_STYLES = [['news', 'Jornal'], ['bar', 'Barra'], ['card', 'Cartão'], ['clean', 'Limpo'], ['center', 'Centro'], ['tpl', 'Template']];
 const BN_POS = [['bl', 'Embaixo à esquerda'], ['bc', 'Embaixo no centro'], ['br', 'Embaixo à direita'], ['tl', 'Em cima à esquerda'], ['tc', 'Em cima no centro'], ['tr', 'Em cima à direita']];
 const BN_DUR = [[0, 'Manual'], [5, '5 s'], [8, '8 s'], [10, '10 s'], [15, '15 s'], [30, '30 s'], [60, '1 min']];
 const bnLabel = (arr, v) => arr.find(([k]) => k == v)?.[1] || '';
@@ -5613,7 +5871,7 @@ function accordionize(panel) {
   let state = {};
   try {
     state = JSON.parse(localStorage.getItem(ACC_KEY) || '{}');
-  } catch {}
+  } catch { }
   const frag = document.createDocumentFragment();
   let body = null;
   for (const node of [...panel.childNodes]) {
@@ -5627,7 +5885,7 @@ function accordionize(panel) {
         let s = {};
         try {
           s = JSON.parse(localStorage.getItem(ACC_KEY) || '{}');
-        } catch {}
+        } catch { }
         s[key] = d.open;
         localStorage.setItem(ACC_KEY, JSON.stringify(s));
       };
@@ -5676,44 +5934,32 @@ function renderGcAirList() {
 function renderBannersPanel() {
   const p = $('#panel-banners');
   const rot = S.brand.bannerRotate || { on: false, secs: 10 };
-  const open = (k, def) => {
-    const v = localStorage.getItem('castdeck.gcsec.' + k);
-    return v === null ? def : v === '1';
-  };
+  let accState = {};
+  try {
+    accState = JSON.parse(localStorage.getItem(ACC_KEY) || '{}') || {};
+  } catch { }
+  const accOpen = (key, def) => (key in accState ? !!accState[key] : def);
   const layers = S.brand.overlayLayers || { aboveDsk: false };
   const android = S.system?.platform === 'android';
-  p.innerHTML = `
-    <div class="gc-layerbar ${android ? 'is-disabled' : ''}" title="Comentários, enquetes e banners: atrás ou acima do DSK 1/2">
-      <div class="gc-layerbar-t">
-        <strong>Overlays sobre o DSK</strong>
-        <small>${android ? 'Indisponível no Android — o DSK não é renderizado aqui.' : 'Comentários, enquetes e banners: atrás (padrão) ou acima do DSK.'}</small>
-      </div>
-      <label class="switch" aria-label="Colocar comentários, enquetes e banners acima do DSK">
-        <input type="checkbox" id="gcl-front" ${layers.aboveDsk ? 'checked' : ''} ${android ? 'disabled' : ''}>
-        <span></span>
-      </label>
-    </div>
-    <div class="gc-acc-stack">
-      <details class="gc-acc" data-sec="studio" ${open('studio', true) ? 'open' : ''}>
-        <summary>GC / Template Studio</summary>
-        <div class="gc-acc-body">${gcDesigner ? gcDesigner.operatorHtml() : ''}</div>
-      </details>
 
-      <details class="gc-acc" data-sec="banners" ${open('banners', false) ? 'open' : ''}>
-        <summary>Banners</summary>
-        <div class="gc-acc-body">
-          <h4>Novo banner</h4>
-          <div id="bn-new">${bannerFields({ style: 'bar', pos: 'bl' })}</div>
-          <button class="btn primary" id="bn-add" style="width:100%">${icons.plus} Adicionar banner</button>
-          <h4>Banners <span class="hint" style="text-transform:none;letter-spacing:0">— clique para mostrar/ocultar</span></h4>
-          <div id="bn-list">${
-            S.banners.length
-              ? S.banners
-                  .map(
-                    (bn, i) => `<div class="banner-item ${S.activeBanner === bn.id ? 'showing' : ''}" data-id="${bn.id}">
+  p.innerHTML = `
+    <div class="gf-hub">
+      <div class="gf-air-box">
+        <div class="gf-pane-head"><b>No ar agora</b><button type="button" class="btn ghost sm" id="gf-air-clear">Limpar tudo</button></div>
+        <div id="gf-air-list"></div>
+      </div>
+
+      <details class="gf-acc acc" id="gf-acc-banners" data-acc-key="panel-banners|Meus GCs" ${accOpen('panel-banners|Meus GCs', true) ? 'open' : ''}>
+        <summary>Meus GCs na barra (${S.banners.length})</summary>
+        <div class="gf-acc-body">
+          <p class="hint" style="margin:0 0 8px">Apenas os GCs abaixo aparecem na fita fina de 1 clique abaixo do vídeo.</p>
+          <div id="bn-list">${S.banners.length
+      ? S.banners
+        .map(
+          (bn, i) => `<div class="banner-item ${S.activeBanner === bn.id ? 'showing' : ''}" data-id="${bn.id}">
                       <div class="row" style="gap:6px"><strong class="grow">${esc(bn.title)}</strong>${S.activeBanner === bn.id ? '<span class="pill live">NO AR</span>' : ''}</div>
                       ${bn.subtitle ? `<span>${esc(bn.subtitle)}</span>` : ''}
-                      <div class="bn-meta"><i style="background:${bn.color || S.brand.color || '#7c5cff'}"></i>${bnLabel(BN_STYLES, bn.style || 'bar')} · ${bnLabel(BN_POS, bn.pos || 'bl')} · ${bn.dur ? bn.dur + ' s' : 'manual'}</div>
+                      <div class="bn-meta"><i style="background:${bn.color || S.brand.color || '#7c5cff'}"></i>${esc(bn.tplName ? 'Template · ' + bn.tplName : bnLabel(BN_STYLES, bn.style || 'bar'))} · ${bnLabel(BN_POS, bn.pos || 'bl')} · ${bn.dur ? bn.dur + ' s' : 'manual'}</div>
                       <div class="bn-acts">
                         <button class="btn ghost sm icon" data-up="${bn.id}" title="Subir" ${i ? '' : 'disabled'}>▲</button>
                         <button class="btn ghost sm icon" data-down="${bn.id}" title="Descer" ${i < S.banners.length - 1 ? '' : 'disabled'}>▼</button>
@@ -5721,20 +5967,43 @@ function renderBannersPanel() {
                         <button class="btn ghost sm icon" data-dup="${bn.id}" title="Duplicar">⧉</button>
                         <button class="btn ghost sm icon" data-del="${bn.id}" title="Excluir">${icons.trash}</button>
                       </div></div>`,
-                  )
-                  .join('')
-              : '<div class="empty">Nenhum banner ainda.</div>'
-          }</div>
-          <label class="check" style="justify-content:space-between;margin-top:10px"><span>Alternar banners automaticamente</span><span class="switch"><input type="checkbox" id="bn-rot" ${rot.on ? 'checked' : ''}><span></span></span></label>
+        )
+        .join('')
+      : '<div class="empty">Nenhum GC cadastrado ainda. Crie um abaixo ou use um template pronto.</div>'
+    }</div>
+
+          <details class="acc bn-new-acc" data-acc-key="panel-banners|Novo banner" ${accOpen('panel-banners|Novo banner', false) ? 'open' : ''} style="margin-top:8px">
+            <summary>＋ Cadastrar GC rápido</summary>
+            <div class="acc-body">
+              <div id="bn-new">${bannerFields({ style: 'bar', pos: 'bl' })}</div>
+              <button class="btn primary" id="bn-add" style="width:100%">${icons.plus} Adicionar à barra de GCs</button>
+            </div>
+          </details>
+
+          <label class="check" style="justify-content:space-between;margin-top:10px"><span>Alternar GCs automaticamente</span><span class="switch"><input type="checkbox" id="bn-rot" ${rot.on ? 'checked' : ''}><span></span></span></label>
           <label class="mixer-row"><span class="nm">A cada</span><input type="range" id="bn-rot-s" min="5" max="60" step="5" value="${rot.secs}"><span class="hint" id="bn-rot-v">${rot.secs}s</span></label>
         </div>
       </details>
 
-      <details class="gc-acc" data-sec="letreiro" ${open('letreiro', false) ? 'open' : ''}>
-        <summary>Letreiro &amp; RSS</summary>
-        <div class="gc-acc-body">
-          <h4>Letreiro (ticker)</h4>
-          <textarea class="input" id="tk-text" placeholder="Texto que rola na parte inferior da tela" maxlength="400">${esc(S.brand.tickerText || '')}</textarea>
+      <details class="gf-acc acc" id="gf-acc-live" data-acc-key="panel-banners|Templates" ${accOpen('panel-banners|Templates', true) ? 'open' : ''}>
+        <summary>Templates &amp; Designer de GC</summary>
+        <div class="gf-acc-body">${gcDesigner ? gcDesigner.operatorHtml() : '<div class="hint">Template Studio indisponível.</div>'}</div>
+      </details>
+
+      <details class="gf-acc acc" id="gf-acc-letreiro" data-acc-key="panel-banners|Letreiro" ${accOpen('panel-banners|Letreiro', false) ? 'open' : ''}>
+        <summary>Letreiro (Ticker), RSS &amp; Camadas</summary>
+        <div class="gf-acc-body">
+          <div class="gc-layerbar ${android ? 'is-disabled' : ''}" title="Comentários, enquetes e banners: atrás ou acima do DSK 1/2" style="margin-bottom:10px">
+            <div class="gc-layerbar-t">
+              <strong>Overlays sobre o DSK</strong>
+              <small>${android ? 'Indisponível no Android — o DSK não é renderizado aqui.' : 'Comentários, enquetes e GCs: atrás (padrão) ou acima do DSK.'}</small>
+            </div>
+            <label class="switch" aria-label="Colocar comentários, enquetes e banners acima do DSK">
+              <input type="checkbox" id="gcl-front" ${layers.aboveDsk ? 'checked' : ''} ${android ? 'disabled' : ''}>
+              <span></span>
+            </label>
+          </div>
+          <label class="field"><span>Texto do letreiro</span><textarea class="input" id="tk-text" placeholder="Texto que rola na parte inferior da tela" maxlength="400">${esc(S.brand.tickerText || '')}</textarea></label>
           <label class="check" style="justify-content:space-between;margin-top:6px"><span>Mostrar letreiro</span><span class="switch"><input type="checkbox" id="tk-on" ${S.brand.tickerOn ? 'checked' : ''}><span></span></span></label>
           ${news ? news.html() : ''}
         </div>
@@ -5742,117 +6011,17 @@ function renderBannersPanel() {
     </div>
   `;
 
-  // Hub Grafismo: substitui o antigo painel "GCs & Letreiro" por uma única área
-  // com operação, biblioteca, dados e saídas. Os IDs antigos continuam no DOM
-  // para preservar compatibilidade com binds/testes e com o restante do estúdio.
-  const gfHub = document.createElement('div');
-  gfHub.className = 'gf-hub';
-  const gfPane = (id) => {
-    const sec = document.createElement('section');
-    sec.className = 'gf-pane';
-    sec.dataset.gfsec = id;
-    return sec;
-  };
-  const gfTemplates = gfPane('templates');
-  const gfData = gfPane('data');
-  const gfOutputs = gfPane('outputs');
-  const gfStack = $('.gc-acc-stack', p);
-  const gfStudio = gfStack?.querySelector('details[data-sec="studio"]');
-  const gfOperator = document.createDocumentFragment();
-  if (gfStudio) {
-    const gfStudioBody = gfStudio.querySelector('.gc-acc-body');
-    if (gfStudioBody) gfOperator.append(...gfStudioBody.childNodes);
-  }
-  const gfAirBox = document.createElement('div');
-  gfAirBox.className = 'gf-air-box';
-  gfAirBox.innerHTML = `<div class="gf-pane-head"><b>No ar agora</b><button type="button" class="btn ghost sm" id="gf-air-clear">Limpar tudo</button></div><div id="gf-air-list"></div>`;
-  const gfLayerbar = $('.gc-layerbar', p);
-  if (gfLayerbar) gfOutputs.append(gfLayerbar);
-  let gfBannersBody = null;
-  let gfTickerBody = null;
-  gfStack?.querySelectorAll('details.gc-acc').forEach((d) => {
-    if (d.dataset.sec === 'studio') return;
-    const body = d.querySelector('.gc-acc-body');
-    if (d.dataset.sec === 'banners') gfBannersBody = body;
-    else if (d.dataset.sec === 'letreiro') gfTickerBody = body;
-    else { d.classList.add('acc'); gfOutputs.append(d); }
-  });
-  if (gcDesigner) {
-    gfTemplates.innerHTML = gcDesigner.galleryHtml();
-  } else {
-    gfTemplates.innerHTML = '<div class="hint">Template Studio indisponível.</div>';
-  }
-  const gfSched = Array.isArray(S.brand.gcSchedule) ? S.brand.gcSchedule : [];
-  const gfGuestCount = S.guests instanceof Map ? S.guests.size : 0;
-  const gfSchedRows = gfSched.length
-    ? gfSched.map((s) => {
-      const t = S.gcTemplates.find((x) => x.id === s.templateId);
-      return `<div class="gf-sched-item"><b>${esc(s.at)}</b><span>${esc(t?.name || 'Template removido')}</span><small>${s.dur || 0}s</small><button type="button" class="btn ghost sm" data-gf-unsched="${esc(s.id)}" title="Cancelar agendamento">×</button></div>`;
-    }).join('')
-    : '<div class="hint">Nenhum GC agendado.</div>';
-  gfData.innerHTML = `
-    <div class="gf-pane-head"><b>Dados</b><span class="hint">fontes que alimentam o GC</span></div>
-    <div class="gf-data-grid">
-      <div class="gf-data-card">
-        <span class="gf-data-kicker">Convidado</span>
-        <b>${gfGuestCount} no backstage</b>
-        <p>Puxa nome e função de quem está no palco/backstage.</p>
-        <button type="button" class="btn ghost sm" id="gf-fill-guest">Preencher do convidado</button>
-      </div>
-      <div class="gf-data-card">
-        <span class="gf-data-kicker">RSS</span>
-        <b>Manchete do Jornal</b>
-        <p>Preenche o campo de manchete com a última notícia disponível.</p>
-        <button type="button" class="btn ghost sm" id="gf-fill-rss">Preencher do RSS</button>
-      </div>
-    </div>
-    <div class="gf-data-block">
-      <div class="gf-pane-head"><b>Agendamentos</b><button type="button" class="btn ghost sm" id="gf-open-live">Abrir Ao vivo</button></div>
-      <div class="gf-sched-list">${gfSchedRows}</div>
-      <p class="hint">Para criar um agendamento, use o bloco “Agendar GC” em Ao vivo.</p>
-    </div>`;
-  gfOutputs.prepend(Object.assign(document.createElement('div'), {
-    className: 'gf-pane-head',
-    innerHTML: '<b>Saídas e legado</b><span class="hint">overlays, banners e letreiro</span>',
-  }));
-  gfOutputs.insertAdjacentHTML('beforeend', `<details class="gc-acc acc gf-help">
-    <summary>Como o Grafismo funciona</summary>
-    <div class="gc-acc-body">
-      <p class="hint" style="margin:0">Use <b>Banners</b> para lower thirds salvos, <b>Grafismo ao vivo</b>
-      para escolher o template e colocar no ar. <b>Templates</b> abre a biblioteca visual.
-      Em <b>Saídas</b> ficam overlays/legado. Jornal e Esportes continuam em abas próprias nesta fase.</p>
-    </div>
-  </details>`);
-  const gfAcc = (id, title, open, content) => {
-    const d = document.createElement('details');
-    d.className = 'gf-acc acc';
-    d.id = `gf-acc-${id}`;
-    try { d.open = localStorage.getItem(`castdeck.grafismo.acc.${id}`) === '1' || (localStorage.getItem(`castdeck.grafismo.acc.${id}`) === null && open); } catch { d.open = open; }
-    d.innerHTML = `<summary>${esc(title)}</summary><div class="gf-acc-body"></div>`;
-    if (content) d.querySelector('.gf-acc-body').append(content);
+  $$('details.acc[data-acc-key]', p).forEach((d) => {
     d.addEventListener('toggle', () => {
-      try { localStorage.setItem(`castdeck.grafismo.acc.${id}`, d.open ? '1' : '0'); } catch {}
+      let s = {};
+      try {
+        s = JSON.parse(localStorage.getItem(ACC_KEY) || '{}') || {};
+      } catch { }
+      s[d.dataset.accKey] = d.open;
+      try { localStorage.setItem(ACC_KEY, JSON.stringify(s)); } catch { }
     });
-    return d;
-  };
-  gfHub.append(
-    gfAirBox,
-    gfAcc('banners', 'Banners', true, gfBannersBody),
-    gfAcc('live', 'Grafismo ao vivo', true, gfOperator),
-    gfAcc('letreiro', 'Letreiro & RSS', false, gfTickerBody),
-    gfAcc('templates', 'Templates', false, gfTemplates),
-    gfAcc('data', 'Dados e agendamentos', false, gfData),
-    gfAcc('outputs', 'Saídas e legado', false, gfOutputs)
-  );
-  p.replaceChildren(gfHub);
+  });
 
-  const gfSetView = (view = 'live') => {
-    const id = ['templates', 'data', 'outputs', 'letreiro', 'banners', 'live'].includes(view) ? view : 'live';
-    const d = gfHub.querySelector(`#gf-acc-${id}`);
-    if (!d) return;
-    d.open = true;
-    try { d.scrollIntoView({ block: 'nearest' }); } catch {}
-  };
   renderGcAirList();
   $('#gf-air-list', p)?.addEventListener('click', (e) => {
     const b = e.target.closest('[data-air-off]');
@@ -5884,11 +6053,6 @@ function renderBannersPanel() {
         : 'Comentários, enquetes e banners voltaram para trás do DSK.');
     };
   }
-  $$('details.gc-acc', p).forEach((d) => {
-    d.addEventListener('toggle', () => {
-      try { localStorage.setItem('castdeck.gcsec.' + d.dataset.sec, d.open ? '1' : '0'); } catch {}
-    });
-  });
   const add = () => {
     const f = readBannerFields($('#bn-new', p));
     if (!f.title) {
@@ -5914,30 +6078,30 @@ function renderBannersPanel() {
   };
   $$('.banner-item', p).forEach(
     (el) =>
-      (el.onclick = async (e) => {
-        const b = e.target.closest('button');
-        const id = el.dataset.id;
-        if (b?.dataset.up) return move(id, -1);
-        if (b?.dataset.down) return move(id, 1);
-        if (b?.dataset.dup) {
-          const src = S.banners.find((x) => x.id === id);
-          S.banners.splice(S.banners.indexOf(src) + 1, 0, { ...src, id: Math.random().toString(36).slice(2, 9), title: src.title + ' (cópia)' });
-          saveStudio();
-          return renderBannersPanel();
+    (el.onclick = async (e) => {
+      const b = e.target.closest('button');
+      const id = el.dataset.id;
+      if (b?.dataset.up) return move(id, -1);
+      if (b?.dataset.down) return move(id, 1);
+      if (b?.dataset.dup) {
+        const src = S.banners.find((x) => x.id === id);
+        S.banners.splice(S.banners.indexOf(src) + 1, 0, { ...src, id: Math.random().toString(36).slice(2, 9), title: src.title + ' (cópia)' });
+        saveStudio();
+        return renderBannersPanel();
+      }
+      if (b?.dataset.del) {
+        S.banners = S.banners.filter((x) => x.id !== id);
+        if (S.activeBanner === id) {
+          S.activeBanner = null;
+          clearTimeout(bannerTimer);
+          comp.hideBanner();
         }
-        if (b?.dataset.del) {
-          S.banners = S.banners.filter((x) => x.id !== id);
-          if (S.activeBanner === id) {
-            S.activeBanner = null;
-            clearTimeout(bannerTimer);
-            comp.hideBanner();
-          }
-          saveStudio();
-          return renderBannersPanel();
-        }
-        if (b?.dataset.edit) return editBanner(id);
-        toggleBanner(id);
-      }),
+        saveStudio();
+        return renderBannersPanel();
+      }
+      if (b?.dataset.edit) return editBanner(id);
+      toggleBanner(id);
+    }),
   );
   const rotate = () => {
     S.brand.bannerRotate = { on: $('#bn-rot', p).checked, secs: +$('#bn-rot-s', p).value };
@@ -5955,35 +6119,16 @@ function renderBannersPanel() {
   };
   $('#tk-text', p).oninput = tk;
   $('#tk-on', p).onchange = tk;
-  // RSS/notícias do letreiro agora vivem junto de GCs & Letreiro (antes ficavam escondidos em Jornal).
+  // RSS/notícias do letreiro agora vivem junto de GCs & Letreiro.
   news?.bind(p, renderBannersPanel);
   gcDesigner?.bind(p);
-  gcDesigner?.bindGallery?.(p, {
-    onUse: () => {
-      gfSetView('live');
-      renderBannersPanel();
-    },
-  });
-  $('#gf-fill-guest', p)?.addEventListener('click', () => {
-    if (gcDesigner?.fillGuest()) gfSetView('live');
-  });
-  $('#gf-fill-rss', p)?.addEventListener('click', () => {
-    if (gcDesigner?.fillHeadline()) gfSetView('live');
-  });
-  $('#gf-open-live', p)?.addEventListener('click', () => gfSetView('live'));
-  p.querySelectorAll('[data-gf-unsched]').forEach((b) => b.addEventListener('click', () => {
-    S.brand.gcSchedule = (S.brand.gcSchedule || []).filter((s) => s.id !== b.dataset.gfUnsched);
-    saveStudio();
-    gfSetView('data');
-    renderBannersPanel();
-  }));
 }
 
 async function editBanner(id) {
   const bn = S.banners.find((b) => b.id === id);
   if (!bn) return;
   const res = await modal(
-    `<h3>Editar banner</h3><div id="bn-edit">${bannerFields(bn)}</div>
+    `<h3>Editar GC</h3><div id="bn-edit">${bannerFields(bn)}</div>
      <div class="row" style="justify-content:flex-end;margin-top:6px;gap:8px"><button class="btn" data-close>Cancelar</button><button class="btn" id="bn-save" data-save>Salvar</button><button class="btn primary" id="bn-saveshow">Salvar e mostrar</button></div>`,
     {
       onMount: (m, close) => {
@@ -6001,6 +6146,11 @@ async function editBanner(id) {
   );
   if (!res) return;
   Object.assign(bn, res.f);
+  if ((bn.style === 'tpl' || Array.isArray(bn.layers)) && bn.data) {
+    bn.data.name = res.f.title;
+    if ('headline' in bn.data) bn.data.headline = res.f.title;
+    if ('role' in bn.data) bn.data.role = res.f.subtitle;
+  }
   saveStudio();
   if (S.activeBanner === id) {
     S.activeBanner = null;
@@ -6020,10 +6170,22 @@ function toggleBanner(id, data) {
   } else {
     const bn = data || S.banners.find((b) => b.id === id);
     if (!bn) return;
-    // GC de jornal carrega logo e etiqueta; os demais só texto/estilo
-    let payload = bn.style === 'news' ? (data ? data : newsPayload(bn, S.brand.logo)) : { title: bn.title, subtitle: bn.subtitle, style: bn.style, pos: bn.pos, color: bn.color };
+    // GC de jornal carrega logo e etiqueta; GCs salvos de Template carregam camadas/dados; demais carregam estilo simples
+    let payload = bn.style === 'news'
+      ? (data ? data : newsPayload(bn, S.brand.logo))
+      : (bn.style === 'tpl' || Array.isArray(bn.layers))
+        ? { ...bn, style: 'tpl', data: { ...(bn.data || {}), logo: S.brand.logo || null } }
+        : { title: bn.title, subtitle: bn.subtitle, style: bn.style, pos: bn.pos, color: bn.color };
     // variáveis dos times cadastrados na aba Sports: {mandante} {visitante} {placar} {competicao} {tempo}
-    if (sports) payload = { ...payload, title: sports.fill(payload.title), subtitle: sports.fill(payload.subtitle) };
+    if (sports) {
+      payload = { ...payload, title: sports.fill(payload.title), subtitle: sports.fill(payload.subtitle) };
+      if (payload.data) {
+        payload.data = { ...payload.data };
+        for (const k of ['name', 'headline', 'role', 'tag']) {
+          if (typeof payload.data[k] === 'string') payload.data[k] = sports.fill(payload.data[k]);
+        }
+      }
+    }
     S.activeBanner = id;
     S.activeBannerTitle = payload.title;
     comp.showBanner(payload);
@@ -6039,8 +6201,7 @@ function toggleBanner(id, data) {
   renderGcBar();
 }
 
-// Barra de controle (sempre visível sob o programa), compacta em uma linha:
-// GC (tirar do ar, salvos, rápido, jornal) + Mídia (escolher, tocar/pausar, anterior/próximo, posição, palco, volume) + Limpar tela
+// Mini player de GC em fita fina única: mostra apenas os GCs cadastrados pelo usuário + Playout/DSK/Diretor/Limpar
 function renderGcBar() {
   renderGcAirList();
   const bar = $('#gcbar');
@@ -6049,7 +6210,7 @@ function renderGcBar() {
   bar.classList.toggle('on-air', on);
   if (!$('.deck-gc', bar)) {
     bar.innerHTML = `
-      <div class="deck-sec deck-gc"><span class="deck-lbl">GC / Lower Thirds</span><div class="deck-gc-body"></div></div>
+      <div class="deck-sec deck-gc"><span class="deck-lbl">GC</span><div class="deck-gc-body"></div></div>
       <div class="deck-sec deck-media" id="deck-media"><span class="deck-lbl" role="button" tabindex="0" title="Abrir o painel Playout">Playout</span><div class="deck-media-body"></div></div>
       <div class="deck-sec deck-dsk" id="deck-dsk"></div>
       <div class="deck-sec deck-dir" id="deck-dir"></div>
@@ -6077,8 +6238,7 @@ function renderGcBar() {
     }
   }
   const all = S.banners;
-  const spItems = sports?.gcItems() || [];
-  const pick = [...all, ...spItems];
+  const pick = all;
   if (S.activeBanner && S.activeBanner !== gcLastOn && pick.some((b) => b.id === S.activeBanner)) gcSel = S.activeBanner; // segue o GC que entrou no ar
   gcLastOn = S.activeBanner || null;
   if (!pick.some((b) => b.id === gcSel)) gcSel = (pick.some((b) => b.id === S.activeBanner) && S.activeBanner) || pick[0]?.id || null;
@@ -6087,22 +6247,34 @@ function renderGcBar() {
   const other = all.filter((b) => b.style !== 'news');
   const groups = [
     ['Jornal', news],
-    ['Banners', other],
-    ['Futebol', spItems],
+    ['Meus GCs', other],
   ].filter(([, l]) => l.length);
   const selOn = !!gcSel && S.activeBanner === gcSel;
   $('.deck-gc-body', bar).innerHTML = `
     <button class="btn danger sm" id="gc-off" title="Tira o GC/banner da tela agora" ${on ? '' : 'hidden'}>✕<span class="deck-txt"> Tirar</span></button>
-    ${
-      pick.length
-        ? `<select class="input deck-sel gc-sel" id="gc-sel" title="Escolher GC (${pick.length})" aria-label="Escolher GC">
+    ${pick.length
+      ? `<div class="gc-strip-pills" role="list" aria-label="GCs cadastrados">${pick.map((b) => {
+        const isOn = S.activeBanner === b.id;
+        return `<button type="button" class="gc-pill ${isOn ? 'on' : ''}" data-gc-pill="${esc(b.id)}" title="${esc(b.title)}${b.subtitle ? ' — ' + esc(b.subtitle) : ''}"><i style="background:${esc(b.color || S.brand.color || '#7c5cff')}"></i><span>${esc(b.title)}</span></button>`;
+      }).join('')}</div>
+          <select class="input deck-sel gc-sel" id="gc-sel" title="Escolher GC cadastrado (${pick.length})" aria-label="Escolher GC">
             ${groups.length > 1 ? groups.map(([lbl, l]) => `<optgroup label="${lbl}">${l.map(opt).join('')}</optgroup>`).join('') : pick.map(opt).join('')}
           </select>
           <button class="btn sm ${selOn ? 'onair' : 'primary'}" id="gc-go" title="${selOn ? 'Este GC já está no ar (clique para tirar)' : 'Mandar o GC escolhido para a tela'}">${selOn ? '● No ar' : '▶ Mandar'}</button>`
-        : '<span class="hint deck-empty">Sem GCs salvos</span>'
+      : '<span class="hint deck-empty">Sem GCs cadastrados — cadastre em Grafismo ou use ＋</span>'
     }
     <button class="btn sm icon" id="gc-quick" title="Banner rápido: escreva e mande na hora">＋</button>`;
   $('#gc-off', bar)?.addEventListener('click', () => S.activeBanner && toggleBanner(S.activeBanner));
+  $$('.gc-pill[data-gc-pill]', bar).forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.gcPill;
+      if (!id) return;
+      gcSel = id;
+      if (S.activeBanner === id) return toggleBanner(id);
+      if (S.activeBanner) toggleBanner(S.activeBanner);
+      toggleBanner(id);
+    });
+  });
   const sel = $('#gc-sel', bar);
   if (sel)
     sel.onchange = () => {
@@ -6114,7 +6286,6 @@ function renderGcBar() {
     go.onclick = () => {
       if (!gcSel) return;
       if (S.activeBanner === gcSel) return toggleBanner(gcSel);
-      if (gcSel.startsWith('sp:')) return sports.quick(gcSel); // atalho de futebol: monta o GC com os times/placar atuais
       if (S.activeBanner) toggleBanner(S.activeBanner);
       toggleBanner(gcSel);
     };
@@ -6133,6 +6304,7 @@ function tickDeck() {
   const box = $('#gcbar .deck-media-body');
   if (!box) return;
   const list = mediaList();
+  $('#deck-media')?.classList.toggle('is-empty', !list.length);
   const playing = list.find((x) => !x.el.paused);
   // Operabilidade: o mini player segue o que está NA TELA MAIOR, como antes.
   // Take de mídia > palco (Cena) > prévia. A fila define a ordem; a tela define a seleção.
@@ -6277,15 +6449,14 @@ function renderChatPanel() {
   const isFloating = !!p.closest?.('.fw') || !!p.closest?.('.fw-popout-root') || p.classList.contains('fw-panel') || !!floatWins?.has?.('chat');
   p.innerHTML = `
     <div class="chat">
-      ${
-        !isFloating
-          ? `<div class="chat-top-bar" style="display:flex;justify-content:flex-end;align-items:center;padding:0 0 6px">
+      ${!isFloating
+      ? `<div class="chat-top-bar" style="display:flex;justify-content:flex-end;align-items:center;padding:0 0 6px">
               <button class="btn sm ghost" id="chat-btn-float" title="Destacar este painel em uma janela flutuante com botão de fixar no topo (📌)">
                 <span>⧉ Destacar chat</span>
               </button>
             </div>`
-          : ''
-      }
+      : ''
+    }
       <div class="chat-log" id="chat-log">${S.chat.length ? '' : '<div class="empty">Chat privado do estúdio (host + convidados). Não vai ao ar, a menos que você clique em “Mostrar”.</div>'}</div>
       <form class="chat-form" id="chat-form"><input class="input" id="chat-input" placeholder="Mensagem…" maxlength="500" autocomplete="off" aria-label="Mensagem do chat"><button class="btn primary icon" type="submit" title="Enviar mensagem" aria-label="Enviar mensagem">${icons.up}</button></form>
     </div>`;
@@ -6379,7 +6550,7 @@ setInterval(() => {
 
 async function showIntercomLink() {
   let sys = S.system;
-  try { sys = await api('/system'); } catch {}
+  try { sys = await api('/system'); } catch { }
   const key = encodeURIComponent(S.outKey || '');
   const lan = (sys.lan || [])[0];
   const tunnel = sys.tunnel?.url;
@@ -6442,7 +6613,7 @@ function ensureIntercomMini() {
       const on = !Object.keys(S.intercom.talk || {}).length;
       intercomMiniTalk(list, on);
     } else {
-      try { ptt.setPointerCapture(e.pointerId); } catch {}
+      try { ptt.setPointerCapture(e.pointerId); } catch { }
       intercomMiniTalk(list, true);
     }
   });
@@ -6478,7 +6649,7 @@ function ensureIntercomMini() {
       el.style.bottom = 'auto';
       el.style.right = 'auto';
     }
-  } catch {}
+  } catch { }
   const head = el.querySelector('#icm-drag');
   let drag = null;
   const moveDrag = (e) => {
@@ -6494,7 +6665,7 @@ function ensureIntercomMini() {
   const stopDrag = (e) => {
     if (!drag || (e?.pointerId !== undefined && e.pointerId !== drag.id)) return;
     drag = null;
-    try { localStorage.setItem('castdeck.intercomMiniPos', JSON.stringify({ left: Math.round(el.offsetLeft), top: Math.round(el.offsetTop) })); } catch {}
+    try { localStorage.setItem('castdeck.intercomMiniPos', JSON.stringify({ left: Math.round(el.offsetLeft), top: Math.round(el.offsetTop) })); } catch { }
   };
   // Os listeners ficam na window: o ponteiro pode sair do cabeçalho (ou do painel)
   // durante o arraste; pointerup no próprio cabeçalho deixava o drag "colado" no mouse.
@@ -6621,7 +6792,7 @@ function renderIntercomPanel() {
         return;
       }
       pointer = e.pointerId;
-      try { btn.setPointerCapture(e.pointerId); } catch {}
+      try { btn.setPointerCapture(e.pointerId); } catch { }
       intercomSetTalk(list, true);
       paint();
     });
@@ -6676,7 +6847,7 @@ function renderIntercomPanel() {
           S.local.mic = mic;
           mixer.addStream('host:mic', mic, { ownerId: 'host', stageKey: 'host:cam', monitor: false });
           mixer.setMuted('host:mic', !S.local.micOn, { save: false });
-          old?.getTracks?.().forEach((t) => { try { t.stop(); } catch {} });
+          old?.getTracks?.().forEach((t) => { try { t.stop(); } catch { } });
           savePrefs({ micId: deviceId || '' });
           toast('Microfone do intercom trocado.', 'ok');
         } catch (e) {
@@ -6739,7 +6910,7 @@ function renderAudioPanel() {
     if (window._audioPopout && !window._audioPopout.closed) {
       window._audioPopout.renderAudio?.();
     }
-  } catch {}
+  } catch { }
 }
 
 function syncNdiButton() {
@@ -6830,7 +7001,7 @@ async function renderNdiPanel() {
   $('#ndi-stop')?.addEventListener('click', () => { ndiOut?.stop(); renderNdiPanel(); });
   $('#ndi-disable')?.addEventListener('click', async () => {
     ndiOut?.stop();
-    try { await api('/ndi/enabled', { method: 'POST', body: { on: false } }); } catch {}
+    try { await api('/ndi/enabled', { method: 'POST', body: { on: false } }); } catch { }
     ndiEnabled = false;
     syncNdiButton();
     renderNdiPanel();
@@ -6858,8 +7029,8 @@ async function loadNdiSources() {
       ${key ? '<span class="pill ok">Ativo</span>' : ''}
       <div class="row ndi-source-actions">
         ${key
-          ? `<button class="btn ghost sm icon" data-remove="${esc(key)}" title="Remover">${icons.trash}</button>`
-          : `<button class="btn sm primary" data-add="${esc(s.name)}" data-url="${esc(s.url || '')}">${icons.plus} Adicionar</button>`}
+        ? `<button class="btn ghost sm icon" data-remove="${esc(key)}" title="Remover">${icons.trash}</button>`
+        : `<button class="btn sm primary" data-add="${esc(s.name)}" data-url="${esc(s.url || '')}">${icons.plus} Adicionar</button>`}
       </div>
     </div>`;
   }).join('');
@@ -6886,7 +7057,7 @@ async function loadNdiSources() {
       const key = btn.dataset.remove;
       btn.disabled = true;
       btn.textContent = 'Removendo…';
-      try { await api('/ndi/sources/' + encodeURIComponent(key), { method: 'DELETE' }); } catch {}
+      try { await api('/ndi/sources/' + encodeURIComponent(key), { method: 'DELETE' }); } catch { }
       removeSource('ingest:' + key);
       loadNdiSources();
     });
@@ -6912,34 +7083,32 @@ function renderOutputPanel() {
       <select class="input" id="o-enc" ${S.live ? 'disabled' : ''}>
         ${S.system.ffmpeg.encoders.map((e) => `<option value="${e.id}" ${e.id === S.encoder ? 'selected' : ''}>${esc(e.label)}${e.hw ? ' (GPU)' : ''}</option>`).join('')}
       </select></label>
-    ${
-      st
-        ? `<h4>Transmissão</h4>
+    ${st
+      ? `<h4>Transmissão</h4>
       <div class="dest-status">
         <div class="dest-row"><div class="meta"><strong>Encoder</strong><span>${st.fps || 0} fps · ${esc(st.bitrate || '—')} · velocidade ${esc(st.speed || '—')}</span></div></div>
         ${st.outputs
-          .map((o) => {
-            const [cls, label] = stateLabel[o.state] || ['', o.state];
-            return `<div class="dest-row"><div class="meta"><strong>${esc(o.name)}</strong><span>${o.kind === 'record' ? esc(o.file || '') : fmtBytes(o.bytes) + ' enviados'}${o.restarts ? ` · ${o.restarts} reconexões` : ''}${o.error && o.state !== 'live' ? ' · ' + esc(o.error) : ''}</span></div><span class="pill ${cls}">${label}</span></div>`;
-          })
-          .join('')}
+        .map((o) => {
+          const [cls, label] = stateLabel[o.state] || ['', o.state];
+          return `<div class="dest-row"><div class="meta"><strong>${esc(o.name)}</strong><span>${o.kind === 'record' ? esc(o.file || '') : fmtBytes(o.bytes) + ' enviados'}${o.restarts ? ` · ${o.restarts} reconexões` : ''}${o.error && o.state !== 'live' ? ' · ' + esc(o.error) : ''}</span></div><span class="pill ${cls}">${label}</span></div>`;
+        })
+        .join('')}
       </div>`
-        : ''
+      : ''
     }
     <div class="dm-head"><h4>Destinos</h4><div style="display:flex;gap:6px"><button class="btn sm ghost" id="o-key-help" title="Onde pego a chave de transmissão?">❓</button><button class="btn sm primary" id="o-dest-add">${icons.plus} Novo destino</button></div></div>
     ${S.live ? '<p class="hint" style="margin:-4px 0 8px">Mudanças nos destinos valem para a próxima transmissão.</p>' : ''}
-    <div class="dest-status dm-list">${
-      S.destinations.length
-        ? S.destinations
-            .map(
-              (d) => `<div class="dest-row dm-row" data-id="${d.id}"><span class="plat ${d.platform}" style="width:30px;height:30px;font-size:11px;flex:none">${PLATFORMS[d.platform]?.short || '⚡'}</span>
+    <div class="dest-status dm-list">${S.destinations.length
+      ? S.destinations
+        .map(
+          (d) => `<div class="dest-row dm-row" data-id="${d.id}"><span class="plat ${d.platform}" style="width:30px;height:30px;font-size:11px;flex:none">${PLATFORMS[d.platform]?.short || '⚡'}</span>
                 <div class="meta"><strong>${esc(d.name)} ${fmtBadge(d)}</strong><span>${esc(d.url)}${d.hasKey ? '' : ' · <b style="color:var(--warn)">sem chave</b>'}</span></div>
                 <label class="switch" title="Marcado por padrão ao transmitir"><input type="checkbox" data-dtog ${d.enabled ? 'checked' : ''}><span></span></label>
                 <button class="btn ghost sm icon" data-dedit title="Editar (nome, servidor e chave)" aria-label="Editar destino">${icons.edit}</button>
                 <button class="btn ghost sm icon" data-ddel title="Remover destino" aria-label="Remover destino">${icons.trash}</button></div>`,
-            )
-            .join('')
-        : '<div class="empty">Nenhum destino ainda. Adicione YouTube, Facebook, Twitch, Instagram, TikTok ou qualquer servidor RTMP.</div>'
+        )
+        .join('')
+      : '<div class="empty">Nenhum destino ainda. Adicione YouTube, Facebook, Twitch, Instagram, TikTok ou qualquer servidor RTMP.</div>'
     }</div>
     <p class="hint" style="margin-top:8px">A chave fica salva só neste aparelho. O botão ligado deixa o destino já marcado quando você clicar em Transmitir.</p>`;
   $('#o-preset', p).onchange = (e) => {
@@ -6967,7 +7136,7 @@ function renderOutputPanel() {
 async function refreshDestinations() {
   try {
     S.destinations = await api('/destinations');
-  } catch {}
+  } catch { }
   if (tabOpen('output')) renderOutputPanel();
   buildVDests();
 }
@@ -7017,12 +7186,12 @@ function initVerticalDock() {
   $('#btn-vertical').onclick = () => setVerticalDock(!S.brand.vOn);
   $$('#v-layouts .vl', dock).forEach(
     (b) =>
-      (b.onclick = () => {
-        S.brand.vlayout = b.dataset.l;
-        vview.layout = b.dataset.l;
-        saveStudio();
-        updateVerticalDock();
-      }),
+    (b.onclick = () => {
+      S.brand.vlayout = b.dataset.l;
+      vview.layout = b.dataset.l;
+      saveStudio();
+      updateVerticalDock();
+    }),
   );
   $('#v-opt', dock).onclick = () => {
     const o = $('#v-opts', dock);
@@ -7090,15 +7259,15 @@ async function buildVDests() {
   if (!dock || S.vlive) return;
   try {
     S.destinations = await api('/destinations');
-  } catch {}
+  } catch { }
   const vds = S.destinations.filter((d) => destFormat(d) === 'v'); // só chaves verticais 9:16
   const sel = new Set(S.brand.vdest || vds.filter((d) => d.enabled).map((d) => d.id));
   const box = $('#v-dests', dock);
   if (!box) return;
   const html = vds.length
     ? vds
-        .map((d) => `<label class="list-item card check"><input type="checkbox" name="vdest" value="${d.id}" ${sel.has(d.id) ? 'checked' : ''}><span class="plat ${d.platform}">${PLATFORMS[d.platform]?.short || '⚡'}</span><span class="meta"><strong>${esc(d.name)}</strong></span></label>`)
-        .join('')
+      .map((d) => `<label class="list-item card check"><input type="checkbox" name="vdest" value="${d.id}" ${sel.has(d.id) ? 'checked' : ''}><span class="plat ${d.platform}">${PLATFORMS[d.platform]?.short || '⚡'}</span><span class="meta"><strong>${esc(d.name)}</strong></span></label>`)
+      .join('')
     : '<div class="empty">Nenhum destino vertical (9:16) cadastrado. <button class="btn sm" type="button" id="v-dest-add">＋ Adicionar</button> (Instagram, TikTok…)</div>';
   if (box._h !== html) {
     box.innerHTML = html;
@@ -7299,15 +7468,15 @@ async function openRecordModal() {
     <div class="rec-where" id="gl-where"><span class="rw-lbl">Gravações em</span><code id="gl-dir-path" title="${esc(recDir)}">${esc(recDir)}</code><button class="btn sm ghost" id="gl-dir" type="button">Alterar…</button></div>
     <div class="row" style="margin-top:10px">
       <label class="field grow"><span>Qualidade</span><select class="input" id="gl-preset">${Object.entries(S.system.presets)
-        .filter(([, v]) => !v.vertical)
-        .map(([k, v]) => `<option value="${k}" ${k === S.preset ? 'selected' : ''}>${v.height}p${v.fps} · ${(v.videoKbps / 1000).toFixed(1)} Mbps</option>`)
-        .join('')}</select></label>
+      .filter(([, v]) => !v.vertical)
+      .map(([k, v]) => `<option value="${k}" ${k === S.preset ? 'selected' : ''}>${v.height}p${v.fps} · ${(v.videoKbps / 1000).toFixed(1)} Mbps</option>`)
+      .join('')}</select></label>
       <label class="field grow"><span>Taxa de bits</span><select class="input" id="gl-bitrate">${BITRATE_OPTS
-        .map(([v, l]) => `<option value="${v}" ${v === (S.bitrate || 0) ? 'selected' : ''}>${esc(l)}</option>`)
-        .join('')}</select></label>
+      .map(([v, l]) => `<option value="${v}" ${v === (S.bitrate || 0) ? 'selected' : ''}>${esc(l)}</option>`)
+      .join('')}</select></label>
       <label class="field grow"><span>Encoder</span><select class="input" id="gl-enc">${S.system.ffmpeg.encoders
-        .map((e) => `<option value="${e.id}" ${e.id === S.encoder ? 'selected' : ''}>${esc(e.label)}</option>`)
-        .join('')}</select></label>
+      .map((e) => `<option value="${e.id}" ${e.id === S.encoder ? 'selected' : ''}>${esc(e.label)}</option>`)
+      .join('')}</select></label>
     </div>
     ${S.system.ffmpeg.available ? '' : `<p class="hint" style="color:hsl(354 90% 72%)">${esc(S.system.ffmpeg.error)}</p>`}
     <div class="modal-actions"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="gl-go">${icons.record} Começar a gravar</button></div>`,
@@ -7416,7 +7585,7 @@ async function stopRecord() {
 async function openGoLive() {
   try {
     S.destinations = await api('/destinations');
-  } catch {}
+  } catch { }
   const recDir = S.system.recordingsDir || '';
   const vWanted = S.brand.liveVert ?? !!S.brand.vOn;
   // vertical vinculada que só está gravando: dá para colocar os destinos verticais no ar nela
@@ -7458,15 +7627,15 @@ async function openGoLive() {
     <div class="rec-where" id="gl-where" ${isAlreadyRecording || S.brand.liveRec ? '' : 'hidden'}><span class="rw-lbl">Gravações em</span><code id="gl-dir-path" title="${esc(recDir)}">${esc(recDir)}</code><button class="btn sm ghost" id="gl-dir" type="button">Alterar…</button></div>
     <div class="row" style="margin-top:10px">
       <label class="field grow"><span>Qualidade (horizontal)</span><select class="input" id="gl-preset">${Object.entries(S.system.presets)
-        .filter(([, v]) => !v.vertical)
-        .map(([k, v]) => `<option value="${k}" ${k === S.preset ? 'selected' : ''}>${v.height}p${v.fps} · ${(v.videoKbps / 1000).toFixed(1)} Mbps</option>`)
-        .join('')}</select></label>
+      .filter(([, v]) => !v.vertical)
+      .map(([k, v]) => `<option value="${k}" ${k === S.preset ? 'selected' : ''}>${v.height}p${v.fps} · ${(v.videoKbps / 1000).toFixed(1)} Mbps</option>`)
+      .join('')}</select></label>
       <label class="field grow"><span>Taxa de bits</span><select class="input" id="gl-bitrate">${BITRATE_OPTS
-        .map(([v, l]) => `<option value="${v}" ${v === (S.bitrate || 0) ? 'selected' : ''}>${esc(l)}</option>`)
-        .join('')}</select></label>
+      .map(([v, l]) => `<option value="${v}" ${v === (S.bitrate || 0) ? 'selected' : ''}>${esc(l)}</option>`)
+      .join('')}</select></label>
       <label class="field grow"><span>Encoder</span><select class="input" id="gl-enc">${S.system.ffmpeg.encoders
-        .map((e) => `<option value="${e.id}" ${e.id === S.encoder ? 'selected' : ''}>${esc(e.label)}</option>`)
-        .join('')}</select></label>
+      .map((e) => `<option value="${e.id}" ${e.id === S.encoder ? 'selected' : ''}>${esc(e.label)}</option>`)
+      .join('')}</select></label>
     </div>
     <div class="gl-check" id="gl-check"></div>
     <label class="check gl-count-row"><input type="checkbox" id="gl-count" ${S.brand.liveCountdown ? 'checked' : ''}> <span>Contagem 3‑2‑1 antes de entrar <span class="hint">(só aparece aqui no estúdio)</span></span></label>
@@ -7496,14 +7665,14 @@ async function openGoLive() {
         sync();
         $$('[data-gl-add]', m).forEach(
           (b) =>
-            (b.onclick = () => {
-              close(null);
-              setTimeout(async () => {
-                await editDestination(null, { format: b.dataset.glAdd });
-                await refreshDestinations();
-                openGoLive();
-              }, 50);
-            }),
+          (b.onclick = () => {
+            close(null);
+            setTimeout(async () => {
+              await editDestination(null, { format: b.dataset.glAdd });
+              await refreshDestinations();
+              openGoLive();
+            }, 50);
+          }),
         );
         $$('[data-gl-help]', m).forEach((b) => (b.onclick = () => showKeyHelp(b.dataset.glHelp === 'v' ? 'instagram' : 'youtube')));
         $('#gl-dir', m).onclick = async () => {
@@ -7640,7 +7809,7 @@ async function showInvite() {
   let sys = S.system;
   try {
     sys = await api('/system');
-  } catch {}
+  } catch { }
   // corpo da janela: refeito sozinho enquanto o túnel conecta (o usuário só espera, não precisa reabrir)
   const body = (sys) => {
     const t = sys.tunnel || {};
@@ -7655,16 +7824,15 @@ async function showInvite() {
       error: `Conexão para convidados de fora indisponível: ${t.error || 'erro'}`,
     }[t.status || 'off'];
     return `${tunnelMsg ? `<div class="status-banner" style="margin-bottom:12px">${esc(tunnelMsg)}</div>` : ''}
-    <div class="list">${
-      links.length
+    <div class="list">${links.length
         ? links
-            .map(
-              (l) => `<div class="list-item card invite-card" style="box-shadow:none;padding:10px 12px;${l.main ? 'border-color:var(--accent)' : ''}"><div class="invite-qr">${qrSvg(l.url)}</div><div class="meta"><strong>${esc(l.label)}</strong><span>${esc(l.url)}</span></div>
+          .map(
+            (l) => `<div class="list-item card invite-card" style="box-shadow:none;padding:10px 12px;${l.main ? 'border-color:var(--accent)' : ''}"><div class="invite-qr">${qrSvg(l.url)}</div><div class="meta"><strong>${esc(l.label)}</strong><span>${esc(l.url)}</span></div>
               <button class="btn sm ${l.main ? 'primary' : ''}" data-copy="${esc(l.url)}">${icons.copy} Copiar</button></div>`,
-            )
-            .join('')
+          )
+          .join('')
         : '<div class="empty">Nenhum link disponível.</div>'
-    }</div>`;
+      }</div>`;
   };
   await modal(
     `
@@ -7693,7 +7861,7 @@ async function showInvite() {
                 bind();
                 if (sys.tunnel?.status === 'on') toast('Link de Internet pronto!', 'ok');
               }
-            } catch {}
+            } catch { }
           }
           setTimeout(tick, 1500);
         };
@@ -7737,7 +7905,7 @@ function startUvcOfferPolling() {
         src.uvcAudioStarting = true;
         stopUvcAudio(src);
         startUvcAudio(src, 'usb')
-          .catch(() => {})
+          .catch(() => { })
           .finally(() => { src.uvcAudioStarting = false; });
       }
       return;
@@ -7748,7 +7916,7 @@ function startUvcOfferPolling() {
         uvcOfferLast = st.offerId;
         await offerUvcSource(st);
       }
-    } catch {}
+    } catch { }
   }, 1200);
 }
 
@@ -7774,7 +7942,7 @@ async function offerUvcSource(st) {
       toast('Câmera USB: ' + e.message, 'err');
     }
   } else {
-    await uvcJson('/uvc/dismiss', { method: 'POST' }).catch(() => {});
+    await uvcJson('/uvc/dismiss', { method: 'POST' }).catch(() => { });
   }
 }
 
@@ -7803,7 +7971,7 @@ async function openUvcDialog() {
     try {
       const d = await uvcJson('/uvc/diag');
       extra = d && typeof d.usbDevices === 'number' ? ` O Android vê ${d.usbDevices} dispositivo(s) USB no total.` : '';
-    } catch {}
+    } catch { }
     toast('Nenhuma câmera UVC encontrada.' + extra + ' Conecte a webcam/placa por OTG e tente de novo.', 'err');
     return;
   }
@@ -7900,10 +8068,10 @@ function stopUvcAudio(s) {
   const a = s?.uvcAudio;
   if (!a) return;
   s.uvcAudio = null;
-  try { a.controller?.abort(); } catch {}
-  try { a.reader?.cancel(); } catch {}
-  try { a.node?.disconnect(); } catch {}
-  try { a.stream?.getTracks().forEach((t) => t.stop()); } catch {}
+  try { a.controller?.abort(); } catch { }
+  try { a.reader?.cancel(); } catch { }
+  try { a.node?.disconnect(); } catch { }
+  try { a.stream?.getTracks().forEach((t) => t.stop()); } catch { }
   mixer.remove('uvc:1:audio');
 }
 
@@ -7950,7 +8118,7 @@ async function startUvcAudio(s, mode) {
   };
   (async () => {
     try {
-      for (;;) {
+      for (; ;) {
         const { value, done } = await reader.read();
         if (done) break;
         if (!value?.length) continue;
@@ -7984,7 +8152,7 @@ async function startUvcAudio(s, mode) {
 async function openUvcSettings(s) {
   const id = 'uvc:1';
   let st = { width: 640, height: 480, fps: 30 };
-  try { st = await uvcJson('/uvc/status'); } catch {}
+  try { st = await uvcJson('/uvc/status'); } catch { }
   const res = st.width + 'x' + st.height;
   const opt = (val, cur) => `<option value="${val}" ${String(val) === String(cur) ? 'selected' : ''}>${val}</option>`;
   const choice = await modal(
@@ -8087,13 +8255,13 @@ async function showRemoteCam() {
   let sys = S.system;
   try {
     sys = await api('/system');
-  } catch {}
+  } catch { }
   let lans = (Array.isArray(sys.lan) ? sys.lan : []).filter((x) => x?.url);
   let lanIndex = 0;
   try {
     const saved = Number(localStorage.getItem('castdeck.cam.lan'));
     if (Number.isInteger(saved) && saved >= 0 && saved < lans.length) lanIndex = saved;
-  } catch {}
+  } catch { }
   let grid = null;
   let live = null;
   let toolbar = null;
@@ -8103,7 +8271,7 @@ async function showRemoteCam() {
   try {
     const savedQ = localStorage.getItem('castdeck.cam.q');
     if (savedQ === '720' || savedQ === '1080') quality = savedQ;
-  } catch {}
+  } catch { }
   const base = (u) => String(u || '').replace(/\/+$/, '');
   const linkFor = (u) => (u ? `${base(u)}/cam/${studioId}?q=${quality}&fps=30` : '');
   const lanUrl = () => linkFor(lans[lanIndex]?.url);
@@ -8121,13 +8289,13 @@ async function showRemoteCam() {
     <div class="camqr-card">
       <div class="camqr-head"><span>${ico}</span><div><strong>${esc(title)}</strong><small>${esc(sub)}</small></div></div>
       ${url
-        ? `<div class="camqr-qr"><div class="camqr-code">${qrSvg(url)}</div></div>
+      ? `<div class="camqr-qr"><div class="camqr-code">${qrSvg(url)}</div></div>
            <code class="camqr-url" title="${esc(url)}">${esc(url)}</code>
            <div class="camqr-actions">
              <button class="btn sm" data-copy="${esc(url)}">${icons.copy} Copiar link</button>
              <a class="btn sm ghost" href="${esc(url)}" target="_blank" rel="noopener">Abrir</a>
            </div>`
-        : `<div class="camqr-empty">${esc(empty)}</div>`}
+      : `<div class="camqr-empty">${esc(empty)}</div>`}
     </div>`;
   const renderToolbar = () => {
     if (!toolbar || !toolbar.isConnected) return;
@@ -8143,7 +8311,7 @@ async function showRemoteCam() {
     if (q) {
       q.onchange = () => {
         quality = q.value === '720' ? '720' : '1080';
-        try { localStorage.setItem('castdeck.cam.q', quality); } catch {}
+        try { localStorage.setItem('castdeck.cam.q', quality); } catch { }
         renderCards();
       };
     }
@@ -8151,7 +8319,7 @@ async function showRemoteCam() {
     if (pick) {
       pick.onchange = () => {
         lanIndex = Math.max(0, Math.min(lans.length - 1, Number(pick.value) || 0));
-        try { localStorage.setItem('castdeck.cam.lan', String(lanIndex)); } catch {}
+        try { localStorage.setItem('castdeck.cam.lan', String(lanIndex)); } catch { }
         renderCards();
       };
     }
@@ -8268,13 +8436,15 @@ async function renderDevicesPanel() {
   const prefs = loadPrefs();
   const { cams, mics } = await listDevices();
   if (seq !== devicesSeq) return;
+  const curCamId = S.local.cam?.getVideoTracks?.()[0]?.getSettings?.().deviceId || prefs.camId || '';
+  const curMicId = S.local.mic?.getAudioTracks?.()[0]?.getSettings?.().deviceId || prefs.micId || '';
   p.innerHTML = `
     <h4>Você na tela</h4>
     <label class="field"><span>Seu nome na tela</span><input class="input" id="st-name" value="${esc(S.local.name)}" maxlength="40"></label>
     <h4>Câmera e microfone</h4>
-    <label class="field"><span>Câmera</span><select class="input" id="st-cam">${cams.map((d, i) => `<option value="${d.deviceId}" ${d.deviceId === prefs.camId ? 'selected' : ''}>${esc(d.label || 'Câmera ' + (i + 1))}</option>`).join('')}</select></label>
+    <label class="field"><span>Câmera</span><select class="input" id="st-cam">${cams.map((d, i) => `<option value="${d.deviceId}" ${d.deviceId === curCamId ? 'selected' : ''}>${esc(d.label || 'Câmera ' + (i + 1))}</option>`).join('')}</select></label>
     <label class="field"><span>Qualidade da câmera</span><select class="input" id="st-q">${[['720', 'HD 720p'], ['1080', 'Full HD 1080p'], ['480', 'SD 480p']].map(([v, l]) => `<option value="${v}" ${v === (prefs.quality || '720') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-    <label class="field"><span>Microfone</span><select class="input" id="st-mic">${mics.map((d, i) => `<option value="${d.deviceId}" ${d.deviceId === prefs.micId ? 'selected' : ''}>${esc(d.label || 'Microfone ' + (i + 1))}</option>`).join('')}</select></label>
+    <label class="field"><span>Microfone</span><select class="input" id="st-mic">${mics.map((d, i) => `<option value="${d.deviceId}" ${d.deviceId === curMicId ? 'selected' : ''}>${esc(d.label || 'Microfone ' + (i + 1))}</option>`).join('')}</select></label>
     <label class="check st-raw-row"><input type="checkbox" id="st-raw" ${prefs.rawMic ? 'checked' : ''}> <span>Áudio puro <span class="hint">(sem redução de ruído e sem cancelamento de eco)</span></span></label>
     <button class="btn primary st-apply" id="st-save" disabled>Aplicar</button>
     <h4>Câmeras extras e gravações</h4>
@@ -8300,8 +8470,8 @@ async function renderDevicesPanel() {
   const dirty = () => {
     save.disabled = !(
       ($('#st-name', p).value.trim() || S.local.name) !== S.local.name ||
-      $('#st-cam', p).value !== (prefs.camId || $('#st-cam', p).options[0]?.value) ||
-      $('#st-mic', p).value !== (prefs.micId || $('#st-mic', p).options[0]?.value) ||
+      $('#st-cam', p).value !== (curCamId || $('#st-cam', p).options[0]?.value) ||
+      $('#st-mic', p).value !== (curMicId || $('#st-mic', p).options[0]?.value) ||
       $('#st-q', p).value !== (prefs.quality || '720') ||
       $('#st-raw', p).checked !== !!prefs.rawMic
     );
@@ -8341,26 +8511,52 @@ async function renderDevicesPanel() {
   save.onclick = async () => {
     save.disabled = true;
     const name = $('#st-name', p).value.trim() || S.local.name;
-    const camId = $('#st-cam', p).value;
-    const micId = $('#st-mic', p).value;
-    const quality = $('#st-q', p).value;
+    let camId = $('#st-cam', p).value;
+    let micId = $('#st-mic', p).value;
+    let quality = $('#st-q', p).value;
     const rawMic = $('#st-raw', p).checked;
     const rawChanged = rawMic !== !!prefs.rawMic;
     savePrefs({ rawMic });
     let ok = true;
     try {
-      if (camId !== prefs.camId || quality !== prefs.quality || !S.local.cam) {
-        const cam = await getCamera(camId, quality);
+      if (camId !== curCamId || quality !== (prefs.quality || '720') || !S.local.cam) {
         S.local.cam?.getTracks().forEach((t) => t.stop());
-        S.local.cam = cam;
-        cam.getVideoTracks().forEach((t) => (t.enabled = S.local.camOn));
+        try {
+          const cam = await getCamera(camId, quality, { strict: !!camId });
+          S.local.cam = cam;
+          cam.getVideoTracks().forEach((t) => (t.enabled = S.local.camOn));
+          camId = cam.getVideoTracks()[0]?.getSettings?.().deviceId || camId;
+        } catch (camErr) {
+          const rec = await getCamera(curCamId || undefined, prefs.quality || '720').catch(() => getCamera(undefined, '720').catch(() => null));
+          if (rec) {
+            S.local.cam = rec;
+            rec.getVideoTracks().forEach((t) => (t.enabled = S.local.camOn));
+          } else {
+            S.local.cam = null;
+          }
+          camId = curCamId;
+          quality = prefs.quality || '720';
+          throw camErr;
+        }
       }
-      if (micId !== prefs.micId || !S.local.mic || rawChanged) {
-        const mic = await getMic(micId);
+      if (micId !== curMicId || !S.local.mic || rawChanged) {
         S.local.mic?.getTracks().forEach((t) => t.stop());
-        S.local.mic = mic;
-        mixer.addStream('host:mic', mic, { ownerId: 'host', stageKey: 'host:cam', monitor: false });
-        mixer.setMuted('host:mic', !S.local.micOn, { save: false });
+        try {
+          const mic = await getMic(micId);
+          S.local.mic = mic;
+          mixer.addStream('host:mic', mic, { ownerId: 'host', stageKey: 'host:cam', monitor: false });
+          mixer.setMuted('host:mic', !S.local.micOn, { save: false });
+          micId = mic.getAudioTracks()[0]?.getSettings?.().deviceId || micId;
+        } catch (micErr) {
+          const rec = await getMic(curMicId || undefined).catch(() => null);
+          if (rec) {
+            S.local.mic = rec;
+            mixer.addStream('host:mic', rec, { ownerId: 'host', stageKey: 'host:cam', monitor: false });
+            mixer.setMuted('host:mic', !S.local.micOn, { save: false });
+          }
+          micId = curMicId;
+          throw micErr;
+        }
       }
     } catch (e) {
       ok = false;

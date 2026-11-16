@@ -278,10 +278,10 @@ function drawNews(c, b, bc, p, e, tickerH, lift) {
 }
 
 // ---------------------------------------------------------------------
-// Banners: estilos 'bar' | 'card' | 'clean' | 'center'; posições bl/bc/br/tl/tc/tr
+// Banners: estilos 'bar' | 'card' | 'clean' | 'center' | 'custom' | 'tpl'; posições bl/bc/br/tl/tc/tr
 // ---------------------------------------------------------------------
-// GC montado no Template Studio: camadas em coordenadas de 1920×1080, escaladas para o canvas.
-// Estilos de camada: rect, text, tag, image. Texto aceita {{name}}/{{role}}/{{tag}}/{{headline}}.
+// GC montado no Template Studio: camadas em coordenadas de 1920×1080 (ou 1080×1920), escaladas para o canvas.
+// Suporta gradientes (fill2/bg2), borda (stroke), sombra (shadow), inclinação (skew), faixa lateral (accentBar) e ponto ao vivo (dot).
 function drawCustom(c, b, bc, p, e, tickerH, lift) {
   const { ctx, W, H } = c;
   const data = b.data || {};
@@ -289,13 +289,47 @@ function drawCustom(c, b, bc, p, e, tickerH, lift) {
   const sourceW = vertical ? 1080 : 1920;
   const sourceH = vertical ? 1920 : 1080;
   const layers = vertical && Array.isArray(b.verticalLayers) && b.verticalLayers.length ? b.verticalLayers : b.layers;
+  if (!Array.isArray(layers) || !layers.length) return;
   const sx = W / sourceW;
   const sy = H / sourceH;
-  const brand = `rgb(${bc[0]},${bc[1]},${bc[2]})`;
-  const pick = (v) => (v === 'brand' ? brand : v || '#7c5cff');
+  const scaleMin = Math.min(sx, sy);
+  const brand = rgb(bc);
+  const brandDark = rgb(mix(bc, [8, 12, 24], 0.55));
+  const brandLight = rgb(mix(bc, [255, 255, 255], 0.28));
+  const pick = (v) => (v === 'brand' ? brand : v === 'brandDark' ? brandDark : v === 'brandLight' ? brandLight : v || '#7c5cff');
+  const setFillGrad = (x, y, w, h, c1, c2, dir) => {
+    const col1 = pick(c1);
+    if (!c2) return col1;
+    const g = dir === 'v'
+      ? ctx.createLinearGradient(x, y, x, y + h)
+      : dir === 'd'
+        ? ctx.createLinearGradient(x, y, x + w, y + h)
+        : ctx.createLinearGradient(x, y, x + w, y);
+    g.addColorStop(0, col1);
+    g.addColorStop(1, pick(c2));
+    return g;
+  };
+  const applyShadow = (enabled, blur = 22, dy = 8) => {
+    if (!enabled) {
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+      return;
+    }
+    ctx.shadowColor = 'rgba(0,0,0,0.48)';
+    ctx.shadowBlur = Math.max(1, blur * scaleMin);
+    ctx.shadowOffsetY = Math.max(0, dy * scaleMin);
+  };
+  const applySkew = (deg, cx, cy) => {
+    if (!deg) return;
+    ctx.translate(cx, cy);
+    ctx.transform(1, 0, Math.tan((deg * Math.PI) / 180), 1, 0, 0);
+    ctx.translate(-cx, -cy);
+  };
 
   ctx.save();
-  ctx.globalAlpha = Math.max(0, Math.min(1, e));
+  const baseAlpha = Math.max(0, Math.min(1, e));
+  ctx.globalAlpha = baseAlpha;
   ctx.translate(0, (1 - e) * H * 0.04 + (lift || 0));
   ctx.scale(sx, sy);
 
@@ -306,49 +340,124 @@ function drawCustom(c, b, bc, p, e, tickerH, lift) {
     const w = Math.max(0, Number(l.w) || 0);
     const h = Math.max(0, Number(l.h) || 0);
     if (l.type === 'rect') {
-      ctx.globalAlpha = Math.max(0, Math.min(1, e)) * (l.opacity ?? 1);
-      ctx.fillStyle = pick(l.fill);
+      ctx.save();
+      ctx.globalAlpha = baseAlpha * (l.opacity ?? 1);
+      if (l.skew) applySkew(l.skew, x + w / 2, y + h / 2);
       const r = Math.max(0, Math.min(Number(l.radius) || 0, Math.min(w, h) / 2));
+      applyShadow(!!l.shadow, l.shadowBlur || 24, l.shadowY ?? 8);
+      ctx.fillStyle = setFillGrad(x, y, w, h, l.fill, l.fill2, l.gradDir);
       if (r) {
-        ctx.beginPath();
-        ctx.moveTo(x + r, y);
-        ctx.arcTo(x + w, y, x + w, y + h, r);
-        ctx.arcTo(x + w, y + h, x, y + h, r);
-        ctx.arcTo(x, y + h, x, y, r);
-        ctx.arcTo(x, y, x + w, y, r);
-        ctx.closePath();
+        roundRectPath(ctx, x, y, w, h, r);
         ctx.fill();
-      } else ctx.fillRect(x, y, w, h);
+      } else {
+        ctx.fillRect(x, y, w, h);
+      }
+      applyShadow(false);
+      // Faixa de destaque lateral recortada dentro do retângulo arredondado
+      if (l.accentBar && w > 8 && h > 4) {
+        ctx.save();
+        if (r) {
+          roundRectPath(ctx, x, y, w, h, r);
+          ctx.clip();
+        }
+        const aw = Math.min(w, Number(l.accentW) || 10);
+        ctx.fillStyle = setFillGrad(x, y, aw, h, l.accentBar, l.accentBar2, 'v');
+        ctx.fillRect(x, y, aw, h);
+        ctx.restore();
+      }
+      // Borda luminosa superior opcional (acabamento broadcast)
+      if (l.topHighlight) {
+        ctx.save();
+        if (r) {
+          roundRectPath(ctx, x, y, w, h, r);
+          ctx.clip();
+        }
+        ctx.fillStyle = pick(l.topHighlight);
+        ctx.fillRect(x, y, w, Number(l.topHighlightH) || 2);
+        ctx.restore();
+      }
+      if (l.stroke) {
+        ctx.save();
+        ctx.globalAlpha = baseAlpha * (l.opacity ?? 1) * (l.strokeOp ?? 0.22);
+        ctx.strokeStyle = pick(l.stroke);
+        ctx.lineWidth = Number(l.strokeW) || 2;
+        if (r) roundRectPath(ctx, x, y, w, h, r);
+        else {
+          ctx.beginPath();
+          ctx.rect(x, y, w, h);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+      ctx.restore();
       continue;
     }
     if (l.type === 'text' || l.type === 'tag') {
       const raw = data[l.key] ?? l.text ?? '';
-      const text = l.uppercase ? String(raw).toUpperCase() : String(raw);
+      const text = (l.uppercase || l.upper) ? String(raw).toUpperCase() : String(raw);
       if (!text) continue;
-      ctx.globalAlpha = Math.max(0, Math.min(1, e)) * (l.opacity ?? 1);
+      ctx.save();
+      ctx.globalAlpha = baseAlpha * (l.opacity ?? 1);
+      if (l.skew) applySkew(l.skew, x + w / 2, y + h / 2);
       let size = Number(l.size) || 32;
-      const weight = l.weight || 700;
-      ctx.font = `${weight} ${size}px Inter, system-ui, sans-serif`;
+      const weight = l.weight || (l.type === 'tag' ? 800 : 700);
+      const fontFam = l.font === 'display' ? 'Outfit, Inter, system-ui, sans-serif' : 'Inter, system-ui, sans-serif';
+      ctx.font = `${weight} ${size}px ${fontFam}`;
+      const dotReserve = l.type === 'tag' && l.dot ? size * 0.95 : 0;
       // auto-fit: reduz a fonte até caber na caixa (mín. 12 px), depois aplica reticências.
-      const maxTextW = Math.max(10, w - (l.type === 'tag' ? size * 1.2 : 0));
+      const maxTextW = Math.max(10, w - (l.type === 'tag' ? size * 1.4 + dotReserve : 0));
       while (size > 12 && ctx.measureText(text).width > maxTextW) {
         size -= 2;
-        ctx.font = `${weight} ${size}px Inter, system-ui, sans-serif`;
+        ctx.font = `${weight} ${size}px ${fontFam}`;
       }
       ctx.textBaseline = 'middle';
-      ctx.textAlign = l.align === 'center' ? 'center' : l.align === 'right' ? 'right' : 'left';
-      const tx = l.align === 'center' ? x + w / 2 : l.align === 'right' ? x + w : x;
       if (l.type === 'tag') {
-        const tw = Math.min(w, ctx.measureText(text).width + size * 1.2);
-        ctx.fillStyle = pick(l.bg || '#ef4444');
-        ctx.fillRect(x, y, tw, h);
-        ctx.fillStyle = pick(l.color || '#fff');
-        ctx.fillText(fitText(ctx, text, tw - size * 0.8), x + size * 0.55, y + h / 2 + size * 0.04);
+        const padX = size * 0.72;
+        const measured = ctx.measureText(text).width;
+        const tw = Math.min(w, measured + padX * 2 + dotReserve);
+        const r = l.pill ? h / 2 : Math.max(0, Math.min(Number(l.radius ?? 8) || 0, Math.min(tw, h) / 2));
+        applyShadow(!!l.shadow, 14, 4);
+        ctx.fillStyle = setFillGrad(x, y, tw, h, l.bg || '#ef4444', l.bg2 || l.fill2, l.gradDir);
+        if (r) {
+          roundRectPath(ctx, x, y, tw, h, r);
+          ctx.fill();
+        } else ctx.fillRect(x, y, tw, h);
+        applyShadow(false);
+        if (l.stroke) {
+          ctx.save();
+          ctx.globalAlpha = baseAlpha * (l.opacity ?? 1) * (l.strokeOp ?? 0.25);
+          ctx.strokeStyle = pick(l.stroke);
+          ctx.lineWidth = Number(l.strokeW) || 1.5;
+          if (r) roundRectPath(ctx, x, y, tw, h, r);
+          else {
+            ctx.beginPath();
+            ctx.rect(x, y, tw, h);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+        if (l.dot) {
+          const pulse = 0.55 + 0.45 * Math.abs(Math.sin(performance.now() / 420));
+          ctx.save();
+          ctx.globalAlpha = baseAlpha * (l.opacity ?? 1) * pulse;
+          ctx.fillStyle = pick(l.dotColor || '#ffffff');
+          ctx.beginPath();
+          ctx.arc(x + padX + size * 0.22, y + h / 2, Math.max(3, size * 0.22), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+        ctx.textAlign = 'left';
+        ctx.fillStyle = pick(l.color || '#ffffff');
+        ctx.fillText(fitText(ctx, text, tw - padX * 2 - dotReserve), x + padX + dotReserve, y + h / 2 + size * 0.04);
       } else {
-        ctx.fillStyle = pick(l.color || '#fff');
-        const label = l.nowrap ? fitText(ctx, text, w) : fitText(ctx, text, w);
-        ctx.fillText(label, tx, y + h / 2 + size * 0.04);
+        ctx.textAlign = l.align === 'center' ? 'center' : l.align === 'right' ? 'right' : 'left';
+        const tx = l.align === 'center' ? x + w / 2 : l.align === 'right' ? x + w : x;
+        if (l.shadow !== false) applyShadow(true, 10, 2);
+        ctx.fillStyle = pick(l.color || '#ffffff');
+        ctx.fillText(fitText(ctx, text, w), tx, y + h / 2 + size * 0.04);
+        applyShadow(false);
       }
+      ctx.restore();
       continue;
     }
     if (l.type === 'qr') {
@@ -356,7 +465,7 @@ function drawCustom(c, b, bc, p, e, tickerH, lift) {
       if (!url) continue;
       const qr = renderQr({ url, useBrand: false, color: l.qrColor || '#ffffff', showTitle: false }, c.image);
       if (!qr) continue;
-      ctx.globalAlpha = Math.max(0, Math.min(1, e)) * (l.opacity ?? 1);
+      ctx.globalAlpha = baseAlpha * (l.opacity ?? 1);
       ctx.drawImage(qr, x, y, w, h);
       continue;
     }
@@ -364,11 +473,24 @@ function drawCustom(c, b, bc, p, e, tickerH, lift) {
       const src = l.src === 'brand' ? data.logo : l.src || data.logo;
       const im = src && c.image ? c.image(src) : null;
       if (!im) continue;
-      const s = Math.min(w / im.naturalWidth, h / im.naturalHeight);
+      const s = l.fit === 'cover'
+        ? Math.max(w / im.naturalWidth, h / im.naturalHeight)
+        : Math.min(w / im.naturalWidth, h / im.naturalHeight);
       const dw = im.naturalWidth * s;
       const dh = im.naturalHeight * s;
-      ctx.globalAlpha = Math.max(0, Math.min(1, e)) * (l.opacity ?? 1);
+      ctx.save();
+      ctx.globalAlpha = baseAlpha * (l.opacity ?? 1);
+      const rad = Math.max(0, Math.min(Number(l.radius) || 0, Math.min(w, h) / 2));
+      if (rad) {
+        roundRectPath(ctx, x, y, w, h, rad);
+        ctx.clip();
+      } else if (l.fit === 'cover') {
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.clip();
+      }
       ctx.drawImage(im, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+      ctx.restore();
     }
   }
   ctx.restore();
@@ -390,7 +512,12 @@ export function drawBanner(c, color, now, tickerH, lift = 0) {
   }
   const e = ease(p);
   const bc = b.color ? hexToRgb(b.color) : color;
-  if (b.style === 'custom' && Array.isArray(b.layers)) return drawCustom(c, b, bc, p, e, tickerH, lift);
+  if ((b.style === 'custom' || b.style === 'tpl') && Array.isArray(b.layers)) {
+    return drawCustom(c, b, bc, p, e, tickerH, lift);
+  }
+  if (b.custom && Array.isArray(b.custom.layers)) {
+    return drawCustom(c, { ...b.custom, data: b.custom.data || b.data || {} }, bc, p, e, tickerH, lift);
+  }
   if (b.style === 'news') return drawNews(c, b, bc, p, e, tickerH, lift);
   const style = b.style || 'bar';
   const pos = b.pos || 'bl';
@@ -404,8 +531,8 @@ export function drawBanner(c, color, now, tickerH, lift = 0) {
   const tW = ctx.measureText(b.title || '').width;
   ctx.font = `500 ${sfs}px Inter, sans-serif`;
   const sW = b.subtitle ? ctx.measureText(b.subtitle).width : 0;
-  const padX = tfs * 0.6;
-  const w = Math.min(W * (big ? 0.7 : 0.82), Math.max(tW, sW) + padX * 2 + (style === 'card' ? tfs * 0.4 : 0));
+  const padX = tfs * 0.65;
+  const w = Math.min(W * (big ? 0.72 : 0.82), Math.max(tW, sW) + padX * 2 + (style === 'card' || style === 'bar' ? tfs * 0.45 : 0));
   const th = tfs * 1.75;
   const sh = b.subtitle ? sfs * 1.9 : 0;
   const totalH = th + sh;
@@ -415,85 +542,150 @@ export function drawBanner(c, color, now, tickerH, lift = 0) {
   if (!big) markZone(c, top, x, y, w, totalH + (style === 'clean' ? H * 0.014 : 0));
   const fg = luminance(bc) > 0.6 ? '#111' : '#fff';
   ctx.globalAlpha = Math.min(1, p * 1.5);
-  ctx.shadowColor = 'rgba(0,0,0,.4)';
-  ctx.shadowBlur = H * 0.025;
+  ctx.shadowColor = 'rgba(0,0,0,.48)';
+  ctx.shadowBlur = H * 0.028;
+  ctx.shadowOffsetY = H * 0.008;
   ctx.textBaseline = 'middle';
 
   if (style === 'bar') {
-    // revela da esquerda p/ direita
+    // revela da esquerda p/ direita com visual broadcast moderno em vidro escuro + acento em gradiente
+    const rad = H * 0.016;
+    const barW = Math.max(5, tfs * 0.2);
     ctx.beginPath();
-    ctx.rect(x - 2, y - 2, (w + 4) * e, totalH + 4);
+    ctx.rect(x - 4, y - 4, (w + 8) * e, totalH + 12);
     ctx.clip();
-    ctx.fillStyle = rgb(mix(bc, [255, 255, 255], 0.25));
-    ctx.fillRect(x, y, tfs * 0.18, totalH);
-    ctx.fillStyle = rgb(bc);
-    roundRectPath(ctx, x + tfs * 0.18, y, w - tfs * 0.18, th, 0);
+    roundRectPath(ctx, x, y, w, totalH, rad);
+    const bgG = ctx.createLinearGradient(x, y, x + w, y + totalH);
+    bgG.addColorStop(0, 'rgba(10, 14, 28, 0.94)');
+    bgG.addColorStop(1, 'rgba(18, 24, 46, 0.88)');
+    ctx.fillStyle = bgG;
     ctx.fill();
     ctx.shadowColor = 'transparent';
-    ctx.fillStyle = fg;
-    ctx.font = `800 ${tfs}px Outfit, Inter, sans-serif`;
-    ctx.fillText(fitText(ctx, b.title || '', w - padX * 2), x + padX, y + th / 2 + tfs * 0.04);
+    ctx.shadowOffsetY = 0;
+    // faixa de acento à esquerda respeitando o canto arredondado
+    ctx.save();
+    roundRectPath(ctx, x, y, w, totalH, rad);
+    ctx.clip();
+    const acG = ctx.createLinearGradient(x, y, x, y + totalH);
+    acG.addColorStop(0, rgb(mix(bc, [255, 255, 255], 0.25)));
+    acG.addColorStop(1, rgb(bc));
+    ctx.fillStyle = acG;
+    ctx.fillRect(x, y, barW, totalH);
     if (b.subtitle) {
-      ctx.fillStyle = 'rgba(255,255,255,.96)';
-      ctx.fillRect(x + tfs * 0.18, y + th, w - tfs * 0.18, sh);
-      ctx.fillStyle = '#16161f';
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.fillRect(x + barW, y + th, w - barW, sh);
+    }
+    ctx.restore();
+    // borda sutil de vidro
+    ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+    ctx.lineWidth = Math.max(1, H * 0.0018);
+    roundRectPath(ctx, x, y, w, totalH, rad);
+    ctx.stroke();
+
+    const tx = x + padX + barW * 0.4;
+    ctx.fillStyle = '#fff';
+    ctx.font = `800 ${tfs}px Outfit, Inter, sans-serif`;
+    ctx.fillText(fitText(ctx, b.title || '', w - padX * 2 - barW), tx, y + th / 2 + tfs * 0.03);
+    if (b.subtitle) {
+      ctx.fillStyle = 'rgba(226,232,240,.88)';
       ctx.font = `500 ${sfs}px Inter, sans-serif`;
-      ctx.fillText(fitText(ctx, b.subtitle, w - padX * 2), x + padX, y + th + sh / 2 + sfs * 0.04);
+      ctx.fillText(fitText(ctx, b.subtitle, w - padX * 2 - barW), tx, y + th + sh / 2 - sfs * 0.04);
     }
   } else {
     ctx.translate(0, (1 - e) * H * 0.05 * (top ? -1 : 1));
     if (style === 'card') {
-      roundRectPath(ctx, x, y, w, totalH, H * 0.022);
-      ctx.fillStyle = 'rgba(14,14,22,.9)';
+      const rad = H * 0.022;
+      const g = ctx.createLinearGradient(x, y, x + w, y + totalH);
+      g.addColorStop(0, 'rgba(13, 16, 30, 0.94)');
+      g.addColorStop(1, 'rgba(22, 26, 48, 0.88)');
+      roundRectPath(ctx, x, y, w, totalH, rad);
+      ctx.fillStyle = g;
       ctx.fill();
       ctx.shadowColor = 'transparent';
-      roundRectPath(ctx, x, y, tfs * 0.22, totalH, H * 0.022);
-      ctx.fillStyle = rgb(bc);
-      ctx.fill();
-      const tx = x + padX + tfs * 0.22;
+      ctx.shadowOffsetY = 0;
+      ctx.save();
+      roundRectPath(ctx, x, y, w, totalH, rad);
+      ctx.clip();
+      const acG = ctx.createLinearGradient(x, y, x, y + totalH);
+      acG.addColorStop(0, rgb(mix(bc, [255, 255, 255], 0.3)));
+      acG.addColorStop(1, rgb(bc));
+      ctx.fillStyle = acG;
+      ctx.fillRect(x, y, tfs * 0.24, totalH);
+      ctx.restore();
+      ctx.strokeStyle = rgb(bc, 0.45);
+      ctx.lineWidth = Math.max(1.2, H * 0.0022);
+      roundRectPath(ctx, x, y, w, totalH, rad);
+      ctx.stroke();
+
+      const tx = x + padX + tfs * 0.24;
       ctx.fillStyle = '#fff';
       ctx.font = `800 ${tfs}px Outfit, Inter, sans-serif`;
-      ctx.fillText(fitText(ctx, b.title || '', w - padX * 2 - tfs * 0.22), tx, y + th / 2 + tfs * 0.04);
+      ctx.fillText(fitText(ctx, b.title || '', w - padX * 2 - tfs * 0.24), tx, y + th / 2 + tfs * 0.03);
       if (b.subtitle) {
-        ctx.fillStyle = 'rgba(255,255,255,.78)';
+        ctx.fillStyle = 'rgba(226,232,240,.84)';
         ctx.font = `500 ${sfs}px Inter, sans-serif`;
-        ctx.fillText(fitText(ctx, b.subtitle, w - padX * 2 - tfs * 0.22), tx, y + th + sh / 2 - sfs * 0.2);
+        ctx.fillText(fitText(ctx, b.subtitle, w - padX * 2 - tfs * 0.24), tx, y + th + sh / 2 - sfs * 0.16);
       }
     } else if (style === 'clean') {
       ctx.shadowColor = 'rgba(0,0,0,.85)';
-      ctx.shadowBlur = H * 0.012;
+      ctx.shadowBlur = H * 0.014;
       ctx.fillStyle = '#fff';
       ctx.font = `800 ${tfs}px Outfit, Inter, sans-serif`;
       ctx.textAlign = pos.endsWith('r') ? 'right' : pos.endsWith('c') ? 'center' : 'left';
       const tx = ctx.textAlign === 'right' ? x + w : ctx.textAlign === 'center' ? x + w / 2 : x;
       ctx.fillText(fitText(ctx, b.title || '', w), tx, y + th / 2);
       if (b.subtitle) {
-        ctx.fillStyle = 'rgba(255,255,255,.88)';
+        ctx.fillStyle = 'rgba(255,255,255,.9)';
         ctx.font = `500 ${sfs}px Inter, sans-serif`;
         ctx.fillText(fitText(ctx, b.subtitle, w), tx, y + th + sh / 2 - sfs * 0.2);
       }
       ctx.shadowColor = 'transparent';
-      const lw = Math.min(w, Math.max(tW, sW)) * 0.45;
-      ctx.fillStyle = rgb(bc);
+      ctx.shadowOffsetY = 0;
+      const lw = Math.min(w, Math.max(tW, sW)) * 0.55;
       const lx = ctx.textAlign === 'right' ? x + w - lw : ctx.textAlign === 'center' ? x + w / 2 - lw / 2 : x;
+      const lineG = ctx.createLinearGradient(lx, 0, lx + lw, 0);
+      if (ctx.textAlign === 'right') {
+        lineG.addColorStop(0, 'transparent');
+        lineG.addColorStop(1, rgb(bc));
+      } else {
+        lineG.addColorStop(0, rgb(bc));
+        lineG.addColorStop(1, 'transparent');
+      }
+      ctx.fillStyle = lineG;
       ctx.fillRect(lx, y + totalH + H * 0.006, lw, Math.max(3, H * 0.006));
     } else {
-      // center: cartão grande no meio da tela
-      const g = ctx.createLinearGradient(x, y, x + w, y + totalH);
-      g.addColorStop(0, rgb(bc));
-      g.addColorStop(1, rgb(mix(bc, [10, 10, 16], 0.55)));
-      roundRectPath(ctx, x - padX * 0.3, y - th * 0.15, w + padX * 0.6, totalH + th * 0.3, H * 0.035);
+      // center: cartão cinematográfico no meio da tela
+      const rad = H * 0.032;
+      const bx = x - padX * 0.35;
+      const by = y - th * 0.18;
+      const bw = w + padX * 0.7;
+      const bh = totalH + th * 0.36;
+      const g = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
+      g.addColorStop(0, rgb(mix(bc, [8, 12, 24], 0.42)));
+      g.addColorStop(1, rgb(mix(bc, [6, 8, 16], 0.76)));
+      roundRectPath(ctx, bx, by, bw, bh, rad);
       ctx.fillStyle = g;
       ctx.fill();
       ctx.shadowColor = 'transparent';
-      ctx.fillStyle = fg;
+      ctx.shadowOffsetY = 0;
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+      ctx.lineWidth = Math.max(1.2, H * 0.0022);
+      roundRectPath(ctx, bx, by, bw, bh, rad);
+      ctx.stroke();
+      // barra fina de destaque no topo centralizado
+      const acW = Math.min(bw * 0.28, H * 0.14);
+      ctx.fillStyle = rgb(mix(bc, [255, 255, 255], 0.35));
+      roundRectPath(ctx, bx + (bw - acW) / 2, by + H * 0.012, acW, Math.max(3, H * 0.006), H * 0.003);
+      ctx.fill();
+
+      ctx.fillStyle = '#fff';
       ctx.textAlign = 'center';
       ctx.font = `800 ${tfs}px Outfit, Inter, sans-serif`;
-      ctx.fillText(fitText(ctx, b.title || '', w - padX), x + w / 2, y + th / 2);
+      ctx.fillText(fitText(ctx, b.title || '', w - padX * 0.6), x + w / 2, y + th / 2 + tfs * 0.04);
       if (b.subtitle) {
-        ctx.fillStyle = fg === '#fff' ? 'rgba(255,255,255,.88)' : 'rgba(0,0,0,.75)';
+        ctx.fillStyle = 'rgba(226,232,240,.88)';
         ctx.font = `500 ${sfs}px Inter, sans-serif`;
-        ctx.fillText(fitText(ctx, b.subtitle, w - padX), x + w / 2, y + th + sh / 2 - sfs * 0.2);
+        ctx.fillText(fitText(ctx, b.subtitle, w - padX * 0.6), x + w / 2, y + th + sh / 2 - sfs * 0.16);
       }
     }
   }

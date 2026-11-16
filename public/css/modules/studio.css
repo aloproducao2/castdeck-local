@@ -1097,7 +1097,9 @@
 }
 
 @media (min-width: 901px) and (max-height: 640px) {
-  .studio .stage-wrap .tile { width: clamp(104px, 10.5vw, 124px); }
+  .studio .stage-wrap .tile {
+    width: clamp(104px, 10.5vw, 124px);
+  }
 }
 
 .m-time {
@@ -5086,10 +5088,119 @@ body.rz-row * {
 
 .safe-prev-logo {
   position: relative;
-  z-index: 1;
-  max-width: 60%;
-  max-height: 32%;
+  z-index: 2;
+  width: auto !important;
+  height: auto !important;
+  inset: auto !important;
+  max-width: 52%;
+  max-height: 28%;
   object-fit: contain;
+}
+
+.safe-top-grp {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 10px;
+}
+.safe-top-grp .safe-btn {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.safe-top-grp .safe-cfg-btn {
+  padding: 0 7px;
+  min-width: 28px;
+  border-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-color: var(--line);
+  background: hsl(228 28% 12%);
+  color: var(--text-2);
+  font-size: 13px;
+}
+.safe-top-grp .safe-cfg-btn:hover { color: var(--text-0); background: var(--bg-3); }
+
+.safe-prev-lbl small {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-2);
+}
+.safe-prev-drop { border-radius: 10px; transition: box-shadow .15s; }
+.safe-prev-drop.drop-over { box-shadow: 0 0 0 2px var(--accent); }
+.safe-prev .safe-prev-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+.safe-prev .safe-prev-img.fit-cover { object-fit: cover; }
+.safe-prev .safe-prev-img.fit-contain { object-fit: contain; padding: 4%; }
+.safe-prev .safe-prev-img.fit-center {
+  inset: auto;
+  width: 56%;
+  height: 44%;
+  object-fit: contain;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -62%);
+}
+.safe-prev-txt { z-index: 3; }
+.safe-prev-txt.pos-top {
+  position: absolute !important;
+  top: 10%;
+  left: 0;
+  right: 0;
+  bottom: auto !important;
+}
+.safe-prev-txt.pos-center {
+  position: relative !important;
+  inset: auto !important;
+}
+.safe-prev-txt.pos-bottom {
+  position: absolute !important;
+  left: 0;
+  right: 0;
+  bottom: 8%;
+  top: auto !important;
+}
+.safe-prev-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #fff;
+  font: 800 9px var(--font);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .45);
+  margin-bottom: 2px;
+}
+.safe-prev-badge i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fff;
+}
+.safe-colors-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.safe-colors-row[hidden] { display: none; }
+.safe-colors-row .field {
+  flex: 1 1 64px;
+  min-width: 60px;
+}
+.safe-col-in {
+  width: 100%;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg-2);
+  padding: 2px;
+  cursor: pointer;
 }
 
 /* Multigravação (gravação separada de cada fonte) */
@@ -5304,4 +5415,122 @@ body.rz-row * {
   height: 27px;
   font-size: 10.5px;
   padding: 0 6px;
+}
+
+/* Painel Rápido na barra superior e Multi-Rec dentro do Painel lateral */
+.tools-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-color: hsl(252 75% 65% / .32);
+  background: linear-gradient(180deg, hsl(232 30% 15%), hsl(232 30% 11%));
+}
+
+.tools-toggle .tools-lbl {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-0);
+}
+
+.tools-toggle .tools-chev {
+  font-size: 10px;
+  opacity: .75;
+}
+
+@media (max-width: 820px) {
+
+  .tools-toggle .tools-lbl,
+  .tools-toggle .tools-chev {
+    display: none;
+  }
+}
+
+.tools-head-t {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.tools-head-t small {
+  font-size: 10px;
+  color: var(--text-2);
+  letter-spacing: .01em;
+}
+
+.tools-menu .oa-multi {
+  justify-content: flex-start;
+}
+
+.tools-menu .oa-multi.on::after {
+  margin-left: auto;
+}
+
+#panel-multirec .mr-list {
+  grid-template-columns: 1fr;
+  max-height: none;
+}
+
+#panel-multirec .mr-bitrate {
+  max-width: none;
+}
+
+/* Painel Rápido na barra superior e Multi-Rec dentro do Painel lateral */
+.tools-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-color: hsl(252 75% 65% / .32);
+  background: linear-gradient(180deg, hsl(232 30% 15%), hsl(232 30% 11%));
+}
+
+.tools-toggle .tools-lbl {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-0);
+}
+
+.tools-toggle .tools-chev {
+  font-size: 10px;
+  opacity: .75;
+}
+
+@media (max-width: 820px) {
+
+  .tools-toggle .tools-lbl,
+  .tools-toggle .tools-chev {
+    display: none;
+  }
+}
+
+.tools-head-t {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.tools-head-t small {
+  font-size: 10px;
+  color: var(--text-2);
+  letter-spacing: .01em;
+}
+
+.tools-menu .oa-multi {
+  justify-content: flex-start;
+}
+
+.tools-menu .oa-multi.on::after {
+  margin-left: auto;
+}
+
+#panel-multirec .mr-list {
+  grid-template-columns: 1fr;
+  max-height: none;
+}
+
+#panel-multirec .mr-bitrate {
+  max-width: none;
 }

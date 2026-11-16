@@ -23,10 +23,20 @@ const G = {
   micOn: true,
   name: '',
   studioState: { live: false, onStage: [] },
+  devices: { cams: [], mics: [] },
+  ctl: {},
   chat: [],
   log: [], // diagnóstico: histórico de eventos da conexão
 };
 window.__guest = G;
+const REMOTE_CTL = [
+  'pan', 'tilt', 'zoom', 'focusMode', 'focusDistance', 'exposureMode', 'exposureCompensation', 'exposureTime', 'iso',
+  'whiteBalanceMode', 'colorTemperature', 'brightness', 'contrast', 'saturation', 'sharpness', 'torch',
+];
+const devList = (list = [], base = 'Dispositivo') => list
+  .filter((d, i, all) => d?.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications' && all.findIndex((x) => x.deviceId === d.deviceId) === i)
+  .slice(0, 12)
+  .map((d, i) => ({ id: d.deviceId, label: d.label || `${base} ${i + 1}` }));
 const glog = (m) => G.log.push(`${(performance.now() / 1000).toFixed(1)}s ${m}`);
 // Recursos por dispositivo: compartilhar tela/aba não existe em navegadores móveis; vídeo local exige captureStream.
 const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile|Silk/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
@@ -104,9 +114,15 @@ async function boot() {
   G.local = new MediaStream([...(G.cam?.getVideoTracks() || []), ...(G.mic?.getAudioTracks() || [])]);
   G.cam?.getVideoTracks().forEach((t) => (t.enabled = G.camOn));
   G.mic?.getAudioTracks().forEach((t) => (t.enabled = G.micOn));
+  G.devices = await listDevices().catch(() => ({ cams: [], mics: [] }));
   keepAwake();
   build();
   connect();
+  navigator.mediaDevices?.addEventListener?.('devicechange', async () => {
+    G.devices = await listDevices().catch(() => G.devices);
+    G.updateSelfFlipVisibility?.();
+    if (sig && !sig.closedByUser) pushState();
+  });
 }
 
 function build() {
@@ -131,6 +147,7 @@ function build() {
       </div>
       <div class="selfview" id="g-selfview">
         <video id="g-self" autoplay playsinline muted></video>
+        <button class="self-toggle self-flip" id="g-self-flip" type="button" title="Virar / trocar câmera" hidden>${icons.flip}</button>
         <button class="self-toggle" id="g-self-toggle" title="Minimizar sua câmera">${icons.down}</button>
         <div class="self-off" id="g-self-off" hidden><span>${esc(initials(G.name))}</span></div>
         <div class="self-tag"><i id="g-self-mic" title="Microfone desligado"></i><span>${esc(G.name || 'Você')}</span></div>
@@ -191,8 +208,29 @@ function build() {
       </div>
     </aside>
   </div>`;
-  $('#g-self').srcObject = G.local;
+  const svEl = $('#g-self');
+  svEl.srcObject = G.cam || G.local;
   const sv = $('#g-selfview');
+  const flipSelfBtn = $('#g-self-flip');
+  const updateSelfFlipVisibility = () => {
+    if (flipSelfBtn) flipSelfBtn.hidden = !(IS_MOBILE || (G.devices?.cams?.length || 0) >= 2);
+  };
+  G.updateSelfFlipVisibility = updateSelfFlipVisibility;
+  updateSelfFlipVisibility();
+  if (flipSelfBtn) {
+    flipSelfBtn.onclick = async (e) => {
+      e.stopPropagation();
+      flipSelfBtn.disabled = true;
+      try {
+        await switchGuestCamera('', { flip: true });
+        toast('Câmera trocada.', 'ok');
+      } catch (ex) {
+        toast('Não foi possível trocar de câmera: ' + (ex.message || ex.name), 'err');
+      } finally {
+        flipSelfBtn.disabled = false;
+      }
+    };
+  }
   const toggleBtn = $('#g-self-toggle');
   if (toggleBtn && sv) {
     toggleBtn.onclick = (e) => {
@@ -377,41 +415,157 @@ function stopMeter() {
   meter = null;
 }
 
-// Troca de c\u00e2mera/microfone durante a chamada: substitui a trilha no sender (sem renegociar) e mant\u00e9m o mesmo MediaStream.
+// Troca de câmera/microfone durante a chamada: substitui a trilha no sender (sem renegociar) e mantém o mesmo MediaStream.
 async function swapTrack(kind, newTrack) {
+  const screenTracks = new Set(G.screen?.getTracks() || []);
   const stream = kind === 'video' ? G.cam : G.mic;
-  const old = stream?.getTracks().find((t) => t.kind === kind);
-  const sender = G.peer?.pc.getSenders().find((s) => old && s.track === old);
-  if (old) G.local.removeTrack(old);
-  G.local.addTrack(newTrack);
-  if (sender) await sender.replaceTrack(newTrack);
-  else if (G.peer) G.peer.pc.addTrack(newTrack, G.local);
-  old?.stop();
+  const old =
+    stream?.getTracks().find((t) => t.kind === kind) ||
+    G.local?.getTracks().find((t) => t.kind === kind && !screenTracks.has(t));
+  const tracked = kind === 'video' ? G.camSender : G.micSender;
+  const sender = G.peer?.pc
+    .getSenders()
+    .find((s) => s === tracked || (old && s.track === old) || (s.track?.kind === kind && !screenTracks.has(s.track)));
+  for (const lt of G.local?.getTracks().filter((t) => t.kind === kind && !screenTracks.has(t)) || []) {
+    if (lt !== newTrack) G.local.removeTrack(lt);
+  }
+  if (!G.local.getTracks().includes(newTrack)) G.local.addTrack(newTrack);
+  if (sender) {
+    await sender.replaceTrack(newTrack);
+    if (kind === 'video') G.camSender = sender;
+    else G.micSender = sender;
+  } else if (G.peer) {
+    const ns = G.peer.pc.addTrack(newTrack, G.local);
+    if (kind === 'video') G.camSender = ns;
+    else G.micSender = ns;
+  }
+  if (old && old !== newTrack) old.stop();
   if (kind === 'video') {
+    newTrack.contentHint = 'motion';
     newTrack.enabled = G.camOn;
     G.cam = new MediaStream([newTrack]);
-    $('#g-self').srcObject = G.local;
-    $('#g-self').play?.().catch(() => {});
+    G.ctl = {};
+    const sv = $('#g-self');
+    if (sv) {
+      sv.srcObject = G.cam;
+      sv.play?.().catch(() => {});
+    }
   } else {
     newTrack.enabled = G.micOn;
     G.mic = new MediaStream([newTrack]);
     startMeter(); // o medidor acompanha o microfone novo
   }
+  pushState();
+}
+
+let camSwitchSeq = 0;
+async function switchGuestCamera(targetDeviceId, { flip = false } = {}) {
+  const seq = ++camSwitchSeq;
+  const prevTrack = G.cam?.getVideoTracks()[0];
+  const prevSettings = prevTrack?.getSettings?.() || {};
+  const prevId = prevSettings.deviceId || loadPrefs().camId || '';
+  const prevFacing = prevSettings.facingMode || (IS_MOBILE ? 'user' : '');
+  const quality = loadPrefs().quality || '720';
+  let desiredId = targetDeviceId ? String(targetDeviceId) : '';
+
+  try {
+    let s = null;
+    if (flip) {
+      const d = await listDevices().catch(() => G.devices);
+      G.devices = d || G.devices;
+      const cams = d?.cams || [];
+      const idx = prevId ? cams.findIndex((c) => c.deviceId === prevId) : -1;
+      const nextInList = cams.length >= 2 ? cams[(idx + 1) % cams.length]?.deviceId || '' : '';
+      if (IS_MOBILE) {
+        const nextFacing = prevFacing === 'environment' ? 'user' : 'environment';
+        prevTrack?.stop();
+        try {
+          s = await getCamera(undefined, quality, { facingMode: nextFacing });
+        } catch {}
+        const gotId = s?.getVideoTracks?.()[0]?.getSettings?.().deviceId || '';
+        if ((!s || (prevId && gotId === prevId)) && nextInList && nextInList !== prevId) {
+          s?.getTracks?.().forEach((t) => t.stop());
+          desiredId = nextInList;
+          s = await getCamera(desiredId, quality, { strict: true });
+        }
+        if (!s) throw new Error('Nenhuma outra câmera disponível');
+      } else if (nextInList) {
+        desiredId = nextInList;
+      }
+    }
+
+    if (!s) {
+      // libera a câmera atual antes (celulares e muitos drivers USB recusam abrir duas ao mesmo tempo)
+      prevTrack?.stop();
+      s = await getCamera(desiredId || undefined, quality, { strict: !!desiredId });
+    }
+
+    if (seq !== camSwitchSeq) {
+      s.getTracks().forEach((t) => t.stop());
+      return '';
+    }
+    const track = s.getVideoTracks()[0];
+    if (!track) throw new Error('Câmera sem trilha de vídeo');
+    await swapTrack('video', track);
+    const actualId = track.getSettings?.().deviceId || desiredId || '';
+    savePrefs({ camId: actualId });
+    G.devices = await listDevices().catch(() => G.devices);
+    G.updateSelfFlipVisibility?.();
+    pushState();
+    glog('camera trocada');
+    return actualId;
+  } catch (err) {
+    // garante que o convidado não fique sem imagem se a nova câmera falhar ao abrir
+    if (seq === camSwitchSeq && prevTrack) {
+      const rec = await getCamera(prevId || undefined, quality).catch(() => getCamera(undefined, '720').catch(() => null));
+      const recTrack = rec?.getVideoTracks?.()[0];
+      if (recTrack) await swapTrack('video', recTrack).catch(() => {});
+    }
+    throw err;
+  }
+}
+
+async function switchGuestMic(targetDeviceId) {
+  const prevTrack = G.mic?.getAudioTracks()[0];
+  const prevId = prevTrack?.getSettings?.().deviceId || loadPrefs().micId || '';
+  const id = String(targetDeviceId || '');
+  try {
+    prevTrack?.stop();
+    const s = await getMic(id || undefined);
+    const track = s.getAudioTracks()[0];
+    if (!track) throw new Error('Microfone sem trilha de áudio');
+    await swapTrack('audio', track);
+    const actualId = track.getSettings?.().deviceId || id || '';
+    savePrefs({ micId: actualId });
+    G.devices = await listDevices().catch(() => G.devices);
+    pushState();
+    glog('microfone trocado');
+    return actualId;
+  } catch (err) {
+    if (prevTrack) {
+      const rec = await getMic(prevId || undefined).catch(() => null);
+      const recTrack = rec?.getAudioTracks?.()[0];
+      if (recTrack) await swapTrack('audio', recTrack).catch(() => {});
+    }
+    throw err;
+  }
 }
 
 async function openDevices() {
   const { cams, mics } = await listDevices();
+  G.devices = { cams, mics };
   const cur = {
-    cam: G.cam?.getVideoTracks()[0]?.getSettings().deviceId,
-    mic: G.mic?.getAudioTracks()[0]?.getSettings().deviceId,
+    cam: G.cam?.getVideoTracks()[0]?.getSettings().deviceId || loadPrefs().camId || '',
+    mic: G.mic?.getAudioTracks()[0]?.getSettings().deviceId || loadPrefs().micId || '',
   };
   const opts = (list, sel, fb) => list.map((d, i) => `<option value="${esc(d.deviceId)}" ${d.deviceId === sel ? 'selected' : ''}>${esc(d.label || fb + ' ' + (i + 1))}</option>`).join('') || '<option value="">Nenhum dispositivo</option>';
+  const showFlip = IS_MOBILE || cams.length >= 2;
   const el = h(`
     <div class="modal-back" id="dev-modal">
       <div class="card modal">
         <h3>Dispositivos</h3>
-        <div class="sub">Troque durante a chamada, sem sair do est\u00fadio.</div>
-        <label class="field"><span>C\u00e2mera</span><select class="input" id="dev-cam">${opts(cams, cur.cam, 'C\u00e2mera')}</select></label>
+        <div class="sub">Troque durante a chamada, sem sair do estúdio.</div>
+        <label class="field"><span>Câmera</span><div class="row" style="gap:8px;align-items:center"><select class="input" id="dev-cam" style="flex:1;min-width:0">${opts(cams, cur.cam, 'Câmera')}</select><button class="btn sm" id="dev-flip" type="button" title="Alternar entre as câmeras disponíveis"${showFlip ? '' : ' hidden'}>Virar</button></div></label>
         <label class="field"><span>Microfone</span><select class="input" id="dev-mic">${opts(mics, cur.mic, 'Microfone')}</select></label>
         <div class="hint" id="dev-err" style="color:hsl(354 90% 72%)"></div>
         <div class="modal-actions"><button class="btn primary" id="dev-close">Fechar</button></div>
@@ -422,38 +576,139 @@ async function openDevices() {
   $('#dev-close', el).onclick = close;
   el.addEventListener('pointerdown', (e) => e.target === el && close());
   const err = $('#dev-err', el);
-  $('#dev-cam', el).onchange = async (e) => {
+  const camSel = $('#dev-cam', el);
+  const micSel = $('#dev-mic', el);
+  const flipBtn = $('#dev-flip', el);
+  camSel.onchange = async (e) => {
     err.textContent = '';
+    camSel.disabled = true;
     try {
-      // libera a c\u00e2mera atual antes (alguns celulares n\u00e3o abrem duas ao mesmo tempo)
-      const prevTrack = G.cam?.getVideoTracks()[0];
-      prevTrack?.stop();
-      const s = await getCamera(e.target.value, loadPrefs().quality || '720');
-      await swapTrack('video', s.getVideoTracks()[0]);
-      savePrefs({ camId: e.target.value });
-      glog('camera trocada');
-      toast('C\u00e2mera trocada.', 'ok');
+      const actualId = await switchGuestCamera(e.target.value);
+      if (actualId && [...camSel.options].some((o) => o.value === actualId)) camSel.value = actualId;
+      toast('Câmera trocada.', 'ok');
     } catch (ex) {
-      err.textContent = 'N\u00e3o foi poss\u00edvel usar essa c\u00e2mera: ' + ex.message;
+      err.textContent = 'Não foi possível usar essa câmera: ' + (ex.message || ex.name);
+      const backId = G.cam?.getVideoTracks()[0]?.getSettings().deviceId;
+      if (backId && [...camSel.options].some((o) => o.value === backId)) camSel.value = backId;
+    } finally {
+      camSel.disabled = false;
     }
   };
-  $('#dev-mic', el).onchange = async (e) => {
+  if (flipBtn) {
+    flipBtn.onclick = async () => {
+      err.textContent = '';
+      flipBtn.disabled = true;
+      camSel.disabled = true;
+      try {
+        const actualId = await switchGuestCamera('', { flip: true });
+        if (actualId && [...camSel.options].some((o) => o.value === actualId)) camSel.value = actualId;
+        toast('Câmera trocada.', 'ok');
+      } catch (ex) {
+        err.textContent = 'Não foi possível alternar a câmera: ' + (ex.message || ex.name);
+      } finally {
+        flipBtn.disabled = false;
+        camSel.disabled = false;
+      }
+    };
+  }
+  micSel.onchange = async (e) => {
     err.textContent = '';
+    micSel.disabled = true;
     try {
-      G.mic?.getAudioTracks()[0]?.stop();
-      const s = await getMic(e.target.value);
-      await swapTrack('audio', s.getAudioTracks()[0]);
-      savePrefs({ micId: e.target.value });
-      glog('microfone trocado');
+      const actualId = await switchGuestMic(e.target.value);
+      if (actualId && [...micSel.options].some((o) => o.value === actualId)) micSel.value = actualId;
       toast('Microfone trocado.', 'ok');
     } catch (ex) {
-      err.textContent = 'N\u00e3o foi poss\u00edvel usar esse microfone: ' + ex.message;
+      err.textContent = 'Não foi possível usar esse microfone: ' + (ex.message || ex.name);
+      const backId = G.mic?.getAudioTracks()[0]?.getSettings().deviceId;
+      if (backId && [...micSel.options].some((o) => o.value === backId)) micSel.value = backId;
+    } finally {
+      micSel.disabled = false;
     }
   };
 }
 
+function capsSnapshot() {
+  let c = {};
+  try { c = G.cam?.getVideoTracks?.()[0]?.getCapabilities?.() || {}; } catch {}
+  const out = {};
+  for (const k of REMOTE_CTL) {
+    const v = c[k];
+    if (k === 'torch') {
+      if (typeof v === 'boolean') out.torch = v;
+    } else if (Array.isArray(v)) {
+      out[k] = v.filter((x) => typeof x === 'string').slice(0, 12);
+    } else if (v && typeof v === 'object' && Number.isFinite(v.min) && Number.isFinite(v.max) && v.max > v.min) {
+      out[k] = { min: v.min, max: v.max, step: Number.isFinite(v.step) && v.step > 0 ? v.step : 0 };
+    }
+  }
+  return out;
+}
+
+function ctlSnapshot() {
+  const out = {};
+  for (const k of REMOTE_CTL) {
+    const v = G.ctl?.[k];
+    if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
+    else if (typeof v === 'string') out[k] = v;
+    else if (k === 'torch' && typeof v === 'boolean') out[k] = v;
+  }
+  return out;
+}
+
+async function applyGuestCameraControl(data = {}) {
+  const track = G.cam?.getVideoTracks?.()[0];
+  if (!track) return;
+  if (data.reset) {
+    G.ctl = {};
+    const caps = track.getCapabilities?.() || {};
+    const p = {};
+    if (Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) p.focusMode = 'continuous';
+    if (Array.isArray(caps.exposureMode) && caps.exposureMode.includes('continuous')) p.exposureMode = 'continuous';
+    if (Array.isArray(caps.whiteBalanceMode) && caps.whiteBalanceMode.includes('continuous')) p.whiteBalanceMode = 'continuous';
+    if (caps.zoom && Number.isFinite(caps.zoom.min)) p.zoom = caps.zoom.min;
+    if (caps.exposureCompensation && Number.isFinite(caps.exposureCompensation.min)) {
+      p.exposureCompensation = Math.max(caps.exposureCompensation.min, Math.min(caps.exposureCompensation.max, 0));
+    }
+    if (caps.torch === true) p.torch = false;
+    if (Object.keys(p).length) await track.applyConstraints({ advanced: [p] }).catch(() => {});
+    pushState();
+    return;
+  }
+  const raw = data.patch || {};
+  const caps = track.getCapabilities?.() || {};
+  const patch = {};
+  for (const k of REMOTE_CTL) {
+    if (!(k in raw)) continue;
+    const v = raw[k];
+    if (k === 'torch') {
+      if (caps.torch === true && typeof v === 'boolean') patch.torch = v;
+    } else if (Array.isArray(caps[k])) {
+      if (typeof v === 'string' && caps[k].includes(v)) patch[k] = v;
+    } else if (caps[k] && typeof caps[k] === 'object' && Number.isFinite(+v) && +v >= caps[k].min && +v <= caps[k].max) {
+      patch[k] = +v;
+    }
+  }
+  if (!Object.keys(patch).length) return;
+  Object.assign(G.ctl, patch);
+  await track.applyConstraints({ advanced: [patch] }).catch(() => {});
+  pushState();
+}
+
 function stateMsg() {
-  return { name: G.name, camOn: G.camOn, micOn: G.micOn, camStreamId: G.local.id, screenStreamId: G.screen?.id || null };
+  return {
+    name: G.name,
+    camOn: G.camOn,
+    micOn: G.micOn,
+    camStreamId: G.local.id,
+    screenStreamId: G.screen?.id || null,
+    camVideoDevices: devList(G.devices?.cams || [], 'Câmera'),
+    camAudioDevices: devList(G.devices?.mics || [], 'Microfone'),
+    camVideoId: G.cam?.getVideoTracks?.()[0]?.getSettings?.().deviceId || loadPrefs().camId || '',
+    camAudioId: G.mic?.getAudioTracks?.()[0]?.getSettings?.().deviceId || loadPrefs().micId || '',
+    camCaps: capsSnapshot(),
+    camCtl: ctlSnapshot(),
+  };
 }
 const pushState = () => {
   // mantém o estado de reentrada atualizado (a sala usa o join original ao reconectar)
@@ -507,6 +762,17 @@ function connect() {
       leave('Você foi removido do estúdio pelo host.');
     } else if (m.action === 'reconnect') {
       forceRejoin();
+    } else if (m.action === 'camera-device') {
+      const d = m.data || {};
+      if (d.kind === 'video') {
+        switchGuestCamera(String(d.deviceId || '')).catch((ex) => toast('Não foi possível trocar de câmera: ' + (ex.message || ex.name), 'err'));
+      } else if (d.kind === 'audio') {
+        switchGuestMic(String(d.deviceId || '')).catch((ex) => toast('Não foi possível trocar o microfone: ' + (ex.message || ex.name), 'err'));
+      }
+    } else if (m.action === 'camera') {
+      applyGuestCameraControl(m.data || {});
+    } else if (m.action === 'camera-info') {
+      listDevices().then((d) => { if (d) G.devices = d; pushState(); }).catch(() => pushState());
     }
   });
   sig.on('chat', addChat);
@@ -798,7 +1064,13 @@ function createPeer(hostId) {
   glog(`createPeer host=${hostId}`);
   const peer = new Peer({ id: hostId, polite: true, signal: (data) => sig.send({ type: 'signal', to: hostId, data }) });
   G.peer = peer;
-  for (const t of G.local.getTracks()) peer.pc.addTrack(t, G.local);
+  G.camSender = null;
+  G.micSender = null;
+  for (const t of G.local.getTracks()) {
+    const snd = peer.pc.addTrack(t, G.local);
+    if (t.kind === 'video') G.camSender = snd;
+    else if (t.kind === 'audio') G.micSender = snd;
+  }
   G.screenSenders = [];
   if (G.screen) for (const t of G.screen.getTracks()) G.screenSenders.push(peer.pc.addTrack(t, G.screen));
   peer.addEventListener('track', (e) => {

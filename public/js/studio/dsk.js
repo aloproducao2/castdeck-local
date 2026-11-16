@@ -1137,8 +1137,9 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
             }
             e.preventDefault();
             // AltGr (Ctrl+Alt no Windows) também produz caractere: §, º, ª, /, ?
+            const VK = { Backspace: 8, Tab: 9, Enter: 13, Escape: 27, ' ': 32, PageUp: 33, PageDown: 34, End: 35, Home: 36, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Delete: 46 };
             const printable = e.key.length === 1 && (!(e.ctrlKey || e.metaKey) || (e.ctrlKey && e.altKey));
-            const base = { kind: 'key', key: e.key, code: e.code, keyCode: e.keyCode, location: e.location, repeat: e.repeat, mods: printable ? { shift: e.shiftKey } : mods(e) };
+            const base = { kind: 'key', key: e.key, code: e.code, keyCode: e.keyCode || VK[e.key] || 0, location: e.location, repeat: e.repeat, mods: printable ? { shift: e.shiftKey } : mods(e) };
             if (e.type === 'keyup') return sendIn({ ...base, type: 'keyUp' });
             const text = printable ? e.key : e.key === 'Enter' ? '\r' : '';
             sendIn({ ...base, type: text ? 'keyDown' : 'rawKeyDown', text });

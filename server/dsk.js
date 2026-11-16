@@ -79,8 +79,27 @@ const AUDIO_JS = `(() => {
   });
   return 'ok';
 })()`;
-// teclas modificadoras no formato do CDP
-const MODS = (m) => (m?.alt ? 1 : 0) | (m?.ctrl ? 2 : 0) | (m?.meta ? 4 : 0) | (m?.shift ? 8 : 0);
+// teclas modificadoras no formato do CDP (aceita objeto ou máscara numérica)
+const MODS = (m) => (typeof m === 'number' ? m : (m?.alt ? 1 : 0) | (m?.ctrl ? 2 : 0) | (m?.meta ? 4 : 0) | (m?.shift ? 8 : 0));
+const VK_CODES = {
+  Backspace: 8, Tab: 9, Enter: 13, Escape: 27, ' ': 32, Spacebar: 32,
+  PageUp: 33, PageDown: 34, End: 35, Home: 36,
+  ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Delete: 46,
+};
+function editCommands(key, modifiers) {
+  const shift = !!(modifiers & 8);
+  const ctrl = !!(modifiers & 2);
+  if (ctrl && (key === 'a' || key === 'A')) return ['selectAll'];
+  if (key === 'Backspace') return [ctrl ? 'deleteWordBackward' : 'deleteBackward'];
+  if (key === 'Delete') return [ctrl ? 'deleteWordForward' : 'deleteForward'];
+  if (key === 'ArrowLeft') return [shift ? (ctrl ? 'moveWordLeftAndModifySelection' : 'moveLeftAndModifySelection') : (ctrl ? 'moveWordLeft' : 'moveLeft')];
+  if (key === 'ArrowRight') return [shift ? (ctrl ? 'moveWordRightAndModifySelection' : 'moveRightAndModifySelection') : (ctrl ? 'moveWordRight' : 'moveRight')];
+  if (key === 'ArrowUp') return [shift ? 'moveUpAndModifySelection' : 'moveUp'];
+  if (key === 'ArrowDown') return [shift ? 'moveDownAndModifySelection' : 'moveDown'];
+  if (key === 'Home') return [shift ? 'moveToBeginningOfLineAndModifySelection' : 'moveToBeginningOfLine'];
+  if (key === 'End') return [shift ? 'moveToEndOfLineAndModifySelection' : 'moveToEndOfLine'];
+  return null;
+}
 
 // Imagens de overlay: guardadas fora do JSON do estúdio (o banco não pode inchar com base64).
 // Só formatos raster; SVG é recusado (pode conter script quando aberto fora de <img>).
@@ -709,12 +728,24 @@ export class DskHost {
         p.deltaX = num(m.deltaX);
         p.deltaY = num(m.deltaY);
       }
+      if (type === 'mousePressed') this.send('Emulation.setFocusEmulationEnabled', { enabled: true }, sid).catch(() => {});
       this.send('Input.dispatchMouseEvent', p, sid).catch(() => {});
     } else if (m.kind === 'key') {
       const type = ['keyDown', 'rawKeyDown', 'keyUp'].includes(m.type) ? m.type : null;
       if (!type) return;
-      const p = { type, modifiers, key: String(m.key || '').slice(0, 32), code: String(m.code || '').slice(0, 32), windowsVirtualKeyCode: num(m.keyCode) | 0, nativeVirtualKeyCode: num(m.keyCode) | 0, location: num(m.location) | 0, autoRepeat: !!m.repeat };
-      if (type === 'keyDown' && typeof m.text === 'string' && m.text) p.text = p.unmodifiedText = m.text.slice(0, 4);
+      const key = String(m.key || '').slice(0, 32);
+      const vk = (num(m.keyCode) | 0) || VK_CODES[key] || 0;
+      const p = { type, modifiers, key, code: String(m.code || '').slice(0, 32), windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, location: num(m.location) | 0, autoRepeat: !!m.repeat };
+      if (key === 'Enter' && type !== 'keyUp') {
+        p.type = 'keyDown';
+        p.text = p.unmodifiedText = '\r';
+      } else if (type === 'keyDown' && typeof m.text === 'string' && m.text) {
+        p.text = p.unmodifiedText = m.text.slice(0, 4);
+      }
+      if (type !== 'keyUp') {
+        const cmds = editCommands(key, modifiers);
+        if (cmds) p.commands = cmds;
+      }
       this.send('Input.dispatchKeyEvent', p, sid).catch(() => {});
     } else if (m.kind === 'text') {
       const text = String(m.text || '').slice(0, 20000);

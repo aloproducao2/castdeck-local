@@ -82,7 +82,7 @@ try {
   const gid = await host.ev(`[...__castdeck.S.guests.values()].find(g=>g.cam).id`);
   const camId = `${gid}:cam`;
   check('câmera remota virou fonte', await waitFor(host, `__castdeck.S.sources.get('${camId}')?.remoteCam===true`));
-  const hostSide = await host.ev(`(()=>{const g=__castdeck.S.guests.get('${gid}');return {view:!!g.view,tracks:g.peer.pc.getSenders().filter(s=>s.track).length}})()`);
+  const hostSide = await host.ev(`(()=>{const g=__castdeck.S.guests.get('${gid}');return {view:!!g.view,tracks:g.peer.pc.getSenders().filter(s=>s.track?.kind==='video').length}})()`);
   check('sem retorno (GuestView) nem envio do host para a câmera', !hostSide.view && hostSide.tracks === 0, JSON.stringify(hostSide));
   check('vídeo da câmera remota chega ao host', await waitFor(host, `(async()=>{const s=await __castdeck.S.guests.get('${gid}').peer.pc.getStats();let f=0;s.forEach(x=>{if(x.type==='inbound-rtp'&&x.kind==='video')f=x.framesDecoded||0});return f>10})()`));
 
@@ -149,7 +149,7 @@ try {
   await host.send('Input.dispatchKeyEvent', { type: 'keyDown', code: 'Escape', key: 'Escape', windowsVirtualKeyCode: 27 });
   await host.send('Input.dispatchKeyEvent', { type: 'keyUp', code: 'Escape', key: 'Escape', windowsVirtualKeyCode: 27 });
   check('Esc fecha o painel flutuante', await host.ev(`!document.querySelector('.studio').classList.contains('side-fly')`));
-  check('barra de fontes mostra a câmera remota', await waitFor(host, `!!document.querySelector('#sw-bus [data-src="${camId}"]')`));
+  check('barra de fontes mostra a câmera remota', await waitFor(host, `!!document.querySelector('#backstage [data-src-id="${camId}"]') && !!document.querySelector('#switcher #sw-scene')`));
   await host.ev(`__castdeck.switcher.setPreview('${camId}')`);
   check('tally verde (prévia) no celular', await waitFor(cam, `__cam.tally.pvw && !__cam.tally.pgm`));
   await host.ev(`__castdeck.switcher.take('cut')`);

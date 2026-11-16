@@ -99,13 +99,24 @@ export function createExtras(ctx) {
     const audioId = patch.audioId !== undefined ? patch.audioId : cur.audioId;
     const quality = patch.quality !== undefined ? patch.quality : cur.quality;
     let stream = cur.stream;
-    if (videoId !== cur.videoId || quality !== cur.quality) stream = await getCamera(videoId, quality);
+    let finalVideoId = videoId;
+    if (videoId !== cur.videoId || quality !== cur.quality) {
+      cur.stream?.getTracks().forEach((t) => t.stop());
+      try {
+        stream = await getCamera(videoId, quality, { strict: !!videoId });
+        finalVideoId = stream.getVideoTracks?.()[0]?.getSettings?.().deviceId || videoId;
+      } catch (err) {
+        const rec = await getCamera(cur.videoId || undefined, cur.quality || '720').catch(() => null);
+        if (rec) attach(cur, rec, cur.mic);
+        throw err;
+      }
+    }
     let mic = cur.mic;
     if (audioId !== cur.audioId) {
       mic = audioId ? await getMic(audioId).catch(() => null) : null;
       if (audioId && !mic) toast('Não foi possível abrir o áudio escolhido', 'err');
     }
-    const cfg = { ...cur, videoId, audioId, quality, label: patch.label || cur.label };
+    const cfg = { ...cur, videoId: finalVideoId, audioId, quality, label: patch.label || cur.label };
     attach(cfg, stream, mic);
     save();
     return cfg;
@@ -137,6 +148,7 @@ export function createExtras(ctx) {
     const firstFree = vids.find((d) => !used.has(d.deviceId))?.deviceId || vids[0]?.deviceId || '';
     let preview = null;
     let loadSeq = 0;
+    let releasedCur = false;
     const delay = (ms) => new Promise((r) => setTimeout(r, ms));
     const stopPreview = () => {
       if (preview && preview !== cur?.stream) preview.getTracks().forEach((t) => t.stop());
@@ -168,7 +180,9 @@ export function createExtras(ctx) {
             msg.hidden = false;
             stopPreview();
             const open = async () => {
-              return cur && sel.value === cur.videoId && q.value === cur.quality ? cur.stream : await getCamera(sel.value || undefined, q.value);
+              return cur && sel.value === cur.videoId && q.value === cur.quality && !releasedCur
+                ? cur.stream
+                : await getCamera(sel.value || undefined, q.value, { strict: !!sel.value });
             };
             try {
               let next;
@@ -177,6 +191,10 @@ export function createExtras(ctx) {
               } catch (first) {
                 if (seq !== loadSeq) return;
                 msg.textContent = 'Ajustando a câmera…';
+                if (cur?.stream && !releasedCur) {
+                  cur.stream.getTracks().forEach((t) => t.stop());
+                  releasedCur = true;
+                }
                 await delay(500);
                 next = await open();
               }
@@ -213,7 +231,13 @@ export function createExtras(ctx) {
       },
     );
     stopPreview();
-    if (!res) return;
+    if (!res) {
+      if (cur && releasedCur) {
+        const rec = await getCamera(cur.videoId || undefined, cur.quality || '720').catch(() => null);
+        if (rec) attach(cur, rec, cur.mic);
+      }
+      return;
+    }
     if (res.remove) return removeCam(id);
     const cfg = { id: id || nextId(), label: res.label, videoId: res.videoId, audioId: res.audioId, quality: res.quality };
     try {

@@ -22,7 +22,7 @@ const labelOf = (kind) => ({
   guest: 'Convidado',
 }[kind] || 'Fonte');
 
-export function createMultiRecorder({ S, $, $$, esc, toast, modal, api, studioId, getProgramStream, getMixer }) {
+export function createMultiRecorder({ S, $, $$, esc, toast, modal, api, studioId, getProgramStream, getMixer, openSideTab }) {
   let active = null;
   let opening = false;
 
@@ -95,16 +95,20 @@ export function createMultiRecorder({ S, $, $$, esc, toast, modal, api, studioId
 
   function renderButton() {
     const b = btn();
-    if (!b) return;
-    const n = active?.entries.length || 0;
-    b.classList.toggle('on', !!active);
-    b.setAttribute('aria-pressed', String(!!active));
-    const lbl = b.querySelector('.mr-lbl');
-    if (lbl) lbl.textContent = active ? `Fontes ${n}` : 'Fontes';
-    b.title = active
-      ? `Multigravação ativa (${n} fonte${n === 1 ? '' : 's'}). Clique para parar.`
-      : 'Multigravação: grave cada fonte em um arquivo separado, sem alterar Gravar/Transmitir';
-    b.setAttribute('aria-label', active ? 'Parar multigravação' : 'Multigravação');
+    if (b) {
+      const n = active?.entries.length || 0;
+      b.classList.toggle('on', !!active);
+      b.setAttribute('aria-pressed', String(!!active));
+      const lbl = b.querySelector('.mr-lbl');
+      if (lbl) lbl.textContent = active ? `Multi-Rec (${n})` : 'Multi-Rec';
+      const toolName = b.querySelector('.tool-name');
+      if (toolName) toolName.textContent = active ? `Multi-Rec (${n} gravando)` : 'Multi-Rec (gravação ISO)';
+      b.title = active
+        ? `Multi-Rec ativa (${n} fonte${n === 1 ? '' : 's'}). Clique para ver ou parar no painel.`
+        : 'Multi-Rec: grave cada fonte em um arquivo separado (ISO)';
+      b.setAttribute('aria-label', active ? 'Multi-Rec ativa' : 'Multi-Rec');
+    }
+    if (S.tab === 'multirec') renderSidePanel();
   }
 
   function mimeFor(stream) {
@@ -303,12 +307,7 @@ export function createMultiRecorder({ S, $, $$, esc, toast, modal, api, studioId
     }
   }
 
-  function openPanel() {
-    if (active) return stop();
-    if (opening) return;
-    const list = candidates();
-    if (!list.length) return toast('Nenhuma fonte de vídeo disponível para a multigravação.', 'err');
-    opening = true;
+  function buildSelectionHtml(list, { inPanel = false } = {}) {
     const rows = list.map((c) => {
       const opts = audioOptions(c);
       const audio = defaultAudio(c);
@@ -321,59 +320,114 @@ export function createMultiRecorder({ S, $, $$, esc, toast, modal, api, studioId
       <label class="mr-audio-pick"><span>Áudio</span><select class="input mr-audio" data-audio-key="${esc(c.key)}">${opts.map(([value, text]) => `<option value="${esc(value)}" ${value === audio ? 'selected' : ''}>${esc(text)}</option>`).join('')}</select></label>
     </div>`;
     }).join('');
-    modal(`<div class="mr-panel">
-      <h3>Multigravação</h3>
-      <p class="sub">Grave cada fonte em um arquivo separado. A gravação e a transmissão atuais continuam funcionando normalmente.</p>
-      <div class="mr-list">${rows}</div>
-      <div class="mr-summary">
-        <span id="mr-count">0 fontes selecionadas</span>
-        <span class="mr-warn" id="mr-warn" hidden></span>
-      </div>
-      <label class="field mr-bitrate"><span>Bitrate do vídeo</span><select class="input" id="mr-bitrate"><option value="2500">Leve — 2,5 Mbps</option><option value="4000" selected>Equilibrado — 4 Mbps</option><option value="6000">Alta — 6 Mbps</option><option value="8000">Máxima — 8 Mbps</option></select></label>
-      <label class="check mr-mp4"><input type="checkbox" id="mr-mp4"> <span>Converter para MP4 (H.264/AAC) depois</span></label>
-      <p class="hint">Máximo de ${MAX_SELECTED} fontes por sessão. O programa é opcional. O original fica em WebM; a conversão roda em segundo plano e mantém o original.</p>
-      <div class="modal-actions">
-        <button class="btn ghost" type="button" data-close>Cancelar</button>
-        <button class="btn primary" type="button" id="mr-start" disabled>Iniciar multigravação</button>
-      </div>
-    </div>`, {
+    return `
+      ${inPanel
+        ? `<div class="dm-head"><h4>Multi-Rec (Gravação ISO)</h4><button type="button" class="btn sm ghost" id="mr-refresh-side" title="Atualizar fontes disponíveis">↻ Atualizar</button></div>`
+        : '<h3>Multi-Rec</h3>'}
+      <p class="sub">Grave cada câmera, convidado ou tela em um arquivo separado. A gravação e a transmissão do programa continuam normais.</p>
+      ${list.length
+        ? `<div class="mr-list">${rows}</div>
+           <div class="mr-summary">
+             <span id="mr-count">0 fontes selecionadas</span>
+             <span class="mr-warn" id="mr-warn" hidden></span>
+           </div>
+           <label class="field mr-bitrate"><span>Qualidade do vídeo</span><select class="input" id="mr-bitrate"><option value="2500">Leve — 2,5 Mbps</option><option value="4000" selected>Equilibrado — 4 Mbps</option><option value="6000">Alta — 6 Mbps</option><option value="8000">Máxima — 8 Mbps</option></select></label>
+           <label class="check mr-mp4"><input type="checkbox" id="mr-mp4"> <span>Converter para MP4 (H.264/AAC) ao terminar</span></label>
+           <p class="hint">Máximo de ${MAX_SELECTED} fontes por sessão. Os arquivos originais são gravados em WebM.</p>`
+        : '<div class="empty">Nenhuma fonte com vídeo ativo agora. Ligue uma câmera, tela ou mídia e clique em Atualizar.</div>'}
+      <div class="${inPanel ? 'row' : 'modal-actions'}" style="${inPanel ? 'gap:8px;margin-top:10px' : ''}">
+        ${inPanel ? '' : '<button class="btn ghost" type="button" data-close>Cancelar</button>'}
+        <button class="btn primary ${inPanel ? 'grow' : ''}" type="button" id="mr-start" disabled>● Iniciar Multi-Rec</button>
+      </div>`;
+  }
+
+  function bindSelectionForm(container, list, onSubmit) {
+    const boxes = [...container.querySelectorAll('input[data-mr-key]')];
+    const startBtn = container.querySelector('#mr-start');
+    const count = container.querySelector('#mr-count');
+    const warn = container.querySelector('#mr-warn');
+    const bitrate = container.querySelector('#mr-bitrate');
+    const refresh = () => {
+      if (!startBtn) return;
+      const selected = boxes.filter((b) => b.checked);
+      const program = selected.some((b) => b.dataset.mrKey === 'program');
+      if (count) count.textContent = `${selected.length} fonte${selected.length === 1 ? '' : 's'} selecionada${selected.length === 1 ? '' : 's'}`;
+      const notes = [];
+      if (selected.length > 4) notes.push('Acima de 4 fontes pode pesar em PCs sem GPU.');
+      if (program && S.recording) notes.push('A gravação atual também está ativa: o programa será salvo duas vezes.');
+      const kbps = Number(bitrate?.value) || 4000;
+      const perHour = ((kbps + 128) * 3600) / 8 / 1_000_000;
+      if (selected.length) notes.push(`≈ ${perHour.toFixed(1)} GB/h por fonte (${(kbps / 1000).toFixed(1)} Mbps).`);
+      if (warn) {
+        warn.hidden = !notes.length;
+        warn.textContent = notes.join(' ');
+      }
+      startBtn.disabled = !selected.length || selected.length > MAX_SELECTED;
+      startBtn.textContent = selected.length > MAX_SELECTED ? `Máximo de ${MAX_SELECTED}` : '● Iniciar Multi-Rec';
+    };
+    boxes.forEach((b) => (b.onchange = refresh));
+    bitrate?.addEventListener('change', refresh);
+    refresh();
+    if (startBtn) {
+      startBtn.onclick = () => {
+        const selected = boxes.filter((b) => b.checked).map((b) => {
+          const c = list.find((x) => x.key === b.dataset.mrKey);
+          if (!c) return null;
+          const sel = [...container.querySelectorAll('select[data-audio-key]')].find((s) => s.dataset.audioKey === b.dataset.mrKey);
+          return { ...c, audio: sel?.value || defaultAudio(c), audioLabel: sel?.selectedOptions?.[0]?.textContent || '' };
+        }).filter(Boolean);
+        const convertMp4 = !!container.querySelector('#mr-mp4')?.checked;
+        const videoKbps = Number(container.querySelector('#mr-bitrate')?.value) || 4000;
+        onSubmit(selected, { convertMp4, videoKbps });
+      };
+    }
+  }
+
+  function renderSidePanel() {
+    const p = $('#panel-multirec');
+    if (!p) return;
+    if (active) {
+      p.innerHTML = `<div class="mr-panel">
+        <div class="dm-head"><h4>Multi-Rec (Gravação ISO)</h4><span class="pill live">● GRAVANDO ${active.entries.length}</span></div>
+        <p class="sub">Gravando fontes separadas sem afetar a live principal.</p>
+        ${active.dir ? `<p class="hint">Pasta: <code>${esc(active.dir)}</code></p>` : ''}
+        <div class="mr-list">
+          ${active.entries.map((e) => `<div class="mr-item">
+            <div class="mr-src-main"><b>${esc(e.label)}</b><small>${esc(labelOf(e.kind))} · Áudio: ${esc(e.audio || 'padrão')}</small></div>
+            <span class="pill live">REC</span>
+          </div>`).join('')}
+        </div>
+        <button class="btn danger" type="button" id="mr-stop-side" style="width:100%;margin-top:10px">⏹ Parar Multi-Rec (${active.entries.length})</button>
+      </div>`;
+      p.querySelector('#mr-stop-side')?.addEventListener('click', () => stop());
+      return;
+    }
+    const list = candidates();
+    p.innerHTML = `<div class="mr-panel">${buildSelectionHtml(list, { inPanel: true })}</div>`;
+    p.querySelector('#mr-refresh-side')?.addEventListener('click', () => renderSidePanel());
+    bindSelectionForm(p, list, (selected, opts) => {
+      if (selected.length) start(selected, opts);
+    });
+  }
+
+  function openPanel() {
+    if ($('#panel-multirec') && openSideTab) {
+      openSideTab('multirec');
+      renderSidePanel();
+      return;
+    }
+    if (active) return stop();
+    if (opening) return;
+    const list = candidates();
+    if (!list.length) return toast('Nenhuma fonte de vídeo disponível para a multigravação.', 'err');
+    opening = true;
+    modal(`<div class="mr-panel">${buildSelectionHtml(list, { inPanel: false })}</div>`, {
       onMount(m, close) {
-        const boxes = $$('input[data-mr-key]', m);
-        const startBtn = $('#mr-start', m);
-        const count = $('#mr-count', m);
-        const warn = $('#mr-warn', m);
-        const bitrate = $('#mr-bitrate', m);
-        const refresh = () => {
-          const selected = boxes.filter((b) => b.checked);
-          const program = selected.some((b) => b.dataset.mrKey === 'program');
-          count.textContent = `${selected.length} fonte${selected.length === 1 ? '' : 's'} selecionada${selected.length === 1 ? '' : 's'}`;
-          const notes = [];
-          if (selected.length > 4) notes.push('Acima de 4 fontes pode pesar em PCs sem GPU.');
-          if (program && S.recording) notes.push('A gravação atual também está ativa: o programa será salvo duas vezes.');
-          const kbps = Number(bitrate?.value) || 4000;
-          const perHour = ((kbps + 128) * 3600) / 8 / 1_000_000;
-          if (selected.length) notes.push(`≈ ${perHour.toFixed(1)} GB por hora por fonte (${(kbps / 1000).toFixed(1)} Mbps).`);
-          warn.hidden = !notes.length;
-          warn.textContent = notes.join(' ');
-          startBtn.disabled = !selected.length || selected.length > MAX_SELECTED;
-          startBtn.textContent = selected.length > MAX_SELECTED ? `Máximo de ${MAX_SELECTED}` : 'Iniciar multigravação';
-        };
-        boxes.forEach((b) => (b.onchange = refresh));
-        bitrate?.addEventListener('change', refresh);
-        refresh();
-        startBtn.onclick = () => {
-          const selected = boxes.filter((b) => b.checked).map((b) => {
-            const c = list.find((x) => x.key === b.dataset.mrKey);
-            if (!c) return null;
-            const sel = [...m.querySelectorAll('select[data-audio-key]')].find((s) => s.dataset.audioKey === b.dataset.mrKey);
-            return { ...c, audio: sel?.value || defaultAudio(c), audioLabel: sel?.selectedOptions?.[0]?.textContent || '' };
-          }).filter(Boolean);
-          const convertMp4 = !!$('#mr-mp4', m)?.checked;
-          const videoKbps = Number($('#mr-bitrate', m)?.value) || 4000;
+        bindSelectionForm(m, list, (selected, opts) => {
           close();
           opening = false;
-          if (selected.length) start(selected, { convertMp4, videoKbps });
-        };
+          if (selected.length) start(selected, opts);
+        });
       },
     });
     // modal fecha por fora/Esc sem passar pelo botão: libera a trava
@@ -387,6 +441,7 @@ export function createMultiRecorder({ S, $, $$, esc, toast, modal, api, studioId
   return {
     open: openPanel,
     toggle: openPanel,
+    render: renderSidePanel,
     stop,
     shutdown,
     isActive: () => !!active,

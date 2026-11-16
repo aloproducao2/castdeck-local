@@ -569,34 +569,49 @@ export class Compositor {
     else Object.assign(this.ticker, { text, label: opts.label || '', speed: opts.speed || 0.09 }); // mantém a posição da rolagem
   }
 
-  // Cena segura: usa a cartela enviada ou, sem imagem, o fundo atual do projeto
-  // (imagem, vídeo, cor ou gradiente da marca). Não inventa um avatar "CD".
+  // Cena segura: suporta PNG transparente/cartela em disco, fundo próprio (projeto, gradiente ou cor sólida),
+  // encaixe (cover, contain, center), etiqueta (badge) e posição/cor dos textos.
   drawSafe() {
     const { ctx, W, H } = this;
     const brand = this.brand || {};
     const safe = brand.safe || {};
     const img = safe.image ? this.image(safe.image) : null;
     const defaults = this.safeDefaults || {};
-    const title = safe.title || defaults.title || 'Voltamos em instantes';
-    const subtitle = safe.subtitle || defaults.subtitle || 'Estamos ajustando o sinal.';
-    const showText = !img || safe.showText === true;
+    const title = safe.title !== undefined ? safe.title : (defaults.title || 'Voltamos em instantes');
+    const subtitle = safe.subtitle !== undefined ? safe.subtitle : (defaults.subtitle || 'Estamos ajustando o sinal.');
+    const showText = img ? safe.showText === true : safe.showText !== false;
+    const bgMode = safe.bgMode || 'project';
     const bg = brand.background || {};
-    const bgVideo = bg.type === 'video' ? this.bgVideo(bg.value) : null;
-    const bgGif = bg.type === 'image' ? this.bgGif(bg.value) : null;
+    const bgVideo = bgMode === 'project' && bg.type === 'video' ? this.bgVideo(bg.value) : null;
+    const bgGif = bgMode === 'project' && bg.type === 'image' ? this.bgGif(bg.value) : null;
     const bgGifFrame = this.gifFrame(bgGif);
-    const bgImg = bg.type === 'image' ? this.image(bg.value) : null;
-    const gradient = () => {
-      const color = hexToRgb(brand.color || '#7c5cff');
+    const bgImg = bgMode === 'project' && bg.type === 'image' ? this.image(bg.value) : null;
+    const gradient = (c1hex, c2hex) => {
+      const c1 = hexToRgb(c1hex || brand.color || '#7c5cff');
       const g = ctx.createLinearGradient(0, 0, W, H);
-      g.addColorStop(0, rgb(mix(color, [8, 8, 16], 0.72)));
-      g.addColorStop(1, rgb(mix(color, [4, 4, 10], 0.92)));
+      if (c2hex) {
+        g.addColorStop(0, rgb(c1));
+        g.addColorStop(1, rgb(hexToRgb(c2hex)));
+      } else {
+        g.addColorStop(0, rgb(mix(c1, [8, 8, 16], 0.72)));
+        g.addColorStop(1, rgb(mix(c1, [4, 4, 10], 0.92)));
+      }
       return g;
     };
     const paintBackground = () => {
-      if (bgVideo) this.drawCover(bgVideo, 0, 0, W, H, bgVideo.videoWidth, bgVideo.videoHeight);
-      else if (bgGifFrame) this.drawCover(bgGifFrame, 0, 0, W, H, bgGifFrame.width, bgGifFrame.height);
-      else if (bgImg) this.drawCover(bgImg, 0, 0, W, H, bgImg.naturalWidth, bgImg.naturalHeight);
-      else if (bg.type === 'color') {
+      if (bgMode === 'solid') {
+        ctx.fillStyle = safe.bgColor || '#0b0f1e';
+        ctx.fillRect(0, 0, W, H);
+      } else if (bgMode === 'gradient') {
+        ctx.fillStyle = gradient(safe.bgColor || brand.color || '#7c5cff', safe.bgColor2 || '#090d1a');
+        ctx.fillRect(0, 0, W, H);
+      } else if (bgVideo) {
+        this.drawCover(bgVideo, 0, 0, W, H, bgVideo.videoWidth, bgVideo.videoHeight);
+      } else if (bgGifFrame) {
+        this.drawCover(bgGifFrame, 0, 0, W, H, bgGifFrame.width, bgGifFrame.height);
+      } else if (bgImg) {
+        this.drawCover(bgImg, 0, 0, W, H, bgImg.naturalWidth, bgImg.naturalHeight);
+      } else if (bg.type === 'color') {
         ctx.fillStyle = bg.value || '#111';
         ctx.fillRect(0, 0, W, H);
       } else {
@@ -606,47 +621,85 @@ export class Compositor {
     };
     const drawText = () => {
       if (!showText) return;
-      // Texto no centro vertical da cartela. A legibilidade vem de sombra/contorno,
-      // sem uma faixa escura por cima do fundo (a faixa cortava o layout da cartela).
+      const badge = String(safe.badge || '').trim();
+      const textCol = safe.textColor || '#ffffff';
+      const baseRgb = hexToRgb(textCol);
+      const pos = safe.textPos || (img && safe.fit === 'center' ? 'bottom' : 'center');
+      const titleY = pos === 'bottom' ? H * 0.78 : pos === 'top' ? H * 0.24 : H * 0.5;
+      const uH = Math.min(H, W * 0.75);
       ctx.save();
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.lineJoin = 'round';
-      ctx.shadowColor = 'rgba(4,4,10,.72)';
-      ctx.shadowBlur = Math.round(H * 0.024);
-      ctx.fillStyle = '#fff';
-      ctx.font = `800 ${Math.round(H * 0.052)}px Outfit, Inter, sans-serif`;
-      ctx.lineWidth = Math.max(1, Math.round(H * 0.006));
-      ctx.strokeStyle = 'rgba(4,4,10,.42)';
-      ctx.strokeText(title, W / 2, H * 0.5);
-      ctx.fillText(title, W / 2, H * 0.5);
-      ctx.shadowBlur = Math.round(H * 0.016);
-      ctx.fillStyle = 'rgba(255,255,255,.82)';
-      ctx.font = `500 ${Math.round(H * 0.025)}px Inter, sans-serif`;
-      ctx.lineWidth = Math.max(1, Math.round(H * 0.0035));
-      ctx.strokeStyle = 'rgba(4,4,10,.32)';
-      ctx.strokeText(subtitle, W / 2, H * 0.575);
-      ctx.fillText(subtitle, W / 2, H * 0.575);
+      if (badge) {
+        const bfs = Math.max(12, Math.round(uH * 0.023));
+        ctx.font = `800 ${bfs}px Inter, sans-serif`;
+        const dotR = Math.max(3, bfs * 0.22);
+        const tw = ctx.measureText(badge.toUpperCase()).width;
+        const bw = tw + bfs * 1.9 + dotR * 2;
+        const bh = bfs * 1.95;
+        const bx = (W - bw) / 2;
+        const by = titleY - Math.round(uH * 0.068) - bh;
+        ctx.fillStyle = safe.accentColor || brand.color || '#7c5cff';
+        ctx.shadowColor = 'rgba(0,0,0,0.45)';
+        ctx.shadowBlur = Math.round(uH * 0.018);
+        roundRectPath(ctx, bx, by, bw, bh, bh / 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        const pulse = 0.6 + 0.4 * Math.abs(Math.sin(performance.now() / 420));
+        ctx.fillStyle = `rgba(255,255,255,${pulse})`;
+        ctx.beginPath();
+        ctx.arc(bx + bfs * 0.75 + dotR, by + bh / 2, dotR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.fillText(badge.toUpperCase(), W / 2 + dotR * 0.85, by + bh / 2 + bfs * 0.04);
+      }
+      if (title) {
+        ctx.shadowColor = 'rgba(4,4,10,.72)';
+        ctx.shadowBlur = Math.round(uH * 0.024);
+        ctx.fillStyle = textCol;
+        ctx.font = `800 ${Math.round(uH * 0.052)}px Outfit, Inter, sans-serif`;
+        ctx.lineWidth = Math.max(1, Math.round(uH * 0.006));
+        ctx.strokeStyle = 'rgba(4,4,10,.42)';
+        ctx.strokeText(title, W / 2, titleY);
+        ctx.fillText(title, W / 2, titleY);
+      }
+      if (subtitle) {
+        ctx.shadowBlur = Math.round(uH * 0.016);
+        ctx.fillStyle = rgb(baseRgb, 0.85);
+        ctx.font = `500 ${Math.round(uH * 0.025)}px Inter, sans-serif`;
+        ctx.lineWidth = Math.max(1, Math.round(uH * 0.0035));
+        ctx.strokeStyle = 'rgba(4,4,10,.32)';
+        const subY = titleY + Math.round(uH * 0.068);
+        ctx.strokeText(subtitle, W / 2, subY);
+        ctx.fillText(subtitle, W / 2, subY);
+      }
       ctx.restore();
     };
 
     ctx.save();
+    // Pinta sempre o fundo antes para suportar PNG transparente em qualquer encaixe.
+    paintBackground();
     if (img) {
       if (safe.fit === 'contain') {
-        paintBackground();
-        const sc = Math.min(W / img.naturalWidth, H / img.naturalHeight);
+        const sc = Math.min((W * 0.92) / img.naturalWidth, (H * 0.92) / img.naturalHeight);
         const iw = img.naturalWidth * sc;
         const ih = img.naturalHeight * sc;
         ctx.drawImage(img, (W - iw) / 2, (H - ih) / 2, iw, ih);
+      } else if (safe.fit === 'center') {
+        const sc = Math.min((W * 0.58) / img.naturalWidth, (H * 0.44) / img.naturalHeight);
+        const iw = img.naturalWidth * sc;
+        const ih = img.naturalHeight * sc;
+        const cy = showText ? H * 0.36 : H * 0.5;
+        ctx.drawImage(img, (W - iw) / 2, cy - ih / 2, iw, ih);
       } else {
         this.drawCover(img, 0, 0, W, H, img.naturalWidth, img.naturalHeight);
       }
-      drawText();
-    } else {
-      paintBackground();
+    }
+    if ((!img && safe.showLogo !== false) || (img && safe.showLogo === true)) {
       const logo = this.image(brand.logo);
       if (logo) {
-        const cy = H * 0.3;
+        const cy = showText && (safe.textPos || 'center') === 'top' ? H * 0.72 : H * 0.27;
         const maxH = H * 0.14;
         const maxW = W * 0.36;
         const sc = Math.min(maxH / logo.naturalHeight, maxW / logo.naturalWidth);
@@ -654,8 +707,8 @@ export class Compositor {
         const lh = logo.naturalHeight * sc;
         ctx.drawImage(logo, (W - lw) / 2, cy - lh / 2, lw, lh);
       }
-      drawText();
     }
+    drawText();
     ctx.restore();
   }
 

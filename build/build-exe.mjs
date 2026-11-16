@@ -144,6 +144,21 @@ for (const key of list) {
       console.warn('  ⚠ castdeck-ndi não compilado: compile native/ndi-bridge antes do build.');
     }
   }
+  // helper CEF (BrowserSource nativo no Windows): mantém dist/browser-host-cef atualizado junto do executável
+  if (key === 'win-x64' && key === host) {
+    const cefOut = path.resolve('native', 'browser-host-cef', 'bin', 'Release', 'net8.0-windows', 'win-x64');
+    const cefDist = path.resolve('dist', 'browser-host-cef');
+    const rcPath = path.join(cefOut, 'browser-host-cef.runtimeconfig.json');
+    const isSelfContained = fs.existsSync(rcPath) && /"includedFrameworks"/.test(fs.readFileSync(rcPath, 'utf8'));
+    if (fs.existsSync(path.join(cefOut, 'browser-host-cef.exe')) && isSelfContained) {
+      fs.mkdirSync(cefDist, { recursive: true });
+      for (const f of ['browser-host-cef.exe', 'browser-host-cef.dll', 'browser-host-cef.deps.json', 'browser-host-cef.runtimeconfig.json']) {
+        const src = path.join(cefOut, f);
+        if (fs.existsSync(src)) fs.copyFileSync(src, path.join(cefDist, f));
+      }
+      console.log('  browser-host-cef: sincronizado em dist/browser-host-cef');
+    }
+  }
   // worker da legenda ao vivo (Rust + whisper.cpp): compilado aqui mesmo, só para o sistema deste PC
   // (sem compilação cruzada por enquanto). Se falhar, o app sai sem a legenda em vez de quebrar o build.
   if (key === host) {

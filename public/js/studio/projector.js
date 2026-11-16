@@ -9,9 +9,92 @@
 // - A escolha da tela usa a Window Management API (getScreenDetails). Com a permissão "Gerenciar janelas",
 //   o Chromium abre o pop-up direto em tela cheia na tela pedida (recurso "popup,fullscreen" + left/top).
 //   Sem a permissão (ou em outro navegador) abre numa janela comum: arrastar para a TV e dar duplo clique.
-export function createProjectors({ S, getStreams, getMixer, $, esc, toast, modal, icons }) {
+export function createProjectors({ S, getStreams, getMixer, getVfx, $, esc, toast, modal, icons }) {
   const open = new Map(); // janela do projetor -> { src, seen }
+  const sourceCanvases = new Map(); // id da fonte -> { canvas, ctx, stream, track, timer, lastSeen }
   const LABEL = { pgm: 'Programa (PGM)', vpgm: 'Vertical 9:16', pvw: 'Prévia da mesa (PVW)' };
+  const KIND_LABEL = {
+    camera: 'Câmera',
+    screen: 'Tela',
+    browser: 'Página web',
+    media: 'Mídia',
+    image: 'Imagem',
+    uvc: 'Câmera USB',
+  };
+
+  function labelOf(src) {
+    if (LABEL[src]) return LABEL[src];
+    if (String(src).startsWith('src:')) {
+      const id = src.slice(4);
+      const s = S.sources.get(id);
+      return s ? `Fonte · ${s.label || id}` : 'Fonte isolada';
+    }
+    return String(src || 'PGM');
+  }
+
+  function sourceKindLabel(s) {
+    if (s.ingest) return 'RTMP/SRT';
+    if (s.kind === 'camera' && s.ownerId && s.ownerId !== 'host') return s.remoteCam ? 'Câmera remota' : 'Convidado';
+    if (s.kind === 'media' && String(s.label || '').startsWith('♪ ')) return 'Áudio';
+    return KIND_LABEL[s.kind] || 'Fonte';
+  }
+
+  // Algumas fontes (imagem, UVC MJPEG, browser captureStream(0), câmera com VFX ou vídeo pausado) não têm trilha de vídeo contínua:
+  // projeta via canvas auxiliar 16:9 sob demanda, encerrando o loop assim que nenhum projetor usar essa fonte.
+  function sourceCanvasTrack(s) {
+    let entry = sourceCanvases.get(s.id);
+    const p = S.system?.presets?.[S.preset] || { width: 1280, height: 720 };
+    const w = Math.min(1920, Math.max(640, Number(p.width) || 1280));
+    const h = Math.min(1080, Math.max(360, Number(p.height) || 720));
+    if (!entry || entry.track?.readyState !== 'live') {
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d', { alpha: false });
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, w, h);
+      const stream = canvas.captureStream(30);
+      const track = stream.getVideoTracks()[0] || null;
+      entry = { canvas, ctx, stream, track, timer: 0, lastSeen: Date.now() };
+      const paint = () => {
+        const cur = S.sources.get(s.id);
+        const key = 'src:' + s.id;
+        if (!cur || (!active(key) && Date.now() - entry.lastSeen > 3500)) {
+          clearInterval(entry.timer);
+          try { entry.track?.stop(); } catch {}
+          if (sourceCanvases.get(s.id) === entry) sourceCanvases.delete(s.id);
+          return;
+        }
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        if (cur.camOff) return;
+        const vfx = getVfx?.();
+        const fx = cur.kind === 'camera' && vfx?.active?.(cur.id) ? vfx.frame(cur.id, cur.el) : null;
+        const img = fx?.img || cur.el;
+        if (!img) return;
+        const isImg = img instanceof HTMLImageElement;
+        const iw = fx ? fx.w : isImg ? img.naturalWidth : img instanceof HTMLCanvasElement ? img.width : img.videoWidth;
+        const ih = fx ? fx.h : isImg ? img.naturalHeight : img instanceof HTMLCanvasElement ? img.height : img.videoHeight;
+        if (!(iw > 0 && ih > 0)) return;
+        const sc = Math.min(canvas.width / iw, canvas.height / ih);
+        const dw = iw * sc;
+        const dh = ih * sc;
+        try {
+          ctx.drawImage(img, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+        } catch {}
+      };
+      entry.timer = setInterval(paint, Math.round(1000 / 30));
+      sourceCanvases.set(s.id, entry);
+      paint();
+    } else {
+      if (entry.canvas.width !== w || entry.canvas.height !== h) {
+        entry.canvas.width = w;
+        entry.canvas.height = h;
+      }
+      entry.lastSeen = Date.now();
+    }
+    return entry.track;
+  }
 
   // prévia da mesa de corte: o canvas do monitor PVW vira trilha só quando alguém pede
   function previewTrack() {
@@ -25,6 +108,32 @@ export function createProjectors({ S, getStreams, getMixer, $, esc, toast, modal
     return c._cdCap.getVideoTracks()[0] || null;
   }
 
+  function sourceTracks(id) {
+    const s = S.sources.get(id);
+    if (!s) return null;
+    const mixer = getMixer?.();
+    const a = mixer?.isoTrack?.(id) || s.stream?.getAudioTracks?.().find((t) => t.readyState === 'live') || null;
+    if (s.camOff) return { v: null, a, label: s.label || id };
+    const vfx = getVfx?.();
+    const hasFx = s.kind === 'camera' && !!vfx?.active?.(id);
+    let v = null;
+    if (hasFx || s.kind === 'image' || s.kind === 'uvc' || s.kind === 'browser') {
+      v = sourceCanvasTrack(s);
+    } else if (s.kind === 'media') {
+      try {
+        if (!s._cap || !s._cap.getVideoTracks().some((t) => t.readyState === 'live')) {
+          s._cap = s.el?.captureStream?.() || s.el?.mozCaptureStream?.() || null;
+        }
+      } catch {}
+      v = s._cap?.getVideoTracks().find((t) => t.readyState === 'live') || null;
+      if (!v && s.el?.readyState >= 2) v = sourceCanvasTrack(s);
+    } else {
+      v = s.stream?.getVideoTracks?.().find((t) => t.readyState === 'live') || null;
+      if (!v && s.el && (s.el.videoWidth > 0 || s.el.naturalWidth > 0)) v = sourceCanvasTrack(s);
+    }
+    return { v, a, label: s.label || id };
+  }
+
   window.__castdeckProjector = {
     get(src) {
       const { programStream, vStream } = getStreams();
@@ -32,6 +141,7 @@ export function createProjectors({ S, getStreams, getMixer, $, esc, toast, modal
       if (src === 'pgm') return { v: programStream?.getVideoTracks()[0] || null, a };
       if (src === 'vpgm') return { v: vStream?.getVideoTracks()[0] || null, a };
       if (src === 'pvw') return { v: previewTrack(), a: null };
+      if (String(src).startsWith('src:')) return sourceTracks(src.slice(4));
       return null;
     },
     hello(src, win) {
@@ -61,9 +171,10 @@ export function createProjectors({ S, getStreams, getMixer, $, esc, toast, modal
   }
 
   function launch(src, scr) {
-    const url = `/projector.html?src=${src}`;
+    const url = `/projector.html?src=${encodeURIComponent(src)}`;
     // nome fixo por sinal + tela: clicar de novo reaproveita a mesma janela em vez de abrir outra
-    const name = `castdeck-proj-${src}-${scr ? `${scr.left}x${scr.top}` : 'win'}`;
+    const safeName = String(src).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const name = `castdeck-proj-${safeName}-${scr ? `${scr.left}x${scr.top}` : 'win'}`;
     const feat = scr
       ? `popup,left=${scr.availLeft ?? scr.left},top=${scr.availTop ?? scr.top},width=${scr.availWidth ?? scr.width},height=${scr.availHeight ?? scr.height},fullscreen`
       : `popup,width=${src === 'vpgm' ? 540 : 960},height=${src === 'vpgm' ? 960 : 540}`;
@@ -72,7 +183,7 @@ export function createProjectors({ S, getStreams, getMixer, $, esc, toast, modal
     try {
       w.focus();
     } catch {}
-    toast(scr ? `Projetor aberto: ${LABEL[src]}.` : 'Projetor aberto numa janela: arraste para a TV/monitor e dê duplo clique para tela cheia.', 'ok');
+    toast(scr ? `Projetor aberto: ${labelOf(src)}.` : `Projetor aberto (${labelOf(src)}): arraste para a TV/monitor e dê duplo clique para tela cheia.`, 'ok');
   }
 
   function screenName(s, i, d) {
@@ -87,13 +198,24 @@ export function createProjectors({ S, getStreams, getMixer, $, esc, toast, modal
     let details = null;
     let perm = 'none';
     let loading = true; // enquanto o navegador pergunta a permissão "Gerenciar janelas"
+    const sourcesList = [...S.sources.values()];
+    const srcBtns = sourcesList.length
+      ? sourcesList
+          .map(
+            (s) =>
+              `<button type="button" class="pj-src-btn" data-src="src:${esc(s.id)}" title="Projetar ${esc(s.label || s.id)}"><small>${esc(sourceKindLabel(s))}</small><span>${esc(s.label || s.id)}</span></button>`,
+          )
+          .join('')
+      : '<span class="hint">Nenhuma fonte conectada no momento.</span>';
     await modal(
       `<h3>Projetor · tela, TV ou HDMI</h3>
-      <p class="sub">Mostra o sinal em tela cheia em outro monitor, sem tirar nada do estúdio (como o projetor do OBS). Não pesa: usa a mesma imagem, sem codificar de novo.</p>
-      <div class="pj-label">Sinal</div>
+      <p class="sub">Mostra o programa ou qualquer fonte isolada em tela cheia em outro monitor, sem tirar nada do estúdio (como o projetor do OBS).</p>
+      <div class="pj-label">Saída do estúdio</div>
       <div class="seg pj-seg" id="pj-src">
         <button data-src="pgm">Programa</button><button data-src="vpgm">Vertical 9:16</button><button data-src="pvw">Prévia (mesa)</button>
       </div>
+      <div class="pj-label">Ou projetar uma fonte isolada</div>
+      <div class="pj-sources" id="pj-sources">${srcBtns}</div>
       <div class="pj-label">Onde mostrar</div>
       <div class="pj-screens" id="pj-screens"><div class="hint">Procurando telas…</div></div>
       <div class="pj-open" id="pj-open"></div>
@@ -101,16 +223,18 @@ export function createProjectors({ S, getStreams, getMixer, $, esc, toast, modal
       {
         onMount: (el, close) => {
           const renderSrc = () => {
-            el.querySelectorAll('#pj-src button').forEach((b) => {
+            el.querySelectorAll('[data-src]').forEach((b) => {
               b.classList.toggle('active', b.dataset.src === sel);
-              b.disabled = b.dataset.src === 'pvw' && !S.switcher;
-              b.title = b.disabled ? 'Ligue a mesa de corte para projetar a prévia' : '';
+              if (b.dataset.src === 'pvw') {
+                b.disabled = !S.switcher;
+                b.title = b.disabled ? 'Ligue a mesa de corte para projetar a prévia' : '';
+              }
             });
           };
           const renderOpen = () => {
             const l = list();
             $('#pj-open', el).innerHTML = l.length
-              ? `<span class="hint">Abertos agora:</span> ${l.map(([, o], i) => `<button class="btn sm ghost" data-pj-close="${i}" title="Fechar este projetor">${esc(LABEL[o.src])} ✕</button>`).join('')}`
+              ? `<span class="hint">Abertos agora:</span> ${l.map(([, o], i) => `<button class="btn sm ghost" data-pj-close="${i}" title="Fechar este projetor">${esc(labelOf(o.src))} ✕</button>`).join('')}`
               : '';
             el.querySelectorAll('[data-pj-close]').forEach((b) => {
               b.onclick = () => {
@@ -149,7 +273,7 @@ export function createProjectors({ S, getStreams, getMixer, $, esc, toast, modal
               };
             });
           };
-          el.querySelectorAll('#pj-src button').forEach((b) => {
+          el.querySelectorAll('[data-src]').forEach((b) => {
             b.onclick = () => {
               sel = b.dataset.src;
               renderSrc();

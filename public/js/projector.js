@@ -5,12 +5,15 @@
 // estúdio (mesma origem, mesmo processo), então não pesa e não tem atraso. Se o estúdio recarregar, retoma sozinho.
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.search);
-const src = ['pgm', 'vpgm', 'pvw'].includes(params.get('src')) ? params.get('src') : 'pgm';
+const rawSrc = params.get('src') || 'pgm';
+const isSource = rawSrc.startsWith('src:');
+const src = ['pgm', 'vpgm', 'pvw'].includes(rawSrc) || isSource ? rawSrc : 'pgm';
 const LABEL = { pgm: 'PGM', vpgm: 'VERTICAL', pvw: 'PRÉVIA' };
 const PREF = `castdeck.projector.${src}`;
 const video = $('#pj-video');
 let curV = null;
 let curA = null;
+let curLabel = LABEL[src] || 'FONTE';
 const prefs = (() => {
   try {
     return JSON.parse(localStorage.getItem(PREF) || '{}');
@@ -24,10 +27,16 @@ const savePrefs = () => {
   } catch {}
 };
 
-document.title = `Projetor ${LABEL[src]} — CastDeck`;
-$('#pj-tag').textContent = LABEL[src];
-$('#pj-tag').classList.toggle('pvw', src === 'pvw');
-$('#pj-tag').classList.toggle('v', src === 'vpgm');
+function syncTag(label = curLabel) {
+  curLabel = label || curLabel;
+  document.title = `Projetor ${isSource ? '· ' + curLabel : curLabel} — CastDeck`;
+  const tag = $('#pj-tag');
+  tag.textContent = curLabel;
+  tag.classList.toggle('pvw', src === 'pvw');
+  tag.classList.toggle('v', src === 'vpgm');
+  tag.classList.toggle('src', isSource);
+}
+syncTag();
 
 function status(title, msg) {
   const st = $('#pj-status');
@@ -56,10 +65,18 @@ function poll() {
   } catch {}
   const v = t?.v && t.v.readyState === 'live' ? t.v : null;
   const a = t?.a && t.a.readyState === 'live' ? t.a : null;
+  if (isSource && t?.label && t.label !== curLabel) syncTag(t.label);
   if (!v) {
     if (curV) video.srcObject = null;
     curV = curA = null;
-    return status('Sem sinal', src === 'pvw' ? 'Ligue a mesa de corte no estúdio para ver a prévia.' : 'Aguardando o estúdio…');
+    return status(
+      'Sem sinal',
+      src === 'pvw'
+        ? 'Ligue a mesa de corte no estúdio para ver a prévia.'
+        : isSource
+          ? 'Esta fonte está com a câmera desligada ou sem sinal no momento.'
+          : 'Aguardando o estúdio…',
+    );
   }
   if (v !== curV || a !== curA) {
     curV = v;

@@ -37,15 +37,18 @@ export function createCameraPanel({ S, getSig, modal, getDevices, getInterface, 
   const capsRequested = new Set();
   const localCtl = new Map();
 
+  function isRemoteCamSource(s) {
+    return !!(s?.remoteCam || (s?.ownerId && s.ownerId !== 'host'));
+  }
   function trackOf(s) {
     return s?.stream?.getVideoTracks?.()[0] || null;
   }
   function capsOf(s) {
-    if (s.remoteCam) return S.guests.get(s.ownerId)?.state?.camCaps || {};
+    if (isRemoteCamSource(s)) return S.guests.get(s.ownerId)?.state?.camCaps || {};
     try { return trackOf(s)?.getCapabilities?.() || {}; } catch { return {}; }
   }
   function ctlOf(s) {
-    if (s.remoteCam) return S.guests.get(s.ownerId)?.state?.camCtl || {};
+    if (isRemoteCamSource(s)) return S.guests.get(s.ownerId)?.state?.camCtl || {};
     try { return { ...(trackOf(s)?.getSettings?.() || {}), ...(localCtl.get(s.id) || {}) }; } catch { return localCtl.get(s.id) || {}; }
   }
   function cameras() {
@@ -103,7 +106,7 @@ export function createCameraPanel({ S, getSig, modal, getDevices, getInterface, 
     const caps = capsOf(s);
     const ctl = ctlOf(s);
     if (!Object.keys(caps).length) {
-      return s.remoteCam
+      return isRemoteCamSource(s)
         ? `<div class="hcam-empty">A câmera ainda não informou os controles disponíveis.
             <button type="button" class="btn sm" data-info="${esc(s.ownerId)}">Pedir controles</button></div>`
         : `<div class="hcam-empty">Esta câmera não expõe ajustes manuais pelo navegador.</div>`;
@@ -144,7 +147,7 @@ export function createCameraPanel({ S, getSig, modal, getDevices, getInterface, 
   // Se o primeiro state chegou antes da câmera abrir, pede os controles uma vez; no Android isso
   // evita abrir o painel com “sem ajustes” até o operador tocar em “Pedir controles”.
   function requestRemoteCaps(s) {
-    if (!s?.remoteCam || !s.ownerId) return;
+    if (!isRemoteCamSource(s) || !s.ownerId) return;
     const g = S.guests.get(s.ownerId);
     if (g?.state?.camCaps && Object.keys(g.state.camCaps).length) {
       capsRequested.delete(s.ownerId);
@@ -158,12 +161,14 @@ export function createCameraPanel({ S, getSig, modal, getDevices, getInterface, 
   }
 
   function interfaceHTML(s) {
-    if (s.remoteCam) {
+    if (isRemoteCamSource(s)) {
       const r = remoteIO(s);
-      if (!r.cams.length && !r.mics.length) return `<div class="hcam-io"><div class="hcam-io-loading">Aguardando o celular informar as interfaces de câmera e microfone…</div></div>`;
+      if (!r.cams.length && !r.mics.length) {
+        return `<div class="hcam-io"><div class="hcam-io-loading">Aguardando ${s.remoteCam ? 'o celular' : 'o convidado'} informar as interfaces de câmera e microfone…</div></div>`;
+      }
       return `<div class="hcam-io">
         <label class="hcam-io-field"><span>Interface de vídeo</span><select data-io-video="${esc(s.id)}">${optionsHTML(r.cams, r.videoId, 'Automática')}</select></label>
-        <label class="hcam-io-field"><span>Interface de áudio</span><select data-io-audio="${esc(s.id)}">${optionsHTML(r.mics, r.audioId, 'Padrão do celular')}</select></label>
+        <label class="hcam-io-field"><span>Interface de áudio</span><select data-io-audio="${esc(s.id)}">${optionsHTML(r.mics, r.audioId, s.remoteCam ? 'Padrão do celular' : 'Padrão do aparelho')}</select></label>
       </div>`;
     }
     if (!isLocalIO(s)) return '';
@@ -197,9 +202,12 @@ export function createCameraPanel({ S, getSig, modal, getDevices, getInterface, 
     if (open && panel) paint();
   }
   function ioSig(s) {
-    if (!s.remoteCam) return '';
-    const r = remoteIO(s);
-    return JSON.stringify({ v: r.cams, a: r.mics, vi: r.videoId, ai: r.audioId });
+    if (isRemoteCamSource(s)) {
+      const r = remoteIO(s);
+      return JSON.stringify({ v: r.cams, a: r.mics, vi: r.videoId, ai: r.audioId });
+    }
+    if (isLocalIO(s)) return JSON.stringify(getInterface?.(s.id) || {});
+    return '';
   }
   function tallyOf(s) {
     if (S.take === s.id) return '<em class="hcam-tally pgm">PGM</em>';
@@ -210,7 +218,7 @@ export function createCameraPanel({ S, getSig, modal, getDevices, getInterface, 
     const ready = !!trackOf(s);
     return `<div class="hcam-tab ${selected ? 'active' : ''}" role="tab" tabindex="0" aria-selected="${selected}" data-tab="${esc(s.id)}">
       <span class="hcam-tab-pv"><video data-tab-pv="${esc(s.id)}" autoplay playsinline muted></video>${ready ? '' : '<i>sem sinal</i>'}</span>
-      <span class="hcam-tab-tx"><b>${esc(labelOf(s))}</b><small>${s.remoteCam ? 'Celular/rede' : s.ownerId === 'host' ? 'Este PC' : 'Câmera extra'}</small></span>
+      <span class="hcam-tab-tx"><b>${esc(labelOf(s))}</b><small>${s.remoteCam ? 'Celular/rede' : s.ownerId === 'host' ? 'Este PC' : 'Convidado'}</small></span>
       ${tallyOf(s)}
     </div>`;
   }
@@ -321,7 +329,7 @@ export function createCameraPanel({ S, getSig, modal, getDevices, getInterface, 
   }
   function apply(s, patch) {
     if (!s) return;
-    if (s.remoteCam) applyRemote(s, patch);
+    if (isRemoteCamSource(s)) applyRemote(s, patch);
     else applyLocal(s, patch);
   }
   function setModeUI(s, k, v) {

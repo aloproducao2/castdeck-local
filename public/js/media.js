@@ -18,30 +18,58 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const transientCameraError = (e) =>
   ['NotReadableError', 'TrackStartError', 'AbortError', 'SourceUnavailableError'].includes(e?.name);
 
-export async function getCamera(deviceId, quality = '720') {
+async function tryGetVideo(constraints, retryTransient = true) {
+  try {
+    return await navigator.mediaDevices.getUserMedia({ video: constraints, audio: false });
+  } catch (err) {
+    if (err?.name === 'NotAllowedError' || err?.name === 'SecurityError') throw err;
+    if (retryTransient && transientCameraError(err)) {
+      await sleep(350);
+      return await navigator.mediaDevices.getUserMedia({ video: constraints, audio: false });
+    }
+    throw err;
+  }
+}
+
+export async function getCamera(deviceId, quality = '720', opts = {}) {
+  const { strict = false, facingMode = '' } = opts || {};
   const sizes = { 1080: [1920, 1080], 720: [1280, 720], 480: [854, 480] };
   const [w, hh] = sizes[quality] || sizes[720];
   const base = { width: { ideal: w }, height: { ideal: hh }, frameRate: { ideal: 30 } };
-  // `ideal` (em vez de `exact`) evita falhar de primeira quando o ID salvo mudou de porta
-  // ou quando o Windows ainda está enumerando muitos dispositivos. O navegador cai para
-  // a câmera padrão sozinho, sem a sequência de três getUserMedia que atrasava o lobby.
-  const preferred = deviceId ? { ...base, deviceId: { ideal: deviceId } } : base;
-  try {
-    return await navigator.mediaDevices.getUserMedia({ video: preferred, audio: false });
-  } catch (first) {
-    if (first?.name === 'NotAllowedError' || first?.name === 'SecurityError') throw first;
-    // Muitos drivers falham na primeira abertura enquanto soltam o dispositivo anterior.
-    if (transientCameraError(first)) {
-      await sleep(350);
-      try {
-        return await navigator.mediaDevices.getUserMedia({ video: preferred, audio: false });
-      } catch {}
-    }
+
+  if (deviceId) {
     try {
-      return await navigator.mediaDevices.getUserMedia({ video: base, audio: false });
-    } catch {
-      return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      return await tryGetVideo({ ...base, deviceId: { exact: deviceId } }, true);
+    } catch (err) {
+      if (err?.name === 'NotAllowedError' || err?.name === 'SecurityError') throw err;
+      // Alguns drivers/câmeras recusam resolução/fps ideais quando `deviceId` é exact:
+      // tenta abrir o aparelho exato sem restringir resolução antes de desistir dele.
+      try {
+        return await tryGetVideo({ deviceId: { exact: deviceId } }, false);
+      } catch (relaxedErr) {
+        if (relaxedErr?.name === 'NotAllowedError' || relaxedErr?.name === 'SecurityError') throw relaxedErr;
+        if (strict) throw relaxedErr;
+      }
     }
+  } else if (facingMode) {
+    try {
+      return await tryGetVideo({ ...base, facingMode: { exact: facingMode } }, true);
+    } catch (err) {
+      if (err?.name === 'NotAllowedError' || err?.name === 'SecurityError') throw err;
+      try {
+        return await tryGetVideo({ ...base, facingMode: { ideal: facingMode } }, false);
+      } catch (idealErr) {
+        if (idealErr?.name === 'NotAllowedError' || idealErr?.name === 'SecurityError') throw idealErr;
+        if (strict) throw idealErr;
+      }
+    }
+  }
+
+  try {
+    return await tryGetVideo(base, !deviceId && !facingMode);
+  } catch (err) {
+    if (err?.name === 'NotAllowedError' || err?.name === 'SecurityError') throw err;
+    return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
   }
 }
 
@@ -403,8 +431,11 @@ export function lobby({ mount, title, subtitle, askName = true, defaultName = ''
         showCam(camStream);
         // Se o ID salvo não existia mais, o navegador abriu a câmera padrão:
         // reflete a escolha real na lista em vez de continuar num item fantasma.
+        if (camSel.options.length <= 1) await fillDevices().catch(() => {});
         const actual = stream.getVideoTracks()[0]?.getSettings?.().deviceId;
         if (actual && [...camSel.options].some((o) => o.value === actual)) camSel.value = actual;
+        prefs.camId = actual || camSel.value || '';
+        savePrefs({ camId: prefs.camId, quality: qSel.value });
         err.textContent = '';
       } catch (e) {
         if (req === camReq) err.textContent = 'Câmera indisponível: ' + e.message;
@@ -489,7 +520,9 @@ export function lobby({ mount, title, subtitle, askName = true, defaultName = ''
       stopMeter();
       goBtn.disabled = true;
       goBtn.textContent = 'Entrando\u2026';
-      const p = { name, camId: camSel.value, micId: micSel.value, quality: qSel.value, camOn, micOn };
+      const effectiveCamId = camSel.value || camStream?.getVideoTracks?.()[0]?.getSettings?.().deviceId || prefs.camId || '';
+      const effectiveMicId = micSel.value || micStream?.getAudioTracks?.()[0]?.getSettings?.().deviceId || prefs.micId || '';
+      const p = { name, camId: effectiveCamId, micId: effectiveMicId, quality: qSel.value, camOn, micOn };
       savePrefs(p);
       resolve({ camStream, micStream, name, camOn, micOn, prefs: p, media: mediaPromise });
     };
@@ -497,6 +530,7 @@ export function lobby({ mount, title, subtitle, askName = true, defaultName = ''
     // Pede câmera/microfone aqui no lobby (é aqui que a permissão aparece), mas NÃO bloqueia o botão Entrar.
     // A promessa `media` entrega os tracks depois, para quem entrar antes de a câmera abrir.
     const mediaPromise = (async () => {
+      const initReq = camReq;
       loading(true, 'Carregando câmeras…', true);
       const ideal = (id) => (id ? { deviceId: { ideal: id } } : {});
       const sz = { 1080: [1920, 1080], 720: [1280, 720], 480: [854, 480] }[qSel.value] || [1280, 720];
@@ -520,6 +554,15 @@ export function lobby({ mount, title, subtitle, askName = true, defaultName = ''
           const denied = parts.find((p) => p.status === 'rejected');
           if (denied && !first.getTracks().length) err.textContent = 'Permita o acesso à câmera e ao microfone: ' + denied.reason.message;
         }
+      }
+      if (initReq !== camReq) {
+        first?.getVideoTracks().forEach((t) => t.stop());
+        if (micStream) first?.getAudioTracks().forEach((t) => t.stop());
+        else if (first?.getAudioTracks().length) {
+          micStream = new MediaStream(first.getAudioTracks());
+          stopMeter = levelMeter(micStream, setVu);
+        }
+        return { camStream, micStream };
       }
       if (first.getVideoTracks().length) {
         camStream = new MediaStream(first.getVideoTracks());

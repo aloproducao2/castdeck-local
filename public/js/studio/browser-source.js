@@ -29,7 +29,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
     }
     ws.binaryType = 'arraybuffer';
     ws.onmessage = onMessage;
-    ws.onerror = () => {};
+    ws.onerror = () => { };
     ws.onclose = () => {
       ws = null;
       if (items.size) timer = setTimeout(connect, 1500);
@@ -46,7 +46,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
     }
     cefWs.binaryType = 'arraybuffer';
     cefWs.onmessage = onMessage;
-    cefWs.onerror = () => {};
+    cefWs.onerror = () => { };
     cefWs.onclose = () => {
       cefWs = null;
       if ([...items.values()].some((x) => x.backend === 'cef' && !x.stopped)) timer = setTimeout(connectCef, 1500);
@@ -68,7 +68,21 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
       try { m = JSON.parse(ev.data); } catch { return; }
       if (m.type === 'status') {
         const item = findKey(m.key);
-        if (item && m.error) toast(`Browser: ${m.error}`, 'err');
+        if (item && m.error) {
+          if (item.backend === 'cef' && !item.stopped && item.frames === 0 && !item._fallingBack) {
+            item._fallingBack = true;
+            cefOk = false;
+            item.backend = 'dsk';
+            connect();
+            const p = preset();
+            api(`/dsk/${encodeURIComponent(item.key)}`, {
+              method: 'PUT',
+              body: { url: item.url, width: item.canvas.width, height: item.canvas.height, jpeg: true, fps: p.fps, quality: 72, force: true },
+            }).catch((e) => toast(`Browser: ${e.message || m.error}`, 'err'));
+          } else {
+            toast(`Browser: ${m.error}`, 'err');
+          }
+        }
         if (item) item.status = m;
       }
       return;
@@ -111,7 +125,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
           ctx.drawImage(pic.image, 0, 0);
         }
         pic.close?.();
-        try { track.requestFrame(); } catch {}
+        try { track.requestFrame(); } catch { }
         item.frames++;
       }
     } catch {
@@ -130,9 +144,9 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
           image,
           width: image.displayWidth,
           height: image.displayHeight,
-          close: () => { try { image.close(); } catch {} try { decoder.close(); } catch {} },
+          close: () => { try { image.close(); } catch { } try { decoder.close(); } catch { } },
         };
-      } catch {}
+      } catch { }
     }
     const bmp = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
     return { image: bmp, width: bmp.width, height: bmp.height, close: () => bmp.close?.() };
@@ -215,7 +229,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
     };
     items.set(key, item);
     addVideoSource(item.id, stream, { kind: 'browser', label: item.label, ownerId: 'host' });
-    try { track.requestFrame(); } catch {}
+    try { track.requestFrame(); } catch { }
     let backend = 'dsk';
     if (await cefAvailable()) {
       try {
@@ -225,7 +239,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
         });
         backend = 'cef';
         connectCef();
-      } catch {}
+      } catch { }
     }
     item.backend = backend;
     if (backend === 'dsk') {
@@ -250,20 +264,20 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
     if (!item || item.stopped) return;
     item.stopped = true;
     items.delete(item.key);
-    try { item.track?.stop(); } catch {}
-    try { item.stream?.getTracks().forEach((t) => t.stop()); } catch {}
+    try { item.track?.stop(); } catch { }
+    try { item.stream?.getTracks().forEach((t) => t.stop()); } catch { }
     if (item.audio) {
-      try { item.audio.gain.disconnect(); } catch {}
-      try { item.audio.dest.disconnect(); } catch {}
+      try { item.audio.gain.disconnect(); } catch { }
+      try { item.audio.dest.disconnect(); } catch { }
     }
-    api(`/${item.backend === 'cef' ? 'cef' : 'dsk'}/${encodeURIComponent(item.key)}`, { method: 'DELETE' }).catch(() => {});
+    api(`/${item.backend === 'cef' ? 'cef' : 'dsk'}/${encodeURIComponent(item.key)}`, { method: 'DELETE' }).catch(() => { });
     mixer.remove(`${item.id}:audio`);
     if (remove) removeSource(item.id);
     if (!items.size) {
       clearTimeout(timer);
-      try { ws?.close(); } catch {}
+      try { ws?.close(); } catch { }
       ws = null;
-      try { cefWs?.close(); } catch {}
+      try { cefWs?.close(); } catch { }
       cefWs = null;
     }
     persist();
@@ -312,7 +326,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
   async function restore() {
     const list = Array.isArray(S.brand.browserSources) ? S.brand.browserSources : [];
     for (const b of list.slice(0, 2)) {
-      try { await create({ label: b.label, url: b.url, id: b.id, adblock: b.adblock !== false }); } catch {}
+      try { await create({ label: b.label, url: b.url, id: b.id, adblock: b.adblock !== false }); } catch { }
     }
   }
 
@@ -330,14 +344,14 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
         body: item.backend === 'cef'
           ? { url: item.url, width: p.width, height: p.height, fps: 60, lang: locale(), adblock: item.adblock }
           : { url: item.url, width: p.width, height: p.height, jpeg: true, fps: p.fps, quality: 72, force: true },
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }
 
   function sendInput(item, ev) {
     const socket = item.backend === 'cef' ? cefWs : ws;
     if (!socket || socket.readyState !== 1) return;
-    try { socket.send(JSON.stringify({ type: 'input', key: item.key, slot: item.key, ev })); } catch {}
+    try { socket.send(JSON.stringify({ type: 'input', key: item.key, slot: item.key, ev })); } catch { }
   }
 
   async function toggleAdblock(item, on) {
@@ -370,6 +384,13 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
     return true;
   }
 
+  const VK = {
+    Backspace: 8, Tab: 9, Enter: 13, Escape: 27, ' ': 32, Spacebar: 32,
+    PageUp: 33, PageDown: 34, End: 35, Home: 36,
+    ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Delete: 46,
+  };
+  const keyMods = (e) => ({ alt: e.altKey, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey });
+
   function openInteract(id) {
     const item = [...items.values()].find((x) => x.id === id);
     if (!item || item.stopped) return;
@@ -382,7 +403,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
     modal(
       `<div class="browser-interact">
         <h3>${esc(item.label)}</h3>
-        <p class="sub">Clique e navegue na página como no OBS. O teclado funciona quando a prévia está focada; use o campo de texto para digitar em campos da página.</p>
+        <p class="sub">Clique na prévia e digite ou navegue direto (setas, Backspace, Delete, Enter, Ctrl+V); se preferir, use o campo abaixo para enviar frases inteiras.</p>
         <div class="browser-interact-bar">
           <input class="input" id="bi-url" value="${esc(item.url)}" spellcheck="false" aria-label="URL da página">
           <button class="btn sm primary" id="bi-go">Ir</button>
@@ -392,7 +413,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
         </div>
         <canvas id="bi-canvas" width="1280" height="720" tabindex="0" aria-label="Prévia interativa da página"></canvas>
         <div class="row" style="margin-top:8px">
-          <input class="input grow" id="bi-text" placeholder="Digite um texto para a página e pressione Enter">
+          <input class="input grow" id="bi-text" placeholder="Digite um texto para enviar à página e pressione Enter">
           <button class="btn sm" id="bi-send">Enviar texto</button>
           <button class="btn sm danger" id="bi-del">Excluir Browser</button>
         </div>
@@ -417,16 +438,22 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
             raf = requestAnimationFrame(draw);
           };
           draw();
+          requestAnimationFrame(() => !closed && cv.focus());
           const pos = (e) => {
             const r = cv.getBoundingClientRect();
+            const boxSc = Math.min(r.width / cv.width, r.height / cv.height) || 1;
+            const bx = (r.width - cv.width * boxSc) / 2;
+            const by = (r.height - cv.height * boxSc) / 2;
+            const cx = (e.clientX - r.left - bx) / boxSc;
+            const cy = (e.clientY - r.top - by) / boxSc;
             const sc = Math.min(cv.width / item.canvas.width, cv.height / item.canvas.height);
             const dw = item.canvas.width * sc;
             const dh = item.canvas.height * sc;
             const ox = (cv.width - dw) / 2;
             const oy = (cv.height - dh) / 2;
             return {
-              x: Math.max(0, Math.min(item.canvas.width, ((e.clientX - r.left) * cv.width / r.width - ox) / sc)),
-              y: Math.max(0, Math.min(item.canvas.height, ((e.clientY - r.top) * cv.height / r.height - oy) / sc)),
+              x: Math.max(0, Math.min(item.canvas.width, (cx - ox) / sc)),
+              y: Math.max(0, Math.min(item.canvas.height, (cy - oy) / sc)),
             };
           };
           let down = false;
@@ -435,48 +462,92 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
             cv.focus();
             cv.setPointerCapture?.(e.pointerId);
             const p = pos(e);
-            sendInput(item, { kind: 'mouse', type: 'mousePressed', x: p.x, y: p.y, button: 'left', buttons: 1, clickCount: 1 });
+            const btn = e.button === 2 ? 'right' : e.button === 1 ? 'middle' : 'left';
+            sendInput(item, { kind: 'mouse', type: 'mousePressed', x: p.x, y: p.y, button: btn, buttons: e.buttons || 1, clickCount: Math.max(1, Math.min(3, e.detail || 1)), mods: keyMods(e) });
             e.preventDefault();
           });
           cv.addEventListener('pointerup', (e) => {
             if (!down) return;
             down = false;
             const p = pos(e);
-            sendInput(item, { kind: 'mouse', type: 'mouseReleased', x: p.x, y: p.y, button: 'left', buttons: 0, clickCount: 1 });
+            const btn = e.button === 2 ? 'right' : e.button === 1 ? 'middle' : 'left';
+            sendInput(item, { kind: 'mouse', type: 'mouseReleased', x: p.x, y: p.y, button: btn, buttons: e.buttons || 0, clickCount: Math.max(1, Math.min(3, e.detail || 1)), mods: keyMods(e) });
             e.preventDefault();
           });
           cv.addEventListener('pointermove', (e) => {
             if (!down) return;
             const p = pos(e);
-            sendInput(item, { kind: 'mouse', type: 'mouseMoved', x: p.x, y: p.y, button: 'left', buttons: 1, clickCount: 0 });
+            sendInput(item, { kind: 'mouse', type: 'mouseMoved', x: p.x, y: p.y, button: 'left', buttons: 1, clickCount: 0, mods: keyMods(e) });
           });
           cv.addEventListener('wheel', (e) => {
             const p = pos(e);
             const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
-            sendInput(item, { kind: 'mouse', type: 'mouseWheel', x: p.x, y: p.y, button: 'none', deltaX: e.deltaX * unit, deltaY: e.deltaY * unit });
+            sendInput(item, { kind: 'mouse', type: 'mouseWheel', x: p.x, y: p.y, button: 'none', deltaX: e.deltaX * unit, deltaY: e.deltaY * unit, mods: keyMods(e) });
             e.preventDefault();
           }, { passive: false });
-          cv.addEventListener('keydown', (e) => {
-            if (e.key === 'Tab') return;
-            const text = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey ? e.key : '';
-            sendInput(item, {
-              kind: 'key', type: text ? 'keyDown' : 'rawKeyDown', key: e.key, code: e.code,
-              keyCode: e.keyCode, text, mods: (e.altKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.metaKey ? 4 : 0) | (e.shiftKey ? 8 : 0),
-            });
+          let pasteArmed = false;
+          cv.addEventListener('paste', (e) => {
+            pasteArmed = false;
             e.preventDefault();
+            const t = e.clipboardData?.getData('text');
+            if (t) sendInput(item, { kind: 'text', text: t });
           });
-          cv.addEventListener('keyup', (e) => {
-            sendInput(item, { kind: 'key', type: 'keyUp', key: e.key, code: e.code, keyCode: e.keyCode, mods: 0 });
+          const forwardKey = (e) => {
+            // Impede atalhos globais do estúdio e o Esc do modal enquanto a página web está recebendo teclado
+            e.stopPropagation();
+            if (e.key === 'Dead' || e.key === 'Process') return;
+            if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'v') {
+              if (e.type === 'keydown') {
+                pasteArmed = true;
+                setTimeout(() => {
+                  if (!pasteArmed) return;
+                  pasteArmed = false;
+                  navigator.clipboard?.readText?.().then((t) => t && sendInput(item, { kind: 'text', text: t })).catch(() => { });
+                }, 150);
+              }
+              return;
+            }
             e.preventDefault();
-          });
+            const printable = e.key.length === 1 && (!(e.ctrlKey || e.metaKey) || (e.ctrlKey && e.altKey));
+            const keyCode = e.keyCode || VK[e.key] || 0;
+            const base = {
+              kind: 'key',
+              key: e.key,
+              code: e.code,
+              keyCode,
+              location: e.location,
+              repeat: e.repeat,
+              mods: printable ? { alt: false, ctrl: false, meta: false, shift: e.shiftKey } : keyMods(e),
+            };
+            if (e.type === 'keyup') return sendInput(item, { ...base, type: 'keyUp' });
+            const text = printable ? e.key : e.key === 'Enter' ? '\r' : '';
+            sendInput(item, { ...base, type: text ? 'keyDown' : 'rawKeyDown', text });
+          };
+          cv.addEventListener('keydown', forwardKey);
+          cv.addEventListener('keyup', forwardKey);
+          const textInput = m.querySelector('#bi-text');
           const sendText = () => {
-            const t = m.querySelector('#bi-text').value;
+            const t = textInput.value;
             if (!t) return;
             sendInput(item, { kind: 'text', text: t });
-            m.querySelector('#bi-text').value = '';
+            textInput.value = '';
           };
           m.querySelector('#bi-send').onclick = sendText;
-          m.querySelector('#bi-text').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendText(); } });
+          // Com texto digitado, Enter envia o texto; se o campo estiver vazio, setas/Backspace/Delete/Enter controlam a página.
+          const navKeys = new Set(['Backspace', 'Delete', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
+          textInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              e.stopPropagation();
+              e.preventDefault();
+              if (textInput.value) sendText();
+              else forwardKey(e);
+              return;
+            }
+            if (!textInput.value && navKeys.has(e.key)) forwardKey(e);
+          });
+          textInput.addEventListener('keyup', (e) => {
+            if (!textInput.value && navKeys.has(e.key)) forwardKey(e);
+          });
           m.querySelector('#bi-go').onclick = async () => {
             try {
               await navigate(item.id, m.querySelector('#bi-url').value);
@@ -487,7 +558,16 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
           const syncAb = () => { ab.textContent = 'Adblock: ' + (item.adblock === false ? 'OFF' : 'ON'); ab.classList.toggle('primary', item.adblock !== false); if (item.backend !== 'cef') { ab.disabled = true; ab.title = 'Adblock disponível no backend CEF'; } };
           syncAb();
           ab.onclick = () => toggleAdblock(item, item.adblock === false).then(syncAb).catch((e) => toast('Browser: ' + e.message, 'err'));
-          m.querySelector('#bi-reload').onclick = () => api(`/dsk/${encodeURIComponent(item.key)}/reload`, { method: 'POST' }).catch((e) => toast('Browser: ' + e.message, 'err'));
+          m.querySelector('#bi-reload').onclick = async () => {
+            try {
+              if (item.backend === 'cef') {
+                await navigate(item.id, m.querySelector('#bi-url')?.value || item.url);
+                toast('Página recarregada.', 'ok');
+              } else {
+                await api(`/dsk/${encodeURIComponent(item.key)}/reload`, { method: 'POST' });
+              }
+            } catch (e) { toast('Browser: ' + e.message, 'err'); }
+          };
           m.querySelector('#bi-del').onclick = () => { stop(); close(true); removeSource(item.id); };
           const mo = new MutationObserver(() => {
             if (!cv.isConnected) { stop(); mo.disconnect(); }

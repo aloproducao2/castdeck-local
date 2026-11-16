@@ -146,49 +146,121 @@ function fatal(title, msg) {
 }
 
 // ---------- câmera e microfone ----------
-function videoConstraints() {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const transientCamErr = (e) => ['NotReadableError', 'TrackStartError', 'AbortError', 'SourceUnavailableError'].includes(e?.name);
+let openVideoSeq = 0;
+
+async function gumVideo(video) {
+  try {
+    return await navigator.mediaDevices.getUserMedia({ video, audio: false });
+  } catch (e) {
+    if (e?.name === 'NotAllowedError' || e?.name === 'SecurityError') throw e;
+    if (transientCamErr(e)) {
+      await sleep(350);
+      return await navigator.mediaDevices.getUserMedia({ video, audio: false });
+    }
+    throw e;
+  }
+}
+
+async function tryOpenVideo(prevId, prevFacing) {
   const q = QUALITY[C.quality];
   const base = { width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { ideal: C.fps } };
-  return C.videoId ? { ...base, deviceId: { exact: C.videoId } } : { ...base, facingMode: { ideal: C.facing } };
+
+  if (C.videoId) {
+    for (const c of [
+      { ...base, deviceId: { exact: C.videoId } },
+      { deviceId: { exact: C.videoId }, frameRate: { ideal: 30 } },
+      { deviceId: { exact: C.videoId } },
+    ]) {
+      try {
+        return await gumVideo(c);
+      } catch (e) {
+        if (e?.name === 'NotAllowedError' || e?.name === 'SecurityError') throw e;
+        if (!/Overconstrained|NotFound|NotReadable|TrackStart|Abort|SourceUnavailable/.test(e?.name || '')) break;
+      }
+    }
+    clog(`videoId falhou, voltando para automática`);
+    C.videoId = '';
+    savePrefs();
+  }
+
+  for (const c of [
+    { ...base, facingMode: { exact: C.facing } },
+    { ...base, facingMode: { ideal: C.facing } },
+    base,
+    true,
+  ]) {
+    try {
+      return await gumVideo(c);
+    } catch (e) {
+      if (e?.name === 'NotAllowedError' || e?.name === 'SecurityError') throw e;
+    }
+  }
+
+  if (prevId) {
+    C.videoId = prevId;
+    C.facing = prevFacing || C.facing;
+    savePrefs();
+    try { return await gumVideo({ deviceId: { ideal: prevId } }); } catch {}
+  }
+  return await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
 }
 
 async function openVideo() {
-  let s;
-  try {
-    s = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(), audio: false });
-  } catch (e) {
-    // a câmera escolhida sumiu (USB desconectada, outro aparelho): volta para a automática em vez de travar
-    if (!C.videoId || !/NotFound|Overconstrained/.test(e.name)) throw e;
-    clog(`videoId falhou (${e.name}), voltando para automática`);
-    C.videoId = '';
-    savePrefs();
-    s = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(), audio: false });
+  const seq = ++openVideoSeq;
+  const old = C.video;
+  const prevId = old?.getSettings?.().deviceId || C.videoId || '';
+  const prevFacing = old?.getSettings?.().facingMode || C.facing;
+
+  // Celulares e muitos drivers UVC recusam abrir a nova câmera antes de liberar a atual.
+  if (old) {
+    try { C.stream.removeTrack(old); } catch {}
+    try { old.stop(); } catch {}
+    C.video = null;
+  }
+
+  const s = await tryOpenVideo(prevId, prevFacing);
+  if (seq !== openVideoSeq) {
+    s.getTracks().forEach((tr) => tr.stop());
+    return;
   }
   const t = s.getVideoTracks()[0];
   t.contentHint = 'motion';
-  const old = C.video;
+  for (const vt of C.stream.getVideoTracks()) {
+    try { C.stream.removeTrack(vt); } catch {}
+    try { vt.stop(); } catch {}
+  }
   C.video = t;
   C.torch = false;
-  if (old) {
-    C.stream.removeTrack(old);
-    old.stop();
-  }
+  const st = t.getSettings?.() || {};
+  if (st.facingMode === 'user' || st.facingMode === 'environment') C.facing = st.facingMode;
   C.stream.addTrack(t);
   t.onended = () => clog('video ended');
   // troca sem renegociar quando já há conexão (mesmo sender, mesma faixa no host)
-  const snd = C.peer?.pc.getSenders().find((x) => x.track === old || x.track?.kind === 'video');
-  if (snd) await snd.replaceTrack(t).catch(() => {});
-  else if (C.peer) C.peer.pc.addTrack(t, C.stream);
+  const snd = C.peer?.pc.getSenders().find((x) => x === C.videoSender || x.track === old || x.track?.kind === 'video');
+  if (snd) {
+    C.videoSender = snd;
+    await snd.replaceTrack(t).catch(() => {});
+  } else if (C.peer) {
+    C.videoSender = C.peer.pc.addTrack(t, C.stream);
+  }
   applyBitrate();
   reapplyCtl();
   capsSnapshot();
   pushCamStateSoon();
   const v = $('#cam-video');
   if (v) {
-    v.srcObject = C.stream;
+    // Reatribuir a mesma referência de MediaStream após removeTrack/addTrack pode congelar o <video> no iOS/Safari.
+    if (v.srcObject !== C.stream) v.srcObject = C.stream;
+    else {
+      v.srcObject = null;
+      v.srcObject = C.stream;
+    }
     v.classList.toggle('mirror', isMirror(t));
     v.play().catch(() => {});
   }
+  if (!C.devices.v.length) loadDevices();
   renderControls();
   if (C.sheet) renderSheet();
 }
@@ -556,7 +628,10 @@ function createPeer(hostId) {
     C.ifbAudio.muted = !!C.ifb.muted;
     C.ifbAudio.play().catch(() => {});
   });
-  for (const t of C.stream.getTracks()) peer.pc.addTrack(t, C.stream);
+  for (const t of C.stream.getTracks()) {
+    const s = peer.pc.addTrack(t, C.stream);
+    if (t.kind === 'video') C.videoSender = s;
+  }
   peer.addEventListener('state', (e) => {
     clog(`state ${e.detail}`);
     if (e.detail === 'connected') {
@@ -780,11 +855,43 @@ function renderControls() {
     btn('cb-set', icons.settings, 'Ajustes', C.sheet === 'dev'),
   ].join('');
   $('#cb-flip').onclick = async () => {
-    // o botão de virar sempre volta para a escolha automática (frontal/traseira), mesmo se havia uma câmera fixa
-    C.facing = C.videoId ? C.facing : C.facing === 'environment' ? 'user' : 'environment';
-    C.videoId = '';
-    savePrefs();
-    await openVideo().catch((e) => toast('Não deu para trocar de câmera: ' + (e.message || e.name), 'err'));
+    const curSettings = C.video?.getSettings?.() || {};
+    const curId = curSettings.deviceId || C.videoId || '';
+    const curFacing = curSettings.facingMode || C.facing;
+    const nextFacing = curFacing === 'environment' ? 'user' : 'environment';
+    if (!C.devices.v.length) await loadDevices();
+    const list = C.devices.v || [];
+    const nextDeviceId = () => {
+      if (list.length < 2) return '';
+      const idx = curId ? list.findIndex((d) => d.deviceId === curId) : -1;
+      return list[(idx + 1) % list.length]?.deviceId || '';
+    };
+    try {
+      if (!IS_MOBILE && list.length >= 2) {
+        const nextId = nextDeviceId();
+        if (nextId) {
+          C.videoId = nextId;
+          savePrefs();
+          await openVideo();
+          return;
+        }
+      }
+      C.facing = nextFacing;
+      C.videoId = '';
+      savePrefs();
+      await openVideo();
+      const gotId = C.video?.getSettings?.().deviceId || '';
+      if (IS_MOBILE && curId && gotId === curId && list.length >= 2) {
+        const nextId = nextDeviceId();
+        if (nextId && nextId !== curId) {
+          C.videoId = nextId;
+          savePrefs();
+          await openVideo();
+        }
+      }
+    } catch (e) {
+      toast('Não deu para trocar de câmera: ' + (e.message || e.name), 'err');
+    }
   };
   $('#cb-q').onclick = () => setQuality(C.quality === '1080' ? '720' : '1080');
   $('#cb-mic').onclick = () => setMic(!C.micOn);
@@ -942,6 +1049,8 @@ function bindDev(body) {
     pushState();
     toast(t('Nome salvo'));
   };
+  const nameBtn = $('#cd-name-ok', body);
+  if (nameBtn) nameBtn.onclick = saveName;
   $('#cd-name', body).onkeydown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();

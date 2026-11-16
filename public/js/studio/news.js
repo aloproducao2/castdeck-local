@@ -91,7 +91,7 @@ export function createNews({ S, comp, save, onHeadline }) {
   }
   function paintStatus() {
     for (const f of feeds()) {
-      const el = document.querySelector(`.rss-item[data-id="${f.id}"] .rss-status`);
+      const el = $(`.rss-item[data-id="${f.id}"] .rss-status`);
       if (el) el.innerHTML = statusOf(f);
     }
   }

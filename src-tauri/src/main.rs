@@ -67,6 +67,86 @@ fn get_logs_dir() -> PathBuf {
     logs
 }
 
+#[cfg(windows)]
+fn kill_orphan_servers() {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let mut cmd = Command::new("taskkill");
+    cmd.args(["/F", "/T", "/IM", "castdeck-server-embedded.exe"]);
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let _ = cmd.status();
+}
+
+#[cfg(windows)]
+fn kill_other_castdeck_processes() {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let my_pid = std::process::id();
+    let filter = format!("PID ne {}", my_pid);
+    let mut cmd = Command::new("taskkill");
+    cmd.args(["/F", "/T", "/FI", &filter, "/IM", "CastDeck.exe"]);
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let _ = cmd.status();
+
+    let mut cmd2 = Command::new("taskkill");
+    cmd2.args(["/F", "/T", "/FI", &filter, "/IM", "castdeck-launcher.exe"]);
+    cmd2.creation_flags(CREATE_NO_WINDOW);
+    let _ = cmd2.status();
+
+    kill_orphan_servers();
+}
+
+#[cfg(windows)]
+fn ensure_studio_window_visible() -> bool {
+    use std::os::windows::ffi::OsStringExt;
+    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetClassNameW, GetWindowTextW, IsIconic, IsWindowVisible, SetForegroundWindow,
+        ShowWindow, SW_RESTORE, SW_SHOW,
+    };
+
+    unsafe extern "system" fn enum_cb(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        if IsWindowVisible(hwnd) == 0 {
+            return 1;
+        }
+        let mut cls_buf = [0u16; 128];
+        let cls_len = GetClassNameW(hwnd, cls_buf.as_mut_ptr(), cls_buf.len() as i32);
+        if cls_len <= 0 {
+            return 1;
+        }
+        let cls = std::ffi::OsString::from_wide(&cls_buf[..cls_len as usize])
+            .to_string_lossy()
+            .to_string();
+        if !cls.starts_with("Chrome_WidgetWin") {
+            return 1;
+        }
+        let mut buf = [0u16; 256];
+        let len = GetWindowTextW(hwnd, buf.as_mut_ptr(), buf.len() as i32);
+        if len > 0 {
+            let title = std::ffi::OsString::from_wide(&buf[..len as usize])
+                .to_string_lossy()
+                .to_string();
+            if title.contains("CastDeck") {
+                if IsIconic(hwnd) != 0 {
+                    ShowWindow(hwnd, SW_RESTORE);
+                } else {
+                    ShowWindow(hwnd, SW_SHOW);
+                }
+                SetForegroundWindow(hwnd);
+                let found = &mut *(lparam as *mut bool);
+                *found = true;
+            }
+        }
+        1
+    }
+
+    let mut found = false;
+    unsafe {
+        EnumWindows(Some(enum_cb), &mut found as *mut bool as LPARAM);
+    }
+    found
+}
+
 fn get_embedded_server_path() -> Option<PathBuf> {
     #[cfg(feature = "embedded-server")]
     {
@@ -74,17 +154,41 @@ fn get_embedded_server_path() -> Option<PathBuf> {
         let app_dir = get_app_dir().join("app");
         let _ = std::fs::create_dir_all(&app_dir);
         let target_exe = app_dir.join("castdeck-server-embedded.exe");
+        let sig_file = app_dir.join("castdeck-server-embedded.sig");
 
-        let needs_write = match std::fs::metadata(&target_exe) {
-            Ok(meta) => meta.len() != SERVER_BYTES.len() as u64,
-            Err(_) => true,
+        // Assinatura simples (tamanho + versão + amostra distribuída) para garantir regravação em builds novos
+        let sig = {
+            let n = SERVER_BYTES.len();
+            let mut h: u64 = 0xcbf29ce484222325;
+            let step = (n / 1024).max(1);
+            let mut i = 0;
+            while i < n {
+                h ^= SERVER_BYTES[i] as u64;
+                h = h.wrapping_mul(0x100000001b3);
+                i += step;
+            }
+            format!("{}:{}:{}", env!("CARGO_PKG_VERSION"), n, h)
         };
 
+        let same_size = std::fs::metadata(&target_exe).map_or(false, |m| m.len() == SERVER_BYTES.len() as u64);
+        let same_sig = std::fs::read_to_string(&sig_file).map_or(false, |s| s.trim() == sig);
+        let needs_write = !(same_size && same_sig);
+
         if needs_write {
-            if let Ok(_) = std::fs::write(&target_exe, SERVER_BYTES) {
-                return Some(target_exe);
+            if std::fs::write(&target_exe, SERVER_BYTES).is_err() {
+                #[cfg(windows)]
+                {
+                    kill_orphan_servers();
+                    std::thread::sleep(Duration::from_millis(400));
+                }
+                if std::fs::write(&target_exe, SERVER_BYTES).is_ok() {
+                    let _ = std::fs::write(&sig_file, &sig);
+                }
+            } else {
+                let _ = std::fs::write(&sig_file, &sig);
             }
-        } else {
+        }
+        if target_exe.exists() {
             return Some(target_exe);
         }
     }
@@ -195,6 +299,7 @@ fn open_studio_window(job: &Option<job::ProcessJob>, quitting: Arc<AtomicBool>) 
         let mut cmd = Command::new(browser_exe);
         cmd.arg(format!("--app={}", STUDIO_URL));
         cmd.arg(format!("--user-data-dir={}", profile_dir.display()));
+        cmd.arg("--new-window");
         cmd.arg("--no-first-run");
         cmd.arg("--no-default-browser-check");
         cmd.arg("--disable-background-mode");
@@ -213,7 +318,16 @@ fn open_studio_window(job: &Option<job::ProcessJob>, quitting: Arc<AtomicBool>) 
                 }
             }
 
-            // Monitora quando a janela for fechada para emitir aviso na bandeja
+            // Monitora quando a janela for fechada para emitir aviso na bandeja e garante visibilidade inicial
+            std::thread::spawn(move || {
+                for _ in 0..20 {
+                    std::thread::sleep(Duration::from_millis(200));
+                    #[cfg(windows)]
+                    if ensure_studio_window_visible() {
+                        break;
+                    }
+                }
+            });
             let q = quitting.clone();
             std::thread::spawn(move || {
                 let _ = child.wait();
@@ -304,14 +418,23 @@ fn main() {
     // O handle fica vivo até o processo terminar (não fechar).
     #[cfg(windows)]
     let _single_instance = match acquire_single_instance() {
-        Some(h) => h,
+        Some(h) => Some(h),
         None => {
-            // Já existe uma instância: pede para abrir/focar o estúdio e sai sem criar bandeja.
-            let no_job: Option<job::ProcessJob> = None;
-            open_studio_window(&no_job, Arc::new(AtomicBool::new(true)));
-            return;
+            // Se o servidor está no ar e já existe janela visível do estúdio, apenas traz para frente.
+            if check_health() && ensure_studio_window_visible() {
+                return;
+            }
+            // Processo antigo ficou preso em segundo plano sem janela visível ou servidor caiu:
+            // limpa as instâncias travadas e inicia uma nova sessão completa (bandeja + servidor + janela).
+            kill_other_castdeck_processes();
+            std::thread::sleep(Duration::from_millis(450));
+            acquire_single_instance()
         }
     };
+
+    // Sem outro lançador na bandeja, qualquer castdeck-server-embedded.exe rodando ficou órfão de execução anterior.
+    #[cfg(windows)]
+    kill_orphan_servers();
 
     let job = Arc::new(job::ProcessJob::new());
     let _server_child = spawn_server(&job);
@@ -343,7 +466,7 @@ fn main() {
         let q = quitting.clone();
         let j = job.clone();
         std::thread::spawn(move || {
-            if wait_for_server(30) {
+            if wait_for_server(100) {
                 open_studio_window(&j, q);
             }
         });
@@ -369,6 +492,13 @@ fn main() {
             if let Ok(event) = menu_channel.try_recv() {
                 match event.id.0.as_str() {
                     "open_studio" => {
+                        #[cfg(windows)]
+                        {
+                            if !ensure_studio_window_visible() {
+                                open_studio_window(&job, quitting.clone());
+                            }
+                        }
+                        #[cfg(not(windows))]
                         open_studio_window(&job, quitting.clone());
                     }
                     "recordings" => {
@@ -383,6 +513,8 @@ fn main() {
                         // podiam sobreviver e a janela parecia "reabrir" ao clicar na bandeja.
                         kill_pid(BROWSER_PID.swap(0, Ordering::SeqCst));
                         kill_pid(SERVER_PID.swap(0, Ordering::SeqCst));
+                        #[cfg(windows)]
+                        kill_orphan_servers();
                         PostQuitMessage(0);
                         return;
                     }
@@ -401,6 +533,13 @@ fn main() {
                 } = event
                 {
                     if !quitting.load(Ordering::SeqCst) {
+                        #[cfg(windows)]
+                        {
+                            if !ensure_studio_window_visible() {
+                                open_studio_window(&job, quitting.clone());
+                            }
+                        }
+                        #[cfg(not(windows))]
                         open_studio_window(&job, quitting.clone());
                     }
                 }

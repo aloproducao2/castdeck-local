@@ -2164,7 +2164,8 @@ select.input {
 .bottombar {
   flex-wrap: wrap;
 }
-.program .dropmark {
+.program .dropmark,
+.sw-pvw .dropmark {
   position: absolute;
   pointer-events: none;
   border: 3px dashed var(--accent);
@@ -12189,7 +12190,9 @@ body.fs-lock {
   left: max(16px, env(safe-area-inset-left));
 }
 .program:fullscreen .dropmark,
-.program.fs-pseudo .dropmark {
+.program.fs-pseudo .dropmark,
+.sw-pvw:fullscreen .dropmark,
+.sw-pvw.fs-pseudo .dropmark {
   display: none !important;
 }
 .fs-idle {

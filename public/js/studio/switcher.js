@@ -58,8 +58,9 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, onP
   function mount() {
     // monitor de PRÉVIA, à esquerda do PROGRAMA (mesmo tamanho, como no vMix e no Studio Mode do OBS)
     $('#sw-pvw-box').innerHTML = `
-      <div class="sw-pvw" title="Prévia: o que vai entrar no ar no próximo corte">
+      <div class="sw-pvw" title="Prévia: arraste para trocar fontes de lugar, duplo clique = solo, ou solte uma fonte aqui">
         <canvas id="sw-pvw-canvas"></canvas>
+        <div class="dropmark" id="sw-pvw-dropmark" hidden></div>
         <span class="sw-tag pvw">PRÉVIA</span>
         <span class="sw-mon-name" id="sw-pvw-name"></span>
         <button class="mon-fs" data-fs="pvw" title="Tela cheia da prévia" data-tip="Tela cheia da prévia" aria-label="Tela cheia da prévia">${icons.expand}</button>
@@ -393,5 +394,5 @@ export function createSwitcher({ S, comp, $, esc, toast, sendControl, onAir, onP
     $('.studio')?.classList.toggle('sw-mixing', prog !== null);
   }
 
-  return { mount, setMode, take, cutTo, setPreview, setPreviewFps, sourceGone, refresh, syncTally, guestReset, render, setBlack, toggle: () => setMode(!S.switcher) };
+  return { mount, setMode, take, cutTo, setPreview, setPreviewFps, getPreviewView: () => preview?.view || null, sourceGone, refresh, syncTally, guestReset, render, setBlack, toggle: () => setMode(!S.switcher) };
 }

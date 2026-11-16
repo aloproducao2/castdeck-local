@@ -489,7 +489,7 @@ body.fs-lock { overflow: hidden; }
 .program:fullscreen .mon-fs, .sw-pvw:fullscreen .mon-fs, .program.fs-pseudo .mon-fs, .sw-pvw.fs-pseudo .mon-fs { opacity: 1; transform: none; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); width: 44px; height: 44px; border-radius: 12px; }
 .program:fullscreen .mon-fs svg, .sw-pvw:fullscreen .mon-fs svg, .program.fs-pseudo .mon-fs svg, .sw-pvw.fs-pseudo .mon-fs svg { width: 20px; height: 20px; }
 .program:fullscreen .onair, .program.fs-pseudo .onair { top: max(16px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); }
-.program:fullscreen .dropmark, .program.fs-pseudo .dropmark { display: none !important; }
+.program:fullscreen .dropmark, .program.fs-pseudo .dropmark, .sw-pvw:fullscreen .dropmark, .sw-pvw.fs-pseudo .dropmark { display: none !important; }
 /* parado: só a imagem (o tally PROGRAMA/PRÉVIA continua, fica mais discreto) */
 .fs-idle { cursor: none; }
 .fs-idle .mon-fs, .fs-idle .sw-mon-name { opacity: 0 !important; pointer-events: none; transition: opacity .4s; }

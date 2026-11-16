@@ -781,6 +781,7 @@ async function buildStudio() {
   });
   switcher.mount();
   window.__castdeck.switcher = switcher;
+  bindPreviewDrag();
   autoVoice = createAutoVoice({ S, comp, mixer, switcher, $, toast, setSolo, openTab: (t) => openSideTab(t), ritmoApi: { setStage: (ids) => setStage(ids), setLayout: softLayout } });
   autoVoice.mount();
   window.__castdeck.autoVoice = autoVoice;
@@ -2194,37 +2195,41 @@ function renderStagebar() {
   $$('[data-unstage]', bar).forEach((b) => (b.onclick = () => toggleStage(b.dataset.unstage)));
 }
 
-// arrastar direto no programa: solte um item sobre outro para trocar de lugar; duplo clique = solo
-function bindProgramDrag() {
-  const cv = $('#program-canvas');
-  const mark = $('#dropmark');
+// Arrastar direto no palco (PGM ou Prévia): solte um item sobre outro para trocar de lugar; duplo clique = solo
+function bindStageCanvasDrag({ cv, mark, getView, canEditScene, onDropOutsideScene }) {
+  if (!cv || !mark) return;
   const toCanvas = (e) => {
+    const view = getView();
+    if (!view || !view.W || !view.H) return [0, 0];
     const r = cv.getBoundingClientRect();
-    return [((e.clientX - r.left) * comp.W) / r.width, ((e.clientY - r.top) * comp.H) / r.height];
+    return [((e.clientX - r.left) * view.W) / r.width, ((e.clientY - r.top) * view.H) / r.height];
   };
   let drag = null;
   const hideMark = () => (mark.hidden = true);
   cv.style.touchAction = 'none';
   cv.onpointerdown = (e) => {
-    if (e.button !== 0 || S.solo) return;
-    const id = comp.hit(...toCanvas(e));
+    if (e.button !== 0 || !canEditScene()) return;
+    const view = getView();
+    const id = view?.hit(...toCanvas(e));
     if (!id) return;
     drag = { id, sx: e.clientX, sy: e.clientY, moved: false, target: null };
     try { cv.setPointerCapture(e.pointerId); } catch { }
   };
   cv.onpointermove = (e) => {
+    const view = getView();
+    if (!view) return;
     if (!drag) {
-      cv.style.cursor = !S.solo && comp.hit(...toCanvas(e)) ? 'grab' : '';
+      cv.style.cursor = canEditScene() && view.hit(...toCanvas(e)) ? 'grab' : '';
       return;
     }
     if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 8) return;
     drag.moved = true;
     cv.style.cursor = 'grabbing';
-    const t = comp.hit(...toCanvas(e));
+    const t = view.hit(...toCanvas(e));
     drag.target = t && t !== drag.id ? t : null;
-    const a = drag.target && comp.anim.get(drag.target);
+    const a = drag.target && view.anim.get(drag.target);
     if (a) {
-      Object.assign(mark.style, { left: `${(a.x / comp.W) * 100}%`, top: `${(a.y / comp.H) * 100}%`, width: `${(a.w / comp.W) * 100}%`, height: `${(a.h / comp.H) * 100}%` });
+      Object.assign(mark.style, { left: `${(a.x / view.W) * 100}%`, top: `${(a.y / view.H) * 100}%`, width: `${(a.w / view.W) * 100}%`, height: `${(a.h / view.H) * 100}%` });
       mark.hidden = false;
     } else hideMark();
   };
@@ -2237,32 +2242,35 @@ function bindProgramDrag() {
   cv.onpointerup = end;
   cv.onpointercancel = end;
   cv.ondblclick = (e) => {
-    const id = comp.hit(...toCanvas(e));
+    if (!canEditScene() && !S.solo) return;
+    const view = getView();
+    const id = view?.hit(...toCanvas(e));
     if (id) setSolo(id);
     else if (S.solo) setSolo(null);
   };
 
   // soltar uma miniatura (backstage, chip do palco ou imagem da aba Mídia) direto num slot
   const customDef = () => (S.layout.startsWith('c-') ? (S.brand.customLayouts || []).find((c) => c.id === S.layout) : null);
-  // descobre o slot sob o cursor: { index, id (ocupante ou null), rect em fração do canvas }
   const slotAt = (e) => {
+    const view = getView();
+    if (!view) return null;
     const [x, y] = toCanvas(e);
     const def = customDef();
     if (def && !S.solo) {
       let best = null;
       def.slots.forEach((s, i) => {
-        if (x >= s.x * comp.W && x <= (s.x + s.w) * comp.W && y >= s.y * comp.H && y <= (s.y + s.h) * comp.H && (!best || s.w * s.h < best.s.w * best.s.h)) best = { s, i };
+        if (x >= s.x * view.W && x <= (s.x + s.w) * view.W && y >= s.y * view.H && y <= (s.y + s.h) * view.H && (!best || s.w * s.h < best.s.w * best.s.h)) best = { s, i };
       });
       if (!best) return null;
       const occ = S.stage[best.i] || null;
-      const a = occ && comp.anim.get(occ);
-      const r = a ? { x: a.x / comp.W, y: a.y / comp.H, w: a.w / comp.W, h: a.h / comp.H } : best.s;
+      const a = occ && view.anim.get(occ);
+      const r = a ? { x: a.x / view.W, y: a.y / view.H, w: a.w / view.W, h: a.h / view.H } : best.s;
       return { index: best.i, id: occ, rect: r };
     }
-    const t = comp.hit(x, y);
-    const a = t && comp.anim.get(t);
+    const t = view.hit(x, y);
+    const a = t && view.anim.get(t);
     if (!a) return { index: S.stage.length, id: null, rect: null }; // área vazia: entra no fim
-    return { index: S.stage.indexOf(t), id: t, rect: { x: a.x / comp.W, y: a.y / comp.H, w: a.w / comp.W, h: a.h / comp.H } };
+    return { index: S.stage.indexOf(t), id: t, rect: { x: a.x / view.W, y: a.y / view.H, w: a.w / view.W, h: a.h / view.H } };
   };
   const showMark = (r) => {
     if (!r) return hideMark();
@@ -2277,6 +2285,10 @@ function bindProgramDrag() {
     if (!dragSrc) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    if (!canEditScene() && !S.solo) {
+      showMark(onDropOutsideScene ? { x: 0.02, y: 0.02, w: 0.96, h: 0.96 } : null);
+      return;
+    }
     const sl = slotAt(e);
     showMark(sl?.rect);
   };
@@ -2287,8 +2299,31 @@ function bindProgramDrag() {
     const id = dropId(e);
     dragSrc = null;
     if (!id) return;
+    if (!canEditScene() && !S.solo) {
+      onDropOutsideScene?.(id);
+      return;
+    }
     placeInSlot(id, slotAt(e));
   };
+}
+
+function bindProgramDrag() {
+  bindStageCanvasDrag({
+    cv: $('#program-canvas'),
+    mark: $('#dropmark'),
+    getView: () => comp,
+    canEditScene: () => !S.solo && !(S.switcher && S.take),
+  });
+}
+
+function bindPreviewDrag() {
+  bindStageCanvasDrag({
+    cv: $('#sw-pvw-canvas'),
+    mark: $('#sw-pvw-dropmark'),
+    getView: () => switcher?.getPreviewView?.(),
+    canEditScene: () => !S.solo && !(S.switcher && S.pvw),
+    onDropOutsideScene: (id) => switcher?.setPreview?.(id),
+  });
 }
 
 let dragSrc = null; // id da miniatura sendo arrastada

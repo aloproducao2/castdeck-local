@@ -10,11 +10,12 @@
 
 use std::env;
 use std::ffi::{c_void, CStr, CString};
-use std::io::{Read, Write};
+use std::io::{BufRead, Read, Write};
 use std::os::raw::c_char;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::ptr;
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -24,6 +25,7 @@ const NDI_FOURCC_FLTP: u32 = u32::from_le_bytes(*b"FLTp");
 const NDI_FRAME_PROGRESSIVE: i32 = 1;
 const NDI_SEND_TIMECODE_SYNTHESIZE: i64 = i64::MAX;
 const NDI_RECV_BANDWIDTH_HIGHEST: i32 = 100;
+const NDI_RECV_BANDWIDTH_LOWEST: i32 = 0;
 const NDI_RECV_COLOR_UYVY_BGRA: i32 = 1;
 const NDI_FRAME_VIDEO: i32 = 1;
 const NDI_FRAME_AUDIO: i32 = 2;
@@ -104,6 +106,13 @@ type SendCreateFn = unsafe extern "C" fn(*const NdiSendCreate) -> *mut c_void;
 type SendDestroyFn = unsafe extern "C" fn(*mut c_void);
 type SendVideoAsyncFn = unsafe extern "C" fn(*mut c_void, *const NdiVideoFrame);
 type SendAudioFn = unsafe extern "C" fn(*mut c_void, *const NdiAudioFrame);
+type PtzSupportedFn = unsafe extern "C" fn(*mut c_void) -> u8;
+type PtzZoomFn = unsafe extern "C" fn(*mut c_void, f32) -> u8;
+type PtzZoomSpeedFn = unsafe extern "C" fn(*mut c_void, f32) -> u8;
+type PtzPanTiltFn = unsafe extern "C" fn(*mut c_void, f32, f32) -> u8;
+type PtzPanTiltSpeedFn = unsafe extern "C" fn(*mut c_void, f32, f32) -> u8;
+type PtzPresetFn = unsafe extern "C" fn(*mut c_void, i32) -> u8;
+type PtzRecallFn = unsafe extern "C" fn(*mut c_void, i32, f32) -> u8;
 
 struct NdiApi {
     initialize: InitFn,
@@ -117,6 +126,13 @@ struct NdiApi {
     recv_capture: RecvCaptureFn,
     recv_free_video: RecvFreeVideoFn,
     recv_free_audio: RecvFreeAudioFn,
+    ptz_is_supported: Option<PtzSupportedFn>,
+    ptz_zoom: Option<PtzZoomFn>,
+    ptz_zoom_speed: Option<PtzZoomSpeedFn>,
+    ptz_pan_tilt: Option<PtzPanTiltFn>,
+    ptz_pan_tilt_speed: Option<PtzPanTiltSpeedFn>,
+    ptz_store_preset: Option<PtzPresetFn>,
+    ptz_recall_preset: Option<PtzRecallFn>,
     send_create: SendCreateFn,
     send_destroy: SendDestroyFn,
     send_video_async: SendVideoAsyncFn,
@@ -218,6 +234,13 @@ fn load_ndi() -> Result<NdiApi, String> {
                 recv_capture: sym!("NDIlib_recv_capture_v3"),
                 recv_free_video: sym!("NDIlib_recv_free_video_v2"),
                 recv_free_audio: sym!("NDIlib_recv_free_audio_v3"),
+                ptz_is_supported: symbol(&lib, "NDIlib_recv_ptz_is_supported"),
+                ptz_zoom: symbol(&lib, "NDIlib_recv_ptz_zoom"),
+                ptz_zoom_speed: symbol(&lib, "NDIlib_recv_ptz_zoom_speed"),
+                ptz_pan_tilt: symbol(&lib, "NDIlib_recv_ptz_pan_tilt"),
+                ptz_pan_tilt_speed: symbol(&lib, "NDIlib_recv_ptz_pan_tilt_speed"),
+                ptz_store_preset: symbol(&lib, "NDIlib_recv_ptz_store_preset"),
+                ptz_recall_preset: symbol(&lib, "NDIlib_recv_ptz_recall_preset"),
                 send_create: sym!("NDIlib_send_create"),
                 send_destroy: sym!("NDIlib_send_destroy"),
                 send_video_async: sym!("NDIlib_send_send_video_async_v2"),
@@ -541,6 +564,128 @@ unsafe fn send_raw(api: &NdiApi, name: &str, width: u32, height: u32, fps: u32) 
 }
 
 
+
+// NDI PTZ: receiver dedicado, sem tocar no pipe de mÃ­dia do extract.
+// Entrada por stdin (uma linha por comando) e saÃ­da JSON por stdout.
+unsafe fn ptz(api: &NdiApi, name: &str, url: Option<&str>) -> Result<(), String> {
+    let (Some(is_supported), Some(zoom), Some(zoom_speed), Some(pan_tilt), Some(pan_tilt_speed), Some(store_preset), Some(recall_preset)) = (
+        api.ptz_is_supported, api.ptz_zoom, api.ptz_zoom_speed, api.ptz_pan_tilt,
+        api.ptz_pan_tilt_speed, api.ptz_store_preset, api.ptz_recall_preset,
+    ) else {
+        return Err("NDI Runtime sem API PTZ (atualize o NDI Runtime 6.3+).".into());
+    };
+    let cname = CString::new(name).map_err(|_| "Nome NDI invÃ¡lido")?;
+    let curl = if let Some(u) = url {
+        CString::new(u).map_err(|_| "URL NDI invÃ¡lida")?
+    } else {
+        let source = list_sources(api)?
+            .into_iter()
+            .find(|(n, _)| n == name)
+            .ok_or_else(|| format!("Fonte NDI nÃ£o encontrada: {name}"))?;
+        CString::new(source.1).map_err(|_| "URL NDI invÃ¡lida")?
+    };
+    let rc = NdiRecvCreate {
+        source_to_connect_to: NdiSource { p_ndi_name: cname.as_ptr(), p_url_address: curl.as_ptr() },
+        color_format: NDI_RECV_COLOR_UYVY_BGRA,
+        bandwidth: NDI_RECV_BANDWIDTH_LOWEST,
+        allow_video_fields: 0,
+        p_ndi_recv_name: b"CastDeck NDI PTZ\0".as_ptr() as *const c_char,
+    };
+    let recv = (api.recv_create)(&rc);
+    if recv.is_null() { return Err("NÃ£o foi possÃ­vel criar o receiver PTZ NDI".into()); }
+
+    let (tx, rx) = mpsc::channel::<String>();
+    thread::spawn(move || {
+        let stdin = std::io::stdin();
+        for line in stdin.lock().lines().map_while(Result::ok) {
+            if tx.send(line).is_err() { break; }
+        }
+    });
+
+    let mut last_support: Option<bool> = None;
+    let mut last_poll = Instant::now();
+    let mut stdout = std::io::stdout().lock();
+    loop {
+        while let Ok(line) = rx.try_recv() {
+            let line = line.trim();
+            if line.is_empty() { continue; }
+            let mut parts = line.split_whitespace();
+            let cmd = parts.next().unwrap_or("");
+            let supported = is_supported(recv) != 0;
+            let mut ok = supported;
+            let mut err = if supported { "" } else { "fonte sem suporte PTZ" };
+            match cmd {
+                "ping" => { ok = true; err = ""; }
+                "stop" => {
+                    if supported {
+                        pan_tilt_speed(recv, 0.0, 0.0);
+                        zoom_speed(recv, 0.0);
+                    }
+                }
+                "pan_tilt" => {
+                    let p = parts.next().and_then(|v| v.parse::<f32>().ok());
+                    let t = parts.next().and_then(|v| v.parse::<f32>().ok());
+                    if supported {
+                        if let (Some(p), Some(t)) = (p, t) { ok = pan_tilt(recv, p.clamp(-1.0, 1.0), t.clamp(-1.0, 1.0)) != 0; } else { ok = false; err = "parÃ¢metros"; }
+                    }
+                }
+                "zoom" => {
+                    let z = parts.next().and_then(|v| v.parse::<f32>().ok());
+                    if supported {
+                        if let Some(z) = z { ok = zoom(recv, z.clamp(0.0, 1.0)) != 0; } else { ok = false; err = "parÃ¢metros"; }
+                    }
+                }
+                "pan_tilt_speed" => {
+                    let p = parts.next().and_then(|v| v.parse::<f32>().ok());
+                    let t = parts.next().and_then(|v| v.parse::<f32>().ok());
+                    if supported {
+                        if let (Some(p), Some(t)) = (p, t) { ok = pan_tilt_speed(recv, p.clamp(-1.0, 1.0), t.clamp(-1.0, 1.0)) != 0; } else { ok = false; err = "parÃ¢metros"; }
+                    }
+                }
+                "zoom_speed" => {
+                    let z = parts.next().and_then(|v| v.parse::<f32>().ok());
+                    if supported {
+                        if let Some(z) = z { ok = zoom_speed(recv, z.clamp(-1.0, 1.0)) != 0; } else { ok = false; err = "parÃ¢metros"; }
+                    }
+                }
+                "preset_store" => {
+                    let n = parts.next().and_then(|v| v.parse::<i32>().ok());
+                    if supported {
+                        if let Some(n) = n { ok = store_preset(recv, n.clamp(0, 99)) != 0; } else { ok = false; err = "parÃ¢metros"; }
+                    }
+                }
+                "preset_recall" => {
+                    let n = parts.next().and_then(|v| v.parse::<i32>().ok());
+                    let sp = parts.next().and_then(|v| v.parse::<f32>().ok()).unwrap_or(0.4);
+                    if supported {
+                        if let Some(n) = n { ok = recall_preset(recv, n.clamp(0, 99), sp.clamp(0.0, 1.0)) != 0; } else { ok = false; err = "parÃ¢metros"; }
+                    }
+                }
+                _ => { ok = false; err = "comando desconhecido"; }
+            }
+            let _ = write!(stdout, "{{\"type\":\"ack\",\"cmd\":\"{}\",\"ok\":{},\"supported\":{},\"error\":\"{}\"}}\n", cmd, ok, supported, err);
+            let _ = stdout.flush();
+        }
+
+        let mut vf = std::mem::zeroed::<NdiVideoFrame>();
+        let mut af = std::mem::zeroed::<NdiAudioFrame>();
+        let t = (api.recv_capture)(recv, &mut vf, &mut af, ptr::null_mut(), 100);
+        if t == NDI_FRAME_VIDEO { (api.recv_free_video)(recv, &vf); }
+        else if t == NDI_FRAME_AUDIO { (api.recv_free_audio)(recv, &af); }
+        else if t == 3 { /* status_change */ }
+
+        if last_poll.elapsed() >= Duration::from_millis(500) {
+            last_poll = Instant::now();
+            let now = is_supported(recv) != 0;
+            if last_support != Some(now) {
+                last_support = Some(now);
+                let _ = write!(stdout, "{{\"type\":\"ptz\",\"supported\":{}}}\n", now);
+                let _ = stdout.flush();
+            }
+        }
+    }
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
     let cmd = args.get(1).map(String::as_str).unwrap_or("version");
@@ -584,11 +729,15 @@ fn main() -> ExitCode {
                 let fps = args.get(5).and_then(|s| s.parse().ok()).unwrap_or(30u32);
                 send_raw(&api, name, width, height, fps)
             }
+            "ptz" => {
+                let name = match args.get(2) { Some(n) => n, None => { eprintln!("Uso: castdeck-ndi ptz \"NOME\" [URL]"); return ExitCode::from(1); } };
+                ptz(&api, name, args.get(3).map(String::as_str))
+            }
             "extract" => {
                 let name = match args.get(2) { Some(n) => n, None => { eprintln!("Uso: castdeck-ndi extract \"NOME\" [URL]"); return ExitCode::from(1); } };
                 extract(&api, name, args.get(3).map(String::as_str))
             }
-            _ => Err("Comando desconhecido. Use version, list, receive, send-test, send-raw ou extract.".into()),
+            _ => Err("Comando desconhecido. Use version, list, receive, send-test, send-raw, extract ou ptz.".into()),
         }
     };
     match result {

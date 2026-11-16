@@ -94,10 +94,22 @@ internal static class SharedPipeMode
         var paints = 0;
         var handler = new SharedRenderHandler(browser, device, context, queue, () => Interlocked.Increment(ref paints));
         browser.RenderHandler = handler;
+        browser.BrowserInitialized += (_, _) =>
+        {
+            try { browser.GetBrowserHost()?.SendFocusEvent(true); } catch { }
+        };
         browser.LoadError += (_, e) => Console.Error.WriteLine($"LOADERR {e.ErrorCode} {e.ErrorText}");
-        browser.LoadingStateChanged += (_, e) => { if (!e.IsLoading) Console.Error.WriteLine($"LOADED {url}"); };
+        browser.LoadingStateChanged += (_, e) =>
+        {
+            if (!e.IsLoading)
+            {
+                Console.Error.WriteLine($"LOADED {url}");
+                try { browser.GetBrowserHost()?.SendFocusEvent(true); } catch { }
+            }
+        };
         browser.CreateBrowser(windowInfo, browserSettings);
 
+        var inputQueue = new ConcurrentQueue<string>();
         var stop = false;
         _ = Task.Run(async () =>
         {
@@ -107,7 +119,7 @@ internal static class SharedPipeMode
                 string? line;
                 while ((line = await reader.ReadLineAsync()) != null)
                 {
-                    if (!string.IsNullOrWhiteSpace(line)) HandleInput(browser, line);
+                    if (!string.IsNullOrWhiteSpace(line)) inputQueue.Enqueue(line);
                 }
             }
             catch { }
@@ -116,6 +128,7 @@ internal static class SharedPipeMode
 
         while (!stop)
         {
+            while (inputQueue.TryDequeue(out var cmd)) HandleInput(browser, cmd);
             Cef.DoMessageLoopWork();
             Thread.Sleep(1);
         }
@@ -269,23 +282,37 @@ internal static class SharedPipeMode
             using var doc = JsonDocument.Parse(line);
             var e = doc.RootElement;
             var kind = e.TryGetProperty("kind", out var k) ? k.GetString() : "";
+            var host = browser.GetBrowserHost();
+            var mods = ParseMods(e);
             if (kind == "mouse")
             {
                 var type = e.TryGetProperty("type", out var t) ? t.GetString() : "";
                 var x = (int)(e.TryGetProperty("x", out var xv) ? xv.GetDouble() : 0);
                 var y = (int)(e.TryGetProperty("y", out var yv) ? yv.GetDouble() : 0);
-                var me = new MouseEvent(x, y, CefEventFlags.None);
-                var host = browser.GetBrowserHost();
-                if (type == "mousePressed") host.SendMouseClickEvent(me, MouseButtonType.Left, false, 1);
-                else if (type == "mouseReleased") host.SendMouseClickEvent(me, MouseButtonType.Left, true, 1);
-                else if (type == "mouseMoved") host.SendMouseMoveEvent(me, false);
+                var btnName = e.TryGetProperty("button", out var bv) ? bv.GetString() : "left";
+                var btn = btnName == "right" ? MouseButtonType.Right : btnName == "middle" ? MouseButtonType.Middle : MouseButtonType.Left;
+                var clickCount = e.TryGetProperty("clickCount", out var ccv) && ccv.TryGetInt32(out var cc) ? Math.Clamp(cc, 1, 3) : 1;
+                var me = new MouseEvent(x, y, mods);
+                if (type == "mousePressed")
+                {
+                    host.SendFocusEvent(true);
+                    host.SendMouseClickEvent(me, btn, false, clickCount);
+                }
+                else if (type == "mouseReleased")
+                {
+                    host.SendMouseClickEvent(me, btn, true, clickCount);
+                }
+                else if (type == "mouseMoved")
+                {
+                    host.SendMouseMoveEvent(me, false);
+                }
                 else if (type == "mouseWheel")
                 {
                     var dx = (int)(e.TryGetProperty("deltaX", out var dxv) ? dxv.GetDouble() : 0);
                     var dy = (int)(e.TryGetProperty("deltaY", out var dyv) ? dyv.GetDouble() : 0);
                     try
                     {
-                        var js = "(()=>{const t=document.elementFromPoint(" + x + "," + y + ");let n=t;while(n&&n!==document.body&&n!==document.documentElement){if(n.scrollHeight>n.clientHeight+1){n.scrollBy(0," + dy + ");return true;}n=n.parentElement;}window.scrollBy(0," + dy + ");return true})()";
+                        var js = "(()=>{const t=document.elementFromPoint(" + x + "," + y + ");let n=t;while(n&&n!==document.body&&n!==document.documentElement){if(n.scrollHeight>n.clientHeight+1||n.scrollWidth>n.clientWidth+1){n.scrollBy(" + dx + "," + dy + ");return true;}n=n.parentElement;}window.scrollBy(" + dx + "," + dy + ");return true})()";
                         browser.ExecuteScriptAsync(js);
                     }
                     catch (Exception ex) { Console.Error.WriteLine("wheel js err: " + ex.Message); }
@@ -296,14 +323,165 @@ internal static class SharedPipeMode
                 var text = e.TryGetProperty("text", out var tv) ? tv.GetString() : "";
                 if (!string.IsNullOrEmpty(text)) InsertText(browser, text);
             }
-            else if (kind == "key" && e.TryGetProperty("type", out var kt) && kt.GetString() == "keyDown")
+            else if (kind == "key")
             {
-                var text = e.TryGetProperty("text", out var tv2) ? tv2.GetString() : "";
-                if (!string.IsNullOrEmpty(text)) InsertText(browser, text);
+                var type = e.TryGetProperty("type", out var kt) ? kt.GetString() : "";
+                var key = e.TryGetProperty("key", out var ky) ? (ky.GetString() ?? "") : "";
+                var code = e.TryGetProperty("code", out var cd) ? (cd.GetString() ?? "") : "";
+                var vk = e.TryGetProperty("keyCode", out var kcv) && kcv.TryGetInt32(out var kci) ? kci : 0;
+                if (vk <= 0) vk = MapVirtualKey(key, code);
+                var text = e.TryGetProperty("text", out var tv2) ? (tv2.GetString() ?? "") : "";
+
+                if (type == "keyUp")
+                {
+                    if (vk > 0)
+                    {
+                        host.SendKeyEvent(new KeyEvent
+                        {
+                            Type = KeyEventType.KeyUp,
+                            WindowsKeyCode = vk,
+                            NativeKeyCode = BuildNativeKeyCode(vk, true),
+                            Modifiers = mods,
+                        });
+                    }
+                    return;
+                }
+
+                if (type != "keyDown" && type != "rawKeyDown") return;
+                host.SendFocusEvent(true);
+
+                // Teclas especiais (setas, Backspace, Delete, Enter, Home/End, PageUp/Down, Tab, Esc, atalhos Ctrl)
+                // vão nativamente pelo SendKeyEvent para mover cursor, apagar, navegar e submeter formulários.
+                var hasCtrlOrMeta = (mods & (CefEventFlags.ControlDown | CefEventFlags.CommandDown)) != 0;
+                var hasAltOnly = (mods & CefEventFlags.AltDown) != 0 && !hasCtrlOrMeta;
+                if (!string.IsNullOrEmpty(text) && text != "\r" && text != "\n" && !hasCtrlOrMeta && !hasAltOnly)
+                {
+                    // Caractere imprimível (inclui acentos PT-BR como ç, á, ã): despacha KeyDown + Char para acionar listeners e texto
+                    var ch = text[0];
+                    if (vk <= 0) vk = char.ToUpperInvariant(ch);
+                    if (text.Length == 1 && ch <= 0xFFFF)
+                    {
+                        host.SendKeyEvent(new KeyEvent
+                        {
+                            Type = KeyEventType.RawKeyDown,
+                            WindowsKeyCode = vk,
+                            NativeKeyCode = BuildNativeKeyCode(vk, false),
+                            Modifiers = mods,
+                        });
+                        host.SendKeyEvent(new KeyEvent
+                        {
+                            Type = KeyEventType.Char,
+                            WindowsKeyCode = ch,
+                            NativeKeyCode = ch,
+                            Modifiers = mods,
+                        });
+                    }
+                    else
+                    {
+                        InsertText(browser, text);
+                    }
+                    return;
+                }
+
+                if (vk > 0)
+                {
+                    host.SendKeyEvent(new KeyEvent
+                    {
+                        Type = KeyEventType.RawKeyDown,
+                        WindowsKeyCode = vk,
+                        NativeKeyCode = BuildNativeKeyCode(vk, false),
+                        Modifiers = mods,
+                    });
+                    if (key == "Enter" || text == "\r" || text == "\n")
+                    {
+                        host.SendKeyEvent(new KeyEvent
+                        {
+                            Type = KeyEventType.Char,
+                            WindowsKeyCode = '\r',
+                            NativeKeyCode = '\r',
+                            Modifiers = mods,
+                        });
+                    }
+                    else if (key == "Tab" && !hasCtrlOrMeta)
+                    {
+                        // Tab já move o foco no RawKeyDown, não precisa de Char extra
+                    }
+                    else if (!string.IsNullOrEmpty(text) && text.Length == 1)
+                    {
+                        host.SendKeyEvent(new KeyEvent
+                        {
+                            Type = KeyEventType.Char,
+                            WindowsKeyCode = text[0],
+                            NativeKeyCode = text[0],
+                            Modifiers = mods,
+                        });
+                    }
+                }
+                else if (!string.IsNullOrEmpty(text))
+                {
+                    InsertText(browser, text);
+                }
             }
         }
         catch (Exception ex) { Console.Error.WriteLine("input: " + ex.Message); }
     }
+
+    private static CefEventFlags ParseMods(JsonElement e)
+    {
+        var flags = CefEventFlags.None;
+        if (!e.TryGetProperty("mods", out var m)) return flags;
+        if (m.ValueKind == JsonValueKind.Number && m.TryGetInt32(out var mask))
+        {
+            if ((mask & 1) != 0) flags |= CefEventFlags.AltDown;
+            if ((mask & 2) != 0) flags |= CefEventFlags.ControlDown;
+            if ((mask & 4) != 0) flags |= CefEventFlags.CommandDown;
+            if ((mask & 8) != 0) flags |= CefEventFlags.ShiftDown;
+            return flags;
+        }
+        if (m.ValueKind == JsonValueKind.Object)
+        {
+            if (m.TryGetProperty("alt", out var av) && av.ValueKind == JsonValueKind.True) flags |= CefEventFlags.AltDown;
+            if (m.TryGetProperty("ctrl", out var cv) && cv.ValueKind == JsonValueKind.True) flags |= CefEventFlags.ControlDown;
+            if (m.TryGetProperty("meta", out var mv) && mv.ValueKind == JsonValueKind.True) flags |= CefEventFlags.CommandDown;
+            if (m.TryGetProperty("shift", out var sv) && sv.ValueKind == JsonValueKind.True) flags |= CefEventFlags.ShiftDown;
+        }
+        return flags;
+    }
+
+    private static int BuildNativeKeyCode(int vk, bool isKeyUp)
+    {
+        // Marca bit extended (bit 24) para setas, Home/End, PageUp/Down e Insert/Delete como no Windows LPARAM
+        var ext = vk is >= 33 and <= 40 or 45 or 46 ? (1 << 24) : 0;
+        var up = isKeyUp ? ((1 << 30) | (1 << 31)) : 0;
+        return 1 | ext | up;
+    }
+
+    private static int MapVirtualKey(string key, string code) => key switch
+    {
+        "Backspace" => 0x08,
+        "Tab" => 0x09,
+        "Enter" => 0x0D,
+        "Shift" => 0x10,
+        "Control" => 0x11,
+        "Alt" => 0x12,
+        "Escape" => 0x1B,
+        " " or "Spacebar" => 0x20,
+        "PageUp" => 0x21,
+        "PageDown" => 0x22,
+        "End" => 0x23,
+        "Home" => 0x24,
+        "ArrowLeft" => 0x25,
+        "ArrowUp" => 0x26,
+        "ArrowRight" => 0x27,
+        "ArrowDown" => 0x28,
+        "Insert" => 0x2D,
+        "Delete" => 0x2E,
+        _ when key.Length == 1 && key[0] is >= 'a' and <= 'z' => char.ToUpperInvariant(key[0]),
+        _ when key.Length == 1 && key[0] is >= 'A' and <= 'Z' or >= '0' and <= '9' => key[0],
+        _ when code.StartsWith("Key") && code.Length == 4 => code[3],
+        _ when code.StartsWith("Digit") && code.Length == 6 => code[5],
+        _ => 0,
+    };
 
     private static void InsertText(ChromiumWebBrowser browser, string text)
     {

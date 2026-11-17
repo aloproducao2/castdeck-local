@@ -226,8 +226,8 @@
 }
 
 .tile {
-  width: clamp(144px, 15vw, 192px);
-  min-width: 126px;
+  width: clamp(140px, 13.5vw, 172px);
+  min-width: 132px;
   flex: 0 0 auto;
   border-radius: 12px;
   overflow: hidden;
@@ -252,6 +252,7 @@
   aspect-ratio: 16/9;
   background: #040508;
   position: relative;
+  cursor: pointer;
 }
 
 .tile video,
@@ -298,20 +299,44 @@
 
 .tile .tbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 3px;
-  padding: 4px 6px 4px 8px;
-  min-height: 28px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px 7px 6px;
   background: linear-gradient(180deg, hsl(228 26% 11.5%), hsl(228 28% 8.5%));
   border-top: 1px solid hsl(0 0% 100% / 0.06);
 }
 
+.tile .tbar-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  width: 100%;
+}
+
+.tile .stage-pos {
+  flex: 0 0 auto;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  font: 800 9.5px/1 var(--font);
+  display: inline-grid;
+  place-items: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile .stage-pos[hidden] {
+  display: none;
+}
+
 .tile .tbar .nm {
-  flex: 1 1 0;
+  flex: 1 1 auto;
   min-width: 0;
   font-size: 11.5px;
-  font-weight: 600;
+  font-weight: 650;
   line-height: 1.25;
   overflow: hidden;
   white-space: nowrap;
@@ -319,53 +344,91 @@
   color: var(--text-0);
 }
 
+.tile .tbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.tile .stage-btn {
+  position: static;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+}
+
+.tile .stage-btn .btn {
+  width: 100%;
+  height: 26px;
+  min-height: 26px;
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 7px;
+  justify-content: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tile .stage-btn .btn.stage-on {
+  background: hsl(356 82% 54% / 0.18);
+  border: 1px solid var(--live);
+  color: #ff8a96;
+}
+
+.tile .stage-btn .btn.stage-on:hover {
+  background: hsl(356 82% 54% / 0.28);
+  color: #fff;
+}
+
 .tile .tbar .acts {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
 }
 
 .tile .tbar .acts .btn.icon {
-  width: 18px;
-  height: 18px;
-  min-width: 18px;
-  min-height: 18px;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
   padding: 0;
-  border-radius: 5px;
-  font-size: 10.5px;
+  border-radius: 7px;
+  font-size: 12px;
   line-height: 1;
   display: inline-grid;
   place-items: center;
-  background: transparent;
+  background: var(--bg-3);
   box-shadow: none;
-  border-color: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-1);
 }
 
 .tile .tbar .acts .btn.icon:hover {
   background: var(--bg-4);
-  border-color: var(--line);
+  border-color: var(--line-strong);
+  color: var(--text-0);
+}
+
+.tile .tbar .acts .btn.icon.primary {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text-0);
+}
+
+.tile .tbar .acts .btn.icon.cohost-btn.on {
+  background: hsl(42 90% 50% / 0.2);
+  border-color: var(--warn);
+  color: var(--warn);
 }
 
 .tile .tbar .acts .btn.icon svg {
-  width: 11px;
-  height: 11px;
-}
-
-.tile .tbar .acts .btn.icon.act-sec {
-  display: none;
-}
-
-.tile:hover .tbar .acts .btn.icon.act-sec,
-.tile:focus-within .tbar .acts .btn.icon.act-sec {
-  display: inline-grid;
-}
-
-@media (min-width: 1400px),
-(pointer: coarse) {
-  .tile .tbar .acts .btn.icon.act-sec {
-    display: inline-grid;
-  }
+  width: 13px;
+  height: 13px;
 }
 
 .tile .badge {
@@ -377,6 +440,7 @@
   backdrop-filter: blur(6px);
   background: hsl(228 30% 8% / 0.82);
   border: 1px solid hsl(0 0% 100% / 0.12);
+  pointer-events: none;
 }
 
 .tile.on-stage .badge {
@@ -385,19 +449,23 @@
   color: #fff;
 }
 
-.tile .stage-btn {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  opacity: 0;
-  background: hsl(230 35% 4% / .62);
-  backdrop-filter: blur(2px);
-  transition: opacity .2s;
+.tile-actions-list .sep {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 4px 0;
 }
 
-.tile .tv:hover .stage-btn {
-  opacity: 1;
+.tile-actions-danger {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tile-action .tm-ico svg {
+  width: 15px;
+  height: 15px;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .tile .icons {
@@ -1094,7 +1162,7 @@
 }
 
 .studio .tile {
-  width: clamp(144px, 15vw, 192px);
+  width: clamp(140px, 13.5vw, 172px);
 }
 
 @media (min-width: 901px) and (max-height: 640px) {
@@ -3464,20 +3532,21 @@ body.rz-row * {
   }
 
   .tile .tbar {
-    padding: 3px 5px 3px 6px;
+    padding: 4px 6px 5px;
+    gap: 3px;
   }
 
   .tile .tbar .acts .btn.icon {
-    width: 17px;
-    height: 17px;
-    min-width: 17px;
-    min-height: 17px;
-    font-size: 10px;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    font-size: 11px;
   }
 
   .tile .tbar .acts .btn.icon svg {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
   }
 }
 
@@ -3547,25 +3616,25 @@ body.rz-row * {
   }
 
   .studio .tile {
-    width: clamp(108px, 11vw, 128px);
+    width: clamp(118px, 12vw, 140px);
   }
 
   .tile .tbar {
-    padding: 2px 4px 2px 5px;
-    min-height: 24px;
+    padding: 3px 5px 4px;
+    gap: 3px;
   }
 
   .tile .tbar .acts .btn.icon {
-    width: 16px;
-    height: 16px;
-    min-width: 16px;
-    min-height: 16px;
-    font-size: 9.5px;
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    font-size: 10.5px;
   }
 
   .tile .tbar .acts .btn.icon svg {
-    width: 9px;
-    height: 9px;
+    width: 11px;
+    height: 11px;
   }
 
   .studio .stage-row.has-v,
@@ -3763,15 +3832,14 @@ body.rz-row * {
 /* botão do palco nas miniaturas compactas: rótulo curto e sem cortar */
 .studio .tile .stage-btn .btn {
   white-space: nowrap;
-  max-width: calc(100% - 8px);
 }
 
 @media (min-width: 901px) and (max-height: 780px) {
   .studio .tile .stage-btn .btn {
-    font-size: 11px;
-    padding: 0 7px;
-    min-height: 26px;
-    height: 26px;
+    font-size: 10.5px;
+    padding: 0 6px;
+    min-height: 24px;
+    height: 24px;
   }
 }
 
@@ -3779,28 +3847,8 @@ body.rz-row * {
   .studio .tile .stage-btn .btn {
     font-size: 10px;
     padding: 0 5px;
-  }
-}
-
-/* botao do palco nas miniaturas compactas: rotulo curto e sem cortar */
-.studio .tile .stage-btn .btn {
-  white-space: nowrap;
-  max-width: calc(100% - 8px);
-}
-
-@media (min-width: 901px) and (max-height: 780px) {
-  .studio .tile .stage-btn .btn {
-    font-size: 11px;
-    padding: 0 7px;
-    min-height: 26px;
-    height: 26px;
-  }
-}
-
-@media (min-width: 901px) and (max-height: 640px) {
-  .studio .tile .stage-btn .btn {
-    font-size: 10px;
-    padding: 0 5px;
+    min-height: 22px;
+    height: 22px;
   }
 }
 

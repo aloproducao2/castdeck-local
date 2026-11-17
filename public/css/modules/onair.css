@@ -655,16 +655,10 @@ body:has(.studio) #toasts { bottom: 112px; }
 .tile .tile-menu[hidden] { display: none; }
 .tile .tile-menu .btn { justify-content: flex-start; gap: 8px; min-height: 30px; padding: 5px 8px; font-size: 10.5px; text-align: left; }
 .tile .tile-menu .tm-ico { flex: none; width: 16px; text-align: center; }
-/* Backstage: minimizar miniaturas e reordenar por arraste */
-.bs-min-btn { flex: 0 0 auto; align-self: center; min-height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-2); color: var(--text-2); font-size: 10px; font-weight: 700; cursor: pointer; }
-.bs-min-btn:hover { color: #fff; border-color: var(--line-strong); }
-#backstage.bs-min .tile { width: 84px; min-width: 84px; }
-#backstage.bs-min .tile .tv { display: none; }
-#backstage.bs-min .tile .badge, #backstage.bs-min .tile .icons, #backstage.bs-min .tile .acts { display: none; }
-#backstage.bs-min .tile .stage-btn button { font-size: 9.5px; padding: 0 6px; min-height: 22px; }
-#backstage.bs-min .tile .tbar { padding: 4px 5px; }
-#backstage.bs-min .add-tile { width: 64px; min-height: 52px; }
-#backstage.bs-min .add-tile .add-ico { width: 22px; height: 22px; }
+/* Backstage: compactar miniaturas, controles visíveis e reordenar por arraste */
+.bs-min-btn { flex: 0 0 auto; align-self: center; min-height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-2); color: var(--text-1); font-size: 11px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: border-color .15s, color .15s, background .15s; }
+.bs-min-btn:hover { color: #fff; border-color: var(--line-strong); background: var(--bg-3); }
+.bs-tool-btn[aria-pressed="true"] { color: var(--accent-2); border-color: var(--accent-2); background: var(--accent-soft); }
 .tile.drop-before { box-shadow: -4px 0 0 0 var(--accent), 0 0 0 1px var(--accent); }
 /* Convidado: câmera própria inteira (sem corte) e em proporção horizontal */
 .guest .selfview video { object-fit: contain; background: #000; }
@@ -672,14 +666,13 @@ body:has(.studio) #toasts { bottom: 112px; }
 @media (max-width: 700px) {
   .guest .selfview { width: 112px; max-width: 30vw; aspect-ratio: 16/9; }
 }
-/* Miniaturas: botões/camadas sem sobreposição e menu ⋯ sem ser cortado */
+/* Miniaturas: botões/camadas sem sobreposição */
 .tile { overflow: hidden; }
 .tile .tv { border-radius: 12px 12px 0 0; overflow: hidden; }
 .tile .tbar { border-radius: 0 0 12px 12px; }
 .tile .speak { z-index: 1; }
-.tile .stage-btn { z-index: 3; }
 .tile .badge, .tile .icons { z-index: 4; }
-.bs-min-btn { width: 30px; min-width: 30px; padding: 0; justify-content: center; font-size: 14px; }
+.tile.solo { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset, 0 0 16px -4px hsl(252 90% 62% / 0.5); }
 /* Convite de convidado com QR Code */
 .invite-card { display: flex; align-items: center; gap: 12px; }
 .invite-card .invite-qr { flex: none; width: 92px; border-radius: 8px; background: #fff; padding: 3px; }
@@ -1049,9 +1042,16 @@ body:has(.studio) #toasts { bottom: 112px; }
   justify-content: safe center;
 }
 .studio .layouts .bs-min-btn {
-  width: 34px;
+  width: auto;
   height: 34px;
   min-height: 34px;
+  padding: 0 10px;
+}
+.studio .layouts .bs-tool-btn span { font-size: 13px; line-height: 1; }
+.studio .layouts .bs-tool-btn small { font-size: 10.5px; font-weight: 700; letter-spacing: -.01em; }
+@media (max-width: 640px) {
+  .studio .layouts .bs-tool-btn { height: 30px; min-height: 30px; padding: 0 8px; }
+  .studio .layouts .bs-tool-btn small { display: none; }
 }
 
 /* 5. Backstage Tiles: Barra de áudio LED horizontal na base do vídeo */
@@ -1189,22 +1189,20 @@ body:has(.studio) #toasts { bottom: 112px; }
 .m-empty { grid-column: 1 / -1; display: grid; gap: 4px; padding: 22px 14px; border: 1px dashed var(--line-strong); border-radius: 12px; text-align: center; color: var(--text-2); }
 .m-empty b { color: var(--text-1); font-size: 13px; }
 .m-empty span { font-size: 11.5px; }
-/* miniaturas minimizadas: compacto com imagem, tally e nome */
-#backstage.bs-min .tile { width: 118px; min-width: 118px; }
+/* miniaturas minimizadas: compacto com imagem, tally, nome e botão de palco sem cobrir o vídeo */
+#backstage.bs-min .tile { width: 122px; min-width: 122px; }
 #backstage.bs-min .tile .tv { display: block; aspect-ratio: 16 / 9; }
 #backstage.bs-min .tile .icons,
 #backstage.bs-min .tile .acts,
-#backstage.bs-min .tile .stage-btn,
-#backstage.bs-min .tile .speak { display: none; }
-#backstage.bs-min .tile .badge { left: 4px; top: 4px; padding: 1px 4px; font-size: 7px; line-height: 1.3; }
-#backstage.bs-min .tile .tbar { min-height: 24px; padding: 3px 5px; }
+#backstage.bs-min .tile .speak,
+#backstage.bs-min .tile .stage-pos { display: none; }
+#backstage.bs-min .tile .badge { display: inline-flex; align-items: center; left: 4px; top: 4px; padding: 1px 4px; font-size: 7.5px; line-height: 1.3; }
+#backstage.bs-min .tile .tbar { padding: 4px 5px 5px; gap: 3px; }
 #backstage.bs-min .tile .nm { font-size: 10px; }
-#backstage.bs-min .tile .badge { display: inline-flex; align-items: center; left: 4px; top: 4px; padding: 1px 4px; font-size: 7px; line-height: 1.3; }
-#backstage.bs-min .tile .icons,
-#backstage.bs-min .tile .acts,
-#backstage.bs-min .tile .speak { display: none; }
-#backstage.bs-min .tile .stage-btn { display: block; position: absolute; right: 3px; bottom: 3px; left: auto; top: auto; }
-#backstage.bs-min .tile .stage-btn button { min-height: 18px; height: 18px; padding: 0 4px; font-size: 8px; border-radius: 4px; }
+#backstage.bs-min .tile .stage-btn { position: static; display: flex; width: 100%; }
+#backstage.bs-min .tile .stage-btn button { min-height: 20px; height: 20px; padding: 0 5px; font-size: 9.5px; border-radius: 5px; }
+#backstage.bs-min .add-tile { width: 78px; min-height: 76px; }
+#backstage.bs-min .add-tile .add-ico { width: 24px; height: 24px; font-size: 18px; }
 .m-list.grid { grid-template-columns: repeat(auto-fill, minmax(142px, 1fr)); }
 .m-seek { appearance: none; -webkit-appearance: none; height: 5px; border-radius: 3px; background: linear-gradient(90deg, var(--accent) var(--p, 0%), hsl(230 25% 20%) var(--p, 0%)); cursor: pointer; }
 .m-seek::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 2px solid var(--accent); box-shadow: 0 2px 6px #0008; }

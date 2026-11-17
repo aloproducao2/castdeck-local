@@ -2464,14 +2464,20 @@ function toggleBsMin() {
   renderTiles();
 }
 
-function openTileActions(actions) {
-  const list = actions
-    .map((a, i) => `<button class="btn tile-action ${a.cls}" data-tile-act="${i}"><span class="tm-ico">${a.icon}</span><span>${esc(a.title)}</span></button>`)
-    .join('');
+function openTileActions(actions, source = null) {
+  const safe = actions.filter((a) => !/\bdanger\b/.test(a.cls || ''));
+  const danger = actions.filter((a) => /\bdanger\b/.test(a.cls || ''));
+  const renderBtn = (a) => {
+    const i = actions.indexOf(a);
+    return `<button class="btn tile-action ${a.cls}" data-tile-act="${i}"><span class="tm-ico">${a.icon}</span><span>${esc(a.title)}</span></button>`;
+  };
+  const safeHtml = safe.map(renderBtn).join('');
+  const dangerHtml = danger.length ? `<hr class="sep"><div class="tile-actions-danger">${danger.map(renderBtn).join('')}</div>` : '';
+  const heading = source?.label ? `Ações — ${esc(source.label)}` : 'Ações da fonte';
   modal(
-    `<h3>Ações da miniatura</h3>
+    `<h3>${heading}</h3>
      <p class="sub">Escolha o que fazer com esta fonte.</p>
-     <div class="tile-actions-list">${list}</div>
+     <div class="tile-actions-list">${safeHtml}${dangerHtml}</div>
      <div class="modal-actions"><button class="btn" data-close>Fechar</button></div>`,
     {
       onMount(m) {
@@ -2637,21 +2643,41 @@ function renderTiles() {
         <div class="tile">
           <div class="tv"><canvas width="320" height="180" style="width:100%;height:100%;display:block"></canvas>
             <span class="pill badge"></span><div class="icons"></div>
-            <div class="stage-btn"><button class="btn sm primary"></button></div>
             <div class="speak"></div>
           </div>
-          <div class="tbar"><span class="nm"></span><span class="acts row" style="gap:2px"></span></div>
+          <div class="tbar">
+            <div class="tbar-head">
+              <span class="stage-pos" hidden></span>
+              <span class="nm" title="Duplo clique para renomear"></span>
+            </div>
+            <div class="tbar-controls">
+              <div class="stage-btn"><button class="btn sm primary" type="button"></button></div>
+              <span class="acts row"></span>
+            </div>
+          </div>
         </div>`);
       el.dataset.srcId = s.id;
       el.addEventListener('click', (e) => {
-        if (!S.switcher || e.target.closest('button') || el.classList.contains('dragging')) return;
-        switcher?.setPreview(s.id);
+        if (e.target.closest('button, .tile-menu') || el.classList.contains('dragging')) return;
+        if (S.switcher) {
+          switcher?.setPreview(s.id);
+          return;
+        }
+        // No modo Estúdio, clicar na imagem da fonte alterna direto entre bastidor e palco.
+        if (e.target.closest('.tv')) toggleStage(s.id);
       });
       el.addEventListener('dblclick', (e) => {
-        if (!S.switcher || e.target.closest('button') || el.classList.contains('dragging')) return;
-        switcher?.cutTo(s.id);
+        if (e.target.closest('button, .tile-menu') || el.classList.contains('dragging')) return;
+        if (S.switcher) {
+          switcher?.cutTo(s.id);
+          return;
+        }
+        if (e.target.closest('.tbar-head') && s.kind !== 'browser') renameSource(s.id);
       });
-      el.querySelector('.stage-btn button').onclick = () => toggleStage(s.id);
+      el.querySelector('.stage-btn button').onclick = (e) => {
+        e.stopPropagation();
+        toggleStage(s.id);
+      };
       el.draggable = true;
       el.title = 'Arraste para um espaço do programa';
       el.ondragstart = (e) => {
@@ -2681,15 +2707,31 @@ function renderTiles() {
       box.append(el);
     }
     const on = S.stage.includes(s.id);
+    const stageIdx = S.stage.indexOf(s.id);
     const air = S.take === s.id; // mesa de corte: esta fonte está no ar em tela cheia
     const pvw = !!S.switcher && S.pvw === s.id;
+    const solo = !S.switcher && S.solo === s.id;
     el.classList.toggle('on-stage', on || air);
     el.classList.toggle('pgm', air);
     el.classList.toggle('pvw', pvw && !air);
-    el.querySelector('.stage-btn button').textContent = on ? 'Tirar do palco' : 'Pôr no palco';
+    el.classList.toggle('solo', solo);
+    const posEl = el.querySelector('.stage-pos');
+    if (posEl) {
+      posEl.hidden = stageIdx < 0;
+      if (stageIdx >= 0) {
+        posEl.textContent = String(stageIdx + 1);
+        posEl.title = `Posição ${stageIdx + 1} no palco`;
+      }
+    }
+    const stgBtn = el.querySelector('.stage-btn button');
+    if (stgBtn) {
+      stgBtn.textContent = on ? '✓ No palco' : '+ Palco';
+      stgBtn.title = on ? 'Tirar do palco' : 'Pôr no palco';
+      stgBtn.className = 'btn sm ' + (on ? 'stage-on' : 'primary');
+    }
     const nmEl = el.querySelector('.nm');
     nmEl.textContent = s.label || '';
-    nmEl.title = s.label || '';
+    nmEl.title = s.kind === 'browser' ? (s.label || '') : `${s.label || ''} (duplo clique para renomear)`;
     el.title = s.label || '';
     const badge = { camera: s.ingest ? (s.ingestLive ? 'Drone/RTMP' : 'Sem sinal') : s.extraCam ? 'Câmera' : s.remoteCam ? 'Câmera remota' : s.ownerId === 'host' ? 'Você' : S.guests.get(s.ownerId)?.cohost ? 'Co-host' : 'Convidado', screen: 'Tela', media: 'Mídia', image: 'Imagem', uvc: 'USB', browser: 'Web' }[s.kind];
     const b = el.querySelector('.badge');
@@ -2704,34 +2746,15 @@ function renderTiles() {
     const acts = el.querySelector('.acts');
     acts.innerHTML = '';
     const isBrowser = s.kind === 'browser';
-    const actions = [];
-    const add = (icon, title, fn, cls = '') => actions.push({ icon, title, fn, cls });
-    if (s.kind === 'camera' && s.ownerId !== 'host' && s.remoteCam) {
-      // câmera remota: só silenciar (o microfone é ligado no próprio aparelho) e remover
-      if (s.micOn !== false) add(icons.mic, 'Silenciar o microfone desta câmera', () => sig.send({ type: 'control', to: s.ownerId, action: 'mute' }));
-      add(icons.kick, 'Remover câmera', () => kickGuest(s.ownerId), 'danger');
-    } else if (s.kind === 'camera' && s.ownerId !== 'host' && !s.ingest) {
-      const ch = S.guests.get(s.ownerId)?.cohost;
-      add(ch ? '★' : '☆', ch ? 'Remover co-host' : 'Tornar co-host (pode editar a live)', () => toggleCohost(s.ownerId), ch ? 'cohost-btn on' : 'cohost-btn');
-      add(s.micOn === false ? icons.micOff : icons.mic, s.micOn === false ? 'Pedir para ativar microfone' : 'Silenciar convidado', () =>
-        sig.send({ type: 'control', to: s.ownerId, action: s.micOn === false ? 'unmute-request' : 'mute' }),
-      );
-    }
-    if (s.extraCam) {
-      add('⚙', 'Trocar câmera, qualidade ou áudio', () => extras.camDialog(s.id), 'act-sec');
-      add(icons.trash, 'Remover câmera', () => extras.removeCam(s.id), 'danger');
-    }
-    if (!isBrowser) add('✎', 'Renomear', () => renameSource(s.id), 'act-sec');
-    add(icons.crop, 'Ajustar posição, zoom e corte desta fonte', () => openSourceAdjust(s.id), s.adjust ? 'primary' : 'act-sec');
-    if (isBrowser) add(icons.display, 'Interagir com a página (clicar, digitar, navegar)', () => browserSources?.openInteract(s.id), 'act-sec');
-    if (CAN_SHARE_SCREEN && projectors) add(icons.display, 'Projetar esta fonte em outra tela / janela (como no PGM)', () => projectors.openDialog('src:' + s.id), projectors.active('src:' + s.id) ? 'primary' : 'act-sec');
-    if (s.kind === 'camera' && !s.ingest) add('✦', vfx?.active(s.id) ? 'Efeitos de vídeo (ligados)' : 'Efeitos de vídeo: fundo virtual e enquadramento automático', () => openFx(s.id), vfx?.active(s.id) ? 'primary' : 'act-sec');
-    if (s.kind === 'camera' && s.ownerId !== 'host' && !s.ingest && !s.remoteCam) {
-      add(icons.kick, 'Remover do estúdio', () => kickGuest(s.ownerId), 'danger');
-    }
-    if (s.id === 'host:screen') add(icons.stop, 'Parar compartilhamento', stopScreen, 'danger');
+    // Ações operacionais ficam visíveis no card; ações destrutivas ('danger') vão apenas para o menu ⋯.
+    const primaryActions = [];
+    const dangerActions = [];
+    const add = (icon, title, fn, cls = '') => {
+      if (/\bdanger\b/.test(cls)) dangerActions.push({ icon, title, fn, cls });
+      else primaryActions.push({ icon, title, fn, cls });
+    };
     if (s.kind === 'media') {
-      add(s.el.paused ? icons.play : icons.stop, s.el.paused ? 'Reproduzir' : 'Pausar', () => {
+      add(s.el.paused ? icons.play : icons.pause, s.el.paused ? 'Reproduzir' : 'Pausar', () => {
         if (s.el.paused) {
           pauseOtherVideos(s.id);
           s.el.play().catch(() => { });
@@ -2739,39 +2762,79 @@ function renderTiles() {
         renderTiles();
       });
     }
-    if (s.kind === 'media' || s.kind === 'image') add(icons.trash, s.recordingName ? 'Apagar do palco e o arquivo das Gravações' : 'Remover do palco e apagar o arquivo', () => deleteMediaFile(s), 'danger');
+    if (s.kind === 'camera' && s.ownerId !== 'host' && s.remoteCam) {
+      // câmera remota: só silenciar (o microfone é ligado no próprio aparelho) e remover
+      if (s.micOn !== false) add(icons.mic, 'Silenciar o microfone desta câmera', () => sig.send({ type: 'control', to: s.ownerId, action: 'mute' }));
+      add(icons.kick, 'Remover câmera', () => kickGuest(s.ownerId), 'danger');
+    } else if (s.kind === 'camera' && s.ownerId !== 'host' && !s.ingest) {
+      const ch = S.guests.get(s.ownerId)?.cohost;
+      add(s.micOn === false ? icons.micOff : icons.mic, s.micOn === false ? 'Pedir para ativar microfone' : 'Silenciar convidado', () =>
+        sig.send({ type: 'control', to: s.ownerId, action: s.micOn === false ? 'unmute-request' : 'mute' }),
+      );
+      add(ch ? '★' : '☆', ch ? 'Remover co-host' : 'Tornar co-host (pode editar a live)', () => toggleCohost(s.ownerId), ch ? 'cohost-btn on' : 'cohost-btn');
+    }
+    if (s.extraCam) {
+      add('⚙', 'Trocar câmera, qualidade ou áudio', () => extras.camDialog(s.id));
+      add(icons.trash, 'Remover câmera', () => extras.removeCam(s.id), 'danger');
+    }
     if (s.kind === 'uvc') {
-      add(icons.sliders, 'Resolução e FPS da câmera USB', () => openUvcSettings(s), 'act-sec');
-      add(icons.mic, 'Escolher a fonte de áudio da câmera USB', () => openUvcAudioDialog(s), 'act-sec');
+      add(icons.sliders, 'Resolução e FPS da câmera USB', () => openUvcSettings(s));
+      add(icons.mic, 'Escolher a fonte de áudio da câmera USB', () => openUvcAudioDialog(s));
       add(icons.trash, 'Remover câmera USB', () => removeSource(s.id), 'danger');
     }
+    if (isBrowser) {
+      add(icons.display, 'Interagir com a página (clicar, digitar, navegar)', () => browserSources?.openInteract(s.id));
+      add(icons.trash, 'Excluir Browser', () => removeSource(s.id), 'danger');
+    }
     if (s.ingest) {
-      add('⚙', 'Endereços e status das entradas RTMP/SRT', () => ingest.openPanel(), 'act-sec');
+      add('⚙', 'Endereços e status das entradas RTMP/SRT', () => ingest.openPanel());
       add(icons.trash, 'Tirar dos bastidores (a entrada continua cadastrada)', () => removeSource(s.id), 'danger');
     }
-    if (isBrowser) add(icons.trash, 'Excluir Browser', () => removeSource(s.id), 'danger');
-    // Ações da miniatura: mostra as 3 principais e recolhe o resto num menu "⋮" (não estoura com botões extras).
-    const MAX_ACT = 3;
-    acts.replaceChildren(...actions.slice(0, MAX_ACT).map((a) => {
-      const b = h(`<button class="btn ghost sm icon ${a.cls}" title="${a.title}">${a.icon}</button>`);
+    if (s.kind === 'camera' && !s.ingest) {
+      add('✦', vfx?.active(s.id) ? 'Efeitos de vídeo (ligados)' : 'Efeitos de vídeo: fundo virtual e enquadramento automático', () => openFx(s.id), vfx?.active(s.id) ? 'primary' : '');
+    }
+    add(icons.crop, 'Ajustar posição, zoom e corte desta fonte', () => openSourceAdjust(s.id), s.adjust ? 'primary' : '');
+    add('⛶', solo ? 'Sair do modo solo' : 'Colocar em tela cheia (Solo)', () => {
+      if (!S.stage.includes(s.id)) toggleStage(s.id);
+      setSolo(s.id);
+    }, solo ? 'primary' : '');
+    if (!isBrowser) add('✎', 'Renomear', () => renameSource(s.id));
+    if (CAN_SHARE_SCREEN && projectors) add(icons.display, 'Projetar esta fonte em outra tela / janela (como no PGM)', () => projectors.openDialog('src:' + s.id), projectors.active('src:' + s.id) ? 'primary' : '');
+    if (s.kind === 'camera' && s.ownerId !== 'host' && !s.ingest && !s.remoteCam) {
+      add(icons.kick, 'Remover do estúdio', () => kickGuest(s.ownerId), 'danger');
+    }
+    if (s.id === 'host:screen') add(icons.stop, 'Parar compartilhamento', stopScreen, 'danger');
+    if (s.kind === 'media' || s.kind === 'image') add(icons.trash, s.recordingName ? 'Apagar do palco e o arquivo das Gravações' : 'Remover do palco e apagar o arquivo', () => deleteMediaFile(s), 'danger');
+
+    const actions = [...primaryActions, ...dangerActions];
+    // Exibe no máximo 2 ações rápidas fixas + botão "⋯" para evitar poluição visual e pulos no hover.
+    const MAX_ACT = 2;
+    const makeActBtn = (a) => {
+      const b = h(`<button type="button" class="btn ghost sm icon ${a.cls}" title="${esc(a.title)}">${a.icon}</button>`);
       b.onclick = (e) => { e.stopPropagation(); a.fn(); };
       return b;
-    }));
-    if (actions.length > MAX_ACT) {
-      const more = h(`<button class="btn ghost sm icon" title="Mais ações">⋯</button>`);
+    };
+    acts.replaceChildren(...primaryActions.slice(0, MAX_ACT).map(makeActBtn));
+    const hiddenActions = [...primaryActions.slice(MAX_ACT), ...dangerActions];
+    if (hiddenActions.length) {
+      const more = h(`<button type="button" class="btn ghost sm icon act-more" title="Mais ações" aria-label="Mais ações">⋯</button>`);
       more.onclick = (e) => {
         e.stopPropagation();
-        openTileActions(actions);
+        openTileActions(actions, s);
       };
       acts.append(more);
+      const hiddenBox = h(`<div class="tile-menu" hidden></div>`);
+      hiddenBox.replaceChildren(...hiddenActions.map(makeActBtn));
+      acts.append(hiddenBox);
     }
     el._tileActions = actions;
+    el._tileSource = s;
     if (!el._ctxMenuBound) {
       el._ctxMenuBound = true;
       el.addEventListener('contextmenu', (e) => {
         if (e.target.closest?.('button')) return;
         e.preventDefault();
-        openTileActions(el._tileActions || []);
+        openTileActions(el._tileActions || [], el._tileSource);
       });
     }
   }
@@ -2779,13 +2842,20 @@ function renderTiles() {
   // A Cena (palco) volta a ser um card selecionável na mesa de corte, como uma fonte.
   if (S.switcher) {
     if (!sceneTile) {
-      sceneTile = h(`<div class="tile scene-tile" id="bs-scene-tile"><div class="tv"><canvas width="320" height="180" style="width:100%;height:100%;display:block"></canvas><span class="pill badge">CENA</span></div><div class="tbar"><span class="nm">Cena (palco)</span><span class="acts"></span></div></div>`);
+      sceneTile = h(`<div class="tile scene-tile" id="bs-scene-tile">
+        <div class="tv"><canvas width="320" height="180" style="width:100%;height:100%;display:block"></canvas><span class="pill badge">CENA</span></div>
+        <div class="tbar">
+          <div class="tbar-head"><span class="nm">Cena (palco)</span></div>
+          <div class="tbar-controls"><div class="stage-btn"><button class="btn sm ghost scene-pvw-btn" type="button" title="Enviar Cena para a Prévia">Ver na prévia</button></div></div>
+        </div>
+      </div>`);
       const cvs = sceneTile.querySelector('canvas');
       sceneTileView = new PreviewView(comp, cvs, { width: 320, height: 180, fps: 30 });
       sceneTileView.set({ take: null, stage: S.stage, layout: S.layout });
       sceneTile.title = 'Cena (palco): clique para a prévia, duplo clique para cortar';
       sceneTile.onclick = (e) => { if (S.switcher && !e.target.closest('button')) switcher?.setPreview(null); };
       sceneTile.ondblclick = (e) => { if (S.switcher && !e.target.closest('button')) switcher?.cutTo(null); };
+      sceneTile.querySelector('.scene-pvw-btn').onclick = (e) => { e.stopPropagation(); switcher?.setPreview(null); };
     }
     box.prepend(sceneTile);
     syncSceneTile();
@@ -2795,30 +2865,37 @@ function renderTiles() {
     sceneTile.classList.toggle('pvw', pvw && !pgm);
     const b = sceneTile.querySelector('.badge');
     if (b) { b.textContent = pgm ? 'NO AR' : pvw ? 'PRÉVIA' : 'CENA'; b.className = 'pill badge' + (pgm ? ' live' : pvw ? ' pvw' : ''); }
+    const sb = sceneTile.querySelector('.scene-pvw-btn');
+    if (sb) {
+      sb.textContent = pgm ? 'No ar agora' : pvw ? 'Na prévia' : 'Ver na prévia';
+      sb.disabled = pgm || pvw;
+    }
   } else if (sceneTile) {
     sceneTile.remove();
     sceneTile = null;
     sceneTileView = null;
   }
 
-  // Miniaturas: botão de minimizar fica na barra de layouts acima do backstage + ordem persistente (arrastar reordena, como no vMix).
+  // Miniaturas: botão de compactar fica na barra de layouts acima do backstage + ordem persistente (arrastar reordena, como no vMix).
   let minBtn = $('#bs-min');
   if (!minBtn) {
-    minBtn = h(`<button class="bs-min-btn" id="bs-min" title="Minimizar/expandir as miniaturas do backstage">${S.bsMin ? '▤' : '▁'}</button>`);
+    minBtn = h(`<button class="bs-min-btn bs-tool-btn" id="bs-min" type="button"></button>`);
     minBtn.onclick = toggleBsMin;
   }
-  minBtn.textContent = S.bsMin ? '▤' : '▁';
+  minBtn.innerHTML = S.bsMin ? '<span>▢</span><small>Expandir</small>' : '<span>▤</span><small>Compacto</small>';
+  minBtn.title = S.bsMin ? 'Expandir miniaturas com botões e ações' : 'Compactar miniaturas para economizar espaço';
+  minBtn.setAttribute('aria-pressed', S.bsMin ? 'true' : 'false');
   box.classList.toggle('bs-min', S.bsMin);
   const layBox = $('#layouts');
   if (layBox && minBtn.parentElement !== layBox) layBox.append(minBtn);
   let groupBtn = $('#bs-group');
   if (!groupBtn) {
-    groupBtn = h(`<button class="bs-min-btn bs-group-btn" id="bs-group" type="button" title="Alternar entre agrupamento por tipo e ordem livre"></button>`);
+    groupBtn = h(`<button class="bs-min-btn bs-group-btn bs-tool-btn" id="bs-group" type="button"></button>`);
     groupBtn.onclick = toggleBsGroupMode;
   }
   const groupedNow = S.bsGroup === 'type';
   const groupLabel = groupedNow ? 'Agrupado por tipo' : 'Ordem livre';
-  groupBtn.textContent = groupedNow ? '▦' : '☰';
+  groupBtn.innerHTML = groupedNow ? '<span>▦</span><small>Agrupado</small>' : '<span>☰</span><small>Livre</small>';
   groupBtn.title = groupedNow ? `${groupLabel} — clique para ordem livre` : `${groupLabel} — clique para agrupar por tipo`;
   groupBtn.setAttribute('aria-label', groupBtn.title);
   groupBtn.classList.toggle('on', groupedNow);
@@ -3611,6 +3688,8 @@ function renderLayouts() {
   syncSceneTile();
   const box = $('#layouts');
   if (!box) return;
+  const minBtn = $('#bs-min');
+  const groupBtn = $('#bs-group');
   const custom = S.brand.customLayouts || [];
   const btn = (l) => `<button class="layout-btn" data-layout="${l.id}" title="${esc(l.label)}${l.id.startsWith('c-') ? ' (duplo clique para editar)' : ''}"><svg viewBox="0 0 48 28">${l.icon}</svg></button>`;
   box.innerHTML =
@@ -3620,8 +3699,8 @@ function renderLayouts() {
     '<button class="layout-btn add" data-act="new" title="Criar layout personalizado">＋</button>' +
     (S.layout.startsWith('c-') ? '<button class="layout-btn add" data-act="edit" title="Editar o layout atual">✎</button>' : '');
   $$('.layout-btn[data-layout]').forEach((b) => b.classList.toggle('active', b.dataset.layout === S.layout));
-  const minBtn = $('#bs-min');
   if (minBtn) box.append(minBtn);
+  if (groupBtn) box.append(groupBtn);
 }
 
 async function startScreen(mode = 'screen') {

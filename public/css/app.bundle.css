@@ -1480,8 +1480,8 @@ select.input {
   }
 }
 .tile {
-  width: clamp(144px, 15vw, 192px);
-  min-width: 126px;
+  width: clamp(140px, 13.5vw, 172px);
+  min-width: 132px;
   flex: 0 0 auto;
   border-radius: 12px;
   overflow: hidden;
@@ -1510,6 +1510,7 @@ select.input {
   aspect-ratio: 16/9;
   background: #040508;
   position: relative;
+  cursor: pointer;
 }
 .tile video,
 .tile img {
@@ -1558,11 +1559,9 @@ select.input {
 }
 .tile .tbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 3px;
-  padding: 4px 6px 4px 8px;
-  min-height: 28px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px 7px 6px;
   background:
     linear-gradient(
       180deg,
@@ -1570,57 +1569,115 @@ select.input {
       hsl(228 28% 8.5%));
   border-top: 1px solid hsl(0 0% 100% / 0.06);
 }
+.tile .tbar-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  width: 100%;
+}
+.tile .stage-pos {
+  flex: 0 0 auto;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  font: 800 9.5px/1 var(--font);
+  display: inline-grid;
+  place-items: center;
+  font-variant-numeric: tabular-nums;
+}
+.tile .stage-pos[hidden] {
+  display: none;
+}
 .tile .tbar .nm {
-  flex: 1 1 0;
+  flex: 1 1 auto;
   min-width: 0;
   font-size: 11.5px;
-  font-weight: 600;
+  font-weight: 650;
   line-height: 1.25;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   color: var(--text-0);
 }
+.tile .tbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+.tile .stage-btn {
+  position: static;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+}
+.tile .stage-btn .btn {
+  width: 100%;
+  height: 26px;
+  min-height: 26px;
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 7px;
+  justify-content: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tile .stage-btn .btn.stage-on {
+  background: hsl(356 82% 54% / 0.18);
+  border: 1px solid var(--live);
+  color: #ff8a96;
+}
+.tile .stage-btn .btn.stage-on:hover {
+  background: hsl(356 82% 54% / 0.28);
+  color: #fff;
+}
 .tile .tbar .acts {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
 }
 .tile .tbar .acts .btn.icon {
-  width: 18px;
-  height: 18px;
-  min-width: 18px;
-  min-height: 18px;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
   padding: 0;
-  border-radius: 5px;
-  font-size: 10.5px;
+  border-radius: 7px;
+  font-size: 12px;
   line-height: 1;
   display: inline-grid;
   place-items: center;
-  background: transparent;
+  background: var(--bg-3);
   box-shadow: none;
-  border-color: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-1);
 }
 .tile .tbar .acts .btn.icon:hover {
   background: var(--bg-4);
-  border-color: var(--line);
+  border-color: var(--line-strong);
+  color: var(--text-0);
+}
+.tile .tbar .acts .btn.icon.primary {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text-0);
+}
+.tile .tbar .acts .btn.icon.cohost-btn.on {
+  background: hsl(42 90% 50% / 0.2);
+  border-color: var(--warn);
+  color: var(--warn);
 }
 .tile .tbar .acts .btn.icon svg {
-  width: 11px;
-  height: 11px;
-}
-.tile .tbar .acts .btn.icon.act-sec {
-  display: none;
-}
-.tile:hover .tbar .acts .btn.icon.act-sec,
-.tile:focus-within .tbar .acts .btn.icon.act-sec {
-  display: inline-grid;
-}
-@media (min-width: 1400px), (pointer: coarse) {
-  .tile .tbar .acts .btn.icon.act-sec {
-    display: inline-grid;
-  }
+  width: 13px;
+  height: 13px;
 }
 .tile .badge {
   position: absolute;
@@ -1631,24 +1688,28 @@ select.input {
   backdrop-filter: blur(6px);
   background: hsl(228 30% 8% / 0.82);
   border: 1px solid hsl(0 0% 100% / 0.12);
+  pointer-events: none;
 }
 .tile.on-stage .badge {
   background: var(--live);
   border-color: hsl(356 100% 75% / 0.45);
   color: #fff;
 }
-.tile .stage-btn {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  opacity: 0;
-  background: hsl(230 35% 4% / .62);
-  backdrop-filter: blur(2px);
-  transition: opacity .2s;
+.tile-actions-list .sep {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 4px 0;
 }
-.tile .tv:hover .stage-btn {
-  opacity: 1;
+.tile-actions-danger {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.tile-action .tm-ico svg {
+  width: 15px;
+  height: 15px;
+  display: inline-block;
+  vertical-align: middle;
 }
 .tile .icons {
   position: absolute;
@@ -2283,7 +2344,7 @@ select.input {
   scrollbar-width: thin;
 }
 .studio .tile {
-  width: clamp(144px, 15vw, 192px);
+  width: clamp(140px, 13.5vw, 172px);
 }
 @media (min-width: 901px) and (max-height: 640px) {
   .studio .stage-wrap .tile {
@@ -4262,18 +4323,19 @@ body.rz-row * {
     font-size: 12px;
   }
   .tile .tbar {
-    padding: 3px 5px 3px 6px;
+    padding: 4px 6px 5px;
+    gap: 3px;
   }
   .tile .tbar .acts .btn.icon {
-    width: 17px;
-    height: 17px;
-    min-width: 17px;
-    min-height: 17px;
-    font-size: 10px;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    font-size: 11px;
   }
   .tile .tbar .acts .btn.icon svg {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
   }
 }
 @media (min-width: 901px) and (max-height: 620px) {
@@ -4330,22 +4392,22 @@ body.rz-row * {
     height: 36px;
   }
   .studio .tile {
-    width: clamp(108px, 11vw, 128px);
+    width: clamp(118px, 12vw, 140px);
   }
   .tile .tbar {
-    padding: 2px 4px 2px 5px;
-    min-height: 24px;
+    padding: 3px 5px 4px;
+    gap: 3px;
   }
   .tile .tbar .acts .btn.icon {
-    width: 16px;
-    height: 16px;
-    min-width: 16px;
-    min-height: 16px;
-    font-size: 9.5px;
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    font-size: 10.5px;
   }
   .tile .tbar .acts .btn.icon svg {
-    width: 9px;
-    height: 9px;
+    width: 11px;
+    height: 11px;
   }
   .studio .stage-row.has-v,
   .studio.has-stage-h .stage-row.has-v {
@@ -4512,38 +4574,21 @@ body.rz-row * {
 }
 .studio .tile .stage-btn .btn {
   white-space: nowrap;
-  max-width: calc(100% - 8px);
 }
 @media (min-width: 901px) and (max-height: 780px) {
   .studio .tile .stage-btn .btn {
-    font-size: 11px;
-    padding: 0 7px;
-    min-height: 26px;
-    height: 26px;
+    font-size: 10.5px;
+    padding: 0 6px;
+    min-height: 24px;
+    height: 24px;
   }
 }
 @media (min-width: 901px) and (max-height: 640px) {
   .studio .tile .stage-btn .btn {
     font-size: 10px;
     padding: 0 5px;
-  }
-}
-.studio .tile .stage-btn .btn {
-  white-space: nowrap;
-  max-width: calc(100% - 8px);
-}
-@media (min-width: 901px) and (max-height: 780px) {
-  .studio .tile .stage-btn .btn {
-    font-size: 11px;
-    padding: 0 7px;
-    min-height: 26px;
-    height: 26px;
-  }
-}
-@media (min-width: 901px) and (max-height: 640px) {
-  .studio .tile .stage-btn .btn {
-    font-size: 10px;
-    padding: 0 5px;
+    min-height: 22px;
+    height: 22px;
   }
 }
 .ready-chip {
@@ -19178,70 +19223,6 @@ body.platform-android #btn-replay {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-.bs-group[data-group=media] .bs-group-body {
-  flex-direction: column;
-  gap: 4px;
-  max-height: min(58vh, 520px);
-  overflow-y: auto;
-  overflow-x: hidden;
-  max-width: 280px;
-}
-.bs-group[data-group=media] .tile {
-  display: flex;
-  align-items: center;
-  width: 260px;
-  min-width: 0;
-  gap: 7px;
-  padding: 3px;
-  border-radius: 8px;
-}
-.bs-group[data-group=media] .tile .tv {
-  flex: 0 0 72px;
-  width: 72px;
-  height: 41px;
-  min-height: 41px;
-  border-radius: 6px;
-}
-.bs-group[data-group=media] .tile .tv canvas {
-  width: 72px !important;
-  height: 41px !important;
-}
-.bs-group[data-group=media] .tile .tbar {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 2px 4px;
-  border: 0;
-  background: transparent;
-  flex-wrap: wrap;
-  row-gap: 1px;
-}
-.bs-group[data-group=media] .tile .tbar .nm {
-  font-size: 10.5px;
-  flex: 1 1 100%;
-  text-align: left;
-}
-.bs-group[data-group=media] .tile .tbar .acts {
-  width: 100%;
-  justify-content: flex-end;
-}
-@media (max-width: 760px) {
-  .bs-group[data-group=media] .bs-group-body {
-    max-width: 230px;
-  }
-  .bs-group[data-group=media] .tile {
-    width: 214px;
-  }
-  .bs-group[data-group=media] .tile .tv {
-    flex-basis: 60px;
-    width: 60px;
-    height: 34px;
-    min-height: 34px;
-  }
-  .bs-group[data-group=media] .tile .tv canvas {
-    width: 60px !important;
-    height: 34px !important;
-  }
-}
 .bs-group-move {
   display: inline-grid;
   place-items: center;
@@ -19314,11 +19295,8 @@ body.platform-android #btn-replay {
   }
 }
 .bs-group-btn {
-  width: 30px;
-  min-width: 30px;
-  padding: 0;
-  font-size: 15px;
-  line-height: 1;
+  width: auto;
+  min-width: 0;
 }
 .bs-group-btn.on {
   color: var(--accent-2);
@@ -22673,42 +22651,27 @@ body:has(.studio) #toasts {
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--bg-2);
-  color: var(--text-2);
-  font-size: 10px;
+  color: var(--text-1);
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition:
+    border-color .15s,
+    color .15s,
+    background .15s;
 }
 .bs-min-btn:hover {
   color: #fff;
   border-color: var(--line-strong);
+  background: var(--bg-3);
 }
-#backstage.bs-min .tile {
-  width: 84px;
-  min-width: 84px;
-}
-#backstage.bs-min .tile .tv {
-  display: none;
-}
-#backstage.bs-min .tile .badge,
-#backstage.bs-min .tile .icons,
-#backstage.bs-min .tile .acts {
-  display: none;
-}
-#backstage.bs-min .tile .stage-btn button {
-  font-size: 9.5px;
-  padding: 0 6px;
-  min-height: 22px;
-}
-#backstage.bs-min .tile .tbar {
-  padding: 4px 5px;
-}
-#backstage.bs-min .add-tile {
-  width: 64px;
-  min-height: 52px;
-}
-#backstage.bs-min .add-tile .add-ico {
-  width: 22px;
-  height: 22px;
+.bs-tool-btn[aria-pressed=true] {
+  color: var(--accent-2);
+  border-color: var(--accent-2);
+  background: var(--accent-soft);
 }
 .tile.drop-before {
   box-shadow: -4px 0 0 0 var(--accent), 0 0 0 1px var(--accent);
@@ -22740,19 +22703,13 @@ body:has(.studio) #toasts {
 .tile .speak {
   z-index: 1;
 }
-.tile .stage-btn {
-  z-index: 3;
-}
 .tile .badge,
 .tile .icons {
   z-index: 4;
 }
-.bs-min-btn {
-  width: 30px;
-  min-width: 30px;
-  padding: 0;
-  justify-content: center;
-  font-size: 14px;
+.tile.solo {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset, 0 0 16px -4px hsl(252 90% 62% / 0.5);
 }
 .invite-card {
   display: flex;
@@ -23349,9 +23306,29 @@ body:has(.studio) #toasts {
   justify-content: safe center;
 }
 .studio .layouts .bs-min-btn {
-  width: 34px;
+  width: auto;
   height: 34px;
   min-height: 34px;
+  padding: 0 10px;
+}
+.studio .layouts .bs-tool-btn span {
+  font-size: 13px;
+  line-height: 1;
+}
+.studio .layouts .bs-tool-btn small {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+@media (max-width: 640px) {
+  .studio .layouts .bs-tool-btn {
+    height: 30px;
+    min-height: 30px;
+    padding: 0 8px;
+  }
+  .studio .layouts .bs-tool-btn small {
+    display: none;
+  }
 }
 .tile .tv::after {
   content: "";
@@ -23846,8 +23823,8 @@ body:has(.studio) #toasts {
   font-size: 11.5px;
 }
 #backstage.bs-min .tile {
-  width: 118px;
-  min-width: 118px;
+  width: 122px;
+  min-width: 122px;
 }
 #backstage.bs-min .tile .tv {
   display: block;
@@ -23855,23 +23832,9 @@ body:has(.studio) #toasts {
 }
 #backstage.bs-min .tile .icons,
 #backstage.bs-min .tile .acts,
-#backstage.bs-min .tile .stage-btn,
-#backstage.bs-min .tile .speak {
+#backstage.bs-min .tile .speak,
+#backstage.bs-min .tile .stage-pos {
   display: none;
-}
-#backstage.bs-min .tile .badge {
-  left: 4px;
-  top: 4px;
-  padding: 1px 4px;
-  font-size: 7px;
-  line-height: 1.3;
-}
-#backstage.bs-min .tile .tbar {
-  min-height: 24px;
-  padding: 3px 5px;
-}
-#backstage.bs-min .tile .nm {
-  font-size: 10px;
 }
 #backstage.bs-min .tile .badge {
   display: inline-flex;
@@ -23879,28 +23842,36 @@ body:has(.studio) #toasts {
   left: 4px;
   top: 4px;
   padding: 1px 4px;
-  font-size: 7px;
+  font-size: 7.5px;
   line-height: 1.3;
 }
-#backstage.bs-min .tile .icons,
-#backstage.bs-min .tile .acts,
-#backstage.bs-min .tile .speak {
-  display: none;
+#backstage.bs-min .tile .tbar {
+  padding: 4px 5px 5px;
+  gap: 3px;
+}
+#backstage.bs-min .tile .nm {
+  font-size: 10px;
 }
 #backstage.bs-min .tile .stage-btn {
-  display: block;
-  position: absolute;
-  right: 3px;
-  bottom: 3px;
-  left: auto;
-  top: auto;
+  position: static;
+  display: flex;
+  width: 100%;
 }
 #backstage.bs-min .tile .stage-btn button {
-  min-height: 18px;
-  height: 18px;
-  padding: 0 4px;
-  font-size: 8px;
-  border-radius: 4px;
+  min-height: 20px;
+  height: 20px;
+  padding: 0 5px;
+  font-size: 9.5px;
+  border-radius: 5px;
+}
+#backstage.bs-min .add-tile {
+  width: 78px;
+  min-height: 76px;
+}
+#backstage.bs-min .add-tile .add-ico {
+  width: 24px;
+  height: 24px;
+  font-size: 18px;
 }
 .m-list.grid {
   grid-template-columns: repeat(auto-fill, minmax(142px, 1fr));

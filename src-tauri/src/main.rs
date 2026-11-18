@@ -12,9 +12,11 @@
 
 mod job;
 
+use std::io::{Read, Write};
+use std::net::{IpAddr, Ipv6Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, Command};
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use muda::{Menu, MenuItem, MenuEvent};
@@ -25,15 +27,71 @@ use tray_icon::{TrayIconBuilder, TrayIconEvent, Icon, MouseButton, MouseButtonSt
 static SERVER_PID: AtomicU32 = AtomicU32::new(0);
 static BROWSER_PID: AtomicU32 = AtomicU32::new(0);
 
-const SERVER_PORT: u16 = 3000;
-const STUDIO_URL: &str = "http://localhost:3000/";
+const DEFAULT_PORT: u16 = 3000;
+static ACTIVE_PORT: AtomicU16 = AtomicU16::new(DEFAULT_PORT);
+
+fn studio_url() -> String {
+    format!("http://localhost:{}/", ACTIVE_PORT.load(Ordering::SeqCst))
+}
+
+fn check_health_on(port: u16) -> bool {
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let Ok(mut stream) = TcpStream::connect_timeout(&addr, Duration::from_millis(300)) else {
+        return false;
+    };
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(350)));
+    let _ = stream.set_write_timeout(Some(Duration::from_millis(350)));
+    if stream
+        .write_all(b"GET /api/health HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
+        .is_err()
+    {
+        return false;
+    }
+    let mut buf = [0u8; 1024];
+    let mut total = 0;
+    while total < buf.len() {
+        match stream.read(&mut buf[total..]) {
+            Ok(0) => break,
+            Ok(n) => total += n,
+            Err(_) => break,
+        }
+    }
+    let resp = String::from_utf8_lossy(&buf[..total]);
+    resp.contains("\"app\":\"castdeck\"") && resp.contains("\"exe\":")
+}
 
 fn check_health() -> bool {
-    let client = std::net::TcpStream::connect_timeout(
-        &format!("127.0.0.1:{}", SERVER_PORT).parse().unwrap(),
-        Duration::from_millis(300),
-    );
-    client.is_ok()
+    check_health_on(ACTIVE_PORT.load(Ordering::SeqCst))
+}
+
+fn is_port_busy_anywhere(port: u16) -> bool {
+    let v4 = SocketAddr::from(([127, 0, 0, 1], port));
+    if TcpStream::connect_timeout(&v4, Duration::from_millis(180)).is_ok() {
+        return true;
+    }
+    let v6 = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), port);
+    if TcpStream::connect_timeout(&v6, Duration::from_millis(180)).is_ok() {
+        return true;
+    }
+    TcpListener::bind(("0.0.0.0", port)).is_err()
+}
+
+fn select_server_port() -> u16 {
+    const CANDIDATES: [u16; 7] = [3000, 3480, 3001, 3002, 3003, 3004, 3005];
+    for p in CANDIDATES {
+        if check_health_on(p) {
+            ACTIVE_PORT.store(p, Ordering::SeqCst);
+            return p;
+        }
+    }
+    for p in CANDIDATES {
+        if !is_port_busy_anywhere(p) {
+            ACTIVE_PORT.store(p, Ordering::SeqCst);
+            return p;
+        }
+    }
+    ACTIVE_PORT.store(DEFAULT_PORT, Ordering::SeqCst);
+    DEFAULT_PORT
 }
 
 fn get_app_dir() -> PathBuf {
@@ -196,8 +254,9 @@ fn get_embedded_server_path() -> Option<PathBuf> {
 }
 
 fn spawn_server(job: &Option<job::ProcessJob>) -> Option<Child> {
-    if check_health() {
-        println!("CastDeck Server já está ativo na porta {}.", SERVER_PORT);
+    let port = select_server_port();
+    if check_health_on(port) {
+        println!("CastDeck Server já está ativo na porta {}.", port);
         return None;
     }
 
@@ -226,7 +285,7 @@ fn spawn_server(job: &Option<job::ProcessJob>) -> Option<Child> {
 
             cmd.env("NO_OPEN", "1");
             cmd.env("CASTDECK_LAUNCHER", "1");
-            cmd.env("PORT", SERVER_PORT.to_string());
+            cmd.env("PORT", port.to_string());
             if let Ok(exe) = std::env::current_exe() {
                 cmd.env("CASTDECK_EXE", exe);
             }
@@ -292,12 +351,13 @@ fn find_app_browser() -> Option<PathBuf> {
 }
 
 fn open_studio_window(job: &Option<job::ProcessJob>, quitting: Arc<AtomicBool>) -> Option<Child> {
+    let url = studio_url();
     if let Some(browser_exe) = find_app_browser() {
         let profile_dir = get_app_dir().join("window");
         let _ = std::fs::create_dir_all(&profile_dir);
 
         let mut cmd = Command::new(browser_exe);
-        cmd.arg(format!("--app={}", STUDIO_URL));
+        cmd.arg(format!("--app={}", url));
         cmd.arg(format!("--user-data-dir={}", profile_dir.display()));
         cmd.arg("--new-window");
         cmd.arg("--no-first-run");
@@ -343,7 +403,7 @@ fn open_studio_window(job: &Option<job::ProcessJob>, quitting: Arc<AtomicBool>) 
     }
 
     // Fallback caso navegador não suporte modo app
-    let _ = open::that(STUDIO_URL);
+    let _ = open::that(url);
     None
 }
 
@@ -421,7 +481,8 @@ fn main() {
         Some(h) => Some(h),
         None => {
             // Se o servidor está no ar e já existe janela visível do estúdio, apenas traz para frente.
-            if check_health() && ensure_studio_window_visible() {
+            let port = select_server_port();
+            if check_health_on(port) && ensure_studio_window_visible() {
                 return;
             }
             // Processo antigo ficou preso em segundo plano sem janela visível ou servidor caiu:

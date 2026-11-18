@@ -1,6 +1,6 @@
 {
   "name": "castdeck",
-  "version": "1.8.9",
+  "version": "1.8.10",
   "bin": "../dist/castdeck.cjs",
   "pkg": {
     "assets": [

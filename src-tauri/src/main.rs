@@ -101,6 +101,23 @@ fn get_app_dir() -> PathBuf {
             return PathBuf::from(local_app_data).join("CastDeck");
         }
     }
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(home) = std::env::var("HOME") {
+            return PathBuf::from(home).join("Library/Application Support/CastDeck");
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
+            if !xdg.is_empty() {
+                return PathBuf::from(xdg).join("CastDeck");
+            }
+        }
+        if let Ok(home) = std::env::var("HOME") {
+            return PathBuf::from(home).join(".local/share/CastDeck");
+        }
+    }
     if let Ok(home) = std::env::var("HOME") {
         return PathBuf::from(home).join(".castdeck");
     }
@@ -108,8 +125,20 @@ fn get_app_dir() -> PathBuf {
 }
 
 fn get_recordings_dir() -> PathBuf {
-    let data = get_app_dir();
-    let rec = data.join("recordings");
+    #[cfg(windows)]
+    let home = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).ok();
+    #[cfg(not(windows))]
+    let home = std::env::var("HOME").ok();
+
+    let rec = if let Some(h) = home.filter(|s| !s.is_empty()) {
+        #[cfg(target_os = "macos")]
+        let sub = "Movies";
+        #[cfg(not(target_os = "macos"))]
+        let sub = "Videos";
+        PathBuf::from(h).join(sub).join("CastDeck")
+    } else {
+        get_app_dir().join("recordings")
+    };
     if !rec.exists() {
         let _ = std::fs::create_dir_all(&rec);
     }
@@ -125,31 +154,51 @@ fn get_logs_dir() -> PathBuf {
     logs
 }
 
-#[cfg(windows)]
 fn kill_orphan_servers() {
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-    let mut cmd = Command::new("taskkill");
-    cmd.args(["/F", "/T", "/IM", "castdeck-server-embedded.exe"]);
-    cmd.creation_flags(CREATE_NO_WINDOW);
-    let _ = cmd.status();
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let mut cmd = Command::new("taskkill");
+        cmd.args(["/F", "/T", "/IM", "castdeck-server-embedded.exe"]);
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        let _ = cmd.status();
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = Command::new("pkill").args(["-9", "-f", "castdeck-server-embedded"]).status();
+    }
 }
 
-#[cfg(windows)]
 fn kill_other_castdeck_processes() {
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-    let my_pid = std::process::id();
-    let filter = format!("PID ne {}", my_pid);
-    let mut cmd = Command::new("taskkill");
-    cmd.args(["/F", "/T", "/FI", &filter, "/IM", "CastDeck.exe"]);
-    cmd.creation_flags(CREATE_NO_WINDOW);
-    let _ = cmd.status();
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let my_pid = std::process::id();
+        let filter = format!("PID ne {}", my_pid);
+        let mut cmd = Command::new("taskkill");
+        cmd.args(["/F", "/T", "/FI", &filter, "/IM", "CastDeck.exe"]);
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        let _ = cmd.status();
 
-    let mut cmd2 = Command::new("taskkill");
-    cmd2.args(["/F", "/T", "/FI", &filter, "/IM", "castdeck-launcher.exe"]);
-    cmd2.creation_flags(CREATE_NO_WINDOW);
-    let _ = cmd2.status();
+        let mut cmd2 = Command::new("taskkill");
+        cmd2.args(["/F", "/T", "/FI", &filter, "/IM", "castdeck-launcher.exe"]);
+        cmd2.creation_flags(CREATE_NO_WINDOW);
+        let _ = cmd2.status();
+    }
+    #[cfg(not(windows))]
+    {
+        let lock_path = get_app_dir().join("launcher.pid");
+        if let Ok(raw) = std::fs::read_to_string(&lock_path) {
+            if let Ok(pid) = raw.trim().parse::<u32>() {
+                if pid != 0 && pid != std::process::id() {
+                    kill_pid(pid);
+                }
+            }
+        }
+        let _ = std::fs::remove_file(lock_path);
+    }
 
     kill_orphan_servers();
 }
@@ -211,7 +260,11 @@ fn get_embedded_server_path() -> Option<PathBuf> {
         static SERVER_BYTES: &[u8] = include_bytes!("../server.bin");
         let app_dir = get_app_dir().join("app");
         let _ = std::fs::create_dir_all(&app_dir);
-        let target_exe = app_dir.join("castdeck-server-embedded.exe");
+        #[cfg(windows)]
+        let exe_name = "castdeck-server-embedded.exe";
+        #[cfg(not(windows))]
+        let exe_name = "castdeck-server-embedded";
+        let target_exe = app_dir.join(exe_name);
         let sig_file = app_dir.join("castdeck-server-embedded.sig");
 
         // Assinatura simples (tamanho + versão + amostra distribuída) para garantir regravação em builds novos
@@ -234,17 +287,19 @@ fn get_embedded_server_path() -> Option<PathBuf> {
 
         if needs_write {
             if std::fs::write(&target_exe, SERVER_BYTES).is_err() {
-                #[cfg(windows)]
-                {
-                    kill_orphan_servers();
-                    std::thread::sleep(Duration::from_millis(400));
-                }
+                kill_orphan_servers();
+                std::thread::sleep(Duration::from_millis(400));
                 if std::fs::write(&target_exe, SERVER_BYTES).is_ok() {
                     let _ = std::fs::write(&sig_file, &sig);
                 }
             } else {
                 let _ = std::fs::write(&sig_file, &sig);
             }
+        }
+        #[cfg(unix)]
+        if target_exe.exists() {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&target_exe, std::fs::Permissions::from_mode(0o755));
         }
         if target_exe.exists() {
             return Some(target_exe);
@@ -347,6 +402,58 @@ fn find_app_browser() -> Option<PathBuf> {
             }
         }
     }
+    #[cfg(target_os = "macos")]
+    {
+        let apps = [
+            "Google Chrome.app/Contents/MacOS/Google Chrome",
+            "Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            "Chromium.app/Contents/MacOS/Chromium",
+            "Brave Browser.app/Contents/MacOS/Brave Browser",
+            "Vivaldi.app/Contents/MacOS/Vivaldi",
+        ];
+        let mut roots = vec![PathBuf::from("/Applications")];
+        if let Ok(home) = std::env::var("HOME") {
+            roots.push(PathBuf::from(home).join("Applications"));
+        }
+        for root in roots {
+            for app in apps {
+                let c = root.join(app);
+                if c.is_file() {
+                    return Some(c);
+                }
+            }
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let bins = [
+            "google-chrome",
+            "google-chrome-stable",
+            "microsoft-edge",
+            "microsoft-edge-stable",
+            "chromium",
+            "chromium-browser",
+            "brave-browser",
+            "vivaldi",
+        ];
+        let mut dirs: Vec<PathBuf> = std::env::var("PATH")
+            .unwrap_or_default()
+            .split(':')
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from)
+            .collect();
+        for std_dir in ["/usr/bin", "/usr/local/bin", "/snap/bin"] {
+            dirs.push(PathBuf::from(std_dir));
+        }
+        for d in dirs {
+            for b in bins {
+                let c = d.join(b);
+                if c.is_file() {
+                    return Some(c);
+                }
+            }
+        }
+    }
     None
 }
 
@@ -446,6 +553,24 @@ $n.Dispose()
         cmd.creation_flags(CREATE_NO_WINDOW);
         let _ = cmd.spawn();
     }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = Command::new("osascript")
+            .args([
+                "-e",
+                r#"display notification "O aplicativo continua ativo na barra de menu. Use 'Sair do CastDeck' para encerrar." with title "CastDeck em segundo plano""#,
+            ])
+            .spawn();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = Command::new("notify-send")
+            .args([
+                "CastDeck em segundo plano",
+                "O aplicativo continua ativo na bandeja do sistema. Use 'Sair do CastDeck' para encerrar.",
+            ])
+            .spawn();
+    }
 }
 
 fn get_app_icon() -> Icon {
@@ -474,9 +599,94 @@ fn acquire_single_instance() -> Option<windows_sys::Win32::Foundation::HANDLE> {
     }
 }
 
+#[cfg(not(windows))]
+struct PidLock(PathBuf);
+
+#[cfg(not(windows))]
+impl Drop for PidLock {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+#[cfg(not(windows))]
+fn acquire_single_instance() -> Option<PidLock> {
+    let dir = get_app_dir();
+    let _ = std::fs::create_dir_all(&dir);
+    let lock = dir.join("launcher.pid");
+    if let Ok(raw) = std::fs::read_to_string(&lock) {
+        if let Ok(pid) = raw.trim().parse::<u32>() {
+            if pid != 0 && pid != std::process::id() {
+                if let Ok(st) = Command::new("kill").args(["-0", &pid.to_string()]).status() {
+                    if st.success() {
+                        return None;
+                    }
+                }
+            }
+        }
+    }
+    let _ = std::fs::write(&lock, std::process::id().to_string());
+    Some(PidLock(lock))
+}
+
+#[cfg(not(windows))]
+fn ensure_studio_window_visible() -> bool {
+    false
+}
+
+fn handle_tray_events(
+    menu_channel: &muda::MenuEventReceiver,
+    tray_channel: &tray_icon::TrayIconEventReceiver,
+    job: &Option<job::ProcessJob>,
+    quitting: &Arc<AtomicBool>,
+) -> bool {
+    if let Ok(event) = menu_channel.try_recv() {
+        match event.id.0.as_str() {
+            "open_studio" => {
+                if !ensure_studio_window_visible() {
+                    open_studio_window(job, quitting.clone());
+                }
+            }
+            "recordings" => {
+                let _ = open::that(get_recordings_dir());
+            }
+            "logs" => {
+                let _ = open::that(get_logs_dir());
+            }
+            "quit" => {
+                quitting.store(true, Ordering::SeqCst);
+                // Encerra janela e servidor antes de sair: sem isto o navegador/servidor
+                // podiam sobreviver e a janela parecia "reabrir" ao clicar na bandeja.
+                kill_pid(BROWSER_PID.swap(0, Ordering::SeqCst));
+                kill_pid(SERVER_PID.swap(0, Ordering::SeqCst));
+                kill_orphan_servers();
+                return true;
+            }
+            _ => {}
+        }
+    }
+
+    if let Ok(event) = tray_channel.try_recv() {
+        // Só o clique ESQUERDO (soltar) abre o estúdio. O clique direito é o que abre
+        // o menu da bandeja — antes ele também abria uma janela, o que dava a impressão
+        // de o app "reabrir" na hora de escolher Sair.
+        if let TrayIconEvent::Click {
+            button: MouseButton::Left,
+            button_state: MouseButtonState::Up,
+            ..
+        } = event
+        {
+            if !quitting.load(Ordering::SeqCst) && !ensure_studio_window_visible() {
+                open_studio_window(job, quitting.clone());
+            }
+        }
+    }
+
+    false
+}
+
 fn main() {
     // O handle fica vivo até o processo terminar (não fechar).
-    #[cfg(windows)]
     let _single_instance = match acquire_single_instance() {
         Some(h) => Some(h),
         None => {
@@ -493,8 +703,7 @@ fn main() {
         }
     };
 
-    // Sem outro lançador na bandeja, qualquer castdeck-server-embedded.exe rodando ficou órfão de execução anterior.
-    #[cfg(windows)]
+    // Sem outro lançador na bandeja, qualquer castdeck-server-embedded rodando ficou órfão de execução anterior.
     kill_orphan_servers();
 
     let job = Arc::new(job::ProcessJob::new());
@@ -550,60 +759,9 @@ fn main() {
                 DispatchMessageW(&msg);
             }
 
-            if let Ok(event) = menu_channel.try_recv() {
-                match event.id.0.as_str() {
-                    "open_studio" => {
-                        #[cfg(windows)]
-                        {
-                            if !ensure_studio_window_visible() {
-                                open_studio_window(&job, quitting.clone());
-                            }
-                        }
-                        #[cfg(not(windows))]
-                        open_studio_window(&job, quitting.clone());
-                    }
-                    "recordings" => {
-                        let _ = open::that(get_recordings_dir());
-                    }
-                    "logs" => {
-                        let _ = open::that(get_logs_dir());
-                    }
-                    "quit" => {
-                        quitting.store(true, Ordering::SeqCst);
-                        // Encerra janela e servidor antes de sair: sem isto o Edge/servidor
-                        // podiam sobreviver e a janela parecia "reabrir" ao clicar na bandeja.
-                        kill_pid(BROWSER_PID.swap(0, Ordering::SeqCst));
-                        kill_pid(SERVER_PID.swap(0, Ordering::SeqCst));
-                        #[cfg(windows)]
-                        kill_orphan_servers();
-                        PostQuitMessage(0);
-                        return;
-                    }
-                    _ => {}
-                }
-            }
-
-            if let Ok(event) = tray_channel.try_recv() {
-                // Só o clique ESQUERDO (soltar) abre o estúdio. O clique direito é o que abre
-                // o menu da bandeja — antes ele também abria uma janela, o que dava a impressão
-                // de o app "reabrir" na hora de escolher Sair.
-                if let TrayIconEvent::Click {
-                    button: MouseButton::Left,
-                    button_state: MouseButtonState::Up,
-                    ..
-                } = event
-                {
-                    if !quitting.load(Ordering::SeqCst) {
-                        #[cfg(windows)]
-                        {
-                            if !ensure_studio_window_visible() {
-                                open_studio_window(&job, quitting.clone());
-                            }
-                        }
-                        #[cfg(not(windows))]
-                        open_studio_window(&job, quitting.clone());
-                    }
-                }
+            if handle_tray_events(&menu_channel, &tray_channel, &job, &quitting) {
+                PostQuitMessage(0);
+                return;
             }
 
             std::thread::sleep(Duration::from_millis(16));
@@ -612,6 +770,9 @@ fn main() {
 
     #[cfg(not(windows))]
     loop {
-        std::thread::sleep(Duration::from_secs(1));
+        if handle_tray_events(&menu_channel, &tray_channel, &job, &quitting) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(16));
     }
 }

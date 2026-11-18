@@ -304,14 +304,16 @@ export class Broadcast extends EventEmitter {
   start() {
     const { width, height, fps, videoKbps, audioKbps } = this.preset;
     const finalAudioKbps = Math.max(128, Number(audioKbps) || 128);
+    const vaapi = this.encoder === 'h264_vaapi';
     const vf = [
       `scale=${width}:${height}:force_original_aspect_ratio=decrease`,
       `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`,
       `fps=${fps}`,
-      'format=yuv420p',
+      vaapi ? 'format=nv12,hwupload' : 'format=yuv420p',
     ].join(',');
     const args = [
       '-hide_banner', '-loglevel', 'error', '-nostats', '-progress', 'pipe:2',
+      ...(vaapi ? ['-vaapi_device', '/dev/dri/renderD128'] : []),
       '-fflags', '+genpts+discardcorrupt', '-thread_queue_size', '1024',
       '-i', 'pipe:0',
       '-map', '0:v:0', '-map', '0:a:0?',

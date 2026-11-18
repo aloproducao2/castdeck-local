@@ -77,7 +77,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
             const p = preset();
             api(`/dsk/${encodeURIComponent(item.key)}`, {
               method: 'PUT',
-              body: { url: item.url, width: item.canvas.width, height: item.canvas.height, jpeg: true, fps: p.fps, quality: 72, force: true },
+              body: { url: item.url, width: item.canvas.width, height: item.canvas.height, jpeg: true, fps: p.fps, quality: 72, adblock: item.adblock, force: true },
             }).catch((e) => toast(`Browser: ${e.message || m.error}`, 'err'));
           } else {
             toast(`Browser: ${m.error}`, 'err');
@@ -247,7 +247,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
       try {
         await api(`/dsk/${encodeURIComponent(key)}`, {
           method: 'PUT',
-          body: { url, width: p.width, height: p.height, jpeg: true, fps: p.fps, quality: 72, force: true },
+          body: { url, width: p.width, height: p.height, jpeg: true, fps: p.fps, quality: 72, adblock: item.adblock, force: true },
         });
       } catch (e) {
         stop(item.id, { remove: true });
@@ -343,7 +343,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
         method: 'PUT',
         body: item.backend === 'cef'
           ? { url: item.url, width: p.width, height: p.height, fps: 60, lang: locale(), adblock: item.adblock }
-          : { url: item.url, width: p.width, height: p.height, jpeg: true, fps: p.fps, quality: 72, force: true },
+          : { url: item.url, width: p.width, height: p.height, jpeg: true, fps: p.fps, quality: 72, adblock: item.adblock, force: true },
       }).catch(() => { });
     }
   }
@@ -355,12 +355,19 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
   }
 
   async function toggleAdblock(item, on) {
-    if (item.backend !== 'cef') return toast('Adblock disponível no backend CEF.', 'err');
     const next = !!on;
-    await api('/cef/' + encodeURIComponent(item.key), {
-      method: 'PUT',
-      body: { url: item.url, width: item.canvas.width, height: item.canvas.height, fps: 60, lang: locale(), adblock: next },
-    });
+    if (item.backend === 'cef') {
+      await api('/cef/' + encodeURIComponent(item.key), {
+        method: 'PUT',
+        body: { url: item.url, width: item.canvas.width, height: item.canvas.height, fps: 60, lang: locale(), adblock: next },
+      });
+    } else {
+      const p = preset();
+      await api('/dsk/' + encodeURIComponent(item.key), {
+        method: 'PUT',
+        body: { url: item.url, width: item.canvas.width, height: item.canvas.height, jpeg: true, fps: p.fps, quality: 72, adblock: next },
+      });
+    }
     item.adblock = next;
     persist();
     toast(next ? 'Adblock ativado.' : 'Adblock desativado.', 'ok');
@@ -376,7 +383,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
       method: 'PUT',
       body: item.backend === 'cef'
         ? { url: u, width: item.canvas.width, height: item.canvas.height, fps: 60, lang: locale(), adblock: item.adblock }
-        : { url: u, width: item.canvas.width, height: item.canvas.height, jpeg: true, fps: p.fps, quality: 72, force: true },
+        : { url: u, width: item.canvas.width, height: item.canvas.height, jpeg: true, fps: p.fps, quality: 72, adblock: item.adblock, force: true },
     });
     item.url = u;
     item.pending = null;
@@ -555,7 +562,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
             } catch (e) { toast('Browser: ' + e.message, 'err'); }
           };
           const ab = m.querySelector('#bi-adblock');
-          const syncAb = () => { ab.textContent = 'Adblock: ' + (item.adblock === false ? 'OFF' : 'ON'); ab.classList.toggle('primary', item.adblock !== false); if (item.backend !== 'cef') { ab.disabled = true; ab.title = 'Adblock disponível no backend CEF'; } };
+          const syncAb = () => { ab.textContent = 'Adblock: ' + (item.adblock === false ? 'OFF' : 'ON'); ab.classList.toggle('primary', item.adblock !== false); ab.disabled = false; ab.title = 'Ativar/desativar bloqueio de anúncios'; };
           syncAb();
           ab.onclick = () => toggleAdblock(item, item.adblock === false).then(syncAb).catch((e) => toast('Browser: ' + e.message, 'err'));
           m.querySelector('#bi-reload').onclick = async () => {

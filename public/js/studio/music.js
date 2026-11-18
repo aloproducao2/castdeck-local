@@ -1725,7 +1725,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
       panel.querySelectorAll('[data-music-view]').forEach((b) => {
         b.onclick = () => setViewMode(b.dataset.musicView);
       });
-      $('#music-pad-qr', panel)?.addEventListener('click', () => openPadQrModal({ studioId }));
+      $('#music-pad-qr', panel)?.addEventListener('click', () => openPadQrModal({ studioId, doc: panel.ownerDocument }));
       $('#music-open-pad', panel)?.addEventListener('click', openPadWindow);
       $('#pad-stop', panel)?.addEventListener('click', stopAllPads);
       $('#pad-overlap', panel)?.addEventListener('change', (e) => setPadOverlap(e.target.checked));
@@ -1839,7 +1839,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
     panel.querySelectorAll('[data-music-view]').forEach((b) => {
       b.onclick = () => setViewMode(b.dataset.musicView);
     });
-    $('#music-pad-qr', panel)?.addEventListener('click', () => openPadQrModal({ studioId }));
+    $('#music-pad-qr', panel)?.addEventListener('click', () => openPadQrModal({ studioId, doc: panel.ownerDocument }));
     $('#music-open-pad', panel)?.addEventListener('click', openPadWindow);
     $("#music-add", panel)?.addEventListener("click", () => $("#music-file", panel)?.click());
     $("#music-file", panel)?.addEventListener("change", (e) => {

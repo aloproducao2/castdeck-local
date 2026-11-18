@@ -116,7 +116,6 @@ export async function buildCaption({ quiet = false } = {}) {
 }
 
 export async function buildParakeet({ quiet = false } = {}) {
-  if (process.platform !== 'win32') return null; // por enquanto só win-x64
   const cargoBin = path.join(process.env.USERPROFILE || process.env.HOME || '', '.cargo', 'bin');
   const env = { ...process.env, CARGO_TARGET_DIR: process.env.CASTDECK_PARAKEET_TARGET || path.resolve('build', 'tmp', 'cargo-parakeet') };
   if (fs.existsSync(cargoBin)) env.PATH = `${cargoBin}${path.delimiter}${env.PATH}`;
@@ -127,25 +126,42 @@ export async function buildParakeet({ quiet = false } = {}) {
     if (quiet && r.stderr) process.stderr.write(r.stderr);
     throw new Error('falha ao compilar o worker Parakeet');
   }
-  fs.mkdirSync(path.dirname(PARAKEET_OUT), { recursive: true });
+  const outDir = path.dirname(PARAKEET_OUT);
+  fs.mkdirSync(outDir, { recursive: true });
   fs.copyFileSync(built, PARAKEET_OUT);
 
-  // ONNX Runtime carregado dinamicamente: baixa a DLL e coloca junto do exe (será embutida pelo build-exe)
-  const dlls = ['onnxruntime.dll', 'onnxruntime_providers_shared.dll'];
-  const zip = path.join(path.dirname(PARAKEET_OUT), `onnxruntime-win-x64-${ORT_VER}.zip`);
-  if (!fs.existsSync(path.join(path.dirname(PARAKEET_OUT), 'onnxruntime.dll'))) {
-    if (!fs.existsSync(zip)) {
-      if (!quiet) console.log('  baixando ONNX Runtime win-x64…');
-      const res = await fetch(`https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VER}/onnxruntime-win-x64-${ORT_VER}.zip`);
+  // ONNX Runtime carregado dinamicamente via PyPI (github.com/microsoft/onnxruntime 1.22.0 indisponível):
+  const isWin = process.platform === 'win32';
+  const isMac = process.platform === 'darwin';
+  const mainLib = isWin ? 'onnxruntime.dll' : isMac ? 'libonnxruntime.dylib' : 'libonnxruntime.so';
+  const provLib = isWin ? 'onnxruntime_providers_shared.dll' : isMac ? 'libonnxruntime_providers_shared.dylib' : 'libonnxruntime_providers_shared.so';
+  if (!fs.existsSync(path.join(outDir, mainLib))) {
+    if (!quiet) console.log(`  baixando ONNX Runtime ${host} (PyPI)…`);
+    const pypi = await (await fetch(`https://pypi.org/pypi/onnxruntime/${ORT_VER}/json`)).json();
+    const tag = isWin
+      ? 'win_amd64'
+      : isMac
+        ? 'macosx_'
+        : process.arch === 'arm64'
+          ? 'aarch64'
+          : 'x86_64';
+    const entry = pypi.urls.find((u) => u.filename.includes('cp312') && u.filename.includes(tag))
+      || pypi.urls.find((u) => u.filename.includes(tag));
+    if (!entry) throw new Error(`ONNX Runtime ${ORT_VER} indisponível no PyPI para ${host}`);
+    const whl = path.join(outDir, entry.filename);
+    if (!fs.existsSync(whl)) {
+      const res = await fetch(entry.url);
       if (!res.ok) throw new Error(`download do ONNX Runtime falhou (${res.status})`);
-      fs.writeFileSync(zip, Buffer.from(await res.arrayBuffer()));
+      fs.writeFileSync(whl, Buffer.from(await res.arrayBuffer()));
     }
-    const r = spawnSync('tar', ['-xf', zip, '-C', path.dirname(PARAKEET_OUT)], { stdio: 'inherit' });
-    if (r.status !== 0) throw new Error('não foi possível extrair o ONNX Runtime');
-    for (const d of dlls) {
-      const from = path.join(path.dirname(PARAKEET_OUT), `onnxruntime-win-x64-${ORT_VER}`, 'lib', d);
-      if (fs.existsSync(from)) fs.copyFileSync(from, path.join(path.dirname(PARAKEET_OUT), d));
-    }
+    const ex = spawnSync('tar', ['-xf', whl, '-C', outDir, 'onnxruntime/capi'], { stdio: 'inherit' });
+    if (ex.status !== 0) throw new Error('não foi possível extrair o ONNX Runtime');
+    const capi = path.join(outDir, 'onnxruntime', 'capi');
+    const files = fs.existsSync(capi) ? fs.readdirSync(capi) : [];
+    const mainSrc = files.find((f) => f === mainLib || (f.startsWith(mainLib.replace(/\.(so|dylib)$/, '')) && !f.includes('providers')));
+    const provSrc = files.find((f) => f.startsWith('libonnxruntime_providers_shared') || f === provLib);
+    if (mainSrc) fs.copyFileSync(path.join(capi, mainSrc), path.join(outDir, mainLib));
+    if (provSrc) fs.copyFileSync(path.join(capi, provSrc), path.join(outDir, provLib));
   }
   if (!quiet) console.log(`  -> ${path.relative(process.cwd(), PARAKEET_OUT)}`);
   return PARAKEET_OUT;

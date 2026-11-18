@@ -303,12 +303,15 @@ export class MultiRecorder {
     const hw = (Array.isArray(encoders) ? encoders : []).find((e) => e?.hw)?.id;
     const tryEncode = (encoder) => new Promise((resolve) => {
       const tmp = source.mp4File + '.part';
+      const vaapi = encoder === 'h264_vaapi';
       const args = [
         '-hide_banner', '-loglevel', 'error',
+        ...(vaapi ? ['-vaapi_device', '/dev/dri/renderD128'] : []),
         '-i', source.finalFile,
         '-map', '0:v:0', '-map', '0:a?',
+        ...(vaapi ? ['-vf', 'format=nv12,hwupload'] : []),
         ...videoEncoderArgs(encoder, session.videoKbps || 4000, 30),
-        '-pix_fmt', 'yuv420p',
+        ...(vaapi ? [] : ['-pix_fmt', 'yuv420p']),
         '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2',
         '-movflags', '+faststart', '-f', 'mp4', '-y', tmp,
       ];

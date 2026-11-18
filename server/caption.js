@@ -276,9 +276,23 @@ export class CaptionService {
     this.state.error = null;
     this.state.ready = false;
     this.push({ type: 'status', ...this.info() });
+    const binDir = path.dirname(exe);
+    const ortName = process.platform === 'win32'
+      ? 'onnxruntime.dll'
+      : process.platform === 'darwin'
+        ? 'libonnxruntime.dylib'
+        : 'libonnxruntime.so';
+    const ortPath = path.join(binDir, ortName);
+    const env = { ...process.env };
+    if (fs.existsSync(ortPath)) env.ORT_DYLIB_PATH = ortPath;
+    if (process.platform === 'linux') {
+      env.LD_LIBRARY_PATH = env.LD_LIBRARY_PATH ? `${binDir}:${env.LD_LIBRARY_PATH}` : binDir;
+    } else if (process.platform === 'darwin') {
+      env.DYLD_LIBRARY_PATH = env.DYLD_LIBRARY_PATH ? `${binDir}:${env.DYLD_LIBRARY_PATH}` : binDir;
+    }
     let p;
     try {
-      p = spawn(exe, args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], cwd: path.dirname(exe) });
+      p = spawn(exe, args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], cwd: binDir, env });
     } catch (e) {
       this.state.status = 'error';
       this.state.error = 'Falha ao iniciar o motor Parakeet: ' + e.message;

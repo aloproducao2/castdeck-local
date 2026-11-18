@@ -5,9 +5,42 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import WebSocket from 'ws';
+
+const ADBLOCK_URLS = [
+  '*://*.doubleclick.net/*',
+  '*://*.googlesyndication.com/*',
+  '*://*.googleadservices.com/*',
+  '*://*.google-analytics.com/*',
+  '*://*.googletagmanager.com/*',
+  '*://*.googletagservices.com/*',
+  '*://*.adservice.google.com/*',
+  '*://*.adsystem.com/*',
+  '*://*.adnxs.com/*',
+  '*://*.adsrvr.org/*',
+  '*://*.criteo.com/*',
+  '*://*.criteo.net/*',
+  '*://*.outbrain.com/*',
+  '*://*.taboola.com/*',
+  '*://*.moatads.com/*',
+  '*://*.scorecardresearch.com/*',
+  '*://*.quantserve.com/*',
+  '*://*.zedo.com/*',
+  '*://*.rubiconproject.com/*',
+  '*://*.pubmatic.com/*',
+  '*://*.openx.net/*',
+  '*://*.casalemedia.com/*',
+  '*://*.advertising.com/*',
+  '*://*.popads.net/*',
+  '*://*.popcash.net/*',
+  '*://*.propellerads.com/*',
+  '*://*.mc.yandex.ru/*',
+  '*://*/pagead/*',
+  '*://*/adserver/*',
+  '*://*/ads/measurement/*',
+];
 
 const IS_WIN = process.platform === 'win32';
 const IS_MAC = process.platform === 'darwin';
@@ -20,7 +53,10 @@ function killTree(p) {
   if (!p || p.exitCode !== null) return;
   try {
     if (IS_WIN && p.pid) spawnSync('taskkill', ['/PID', String(p.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore', timeout: 5000 });
-    else p.kill('SIGKILL');
+    else {
+      if (p.pid) try { spawnSync('pkill', ['-KILL', '-P', String(p.pid)], { stdio: 'ignore', timeout: 3000 }); } catch {}
+      p.kill('SIGKILL');
+    }
   } catch {}
 }
 
@@ -140,15 +176,31 @@ export function findBrowser() {
         path.join(r, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
       );
   } else if (IS_MAC) {
-    list.push(
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-      '/Applications/Chromium.app/Contents/MacOS/Chromium',
-      '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
-    );
+    const userApps = path.join(homedir(), 'Applications');
+    for (const root of ['/Applications', userApps]) {
+      list.push(
+        path.join(root, 'Google Chrome.app', 'Contents', 'MacOS', 'Google Chrome'),
+        path.join(root, 'Microsoft Edge.app', 'Contents', 'MacOS', 'Microsoft Edge'),
+        path.join(root, 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
+        path.join(root, 'Brave Browser.app', 'Contents', 'MacOS', 'Brave Browser'),
+        path.join(root, 'Vivaldi.app', 'Contents', 'MacOS', 'Vivaldi'),
+      );
+    }
   } else {
-    const dirs = (process.env.PATH || '').split(':').concat(['/usr/bin', '/usr/local/bin', '/snap/bin']);
-    for (const b of ['google-chrome', 'google-chrome-stable', 'microsoft-edge', 'microsoft-edge-stable', 'chromium', 'chromium-browser', 'brave-browser'])
+    const dirs = (process.env.PATH || '').split(':').concat([
+      '/usr/bin',
+      '/usr/local/bin',
+      '/snap/bin',
+      '/var/lib/flatpak/exports/bin',
+      path.join(homedir(), '.local', 'share', 'flatpak', 'exports', 'bin'),
+    ]);
+    for (const b of [
+      'google-chrome', 'google-chrome-stable',
+      'microsoft-edge', 'microsoft-edge-stable',
+      'chromium', 'chromium-browser',
+      'brave-browser', 'brave', 'vivaldi',
+      'com.google.Chrome', 'org.chromium.Chromium', 'com.brave.Browser', 'com.microsoft.Edge',
+    ])
       for (const d of dirs) list.push(path.join(d, b));
   }
   return list.find((p) => existsSync(p)) || null;
@@ -187,7 +239,7 @@ export class DskHost {
   }
 
   slotInfo(s) {
-    return { key: s.key, url: s.url, width: s.width, height: s.height, fps: s.fps || 0, fpsLimit: s.fpsLimit || 30, quality: s.quality || 80, skipped: s.dups || 0, casting: !!s.casting, castError: s.castError || null, audio: this.hasAudio(s), error: s.error || null, ready: !!s.last };
+    return { key: s.key, url: s.url, width: s.width, height: s.height, fps: s.fps || 0, fpsLimit: s.fpsLimit || 30, quality: s.quality || 80, adblock: s.adblock !== false, skipped: s.dups || 0, casting: !!s.casting, castError: s.castError || null, audio: this.hasAudio(s), error: s.error || null, ready: !!s.last };
   }
 
   hasAudio(s) {
@@ -276,6 +328,10 @@ export class DskHost {
         k.on('exit', res);
         k.on('error', res);
       });
+      // Locks órfãos impedem o Chrome/Chromium no Linux e macOS de reabrir o mesmo perfil após queda.
+      for (const lock of ['SingletonLock', 'SingletonSocket', 'SingletonCookie']) {
+        try { rmSync(path.join(this.baseProfile, lock), { force: true }); } catch {}
+      }
     }
     // reservas de execuções anteriores (o pid já não existe ou o dono foi encerrado acima)
     try {
@@ -476,7 +532,7 @@ export class DskHost {
     this.restarts = (this.restarts || 0) + 1;
     if (this.restarts > 5) return; // evita laço infinito se a página derruba o navegador
     setTimeout(() => {
-      for (const s of keep) if (this.slots.get(s.key) === s) this.set(s.key, { url: s.url, width: s.width, height: s.height, jpeg: s.jpeg, fps: s.fpsLimit, quality: s.quality }, { force: true }).catch(() => {});
+      for (const s of keep) if (this.slots.get(s.key) === s) this.set(s.key, { url: s.url, width: s.width, height: s.height, jpeg: s.jpeg, fps: s.fpsLimit, quality: s.quality, adblock: s.adblock !== false }, { force: true }).catch(() => {});
     }, 2000);
   }
 
@@ -572,9 +628,10 @@ export class DskHost {
   }
 
   // ---------- páginas (uma por DSK) ----------
-  async set(key, { url, width, height, jpeg, fps, quality }, { force = false } = {}) {
+  async set(key, { url, width, height, jpeg, fps, quality, adblock = true }, { force = false } = {}) {
     url = String(url || '').trim();
     jpeg = !!jpeg;
+    const useAdblock = adblock !== false;
     if (!/^https?:\/\//i.test(url)) throw Object.assign(new Error('Use um endereço começando com http:// ou https://'), { status: 400 });
     width = Math.max(64, Math.min(3840, Math.round(+width || 1920)));
     height = Math.max(64, Math.min(2160, Math.round(+height || 1080)));
@@ -583,10 +640,18 @@ export class DskHost {
     clearTimeout(this.idleTimer);
     let s = this.slots.get(key);
     const same = s && s.sessionId && s.url === url && s.width === width && s.height === height;
-    if (same && !force && s.jpeg === jpeg && s.fpsLimit === fpsLimit && s.quality === quality) return this.slotInfo(s);
+    const prevAdblock = s ? s.adblock !== false : true;
+    if (same && !force && s.jpeg === jpeg && s.fpsLimit === fpsLimit && s.quality === quality && prevAdblock === useAdblock) return this.slotInfo(s);
     if (same && !force) {
-      // só trocou formato/qualidade/taxa: não precisa recarregar a página
-      Object.assign(s, { jpeg, fpsLimit, quality });
+      // só trocou formato/qualidade/taxa ou adblock: evita recriar a janela
+      const adblockChanged = prevAdblock !== useAdblock;
+      Object.assign(s, { jpeg, fpsLimit, quality, adblock: useAdblock });
+      if (adblockChanged) {
+        await this.send('Network.enable', {}, s.sessionId).catch(() => {});
+        await this.send('Network.setBlockedURLs', { urls: useAdblock ? ADBLOCK_URLS : [] }, s.sessionId).catch(() => {});
+        await this.send('Page.reload', { ignoreCache: true }, s.sessionId).catch(() => {});
+        this.broadcastStatus(s);
+      }
       this.startCast(s);
       return this.slotInfo(s);
     }
@@ -594,7 +659,7 @@ export class DskHost {
       s = { key };
       this.slots.set(key, s);
     }
-    Object.assign(s, { url, width, height, jpeg, fpsLimit, quality, error: null });
+    Object.assign(s, { url, width, height, jpeg, fpsLimit, quality, adblock: useAdblock, error: null });
     try {
       await this.ensureBrowser();
     } catch (e) {
@@ -610,6 +675,7 @@ export class DskHost {
       Object.assign(s, { targetId, sessionId, casting: false });
       this.bySession.set(sessionId, s);
       await this.send('Page.enable', {}, sessionId);
+      await this.send('Network.enable', {}, sessionId).catch(() => {});
       await this.send('Inspector.enable', {}, sessionId).catch(() => {});
       // binding do áudio (vale para os documentos seguintes também) e foco simulado: sem ele a página headless
       // nunca está "em foco" e campos de texto não mostram o cursor nem recebem a digitação enviada pelo estúdio
@@ -618,6 +684,8 @@ export class DskHost {
       await this.send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId).catch(() => {});
     }
     const sid = s.sessionId;
+    await this.send('Network.enable', {}, sid).catch(() => {});
+    await this.send('Network.setBlockedURLs', { urls: useAdblock ? ADBLOCK_URLS : [] }, sid).catch(() => {});
     s.fitTries = 0;
     await this.fitWindow(s);
     // screenWidth/Height: sem eles screen.* fica 800x600 e o YouTube limita o vídeo a 480p

@@ -83,21 +83,29 @@ export class Deps {
         console.warn(`[deps] não foi possível instalar ${name} embutido: ${e.message}`);
       }
     }
-    // o castdeck-parakeet carrega o ONNX Runtime dinamicamente; a DLL vem junto
-    for (const dll of ['onnxruntime.dll', 'onnxruntime_providers_shared.dll']) {
-      const src = this.bundledDir ? path.join(this.bundledDir, dll) : null;
+    // o castdeck-parakeet carrega o ONNX Runtime dinamicamente; a lib vem junto por plataforma
+    for (const lib of [
+      'onnxruntime.dll',
+      'onnxruntime_providers_shared.dll',
+      'libonnxruntime.so',
+      'libonnxruntime_providers_shared.so',
+      'libonnxruntime.dylib',
+      'libonnxruntime_providers_shared.dylib',
+    ]) {
+      const src = this.bundledDir ? path.join(this.bundledDir, lib) : null;
       if (!src || !fs.existsSync(src)) continue;
-      const dst = path.join(this.binDir, dll);
+      const dst = path.join(this.binDir, lib);
       let same = false;
       try { same = fs.statSync(dst).size === fs.statSync(src).size; } catch {}
       if (same) continue;
       try {
         const tmp = dst + '.part';
-        await pipeline(fs.createReadStream(src), fs.createWriteStream(tmp));
+        await pipeline(fs.createReadStream(src), fs.createWriteStream(tmp, { mode: 0o755 }));
+        if (PLAT !== 'win32') await fsp.chmod(tmp, 0o755);
         await fsp.rm(dst, { force: true }).catch(() => {});
         await renameRetry(tmp, dst);
       } catch (e) {
-        console.warn(`[deps] não foi possível instalar ${dll} embutida: ${e.message}`);
+        console.warn(`[deps] não foi possível instalar ${lib} embutida: ${e.message}`);
       }
     }
   }

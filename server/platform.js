@@ -3,6 +3,7 @@
 // Diferenças entre Windows, macOS e Linux concentradas num só lugar.
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 
 export const PLAT = process.platform; // win32 | darwin | linux
@@ -91,7 +92,19 @@ export function openFolder(dir) {
 export function revealFile(file) {
   if (IS_WIN) return winShow('select', file);
   if (IS_MAC) return detached('open', ['-R', file]);
-  return detached('xdg-open', [path.dirname(file)]);
+  const dir = path.dirname(file);
+  const uri = pathToFileURL(path.resolve(file)).href;
+  const p = spawn('dbus-send', [
+    '--session', '--print-reply', '--dest=org.freedesktop.FileManager1',
+    '/org/freedesktop/FileManager1', 'org.freedesktop.FileManager1.ShowItems',
+    `array:string:${uri}`, 'string:',
+  ], { detached: true, stdio: 'ignore' });
+  let fellBack = false;
+  const fb = () => { if (fellBack) return; fellBack = true; detached('xdg-open', [dir]); };
+  p.on('error', fb);
+  p.on('close', (code) => { if (code !== 0) fb(); });
+  p.unref();
+  return p;
 }
 
 // abre o arquivo no programa padrão do sistema (ex.: o player de vídeo)
@@ -133,12 +146,14 @@ export function openAppWindow(url) {
     if (IS_MAC) p.on('close', (code) => code !== 0 && next()); // `open -a` devolve erro se o app não existe
     p.unref();
   };
+  const appProfile = path.join(os.tmpdir(), 'castdeck-app-window');
+  const appFlags = [`--app=${url}`, `--user-data-dir=${appProfile}`, '--no-first-run', '--no-default-browser-check'];
   if (IS_MAC) {
-    const apps = ['Google Chrome', 'Microsoft Edge', 'Chromium', 'Brave Browser'];
-    return tryNext(apps.map((a) => ({ cmd: 'open', args: ['-na', a, '--args', `--app=${url}`] })));
+    const apps = ['Google Chrome', 'Microsoft Edge', 'Chromium', 'Brave Browser', 'Vivaldi'];
+    return tryNext(apps.map((a) => ({ cmd: 'open', args: ['-na', a, '--args', ...appFlags] })));
   }
-  const bins = ['google-chrome', 'google-chrome-stable', 'microsoft-edge', 'chromium', 'chromium-browser', 'brave-browser'];
-  return tryNext(bins.map((b) => ({ cmd: b, args: [`--app=${url}`] })));
+  const bins = ['google-chrome', 'google-chrome-stable', 'microsoft-edge', 'microsoft-edge-stable', 'chromium', 'chromium-browser', 'brave-browser', 'vivaldi'];
+  return tryNext(bins.map((b) => ({ cmd: b, args: appFlags })));
 }
 
 // Janela nativa "escolher pasta". Resolve com o caminho, ou null se o usuário cancelar.
@@ -176,17 +191,64 @@ export function pickFolder(start, title = 'Escolha a pasta') {
     const js = "var a=Application.currentApplication();a.includeStandardAdditions=true;var e=$.NSProcessInfo.processInfo.environment;var t=ObjC.unwrap(e.objectForKey('CD_TITLE'));var s=ObjC.unwrap(e.objectForKey('CD_START'));var o={withPrompt:t};try{if(s)o.defaultLocation=Path(s)}catch(x){}try{a.chooseFolder(o).toString()}catch(x){''}";
     return run('osascript', ['-l', 'JavaScript', '-e', 'ObjC.import("Foundation");' + js]);
   }
-  // Linux: zenity (GNOME) ou kdialog (KDE)
-  return run('zenity', ['--file-selection', '--directory', `--title=${title}`, `--filename=${(start || os.homedir()).replace(/\/?$/, '/')}`]).catch(() =>
-    run('kdialog', ['--getexistingdirectory', start || os.homedir(), '--title', title]).catch(() => {
-      throw new Error('Nenhum seletor de pastas disponível (instale zenity ou kdialog). Digite o caminho.');
-    }),
+  // Linux: zenity (GNOME), kdialog (KDE), yad ou qarma
+  const dirArg = (start || os.homedir()).replace(/\/?$/, '/');
+  return run('zenity', ['--file-selection', '--directory', `--title=${title}`, `--filename=${dirArg}`]).catch(() =>
+    run('kdialog', ['--getexistingdirectory', start || os.homedir(), '--title', title]).catch(() =>
+      run('yad', ['--file', '--directory', `--title=${title}`, `--filename=${dirArg}`]).catch(() =>
+        run('qarma', ['--file-selection', '--directory', `--title=${title}`, `--filename=${dirArg}`]).catch(() => {
+          throw new Error('Nenhum seletor de pastas disponível (instale zenity, kdialog, yad ou qarma). Digite o caminho.');
+        }),
+      ),
+    ),
   );
 }
 
-// Fixa uma janela no topo (Always-on-Top / HWND_TOPMOST) do Windows pelo título da janela
+// Fixa uma janela no topo (Always-on-Top / HWND_TOPMOST no Windows, _NET_WM_STATE_ABOVE no Linux, raise no macOS)
 export function setWindowTopmost(searchTitle, isTop = true) {
-  if (!IS_WIN) return false;
+  const env = { ...process.env, CD_WIN_TITLE: String(searchTitle || ''), CD_WIN_TOP: isTop ? '1' : '0' };
+  if (IS_MAC) {
+    const script = [
+      'ObjC.import("Foundation");',
+      'var env = $.NSProcessInfo.processInfo.environment;',
+      'var search = (ObjC.unwrap(env.objectForKey("CD_WIN_TITLE")) || "").toLowerCase();',
+      'var top = ObjC.unwrap(env.objectForKey("CD_WIN_TOP")) === "1";',
+      'var se = Application("System Events");',
+      'var procs = se.processes.whose({ backgroundOnly: false })();',
+      'for (var i = 0; i < procs.length; i++) {',
+      '  try {',
+      '    var wins = procs[i].windows();',
+      '    for (var j = 0; j < wins.length; j++) {',
+      '      var name = String(wins[j].name() || "").toLowerCase();',
+      '      if (search && name.indexOf(search) !== -1 && top) {',
+      '        procs[i].frontmost = true;',
+      '        try { wins[j].actions["AXRaise"].perform(); } catch (e2) {}',
+      '      }',
+      '    }',
+      '  } catch (e) {}',
+      '}',
+    ].join('\n');
+    const p = spawn('osascript', ['-l', 'JavaScript', '-e', script], { detached: true, stdio: 'ignore', env });
+    p.on('error', () => {});
+    p.unref();
+    return true;
+  }
+  if (!IS_WIN) {
+    const sh = [
+      'op="remove"; [ "$CD_WIN_TOP" = "1" ] && op="add"',
+      'if command -v wmctrl >/dev/null 2>&1; then wmctrl -r "$CD_WIN_TITLE" -b "$op,above" 2>/dev/null && exit 0; fi',
+      'if command -v xdotool >/dev/null 2>&1; then',
+      '  for id in $(xdotool search --name "$CD_WIN_TITLE" 2>/dev/null); do',
+      '    if [ "$CD_WIN_TOP" = "1" ]; then xdotool windowactivate "$id" 2>/dev/null || true; xprop -id "$id" -f _NET_WM_STATE 32a -set _NET_WM_STATE _NET_WM_STATE_ABOVE 2>/dev/null || true;',
+      '    else xprop -id "$id" -remove _NET_WM_STATE 2>/dev/null || true; fi',
+      '  done',
+      'fi',
+    ].join('\n');
+    const p = spawn('/bin/sh', ['-c', sh], { detached: true, stdio: 'ignore', env });
+    p.on('error', () => {});
+    p.unref();
+    return true;
+  }
   const ps = `
     $ErrorActionPreference = 'SilentlyContinue';
     Add-Type -TypeDefinition @"
@@ -221,7 +283,6 @@ public static class TopHelper {
 "@
     [TopHelper]::Apply($env:CD_WIN_TITLE, [bool]($env:CD_WIN_TOP -eq '1'))
   `;
-  const env = { ...process.env, CD_WIN_TITLE: searchTitle, CD_WIN_TOP: isTop ? '1' : '0' };
   const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps], {
     windowsHide: true,
     detached: true,

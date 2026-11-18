@@ -4,14 +4,14 @@
 // (releases.json publicado pelo "npm run release"), confere o SHA-256 e troca o executável.
 //  Windows: um .cmd oculto espera o CastDeck.exe fechar, substitui o arquivo e abre o novo.
 //  Linux (binário/AppImage): substitui o arquivo (permitido com ele rodando) e reabre.
-//  macOS: sem troca automática (app não assinado) – o painel abre o download no navegador.
+//  macOS: remove quarentena e aplica assinatura local (ad-hoc) antes de trocar e reiniciar.
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { once } from 'node:events';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 const BASE = 'https://cast.flue.live';
 
@@ -59,6 +59,7 @@ export class Updater {
     if (!this.packaged) return null;
     if (process.platform === 'win32') return process.env.CASTDECK_EXE ? 'windows' : null;
     if (process.platform === 'linux') return 'linux';
+    if (process.platform === 'darwin') return 'macos';
     return null;
   }
 
@@ -182,7 +183,7 @@ export class Updater {
         p.unref();
       }
     } else {
-      const dst = process.env.APPIMAGE || process.execPath;
+      const dst = process.env.APPIMAGE || process.env.CASTDECK_EXE || process.execPath;
       const tmp = dst + '.novo';
       try {
         await fsp.copyFile(this.file, tmp);
@@ -191,6 +192,11 @@ export class Updater {
       } catch (e) {
         await fsp.rm(tmp, { force: true }).catch(() => {});
         throw new Error('Sem permissão para substituir ' + dst + ': ' + e.message);
+      }
+      if (mode === 'macos') {
+        // Remove quarentena e re-assina (ad-hoc) no caminho final para o Apple Silicon abrir sem bloqueio.
+        try { spawnSync('xattr', ['-cr', dst], { stdio: 'ignore', timeout: 15000 }); } catch {}
+        try { spawnSync('codesign', ['--force', '--sign', '-', dst], { stdio: 'ignore', timeout: 15000 }); } catch {}
       }
       // reabre depois que este processo liberar as portas; a janela aberta recarrega sozinha
       const p = spawn('/bin/sh', ['-c', 'sleep 3; exec "$CD_DST"'], {

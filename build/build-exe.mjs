@@ -153,7 +153,7 @@ for (const key of list) {
   // a licença MIT do MediaMTX exige o aviso junto do binário redistribuído
   const mtxLic = path.join('build', 'assets', 'licenses', 'mediamtx-LICENSE.txt');
   if (fs.existsSync(mtxLic)) fs.copyFileSync(mtxLic, path.join(vdir, 'mediamtx-LICENSE.txt'));
-  // bridge NDI (Rust) do próprio PC; o runtime NDI não é redistribuído — o usuário instala o NDI Runtime.
+  // bridge NDI (Rust): copia o compilado local no host correspondente e confere extras por alvo.
   if (key.startsWith('win-') && key === host) {
     const ndiSrc = path.resolve('native', 'ndi-bridge', 'target', 'release', 'castdeck-ndi.exe');
     if (fs.existsSync(ndiSrc)) {
@@ -179,8 +179,8 @@ for (const key of list) {
       console.log('  browser-host-cef: sincronizado em dist/browser-host-cef');
     }
   }
-  // worker da legenda ao vivo (Rust + whisper.cpp): compilado aqui mesmo, só para o sistema deste PC
-  // (sem compilação cruzada por enquanto). Se falhar, o app sai sem a legenda em vez de quebrar o build.
+  // workers nativos (Whisper + Parakeet) compilam no próprio host quando é igual; para alvos cruzados
+  // permanecem os binários já gerados em build/vendor/<alvo>/.
   if (key === host) {
     try {
       await buildCaption({ quiet: false });
@@ -191,6 +191,19 @@ for (const key of list) {
       await buildParakeet({ quiet: false });
     } catch (e) {
       console.warn(`  ⚠ legenda Parakeet fora deste build: ${e.message}`);
+    }
+  }
+  const sfx = key.startsWith('win-') ? '.exe' : '';
+  const ortMain = key.startsWith('win-') ? 'onnxruntime.dll' : key.startsWith('macos-') ? 'libonnxruntime.dylib' : 'libonnxruntime.so';
+  for (const b of ['castdeck-ndi' + sfx, 'castdeck-caption' + sfx, 'castdeck-parakeet' + sfx, ortMain]) {
+    const vp = path.join(vdir, b);
+    if (fs.existsSync(vp)) {
+      if (key.startsWith('macos-') && process.platform !== 'darwin' && fs.existsSync(LDID_BIN)) {
+        spawnSync(LDID_BIN, ['-Cadhoc', '-S', vp], { stdio: 'ignore' });
+      }
+      console.log(`  vendor/${b}: ${(fs.statSync(vp).size / 1048576).toFixed(1)} MB`);
+    } else {
+      console.warn(`  ⚠ vendor/${b} ausente para ${key}`);
     }
   }
   // 2) empacota: pasta public/ + binários deste alvo viram assets do executável

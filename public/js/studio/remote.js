@@ -511,9 +511,12 @@ export function createRemote({ S, comp, mixer, getSig, studioId, getSwitcher, ge
       setViewers(viewers);
     };
   }
-  // repinta o painel do Diretor e o modal (se estiverem abertos)
+  // repinta o painel do Diretor e o modal do controle completo (sem invadir o modal de QR do Pad)
   function paint() {
-    for (const box of document.querySelectorAll('#remote-box, .rc-modal')) paintInto(box);
+    for (const box of document.querySelectorAll('#remote-box, .rc-modal.rc-switcher-modal')) {
+      if (box.dataset.padQr === '1' || box.classList.contains('pad-qr-modal')) continue;
+      paintInto(box);
+    }
   }
   function mountPanel() {
     const dp = $('#dir-panel');
@@ -537,7 +540,7 @@ export function createRemote({ S, comp, mixer, getSig, studioId, getSwitcher, ge
   }
   // botão do header: abre o mesmo conteúdo num modal com o QR bem à vista
   function openModal() {
-    modal('<div class="rc-modal dp-remote"></div>', { onMount: (card) => paintInto(card.querySelector('.rc-modal')) });
+    modal('<div class="rc-modal rc-switcher-modal dp-remote" data-rc-switcher="1"></div>', { onMount: (card) => paintInto(card.querySelector('.rc-modal')) });
   }
 
   setInterval(sync, 250);

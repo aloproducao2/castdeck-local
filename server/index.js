@@ -570,6 +570,7 @@ async function main() {
         jpeg: !!b.jpeg,
         fps: b.fps,
         quality: b.quality,
+        adblock: b.adblock !== false,
       }, { force: !!b.force }));
     } catch (e) {
       res.status(e.status || 500).json({ error: e.message });

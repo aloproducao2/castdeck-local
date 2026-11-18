@@ -39,6 +39,8 @@ export const ENCODERS = {
   h264_qsv: { label: 'Intel Quick Sync', hw: true },
   h264_amf: { label: 'AMD AMF', hw: true },
   h264_videotoolbox: { label: 'Apple VideoToolbox', hw: true },
+  h264_vaapi: { label: 'VA-API (Linux GPU)', hw: true },
+  h264_v4l2m2m: { label: 'V4L2 M2M (Linux ARM)', hw: true },
 };
 
 export async function probeFfmpeg(ffmpegPath = 'ffmpeg') {
@@ -57,11 +59,19 @@ export async function probeFfmpeg(ffmpegPath = 'ffmpeg') {
   // Testa cada encoder com um frame real – estar listado não garante GPU presente.
   const results = await Promise.all(
     candidates.map(async (name) => {
-      const r = await run(ffmpegPath, [
-        '-hide_banner', '-loglevel', 'error',
-        '-f', 'lavfi', '-i', 'color=c=black:s=640x360:r=30',
-        '-frames:v', '5', '-c:v', name, '-f', 'null', '-',
-      ]);
+      const testArgs = name === 'h264_vaapi'
+        ? [
+          '-hide_banner', '-loglevel', 'error',
+          '-vaapi_device', '/dev/dri/renderD128',
+          '-f', 'lavfi', '-i', 'color=c=black:s=640x360:r=30',
+          '-vf', 'format=nv12,hwupload', '-frames:v', '5', '-c:v', name, '-f', 'null', '-',
+        ]
+        : [
+          '-hide_banner', '-loglevel', 'error',
+          '-f', 'lavfi', '-i', 'color=c=black:s=640x360:r=30',
+          '-frames:v', '5', '-c:v', name, '-f', 'null', '-',
+        ];
+      const r = await run(ffmpegPath, testArgs);
       return r.code === 0 ? name : null;
     }),
   );
@@ -81,6 +91,10 @@ export function videoEncoderArgs(encoder, kbps, fps, gopSec = 2) {
       return ['-c:v', 'h264_amf', '-usage', 'lowlatency', '-rc', 'cbr', ...rate, '-g', gop];
     case 'h264_videotoolbox':
       return ['-c:v', 'h264_videotoolbox', '-realtime', '1', '-prio_speed', '1', ...rate, '-g', gop, '-profile:v', 'high'];
+    case 'h264_vaapi':
+      return ['-c:v', 'h264_vaapi', ...rate, '-g', gop, '-bf', '0', '-profile:v', 'high'];
+    case 'h264_v4l2m2m':
+      return ['-c:v', 'h264_v4l2m2m', ...rate, '-g', gop];
     case 'libx264':
     default:
       return [

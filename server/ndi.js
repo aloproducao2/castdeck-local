@@ -19,26 +19,35 @@ function clamp(v, min, max, fallback) {
   return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
 }
 
+function targetKey() {
+  const os = process.platform === 'win32' ? 'win' : process.platform === 'darwin' ? 'macos' : 'linux';
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+  return `${os}-${arch}`;
+}
+
 export function findNdiBridge(root, env = process.env, runtimeDir = '') {
+  const binName = process.platform === 'win32' ? 'castdeck-ndi.exe' : 'castdeck-ndi';
+  const target = targetKey();
   const candidates = [
     env.NDI_BRIDGE_PATH,
-    // no app empacotado, este é o caminho executável de verdade; o snapshot do pkg não executa .exe.
-    path.join(path.dirname(process.execPath), 'castdeck-ndi.exe'),
-    path.join(root, 'native', 'ndi-bridge', 'target', 'release', 'castdeck-ndi.exe'),
-    path.join(root, 'native', 'ndi-bridge', 'target', 'debug', 'castdeck-ndi.exe'),
-    path.join(root, 'build', 'vendor', 'win-x64', 'castdeck-ndi.exe'),
-    path.join(root, 'build', 'vendor', 'ndi-bridge', 'win-x64', 'castdeck-ndi.exe'),
-    path.join(root, 'vendor', 'win-x64', 'castdeck-ndi.exe'),
-    path.join(root, 'bin', 'castdeck-ndi.exe'),
+    // No app empacotado, o binário ao lado do executável ou dentro do snapshot do pkg.
+    path.join(path.dirname(process.execPath), binName),
+    path.join(root, 'native', 'ndi-bridge', 'target', 'release', binName),
+    path.join(root, 'native', 'ndi-bridge', 'target', 'debug', binName),
+    path.join(root, 'build', 'vendor', target, binName),
+    path.join(root, 'build', 'vendor', 'ndi-bridge', target, binName),
+    path.join(root, 'vendor', target, binName),
+    path.join(root, 'bin', binName),
   ].filter(Boolean);
   for (const p of candidates) {
     try {
       if (!fs.statSync(p).isFile()) continue;
-      // O pkg não executa um .exe de dentro do snapshot: extrai para uma pasta real e executa de lá.
+      // O pkg não executa binário de dentro do snapshot: extrai para uma pasta real e executa de lá.
       if (runtimeDir && (/[\\\/]snapshot[\\\/]/i.test(p) || /app\.asar/i.test(p))) {
         fs.mkdirSync(runtimeDir, { recursive: true });
-        const dest = path.join(runtimeDir, 'castdeck-ndi.exe');
+        const dest = path.join(runtimeDir, binName);
         if (!fs.existsSync(dest) || fs.statSync(dest).size !== fs.statSync(p).size) fs.copyFileSync(p, dest);
+        if (process.platform !== 'win32') try { fs.chmodSync(dest, 0o755); } catch {}
         return dest;
       }
       return p;
@@ -296,16 +305,20 @@ export class NdiSourceServer {
         try { old.kill('SIGKILL'); } catch {}
       }
       if (session.pacer) clearInterval(session.pacer);
+      const vaapi = encoder === 'h264_vaapi';
       const vargs = videoEncoderArgs(encoder, 6000, fps, 1);
       const args = [
         '-hide_banner', '-loglevel', 'error', '-nostats',
+        ...(vaapi ? ['-vaapi_device', '/dev/dri/renderD128'] : []),
         '-fflags', 'nobuffer', '-flags', 'low_delay',
         '-f', 'rawvideo', '-pix_fmt', fmt, '-video_size', `${w}x${h}`, '-framerate', `${fps}/1`, '-i', 'pipe:0',
         '-f', 'f32le', '-ar', '48000', '-ac', '2', '-i', 'pipe:3',
       ];
-      if (filter) args.push('-vf', filter);
+      const filters = [filter, vaapi ? 'format=nv12,hwupload' : ''].filter(Boolean).join(',');
+      if (filters) args.push('-vf', filters);
       args.push(
-        ...vargs, '-pix_fmt', 'yuv420p',
+        ...vargs,
+        ...(vaapi ? [] : ['-pix_fmt', 'yuv420p']),
         '-c:a', 'libopus', '-b:a', '128k', '-ar', '48000', '-ac', '2', '-f', 'mpegts', '-flush_packets', '1', srt,
       );
       const ff = spawn(this.ffmpegPath, args, { stdio: ['pipe', 'ignore', 'pipe', 'pipe'] });

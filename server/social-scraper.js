@@ -16,7 +16,10 @@ function killTree(p) {
   if (!p || p.exitCode !== null) return;
   try {
     if (IS_WIN && p.pid) spawnSync('taskkill', ['/PID', String(p.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore', timeout: 5000 });
-    else p.kill('SIGKILL');
+    else {
+      if (p.pid) try { spawnSync('pkill', ['-KILL', '-P', String(p.pid)], { stdio: 'ignore', timeout: 3000 }); } catch {}
+      p.kill('SIGKILL');
+    }
   } catch {}
 }
 

@@ -9,6 +9,10 @@ import { qrSvg } from './studio/qr.js';
  */
 export async function mountPadQrView(box, { studioId = 'local', onInfo = null, showClose = false, onClose = null } = {}) {
   if (!box) return;
+  box.dataset.padQr = '1';
+  box.classList.add('pad-qr-modal');
+  box.classList.remove('rc-switcher-modal');
+  delete box.dataset.rcSwitcher;
   box.innerHTML = `<div class="rc-head"><div class="rc-head-txt"><b>🎛️ Pad no Celular (QR Code)</b><span class="rc-sub">Carregando endereço e chave de acesso…</span></div></div>`;
 
   let info;
@@ -167,10 +171,33 @@ export async function mountPadQrView(box, { studioId = 'local', onInfo = null, s
 }
 
 /**
- * Abre o QR Code do Pad usando o modal padrão do app (`ui.js`).
+ * Abre o QR Code do Pad usando o modal padrão do app (`ui.js`) ou no documento destacado (popout).
  */
-export function openPadQrModal({ studioId = 'local', onInfo = null } = {}) {
-  return modal('<div class="rc-modal dp-remote"></div>', {
+export function openPadQrModal({ studioId = 'local', onInfo = null, doc = document } = {}) {
+  if (doc && doc !== document && doc.body) {
+    return new Promise((resolve) => {
+      const back = doc.createElement('div');
+      back.className = 'modal-back';
+      back.innerHTML = '<div class="modal card" role="dialog" aria-modal="true" aria-label="Pad no Celular (QR Code)"><button type="button" class="modal-x" aria-label="Fechar">✕</button><div class="rc-modal pad-qr-modal dp-remote" data-pad-qr="1"></div></div>';
+      const card = back.firstElementChild;
+      const close = () => {
+        back.remove();
+        doc.removeEventListener('keydown', onKey);
+        if (!doc.querySelector('.modal-back')) doc.body.classList.remove('modal-open');
+        resolve(null);
+      };
+      const onKey = (e) => {
+        if (e.key === 'Escape') close();
+      };
+      doc.addEventListener('keydown', onKey);
+      doc.body.classList.add('modal-open');
+      back.addEventListener('mousedown', (e) => e.target === back && close());
+      card.querySelector('.modal-x')?.addEventListener('click', close);
+      doc.body.appendChild(back);
+      mountPadQrView(card.querySelector('.rc-modal'), { studioId, onInfo, onClose: close });
+    });
+  }
+  return modal('<div class="rc-modal pad-qr-modal dp-remote" data-pad-qr="1"></div>', {
     onMount: (card) => {
       const target = card.querySelector('.rc-modal');
       mountPadQrView(target, { studioId, onInfo });

@@ -269,20 +269,23 @@ body:has(.studio) #toasts { bottom: 112px; }
 
 /* ===== Painéis e menus: grupos legíveis, sub-abas e ajustes num lugar só ===== */
 
-/* menu de seções: 7 grupos (Conteúdo, Visual, Interatividade, Público, Diretor, Áudio, Ajustes).
-   Em 3 colunas o rótulo inteiro cabe; em 6 colunas até "Conteúdo" saía com "…". */
+/* menu de seções em chips horizontais compactos (26 px por linha para economizar altura do painel) */
 .grp-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.studio .side .grp { min-height: 48px; padding: 6px 1px; gap: 3px; font-size: 11px; }
-.studio .side .grp svg { width: 18px; height: 18px; }
+.studio:not(.side-mini):not(.is-mobile) .side .grp-tabs { gap: 3px; padding: 4px 6px 3px; }
+.studio:not(.side-mini):not(.is-mobile) .side .grp { flex-direction: row; height: 26px; min-height: 26px; padding: 2px 4px; gap: 4px; border-radius: 6px; font-size: 10.5px; line-height: 1; }
+.studio:not(.side-mini):not(.is-mobile) .side .grp svg { width: 13.5px; height: 13.5px; flex: none; }
+.studio:not(.side-mini):not(.is-mobile) .side .grp .count { position: static; margin-left: 2px; min-width: 15px; height: 15px; font-size: 9.5px; padding: 0 4px; }
 .studio.side-mini .grp-tabs { grid-template-columns: 1fr; }
+.studio.side-mini .grp { flex-direction: column; }
+.studio.side-mini .grp .count { position: absolute; top: 3px; right: 6px; margin-left: 0; }
 .grp .msg-count { background: var(--accent); }
 
-/* sub-abas: nome inteiro, ícone em cima (cabem 4 lado a lado sem "…") */
-.studio .side .subtabs { gap: 4px; padding: 0 8px 8px; border-bottom: 1px solid var(--line); }
-.studio .side .subtabs .tab { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 3px; min-height: 46px; padding: 6px 2px; border-radius: 10px; font-size: 11.5px; line-height: 1.1; }
-.studio .side .subtabs .tab > span { overflow: visible; text-overflow: clip; white-space: nowrap; max-width: none; }
-.studio .side .subtabs .tab svg { width: 16px; height: 16px; }
-.studio .side .subtabs .tab .count { position: absolute; top: 3px; right: 6px; margin: 0; }
+/* sub-abas em linha única compacta (26 px no desktop) */
+.studio .side .subtabs { gap: 3px; padding: 2px 6px 5px; border-bottom: 1px solid var(--line); }
+.studio:not(.is-mobile) .side .subtabs .tab { flex: 1 0 auto; min-width: 0; flex-direction: row; align-items: center; justify-content: center; gap: 4px; height: 26px; min-height: 26px; padding: 2px 6px; border-radius: 6px; font-size: 10.5px; line-height: 1; }
+.studio:not(.is-mobile) .side .subtabs .tab > span { overflow: visible; text-overflow: clip; white-space: nowrap; max-width: none; }
+.studio:not(.is-mobile) .side .subtabs .tab svg { width: 12.5px; height: 12.5px; flex: none; }
+.studio .side .subtabs .tab .count { position: static; margin-left: 2px; }
 .studio .side .subtabs .tab { position: relative; }
 
 /* Ajustes → Dispositivos */
@@ -1432,7 +1435,7 @@ body:has(.studio) #toasts { bottom: 112px; }
 
 /* ===== Painel de Controle lateral: identidade clara e barra de acesso rápido ===== */
 .side-head {
-  padding: 8px 10px 6px 12px;
+  padding: 4px 8px 4px 10px;
   border-bottom: 1px solid hsl(0 0% 100% / .05);
   background: linear-gradient(180deg, hsl(228 28% 11%), hsl(228 28% 8.5%));
 }
@@ -1458,7 +1461,7 @@ body:has(.studio) #toasts { bottom: 112px; }
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 5px 8px;
+  padding: 3px 6px;
   border-bottom: 1px solid var(--line);
   background: hsl(228 28% 6.8%);
   overflow-x: auto;
@@ -1467,13 +1470,13 @@ body:has(.studio) #toasts { bottom: 112px; }
 .side-quick-strip::-webkit-scrollbar { display: none; }
 .sq-pill {
   flex: none;
-  height: 24px;
-  padding: 0 8px;
+  height: 21px;
+  padding: 0 7px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--bg-2);
   color: var(--text-1);
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;

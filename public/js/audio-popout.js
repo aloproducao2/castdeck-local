@@ -70,6 +70,9 @@ function init() {
   window.renderAudio = () => {
     panel?.render();
   };
+  window.syncAudioChannel = (id) => {
+    panel?.syncChannel?.(id);
+  };
 
   // Botão de fixar no topo (Always on Top via Picture-in-Picture nativo)
   const pinBtn = $('#pop-pin');

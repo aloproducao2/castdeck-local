@@ -233,6 +233,44 @@ export class SignalingHub {
         return { op: 'replay-speed', speed: Math.max(0.05, Math.min(2, Number(cmd.speed) || 0.5)) };
       case 'replay-auto-take':
         return { op: 'replay-auto-take', on: !!cmd.on };
+      case 'pad-play':
+        return id ? { op: 'pad-play', id } : null;
+      case 'pad-stop':
+        return { op: 'pad-stop', id: id || undefined };
+      case 'pad-vol':
+        return { op: 'pad-vol', vol: Math.max(0, Math.min(1, Number(cmd.vol) || 0)) };
+      case 'pad-mute':
+        return { op: 'pad-mute', on: !!cmd.on };
+      case 'pad-overlap':
+        return { op: 'pad-overlap', on: !!cmd.on };
+      case 'pad-duck':
+        return { op: 'pad-duck', on: !!cmd.on };
+      case 'pad-fav':
+        return id ? { op: 'pad-fav', id, on: !!cmd.on } : null;
+      case 'pad-replay':
+        return { op: 'pad-replay' };
+      case 'pad-move-by':
+        return id ? { op: 'pad-move-by', id, dir: Number(cmd.dir) < 0 ? -1 : 1, sameGroup: cmd.sameGroup !== false } : null;
+      case 'pad-move': {
+        const targetId = cmd.targetId ? clean(cmd.targetId, 80) : null;
+        return id && targetId ? { op: 'pad-move', id, targetId, after: !!cmd.after, category: cmd.category ? clean(cmd.category, 40) : '' } : null;
+      }
+      case 'pad-set-cat': {
+        const category = cmd.category ? clean(cmd.category, 40) : '';
+        return id && category ? { op: 'pad-set-cat', id, category } : null;
+      }
+      case 'pad-group-move':
+        return id ? { op: 'pad-group-move', id, dir: Number(cmd.dir) < 0 ? -1 : 1 } : null;
+      case 'music-toggle':
+        return { op: 'music-toggle' };
+      case 'music-stop':
+        return { op: 'music-stop' };
+      case 'music-step':
+        return { op: 'music-step', dir: Number(cmd.dir) < 0 ? -1 : 1 };
+      case 'music-vol':
+        return { op: 'music-vol', vol: Math.max(0, Math.min(1, Number(cmd.vol) || 0)) };
+      case 'music-mute':
+        return { op: 'music-mute', on: !!cmd.on };
     }
     return null;
   }

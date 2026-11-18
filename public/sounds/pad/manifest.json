@@ -1,0 +1,256 @@
+{
+  "sounds": [
+    {
+      "id": "aplausos",
+      "file": "aplausos.mp3",
+      "name": "Plateia — Aplausos",
+      "category": "plateia",
+      "color": "blue",
+      "url": "/sounds/pad/aplausos.mp3",
+      "size": 70581
+    },
+    {
+      "id": "risada-plateia-sitcom",
+      "file": "risada-plateia-sitcom.mp3",
+      "name": "Plateia — Risadas Sitcom",
+      "category": "plateia",
+      "color": "cyan",
+      "url": "/sounds/pad/risada-plateia-sitcom.mp3",
+      "size": 41495
+    },
+    {
+      "id": "risada-plateia-gargalhada",
+      "file": "risada-plateia-gargalhada.mp3",
+      "name": "Plateia — Gargalhada",
+      "category": "plateia",
+      "color": "cyan",
+      "url": "/sounds/pad/risada-plateia-gargalhada.mp3",
+      "size": 79375
+    },
+    {
+      "id": "plateia-vaias",
+      "file": "vaias.mp3",
+      "name": "Plateia — Vaias",
+      "category": "plateia",
+      "color": "orange",
+      "url": "/sounds/pad/vaias.mp3",
+      "size": 66656
+    },
+    {
+      "id": "plateia-oooh",
+      "file": "plateia-oooh.mp3",
+      "name": "Plateia — Ooooh!",
+      "category": "plateia",
+      "color": "purple",
+      "url": "/sounds/pad/plateia-oooh.mp3",
+      "size": 12858
+    },
+    {
+      "id": "ba-dum-tss",
+      "file": "ba-dum-tss.mp3",
+      "name": "Ba dum tss — Piada",
+      "category": "cena",
+      "color": "cyan",
+      "url": "/sounds/pad/ba-dum-tss.mp3",
+      "size": 19275
+    },
+    {
+      "id": "rufar-tambores",
+      "file": "rufar-tambores.mp3",
+      "name": "Rufem os Tambores",
+      "category": "cena",
+      "color": "purple",
+      "url": "/sounds/pad/rufar-tambores.mp3",
+      "size": 144123
+    },
+    {
+      "id": "suspense-impacto",
+      "file": "suspense-impacto.mp3",
+      "name": "Impacto de Suspense",
+      "category": "cena",
+      "color": "red",
+      "url": "/sounds/pad/suspense-impacto.mp3",
+      "size": 22915
+    },
+    {
+      "id": "grilo-cri-cri",
+      "file": "grilo-cri-cri.mp3",
+      "name": "Grilo Cri-Cri — Silêncio",
+      "category": "cena",
+      "color": "green",
+      "url": "/sounds/pad/grilo-cri-cri.mp3",
+      "size": 162284
+    },
+    {
+      "id": "trombone-triste",
+      "file": "trombone-triste.mp3",
+      "name": "Trombone Triste — Fail",
+      "category": "cena",
+      "color": "orange",
+      "url": "/sounds/pad/trombone-triste.mp3",
+      "size": 190865
+    },
+    {
+      "id": "violino-triste",
+      "file": "violino-triste.mp3",
+      "name": "Violino Triste",
+      "category": "cena",
+      "color": "pink",
+      "url": "/sounds/pad/violino-triste.mp3",
+      "size": 161585
+    },
+    {
+      "id": "bolsonaro-telefone",
+      "file": "bolsonaro-pegaram-meu-telefone.mp3",
+      "name": "Bolsonaro — Pegaram meu telefone",
+      "category": "bolsonaro",
+      "color": "yellow",
+      "url": "/sounds/pad/bolsonaro-pegaram-meu-telefone.mp3",
+      "size": 40604
+    },
+    {
+      "id": "bolsonaro-popcorn",
+      "file": "bolsonaro-popcorn.mp3",
+      "name": "Bolsonaro — Popcorn & Ice Cream",
+      "category": "bolsonaro",
+      "color": "green",
+      "url": "/sounds/pad/bolsonaro-popcorn.mp3",
+      "size": 207873
+    },
+    {
+      "id": "bolsonaro-risada",
+      "file": "bolsonaro-risada.mp3",
+      "name": "Bolsonaro — Risada",
+      "category": "bolsonaro",
+      "color": "green",
+      "url": "/sounds/pad/bolsonaro-risada.mp3",
+      "size": 145904
+    },
+    {
+      "id": "lula-faz-o-l",
+      "file": "faz-o-l-vinheta.mp3",
+      "name": "Lula — Faz o L",
+      "category": "lula",
+      "color": "red",
+      "url": "/sounds/pad/faz-o-l-vinheta.mp3",
+      "size": 163145
+    },
+    {
+      "id": "lula-pense",
+      "file": "pense-no-lula.mp3",
+      "name": "Lula — Pense no Lula",
+      "category": "lula",
+      "color": "red",
+      "url": "/sounds/pad/pense-no-lula.mp3",
+      "size": 240268
+    },
+    {
+      "id": "brasil-sil-sil",
+      "file": "brasil-sil-sil.mp3",
+      "name": "Brasil, sil, sil!",
+      "category": "brasil",
+      "color": "cyan",
+      "url": "/sounds/pad/brasil-sil-sil.mp3",
+      "size": 46663
+    },
+    {
+      "id": "plantao-globo",
+      "file": "plantao-globo.mp3",
+      "name": "Plantão da Globo",
+      "category": "brasil",
+      "color": "blue",
+      "url": "/sounds/pad/plantao-globo.mp3",
+      "size": 223072
+    },
+    {
+      "id": "faustao-errou",
+      "file": "faustao-errou.mp3",
+      "name": "Faustão — Errou!",
+      "category": "brasil",
+      "color": "orange",
+      "url": "/sounds/pad/faustao-errou.mp3",
+      "size": 11955
+    },
+    {
+      "id": "xaropinho-rapaz",
+      "file": "rapaz-xaropinho.mp3",
+      "name": "Xaropinho — Rapaz!",
+      "category": "brasil",
+      "color": "purple",
+      "url": "/sounds/pad/rapaz-xaropinho.mp3",
+      "size": 32528
+    },
+    {
+      "id": "ratinho-cavalo",
+      "file": "cavalo-ratinho.mp3",
+      "name": "Ratinho — Cavalo!",
+      "category": "brasil",
+      "color": "orange",
+      "url": "/sounds/pad/cavalo-ratinho.mp3",
+      "size": 15840
+    },
+    {
+      "id": "ratinho-uepa",
+      "file": "uepa-ratinho.mp3",
+      "name": "Ratinho — Uepa!",
+      "category": "brasil",
+      "color": "blue",
+      "url": "/sounds/pad/uepa-ratinho.mp3",
+      "size": 22540
+    },
+    {
+      "id": "ratinho-pare",
+      "file": "pare-ratinho.mp3",
+      "name": "Ratinho — Pare!",
+      "category": "brasil",
+      "color": "red",
+      "url": "/sounds/pad/pare-ratinho.mp3",
+      "size": 16553
+    },
+    {
+      "id": "galvao-tetra",
+      "file": "tetra-galvao.mp3",
+      "name": "Galvão — É Tetra!",
+      "category": "brasil",
+      "color": "green",
+      "url": "/sounds/pad/tetra-galvao.mp3",
+      "size": 518143
+    },
+    {
+      "id": "silvio-moises",
+      "file": "silvio-nao-consegue.mp3",
+      "name": "Silvio — Não consegue né Moisés",
+      "category": "brasil",
+      "color": "yellow",
+      "url": "/sounds/pad/silvio-nao-consegue.mp3",
+      "size": 89690
+    },
+    {
+      "id": "sandra-deselegante",
+      "file": "que-deselegante.mp3",
+      "name": "Que deselegante!",
+      "category": "brasil",
+      "color": "purple",
+      "url": "/sounds/pad/que-deselegante.mp3",
+      "size": 36437
+    },
+    {
+      "id": "cilada-bino",
+      "file": "cilada-bino.mp3",
+      "name": "É uma cilada, Bino!",
+      "category": "brasil",
+      "color": "pink",
+      "url": "/sounds/pad/cilada-bino.mp3",
+      "size": 158512
+    },
+    {
+      "id": "joao-kleber-para",
+      "file": "para-tudo-joao-kleber.mp3",
+      "name": "João Kléber — Para tudo!",
+      "category": "brasil",
+      "color": "orange",
+      "url": "/sounds/pad/para-tudo-joao-kleber.mp3",
+      "size": 86229
+    }
+  ]
+}

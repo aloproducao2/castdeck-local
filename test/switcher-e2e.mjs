@@ -54,7 +54,7 @@ async function open(url) {
   await send('Page.navigate', { url });
   return { ev, errors, send };
 }
-const waitFor = async (p, expr, ms = 20000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (await p.ev(expr)) return true; } catch {} await sleep(300); } return false; };
+const waitFor = async (p, expr, ms = 20000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (await p.ev(expr)) return true; } catch { } await sleep(300); } return false; };
 let fails = 0;
 const check = (n, ok, extra = '') => { console.log(ok ? 'OK   ' : 'FALHA', n, ok ? '' : extra); if (!ok) fails++; };
 
@@ -218,7 +218,7 @@ try {
   console.error('FALHA', e.message);
   fails++;
 } finally {
-  for (const t of targets) await bsend('Target.closeTarget', { targetId: t }).catch(() => {});
+  for (const t of targets) await bsend('Target.closeTarget', { targetId: t }).catch(() => { });
   bws.close();
 }
 console.log(fails ? `\n${fails} falha(s)` : '\nTudo OK');

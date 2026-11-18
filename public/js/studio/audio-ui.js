@@ -96,6 +96,7 @@ export function createAudioPanel({
   function rowsFor() {
     const rows = [{ id: 'host:mic', name: `${S.local.name}`, tag: 'MIC' }];
     if (mixer.sources.has('music:ambient')) rows.push({ id: 'music:ambient', name: 'Trilha', tag: 'TRILHA', ambient: true });
+    if (mixer.sources.has('pad:sfx')) rows.push({ id: 'pad:sfx', name: 'Pad / Efeitos', tag: 'PAD', ambient: true });
     for (const s of S.sources.values()) {
       // Entradas RTMP/SRT/NDI: o áudio é uma faixa separada do vídeo; entra no Mixer
       // assim que a faixa WebRTC chega, mesmo que a miniatura ainda esteja nos bastidores.
@@ -321,10 +322,12 @@ export function createAudioPanel({
 
   function setFaderUi(box, v) {
     const pct = Math.round(v * 100);
+    const active = box.ownerDocument?.activeElement || document.activeElement;
     const [range, num] = box.querySelectorAll('input');
-    if (document.activeElement !== range) range.value = pct;
-    if (document.activeElement !== num) num.value = pct;
-    box.querySelector('.fdb').textContent = `${fmtDb(v)} dB`;
+    if (range && active !== range) range.value = pct;
+    if (num && active !== num) num.value = pct;
+    const fdb = box.querySelector('.fdb');
+    if (fdb) fdb.textContent = `${fmtDb(v)} dB`;
   }
 
   function applyFader(key, v) {
@@ -711,7 +714,7 @@ export function createAudioPanel({
         paint(el, ballistics(id, mixer.levelDb(id).peak, now), now, text);
       }
       if (text) {
-        // Estado vindo do celular ou de outra aba: espelha no painel (mute, solo, buses e “no ar”).
+        // Estado vindo do celular, do Pad ou de outra aba: espelha no painel (fader, mute, solo, rota e “no ar”).
         for (const ch of p.querySelectorAll('[data-ch]')) {
           const id = ch.dataset.ch;
           const s = mixer.sources.get(id);
@@ -719,6 +722,8 @@ export function createAudioPanel({
           ch.classList.toggle('solo-on', !!s?.solo);
           const sb = $('[data-solo]', ch);
           if (sb) sb.classList.toggle('on', !!s?.solo);
+          const fbox = ch.querySelector('[data-fader]');
+          if (fbox && s) setFaderUi(fbox, s.volume ?? 1);
           const mb = $('[data-mon]', ch);
           if (mb) {
             const on = s?.route?.monitor !== false;
@@ -741,6 +746,11 @@ export function createAudioPanel({
       }
     }
 
+    if (isSecOpen('mon') && text) {
+      const mbox = p.querySelector('[data-fader="__mon"]');
+      if (mbox) setFaderUi(mbox, mixer.monitorVol ?? 1);
+    }
+
     // Resumo no cabeçalho fechado (não perde informação com a seção recolhida).
     if (text) {
       const setSum = (id, val) => {
@@ -755,5 +765,49 @@ export function createAudioPanel({
     }
   }
 
-  return { render, tick };
+  function syncChannel(id) {
+    const p = getRoot();
+    if (!p || !p.firstElementChild) return;
+    if (id === '__master') {
+      const box = p.querySelector('[data-fader="__master"]');
+      if (box) setFaderUi(box, mixer.master ?? 1);
+      const mm = p.querySelector('#ax-mute');
+      if (mm) {
+        mm.classList.toggle('on', !!mixer.masterMuted);
+        mm.classList.toggle('danger', !!mixer.masterMuted);
+      }
+      const md = p.querySelector('#ax-dim');
+      if (md) md.classList.toggle('on', !!mixer.dim);
+      return;
+    }
+    if (id === '__mon') {
+      const box = p.querySelector('[data-fader="__mon"]');
+      if (box) setFaderUi(box, mixer.monitorVol ?? 1);
+      return;
+    }
+    const ch = [...p.querySelectorAll('[data-ch]')].find((el) => el.dataset.ch === id);
+    if (!ch) return;
+    const s = mixer.sources.get(id);
+    const fbox = ch.querySelector('[data-fader]');
+    if (fbox && s) setFaderUi(fbox, s.volume ?? 1);
+    if (id === 'host:mic') syncMute(ch, id);
+    else if (s) {
+      ch.classList.toggle('muted', !!s.muted);
+      $('[data-mute]', ch)?.classList.toggle('on', !!s.muted);
+    }
+    const mb = $('[data-mon]', ch);
+    if (mb && s?.route) {
+      const on = s.route.monitor !== false;
+      mb.classList.toggle('on', on);
+      mb.classList.toggle('off', !on);
+      mb.textContent = on ? 'FONE' : 'FONE OFF';
+      mb.setAttribute('aria-pressed', String(on));
+    }
+    const routeEl = $('.ch-route', ch);
+    if (routeEl && s?.route) {
+      routeEl.textContent = s.route.program ? (s.route.monitor ? 'PGM+FONE' : 'PGM') : (s.route.monitor ? 'FONE' : 'MUDO');
+    }
+  }
+
+  return { render, tick, syncChannel };
 }

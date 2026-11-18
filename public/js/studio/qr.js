@@ -260,3 +260,18 @@ export function makeQR(text, ecl = 'M') {
   drawFormat(best);
   return { size, modules: m, version: ver, ecl: 'LMQH'[e], isFn: fn };
 }
+
+/**
+ * Gera QR Code em SVG nítido em qualquer tamanho.
+ */
+export function qrSvg(text) {
+  const q = makeQR(text, 'M');
+  const n = q.size + 8; // 4 módulos de margem branca de cada lado (zona de silêncio)
+  let d = '';
+  for (let y = 0; y < q.size; y++) {
+    for (let x = 0; x < q.size; x++) {
+      if (q.modules[y][x]) d += `M${x + 4} ${y + 4}h1v1h-1z`;
+    }
+  }
+  return `<svg width="100%" height="100%" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" preserveAspectRatio="xMidYMid meet" role="img" aria-label="QR Code" style="width:100%;height:100%;max-width:100%;display:block;image-rendering:pixelated"><rect width="${n}" height="${n}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}

@@ -61,7 +61,8 @@ EOF
   local out="$DIST/CastDeck-$arch.AppImage"
   local tmpout="$WORK/CastDeck-$arch.AppImage"
   rm -f "$out" "$DIST/CastDeck-$VER-$arch.AppImage"
-  ARCH="$arch" APPIMAGE_EXTRACT_AND_RUN=1 NO_CLEANUP=1 "$TOOLS/appimagetool" --mksquashfs-opt -processors --mksquashfs-opt 1 --no-appstream --runtime-file "$TOOLS/runtime-$arch" "$app" "$tmpout" >"$WORK/log-$arch.txt" 2>&1 || {
+  rm -rf /tmp/appimage_extracted_*
+  ARCH="$arch" APPIMAGE_EXTRACT_AND_RUN=1 "$TOOLS/appimagetool" --mksquashfs-opt -processors --mksquashfs-opt 1 --no-appstream --runtime-file "$TOOLS/runtime-$arch" "$app" "$tmpout" >"$WORK/log-$arch.txt" 2>&1 || {
     cat "$WORK/log-$arch.txt"
     exit 1
   }

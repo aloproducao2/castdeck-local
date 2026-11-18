@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="/icon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0a0a12">
+  <meta name="robots" content="noindex">
+  <title>Pad de Efeitos — CastDeck</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="theme-dark pad-win-body">
+  <div class="pad-win-root" id="pad-win-root">
+    <header class="pad-win-header">
+      <div class="pad-win-brand">
+        <span class="pad-win-ico" aria-hidden="true">🎛️</span>
+        <div>
+          <strong>Pad de Efeitos Sonoros</strong>
+          <small id="pad-studio-name">CastDeck Local</small>
+        </div>
+        <span class="pill sm warn" id="pad-conn-status">Conectando…</span>
+      </div>
+
+      <div class="pad-win-now" id="pad-now-box" title="Temporizador de precisão do efeito atual">
+        <div class="pad-now-top">
+          <div class="pad-win-now-name" id="pad-now-name">Pronto para disparar</div>
+          <span class="pad-timer-badge" id="pad-now-count">Parado</span>
+          <div class="pad-player-acts">
+            <button type="button" class="btn sm ghost pad-play-btn" id="pad-player-play" title="Tocar ou repetir o efeito selecionado">▶ Tocar</button>
+            <button type="button" class="btn sm danger pad-stop-inline" id="pad-player-stop" title="Parar todos os efeitos (Esc)">⏹ Parar</button>
+          </div>
+        </div>
+        <div class="pad-win-clocks">
+          <div class="pad-clk-cell"><small>DECORRIDO</small><span class="pad-clock-prog" id="pad-clock-prog">00:00.0</span></div>
+          <div class="pad-clk-cell"><small>RESTANTE</small><span class="pad-clock-rem" id="pad-clock-rem">-00:00.0</span></div>
+          <div class="pad-clk-cell"><small>TOTAL</small><span class="pad-clock-dur" id="pad-clock-dur">00:00.0</span></div>
+        </div>
+        <div class="pad-now-bar"><i id="pad-clock-bar"></i></div>
+      </div>
+
+      <div class="pad-win-top-acts">
+        <button type="button" class="btn danger pad-stop-all" id="pad-stop-all" title="Parar todos os efeitos agora (Esc)">
+          <span aria-hidden="true">⏹</span>
+          <span>PARAR TUDO <small>(Esc)</small></span>
+        </button>
+        <button type="button" class="btn ghost" id="pad-fs-btn" title="Alternar tela cheia" aria-pressed="false">
+          <span aria-hidden="true">⛶</span>
+          <span id="pad-fs-lbl">Tela cheia</span>
+        </button>
+        <button type="button" class="btn ghost" id="pad-qr-btn" title="Abrir QR Code para controlar os botões e o volume do Pad pelo celular">
+          <span aria-hidden="true">📱</span>
+          <span>QR Celular</span>
+        </button>
+        <button type="button" class="btn ghost pop-pin-btn" id="pad-pin" title="Sempre no topo: fixa a janela acima de todos os aplicativos (Picture-in-Picture)" aria-pressed="false">
+          <span>📌</span>
+          <span id="pad-pin-lbl">Fixar no topo</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="pad-win-toolbar" aria-label="Controles do Pad">
+      <div class="pad-toolbar-top">
+        <div class="pad-search-wrap">
+          <input type="search" class="input" id="pad-win-search" placeholder="Buscar sample por nome… (atalho: / ou ↓)" aria-label="Buscar sample por nome">
+          <button type="button" class="btn sm ghost" id="pad-search-clear" title="Limpar busca" hidden>✕</button>
+        </div>
+        <div class="pad-view-btns">
+          <button type="button" class="btn sm ghost active" id="pad-win-grouped" aria-pressed="true" title="Organizar em seções/grupos reordenáveis">🗂️ Em Grupos</button>
+          <button type="button" class="btn sm ghost" id="pad-win-reorder" aria-pressed="false" title="Mostrar controles para reorganizar os botões (◀ / ▶ e trocar grupo)">⇄ Reorganizar</button>
+          <button type="button" class="btn sm ghost" id="pad-win-new-group" title="Criar novo grupo de samples">+ Grupo</button>
+        </div>
+      </div>
+
+      <div class="pad-cats pad-win-cats" id="pad-win-cats" role="tablist" aria-label="Categorias"></div>
+
+      <div class="pad-win-switches">
+        <label class="pad-pill-chk" title="Sobrepor vários efeitos ao mesmo tempo (estilo MyInstants) em vez de cortar o anterior">
+          <input type="checkbox" id="pad-win-overlap">
+          <span>Sobrepor sons</span>
+        </label>
+        <label class="pad-pill-chk" title="Abaixa automaticamente a Trilha Sonora quando um efeito toca">
+          <input type="checkbox" id="pad-win-duck">
+          <span>Ducking na Trilha</span>
+        </label>
+        <label class="pad-pill-chk" title="Ouvir os efeitos no fone/retorno do host">
+          <input type="checkbox" id="pad-win-mon">
+          <span>Ouvir no fone</span>
+        </label>
+        <label class="pad-pill-chk" title="Ativar disparo rápido pelo teclado (teclas 1–0 e Q–P)">
+          <input type="checkbox" id="pad-win-keys" checked>
+          <span>Atalhos 1-0 / Q-P</span>
+        </label>
+      </div>
+
+      <div class="pad-win-vol-row">
+        <div class="music-volume pad-win-vol">
+          <span>Volume Pad</span>
+          <button type="button" class="btn sm ghost icon pad-mute-btn" id="pad-win-mute" aria-pressed="false" title="Silenciar Pad"></button>
+          <input id="pad-win-vol" type="range" min="0" max="100" step="1" value="85" aria-label="Volume do Pad">
+          <b id="pad-win-vol-val">85%</b>
+        </div>
+        <button type="button" class="btn primary sm" id="pad-win-bulk">+ Cadastrar em Massa</button>
+        <button type="button" class="btn ghost sm" id="pad-win-folder-btn" title="Importar todos os áudios de uma pasta">📁 Pasta</button>
+        <button type="button" class="btn ghost sm" id="pad-win-restore" title="Restaurar os sons e grupos pré-instalados">↺ Padrões</button>
+        <button type="button" class="btn danger sm ghost" id="pad-win-clear" title="Apagar todos os samples do Pad para começar do zero">🗑 Apagar Tudo</button>
+      </div>
+      <div class="pad-ambient-bar" id="pad-ambient-bar" aria-label="Player da Trilha Sonora">
+        <span class="pad-amb-tag">🎵 Trilha</span>
+        <div class="pad-amb-btns">
+          <button type="button" class="btn sm ghost icon" id="pad-amb-prev" title="Faixa anterior">⏮</button>
+          <button type="button" class="btn sm primary icon" id="pad-amb-play" title="Tocar / Pausar trilha">▶</button>
+          <button type="button" class="btn sm danger icon" id="pad-amb-stop" title="Parar trilha">⏹</button>
+          <button type="button" class="btn sm ghost icon" id="pad-amb-next" title="Próxima faixa">⏭</button>
+        </div>
+        <div class="pad-amb-meta">
+          <strong id="pad-amb-name">Sem faixa na Trilha</strong>
+          <small id="pad-amb-time">0:00 / 0:00</small>
+        </div>
+        <div class="pad-amb-vol">
+          <button type="button" class="btn sm ghost icon pad-mute-btn" id="pad-amb-mute" title="Silenciar Trilha" aria-pressed="false"></button>
+          <input type="range" id="pad-amb-vol" min="0" max="100" step="1" value="40" aria-label="Volume da Trilha Sonora">
+          <b id="pad-amb-vol-val">40%</b>
+        </div>
+      </div>
+      <input type="file" id="pad-win-folder" accept="audio/*,.mp3,.wav,.ogg,.m4a,.flac,.opus" webkitdirectory directory multiple hidden>
+    </section>
+
+    <main class="pad-win-main" id="pad-win-main">
+      <div class="pad-grid" id="pad-grid"></div>
+    </main>
+  </div>
+
+  <!-- Modal editar sample individual -->
+  <div class="modal-back" id="pad-edit-modal" hidden>
+    <div class="modal card pad-edit-card" role="dialog" aria-modal="true" aria-labelledby="pad-edit-title">
+      <div class="pad-edit-head">
+        <h3 id="pad-edit-title">Editar Sample</h3>
+        <button type="button" class="btn sm ghost icon" id="pad-edit-close" aria-label="Fechar">✕</button>
+      </div>
+      <form id="pad-edit-form" class="pad-edit-form">
+        <label class="field">
+          <span>Nome do botão</span>
+          <input type="text" class="input" id="pad-edit-name" maxlength="90" required>
+        </label>
+        <label class="field">
+          <span>Grupo / Categoria</span>
+          <select class="input" id="pad-edit-cat"></select>
+        </label>
+        <div class="field">
+          <span>Cor do Pad</span>
+          <div class="pad-color-swatches" id="pad-edit-colors"></div>
+        </div>
+        <label class="pad-pill-chk">
+          <input type="checkbox" id="pad-edit-fav">
+          <span>★ Fixar nos Favoritos</span>
+        </label>
+        <div class="pad-edit-actions">
+          <button type="button" class="btn danger sm" id="pad-edit-delete">Excluir sample</button>
+          <div class="spacer"></div>
+          <button type="button" class="btn ghost sm" id="pad-edit-cancel">Cancelar</button>
+          <button type="submit" class="btn primary sm">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal cadastro em massa -->
+  <div class="modal-back" id="pad-bulk-modal" hidden>
+    <div class="modal card pad-bulk-card" role="dialog" aria-modal="true" aria-labelledby="pad-bulk-title">
+      <div class="pad-edit-head">
+        <h3 id="pad-bulk-title">Cadastrar Samples em Massa</h3>
+        <button type="button" class="btn sm ghost icon" id="pad-bulk-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="pad-edit-form">
+        <div class="pad-bulk-row">
+          <label class="field" style="flex:1">
+            <span>Grupo de destino</span>
+            <select class="input" id="pad-bulk-group"></select>
+          </label>
+          <label class="field" style="width:150px">
+            <span>Cor dos botões</span>
+            <select class="input" id="pad-bulk-color"></select>
+          </label>
+        </div>
+        <div class="pad-bulk-newgrp">
+          <input type="text" class="input sm" id="pad-bulk-newgrp-name" placeholder="Ou criar grupo novo (ex: Vinhetas)…" maxlength="40">
+          <button type="button" class="btn sm ghost" id="pad-bulk-newgrp-btn">+ Criar grupo</button>
+        </div>
+        <div class="pad-bulk-drop" id="pad-bulk-drop">
+          <p>Arraste vários MP3/WAV para cá ou escolha:</p>
+          <div class="pad-bulk-pickers">
+            <button type="button" class="btn primary sm" id="pad-bulk-pick-files">Selecionar arquivos…</button>
+            <button type="button" class="btn ghost sm" id="pad-bulk-pick-folder">📁 Selecionar pasta…</button>
+          </div>
+          <input type="file" id="pad-bulk-files" accept="audio/*,.mp3,.wav,.ogg,.m4a,.flac,.opus" multiple hidden>
+          <input type="file" id="pad-bulk-folder" accept="audio/*,.mp3,.wav,.ogg,.m4a,.flac,.opus" webkitdirectory directory multiple hidden>
+        </div>
+        <div class="pad-bulk-queue" id="pad-bulk-queue">Nenhum arquivo selecionado ainda.</div>
+        <div class="pad-bulk-progress" id="pad-bulk-progress" hidden></div>
+        <div class="pad-edit-actions">
+          <div class="spacer"></div>
+          <button type="button" class="btn ghost sm" id="pad-bulk-cancel">Cancelar</button>
+          <button type="button" class="btn primary sm" id="pad-bulk-submit" disabled>Cadastrar tudo</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal criar / editar grupo -->
+  <div class="modal-back" id="pad-group-modal" hidden>
+    <div class="modal card pad-edit-card" role="dialog" aria-modal="true" aria-labelledby="pad-group-title">
+      <div class="pad-edit-head">
+        <h3 id="pad-group-title">Novo Grupo</h3>
+        <button type="button" class="btn sm ghost icon" id="pad-group-close" aria-label="Fechar">✕</button>
+      </div>
+      <form id="pad-group-form" class="pad-edit-form">
+        <div class="pad-bulk-row">
+          <label class="field" style="width:76px">
+            <span>Ícone</span>
+            <input type="text" class="input" id="pad-group-icon" maxlength="4" value="🎵">
+          </label>
+          <label class="field" style="flex:1">
+            <span>Nome do grupo</span>
+            <input type="text" class="input" id="pad-group-name" maxlength="40" required placeholder="Ex: Vinhetas, Efeitos, Plateia…">
+          </label>
+        </div>
+        <div class="field">
+          <span>Cor do grupo</span>
+          <div class="pad-color-swatches" id="pad-group-colors"></div>
+        </div>
+        <div class="pad-edit-actions">
+          <button type="button" class="btn danger sm" id="pad-group-delete" hidden>Excluir grupo</button>
+          <div class="spacer"></div>
+          <button type="button" class="btn ghost sm" id="pad-group-cancel">Cancelar</button>
+          <button type="submit" class="btn primary sm">Salvar grupo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal confirmar Apagar Tudo -->
+  <div class="modal-back" id="pad-confirm-modal" hidden>
+    <div class="modal card pad-edit-card" role="dialog" aria-modal="true" aria-labelledby="pad-confirm-title">
+      <div class="pad-edit-head">
+        <h3 id="pad-confirm-title">Apagar todos os samples?</h3>
+        <button type="button" class="btn sm ghost icon" id="pad-confirm-close" aria-label="Fechar">✕</button>
+      </div>
+      <p class="hint" id="pad-confirm-msg" style="margin:0 0 14px;line-height:1.5">Isso remove todos os seus uploads e oculta os sons padrão para começar do zero. Você pode restaurar os padrões quando quiser em “↺ Padrões”.</p>
+      <div class="pad-edit-actions">
+        <div class="spacer"></div>
+        <button type="button" class="btn ghost sm" id="pad-confirm-no">Cancelar</button>
+        <button type="button" class="btn danger sm" id="pad-confirm-yes">Apagar tudo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal QR Code Controle no Celular -->
+  <div class="modal-back" id="pad-qr-modal" hidden>
+    <div class="modal card rc-modal dp-remote" role="dialog" aria-modal="true" aria-labelledby="pad-qr-title">
+      <button type="button" class="modal-x" id="pad-qr-close" aria-label="Fechar">✕</button>
+      <div id="pad-qr-body"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/pad-popout.js"></script>
+</body>
+</html>

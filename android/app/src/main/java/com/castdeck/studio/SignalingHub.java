@@ -442,6 +442,30 @@ public class SignalingHub {
             case "media-vol": return id.isEmpty() ? null : o("op", "media-vol", "id", id, "vol", Math.max(0, Math.min(1, cmd.optDouble("vol", 1))));
             case "master-vol": return o("op", "master-vol", "vol", Math.max(0, Math.min(1, cmd.optDouble("vol", 1))));
             case "src-vol": return id.isEmpty() ? null : o("op", "src-vol", "id", id, "vol", Math.max(0, Math.min(1, cmd.optDouble("vol", 1))));
+            case "pad-play": return id.isEmpty() ? null : o("op", "pad-play", "id", id);
+            case "pad-stop": return o("op", "pad-stop", "id", id.isEmpty() ? null : id);
+            case "pad-vol": return o("op", "pad-vol", "vol", Math.max(0, Math.min(1, cmd.optDouble("vol", 0))));
+            case "pad-mute": return o("op", "pad-mute", "on", cmd.optBoolean("on", false));
+            case "pad-overlap": return o("op", "pad-overlap", "on", cmd.optBoolean("on", false));
+            case "pad-duck": return o("op", "pad-duck", "on", cmd.optBoolean("on", false));
+            case "pad-fav": return id.isEmpty() ? null : o("op", "pad-fav", "id", id, "on", cmd.optBoolean("on", false));
+            case "pad-replay": return o("op", "pad-replay");
+            case "pad-move-by": return id.isEmpty() ? null : o("op", "pad-move-by", "id", id, "dir", cmd.optInt("dir", 1) < 0 ? -1 : 1, "sameGroup", cmd.optBoolean("sameGroup", true));
+            case "pad-move": {
+                String tid = cmd.has("targetId") && !cmd.isNull("targetId") ? clean(cmd.opt("targetId"), 80) : "";
+                String cat = cmd.has("category") && !cmd.isNull("category") ? clean(cmd.opt("category"), 40) : "";
+                return id.isEmpty() || tid.isEmpty() ? null : o("op", "pad-move", "id", id, "targetId", tid, "after", cmd.optBoolean("after", false), "category", cat);
+            }
+            case "pad-set-cat": {
+                String cat = cmd.has("category") && !cmd.isNull("category") ? clean(cmd.opt("category"), 40) : "";
+                return id.isEmpty() || cat.isEmpty() ? null : o("op", "pad-set-cat", "id", id, "category", cat);
+            }
+            case "pad-group-move": return id.isEmpty() ? null : o("op", "pad-group-move", "id", id, "dir", cmd.optInt("dir", 1) < 0 ? -1 : 1);
+            case "music-toggle": return o("op", "music-toggle");
+            case "music-stop": return o("op", "music-stop");
+            case "music-step": return o("op", "music-step", "dir", cmd.optInt("dir", 1) < 0 ? -1 : 1);
+            case "music-vol": return o("op", "music-vol", "vol", Math.max(0, Math.min(1, cmd.optDouble("vol", 0))));
+            case "music-mute": return o("op", "music-mute", "on", cmd.optBoolean("on", false));
         }
         return null;
     }

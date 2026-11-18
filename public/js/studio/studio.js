@@ -38,7 +38,7 @@ import { createDsk } from './dsk.js';
 import { createCameraPanel } from './camera-panel.js';
 import { createPtzHud } from './ptz-hud.js';
 import { createWhatsApp } from './whatsapp.js';
-import { makeQR } from './qr.js';
+import { qrSvg } from './qr.js';
 import { toggleFull, exitFull, isFull, onFullChange } from '../fullscreen.js';
 import { createReplayEngine } from './replay-engine.js';
 import { createCaptions } from './captions.js';
@@ -197,7 +197,7 @@ const TAB_GROUPS = [
     ],
   },
   { id: 'director', label: 'Diretor', icon: 'auto', hint: 'Diretor automático: corta ou destaca quem fala e abaixa a música quando alguém fala', tabs: [['director', 'Diretor', 'auto', 'Corte automático e áudio inteligente']] },
-  { id: 'audio', label: 'Áudio', icon: 'mixer', hint: 'Mixer, trilha sonora e intercom de produção', tabs: [['audio', 'Mixer', 'mixer', 'Volume de cada fonte'], ['music', 'Trilha', 'music', 'Trilha sonora ambiente: lista de áudios, loop e volume'], ['intercom', 'Intercom', 'mic', 'Intercom do diretor com câmeras e repórteres']] },
+  { id: 'audio', label: 'Áudio', icon: 'mixer', hint: 'Mixer, trilha sonora, Pad de efeitos e intercom', tabs: [['audio', 'Mixer', 'mixer', 'Volume de cada fonte'], ['music', 'Trilha & Pad', 'music', 'Trilha sonora reordenável e Pad de efeitos sonoros (samples)'], ['intercom', 'Intercom', 'mic', 'Intercom do diretor com câmeras e repórteres']] },
   { id: 'captions', label: 'Legendas', icon: 'cc', hint: 'Legenda ao vivo da fala: na tela (PGM) e por link, com tradução opcional', tabs: [['captions', 'Legendas', 'cc', 'Legenda ao vivo: na tela e por link']] },
   { id: 'outputs', label: 'Sinais', icon: 'signal', hint: 'Sinais para OBS/vMix, saída NDI e gravação Multi-Rec', tabs: [['outputs', 'Sinais', 'signal', 'Sinais separados para OBS e vMix: programa horizontal, vertical e cada pessoa'], ...(IS_MOBILE ? [] : [['ndi', 'NDI', 'signal', 'Saída NDI do programa']]), ['multirec', 'Multi-Rec', 'record', 'Multi-Rec: grave cada câmera, convidado ou fonte em arquivo separado (ISO)']] },
   {
@@ -465,6 +465,7 @@ async function buildStudio() {
         ${IS_MOBILE ? '' : '<button type="button" class="sq-pill" data-goto-tab="ndi" title="Abrir painel NDI">NDI</button>'}
         ${S.system.platform === 'android' ? '' : '<button type="button" class="sq-pill" data-goto-tab="whatsapp" title="Abrir WhatsApp no painel">WhatsApp</button>'}
         <button type="button" class="sq-pill" data-goto-tab="audio" title="Abrir Mesa de Áudio">Áudio</button>
+        <button type="button" class="sq-pill" id="sq-open-pad" title="Abrir Pad de efeitos sonoros (duplo clique abre janela separada)">🎛️ Pad</button>
       </div>
       <nav class="grp-tabs" aria-label="Seções do painel">${TAB_GROUPS.map((g) => `<button class="grp" data-group="${g.id}" title="${esc(g.label)} — ${esc(g.hint)}">${icons[g.icon]}<span>${g.label}</span>${g.id === 'audience' ? '<i class="count chat-count" hidden></i>' : g.id === 'interaction' ? '<i class="count msg-count" hidden></i>' : g.id === 'content' ? '<i class="count gf-live-count" hidden></i>' : ''}</button>`).join('')}</nav>
       <div class="side-body" id="side-body">
@@ -586,9 +587,9 @@ async function buildStudio() {
   for (const [k, v] of Object.entries(mp.ch || {})) mixer.prefs.set(k, v);
   if (mp.master != null) mixer.setMaster(mp.master);
   mixer.onPrefs = (id, p) => {
-    if (!id.startsWith('host:')) return;
+    if (!id.startsWith('host:') && id !== 'pad:sfx' && id !== 'music:ambient') return;
     const cur = loadPrefs().mixer || {};
-    savePrefs({ mixer: { ...cur, ch: { ...(cur.ch || {}), [id]: { volume: p.volume, nrOn: p.nrOn, nrAmount: p.nrAmount, cc: p.cc, sends: p.sends } } } });
+    savePrefs({ mixer: { ...cur, ch: { ...(cur.ch || {}), [id]: { volume: p.volume, muted: !!p.muted, nrOn: p.nrOn, nrAmount: p.nrAmount, cc: p.cc, sends: p.sends } } } });
   };
   // Mute do host tem UMA fonte de verdade (o mixer): botão do estúdio, painel e celular seguem o mesmo estado.
   mixer.onMute = (id, muted) => {
@@ -616,11 +617,19 @@ async function buildStudio() {
     startScreen: (mode) => startScreen(mode),
   });
   await mixer.resume();
-  music = createMusic({ studioId, mixer });
+  music = createMusic({ studioId, mixer, getStudioName: () => S.studio?.name || '' });
   music.restore().catch((e) => console.warn('[trilha]', e));
-  // Se o volume/mudo for alterado no fader do Mixer, a aba Trilha acompanha.
+  // Se o volume/mudo for alterado no Mixer ou no Pad, ambos + remoto acompanham em tempo real.
   mixer.onChange = (id) => {
+    audioPanel?.syncChannel?.(id);
+    try {
+      if (window._audioPopout && !window._audioPopout.closed) {
+        window._audioPopout.syncAudioChannel?.(id);
+      }
+    } catch {}
     if (id === 'music:ambient') music?.syncFromMixer?.();
+    else if (id === 'pad:sfx') music?.syncPadFromMixer?.();
+    remote?.sync?.();
   };
   // legenda ao vivo: precisa do mixer (captionBus) e do compositor (camada no PGM); desktop apenas
   if (S.system.platform !== 'android') {
@@ -855,6 +864,7 @@ async function buildStudio() {
     },
     getChat: () => S.chat || [],
     getMessages: () => messages,
+    getMusic: () => music,
     api,
     $,
     esc,
@@ -864,6 +874,9 @@ async function buildStudio() {
     modal,
   });
   window.__castdeck.remote = remote;
+  music.subscribePad((_snap, meta) => {
+    if (!meta?.tick) remote?.sync?.();
+  });
   // API curta usada pelo painel Câmeras e por integrações locais.
   window.__castdeck.intercom = {
     talk: (id, on) => intercomSetTalk([id], on),
@@ -1576,6 +1589,7 @@ async function buildStudio() {
       e.returnValue = '';
     }
   });
+  window.addEventListener('pagehide', () => music?.closePadWindow?.());
 }
 
 const VERT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg>';
@@ -3522,6 +3536,11 @@ function bindUI() {
   $('#btn-record').onclick = () => (S.recording ? stopRecord() : openRecordModal());
   $('#btn-multirec')?.addEventListener('click', () => multiRec?.open());
   $$('.sq-pill[data-goto-tab]').forEach((b) => (b.onclick = () => openSideTab(b.dataset.gotoTab)));
+  $('#sq-open-pad')?.addEventListener('click', () => {
+    music?.setViewMode?.('pad');
+    openSideTab('music');
+  });
+  $('#sq-open-pad')?.addEventListener('dblclick', () => music?.openPadWindow?.());
   $$('.tab[data-tab]').forEach((t) => (t.onclick = () => switchTab(t.dataset.tab)));
   $$('.grp[data-group]').forEach(
     (g) =>
@@ -8049,17 +8068,6 @@ async function showInvite() {
       },
     },
   );
-}
-
-// QR Code em SVG (nítido em qualquer tamanho), a partir do gerador próprio (qr.js)
-function qrSvg(text) {
-  const q = makeQR(text, 'M');
-  const n = q.size + 8; // 4 módulos de margem branca de cada lado (zona de silêncio exigida pelos leitores)
-  let d = '';
-  for (let y = 0; y < q.size; y++) for (let x = 0; x < q.size; x++) if (q.modules[y][x]) d += `M${x + 4} ${y + 4}h1v1h-1z`;
-  // O container .camqr-code define a caixa visível. O SVG ocupa 100% dela nos dois cards,
-  // mesmo quando a URL local e a de internet geram versões diferentes do QR Code.
-  return `<svg width="100%" height="100%" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" preserveAspectRatio="xMidYMid meet" role="img" aria-label="QR Code" style="width:100%;height:100%;max-width:100%;display:block;image-rendering:pixelated"><rect width="${n}" height="${n}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
 }
 
 // Câmera USB/UVC no Android: o WebView não a enxerga via getUserMedia; o servidor

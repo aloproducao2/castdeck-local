@@ -3,7 +3,7 @@ import { Peer } from '../rtc.js';
 // Controle remoto por celular (QR): comanda a mesa de corte do estúdio sem enviar câmera/microfone.
 // Papel 'remote' na sinalização: recebe um resumo do estúdio (remote-state), pode pedir quadros JPEG do PGM
 // (remote-frame, só quando alguém liga o vídeo) e manda comandos (remote-cmd) que o host valida e executa.
-export function createRemote({ S, comp, mixer, getSig, studioId, getSwitcher, getAuto, getReplay, getLayouts, getScenes, applyEdit, mediaApi, getChat, getMessages, api, $, esc, toast, qrSvg, copyText, modal }) {
+export function createRemote({ S, comp, mixer, getSig, studioId, getSwitcher, getAuto, getReplay, getLayouts, getScenes, applyEdit, mediaApi, getChat, getMessages, getMusic, api, $, esc, toast, qrSvg, copyText, modal }) {
   const t = (s) => window.CDi18n?.t(s) ?? s;
   let key = '';
   let remotes = 0;
@@ -171,6 +171,7 @@ export function createRemote({ S, comp, mixer, getSig, studioId, getSwitcher, ge
         .slice(0, 8)
         .map((m) => ({ id: m.id, name: m.name || '', text: String(m.text || '').slice(0, 160), audio: !!m.audio, source: m.source || 'public', air: getMessages()?.airId === m.id })),
       chat: (getChat?.() || []).slice(-40).map((m) => ({ id: m.id, from: m.from, name: m.name, role: m.role, text: m.text, ts: m.ts })),
+      pad: getMusic?.()?.getPadSnapshot?.() || null,
     };
   }
   function sync() {
@@ -348,6 +349,64 @@ export function createRemote({ S, comp, mixer, getSig, studioId, getSwitcher, ge
         for (const a of list) mixer.setVolume(a.id, c.vol);
         return;
       }
+      case 'pad-play':
+        getMusic?.()?.playPad?.(c.id);
+        setTimeout(sync, 40);
+        return;
+      case 'pad-stop':
+        if (c.id) getMusic?.()?.stopPadSample?.(c.id);
+        else getMusic?.()?.stopAllPads?.();
+        setTimeout(sync, 40);
+        return;
+      case 'pad-vol':
+        if (Number.isFinite(c.vol)) getMusic?.()?.setPadVolume?.(c.vol);
+        return;
+      case 'pad-mute':
+        getMusic?.()?.setPadMuted?.(!!c.on);
+        return;
+      case 'pad-overlap':
+        getMusic?.()?.setPadOverlap?.(!!c.on);
+        return;
+      case 'pad-duck':
+        getMusic?.()?.setPadDucking?.(!!c.on);
+        return;
+      case 'pad-fav':
+        if (c.id) getMusic?.()?.updatePadMeta?.(c.id, { fav: !!c.on });
+        return;
+      case 'pad-replay':
+        getMusic?.()?.replayLastPad?.();
+        setTimeout(sync, 40);
+        return;
+      case 'pad-move-by':
+        if (c.id) getMusic?.()?.movePadBy?.(c.id, c.dir || 1, { sameGroup: c.sameGroup !== false });
+        return;
+      case 'pad-move':
+        if (c.id && c.targetId) getMusic?.()?.movePad?.(c.id, c.targetId, { after: !!c.after, category: c.category || '' });
+        return;
+      case 'pad-set-cat':
+        if (c.id && c.category) getMusic?.()?.movePadToGroup?.(c.id, c.category);
+        return;
+      case 'pad-group-move':
+        if (c.id) getMusic?.()?.movePadGroupBy?.(c.id, c.dir || 1);
+        return;
+      case 'music-toggle':
+        getMusic?.()?.toggle?.();
+        setTimeout(sync, 40);
+        return;
+      case 'music-stop':
+        getMusic?.()?.stop?.();
+        setTimeout(sync, 40);
+        return;
+      case 'music-step':
+        getMusic?.()?.step?.(c.dir || 1);
+        setTimeout(sync, 40);
+        return;
+      case 'music-vol':
+        if (Number.isFinite(c.vol)) getMusic?.()?.setVolume?.(c.vol);
+        return;
+      case 'music-mute':
+        getMusic?.()?.setMuted?.(!!c.on);
+        return;
       default:
         applyEdit(m); // layout, palco, solo, banners, microfone de convidado (mesmo caminho do co-host)
     }

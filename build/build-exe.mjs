@@ -91,6 +91,26 @@ for (const t of list) if (!TARGETS[t]) {
 
 fs.mkdirSync('dist', { recursive: true });
 
+// Garante ldid no PATH (no Windows) para assinatura Mach-O ad-hoc de binários macOS gerados pelo @yao-pkg/pkg.
+const TOOLS_DIR = path.resolve('build', 'vendor', 'tools');
+const LDID_URL = 'https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus8/ldid_w64_x86_64.exe';
+const LDID_BIN = path.join(TOOLS_DIR, process.platform === 'win32' ? 'ldid.exe' : 'ldid');
+{
+  const sep = process.platform === 'win32' ? ';' : ':';
+  if (!String(process.env.PATH || '').includes(TOOLS_DIR)) {
+    process.env.PATH = `${TOOLS_DIR}${sep}${process.env.PATH || ''}`;
+  }
+}
+if (list.some((k) => k.startsWith('macos-')) && process.platform === 'win32' && !fs.existsSync(LDID_BIN)) {
+  fs.mkdirSync(TOOLS_DIR, { recursive: true });
+  process.stdout.write('  ldid: baixando para assinar macOS… ');
+  const res = await fetch(LDID_URL);
+  if (!res.ok) throw new Error(`Falha ao baixar ldid (HTTP ${res.status})`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  fs.writeFileSync(LDID_BIN, buf);
+  console.log(`ok (${(buf.length / 1048576).toFixed(1)} MB)`);
+}
+
 const pkgJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 console.log(`Versão: ${pkgJson.version}`);
 
@@ -199,6 +219,15 @@ for (const key of list) {
     }
   } else if (key === 'win-x64' && host === 'win-x64' && !CSC) console.warn('  csc.exe não encontrado: CastDeck.exe terá janela de console');
   ok = ok && fs.existsSync(out);
+  if (ok && key.startsWith('macos-') && process.platform !== 'darwin' && fs.existsSync(LDID_BIN)) {
+    const ls = spawnSync(LDID_BIN, ['-Cadhoc', '-S', out], { stdio: 'inherit' });
+    if (ls.status === 0) console.log('  ✔ Assinatura Mach-O ad-hoc aplicada (ldid)');
+    else {
+      console.error(`  FALHOU assinatura ldid em ${out}`);
+      failed++;
+      continue;
+    }
+  }
   if (ok) {
     console.log(`  -> ${out} (${(fs.statSync(out).size / 1048576).toFixed(0)} MB) v${pkgJson.version}`);
     spawnSync(process.execPath, ['build/version.mjs', 'stamp', out], { stdio: 'inherit' });

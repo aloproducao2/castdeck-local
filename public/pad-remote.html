@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="/icon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0a0a12">
+  <meta name="robots" content="noindex">
+  <title>Pad Celular — CastDeck</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="theme-dark pad-rem-body">
+  <div class="pad-rem-app" id="pad-rem-app">
+    <header class="pad-rem-top">
+      <div class="pad-rem-title">
+        <span class="dot wait" id="pr-dot" aria-hidden="true"></span>
+        <div>
+          <strong>🎛️ Pad de Efeitos</strong>
+          <small id="pr-sub">Conectando ao estúdio…</small>
+        </div>
+      </div>
+      <div class="pad-rem-top-acts">
+        <button type="button" class="btn sm ghost pad-fs-btn" id="pr-fs-btn" title="Colocar em tela cheia" aria-pressed="false">⛶</button>
+        <button type="button" class="btn danger pad-rem-stop" id="pr-stop-all" title="Parar todos os efeitos agora">
+          <span aria-hidden="true">⏹</span>
+          <span>PARAR</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="pad-rem-hud">
+      <div class="pad-win-now pad-rem-timer" id="pr-now-box">
+        <div class="pad-now-top">
+          <div class="pad-win-now-name" id="pr-now-name">Pronto para disparar</div>
+          <span class="pad-timer-badge" id="pr-now-badge">Parado</span>
+          <div class="pad-player-acts">
+            <button type="button" class="btn sm ghost pad-play-btn" id="pr-player-play" title="Tocar / repetir efeito">▶</button>
+            <button type="button" class="btn sm danger pad-stop-inline" id="pr-player-stop" title="Parar Pad">⏹</button>
+          </div>
+        </div>
+        <div class="pad-win-clocks">
+          <div class="pad-clk-cell"><small>DECORRIDO</small><span class="pad-clock-prog" id="pr-clk-prog">00:00.0</span></div>
+          <div class="pad-clk-cell"><small>RESTANTE</small><span class="pad-clock-rem" id="pr-clk-rem">-00:00.0</span></div>
+          <div class="pad-clk-cell"><small>TOTAL</small><span class="pad-clock-dur" id="pr-clk-dur">00:00.0</span></div>
+        </div>
+        <div class="pad-now-bar"><i id="pr-clk-bar"></i></div>
+      </div>
+
+      <div class="pad-ambient-bar pad-rem-ambient" id="pr-ambient-bar" aria-label="Player da Trilha Sonora">
+        <div class="pad-amb-line1">
+          <span class="pad-amb-tag">🎵 Trilha</span>
+          <strong class="pad-amb-name" id="pr-amb-name">Sem faixa na Trilha</strong>
+          <small class="pad-amb-time" id="pr-amb-time">0:00 / 0:00</small>
+        </div>
+        <div class="pad-amb-line2">
+          <div class="pad-amb-btns">
+            <button type="button" class="btn sm ghost icon" id="pr-amb-prev" title="Faixa anterior">⏮</button>
+            <button type="button" class="btn sm primary icon" id="pr-amb-play" title="Tocar / Pausar trilha">▶</button>
+            <button type="button" class="btn sm danger icon" id="pr-amb-stop" title="Parar trilha">⏹</button>
+            <button type="button" class="btn sm ghost icon" id="pr-amb-next" title="Próxima faixa">⏭</button>
+          </div>
+          <div class="pad-amb-vol">
+            <button type="button" class="btn sm ghost icon pad-mute-btn" id="pr-amb-mute" title="Silenciar Trilha" aria-pressed="false"></button>
+            <input type="range" id="pr-amb-vol" min="0" max="100" step="1" value="40" aria-label="Volume da Trilha Sonora">
+            <b id="pr-amb-vol-val">40%</b>
+          </div>
+        </div>
+      </div>
+
+      <div class="pad-rem-volrow">
+        <button type="button" class="btn sm ghost icon pad-mute-btn" id="pr-mute" aria-pressed="false" title="Silenciar Pad"></button>
+        <span class="pad-rem-vollbl">Pad</span>
+        <input type="range" id="pr-vol" min="0" max="100" step="1" value="85" aria-label="Volume do Pad">
+        <b id="pr-vol-val">85%</b>
+      </div>
+
+      <div class="pad-rem-switches">
+        <label class="pad-pill-chk"><input type="checkbox" id="pr-overlap"><span>Sobrepor</span></label>
+        <label class="pad-pill-chk"><input type="checkbox" id="pr-duck"><span>Ducking</span></label>
+        <button type="button" class="btn sm ghost" id="pr-reorder" aria-pressed="false" title="Reorganizar ordem dos botões e grupos">⇄ Reorganizar</button>
+        <button type="button" class="btn sm ghost active" id="pr-grouped" aria-pressed="true">🗂️ Grupos</button>
+      </div>
+
+      <div class="pad-rem-search-row">
+        <div class="pad-search-wrap">
+          <input type="search" class="input" id="pr-search" placeholder="Buscar efeito no celular…" aria-label="Buscar sample">
+          <button type="button" class="btn sm ghost" id="pr-search-clr" hidden>✕</button>
+        </div>
+      </div>
+
+      <div class="pad-cats pad-rem-cats" id="pr-cats" role="tablist" aria-label="Grupos"></div>
+    </section>
+
+    <main class="pad-rem-main" id="pr-main">
+      <div class="pad-empty" id="pr-waiting">
+        <b>Aguardando conexão com o Pad…</b>
+        <p>Deixe o CastDeck aberto no computador na mesma rede Wi-Fi.</p>
+      </div>
+    </main>
+  </div>
+
+  <div class="pad-rem-err" id="pr-err" hidden>
+    <div class="card pad-rem-err-card">
+      <h3>Conexão indisponível</h3>
+      <p id="pr-err-msg">Verifique o link / QR Code.</p>
+      <button type="button" class="btn primary sm" onclick="location.reload()">Tentar novamente</button>
+    </div>
+  </div>
+
+  <script type="module" src="/js/pad-remote.js"></script>
+</body>
+</html>

@@ -501,6 +501,16 @@ public class LocalServer {
 
         if (path.equals("/system")) return json(200, system());
         if (path.equals("/health")) return json(200, new JSONObject().put("ok", true).put("app", "castdeck").put("live", ingest.count()));
+        if (path.equals("/pad-sounds") && m == NanoHTTPD.Method.GET) {
+            byte[] mf = readAsset("sounds/pad/manifest.json");
+            JSONArray sounds = null;
+            if (mf != null) {
+                String raw = new String(mf, StandardCharsets.UTF_8).trim();
+                if (raw.startsWith("{")) sounds = new JSONObject(raw).optJSONArray("sounds");
+                else if (raw.startsWith("[")) sounds = new JSONArray(raw);
+            }
+            return json(200, new JSONObject().put("sounds", sounds != null ? sounds : new JSONArray()));
+        }
         // atualização dentro do app: baixa o APK novo (com progresso) e abre o instalador do Android
         if (path.equals("/update/status")) return json(200, updater.status());
         if (path.equals("/update/download") && m == NanoHTTPD.Method.POST) {
@@ -800,6 +810,9 @@ public class LocalServer {
             if (uri.matches("^/vote/[^/]+/?$")) return page("vote.html", false);
             if (uri.matches("^/msg/[^/]+/?$")) return page("msg.html", false); // mensagens do público (QR Code)
             if (uri.matches("^/out/[^/]+/?$")) return page("out.html", false); // saídas para OBS/vMix (chave conferida na sinalização)
+            if (uri.matches("^/remote/[^/]+/?$")) return page("remote.html", false);
+            if (uri.matches("^/pad-remote/[^/]+/?$")) return page("pad-remote.html", false);
+            if (uri.matches("(?i)^/pad(\\.html)?/?$")) return local ? page("pad.html", true) : err(403, "Disponível apenas no aparelho do estúdio.");
             if (uri.matches("(?i)^/(index|studio)(\\.html)?/?$")) return local ? page(uri.toLowerCase(Locale.ROOT).contains("studio") ? "studio.html" : "index.html", true) : err(403, "Disponível apenas no aparelho do estúdio.");
             if (uri.startsWith("/recordings/")) {
                 if (!local) return err(403, "Disponível apenas no aparelho do estúdio.");

@@ -184,6 +184,7 @@ function apiWriteLimit(req, res, next) {
 app.get(['/', '/index.html'], localOnly, (req, res) => res.sendFile(path.join(PUBLIC, 'index.html')));
 app.get('/studio/:id', localOnly, (req, res) => res.sendFile(path.join(PUBLIC, 'studio.html')));
 app.get(['/replay', '/replay.html'], localOnly, (req, res) => res.sendFile(path.join(PUBLIC, 'replay.html')));
+app.get(['/pad', '/pad.html'], localOnly, (req, res) => res.sendFile(path.join(PUBLIC, 'pad.html')));
 app.get('/join/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'join.html')));
 // câmera remota: celular/aparelho que só envia vídeo para o estúdio (link/QR em "＋ Câmera")
 app.get('/cam/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'cam.html')));
@@ -198,8 +199,9 @@ app.get('/out/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'out.html')));
 // player WebRTC (WHEP) para reproduzir saídas ou entradas RTMP/SRT em navegador externo/LAN
 app.get('/player/:key', (req, res) => res.sendFile(path.join(PUBLIC, 'player.html')));
 app.get('/remote/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'remote.html')));
+app.get('/pad-remote/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'pad-remote.html')));
 // as p\u00e1ginas do host tamb\u00e9m seriam servidas pelo static (/studio.html, /index.html): bloqueia para quem n\u00e3o \u00e9 local
-app.use((req, res, next) => (/^\/(index|studio|replay)(\.html)?\/?$/i.test(req.path) ? localOnly(req, res, next) : next()));
+app.use((req, res, next) => (/^\/(index|studio|replay|pad)(\.html)?\/?$/i.test(req.path) ? localOnly(req, res, next) : next()));
 app.use(express.static(PUBLIC, { index: false, extensions: ['html'] }));
 
 // API pública mínima para convidados
@@ -363,6 +365,70 @@ const api = express.Router();
 api.use(localOnly);
 api.use(apiOriginGuard);
 api.use(apiWriteLimit);
+
+// Pad de efeitos sonoros: lista os samples pré-instalados em public/sounds/pad/
+api.get('/pad-sounds', async (req, res) => {
+  const padDir = path.join(PUBLIC, 'sounds', 'pad');
+  try {
+    let manifest = [];
+    try {
+      const raw = JSON.parse(await fs.readFile(path.join(padDir, 'manifest.json'), 'utf8'));
+      if (Array.isArray(raw?.sounds)) manifest = raw.sounds;
+    } catch {}
+    const files = await fs.readdir(padDir).catch(() => []);
+    const audioFiles = files.filter((f) => /\.(mp3|wav|ogg|oga|m4a|aac|flac|opus|weba|webm)$/i.test(f));
+    const knownFiles = new Set(manifest.map((s) => s.file));
+    const sounds = manifest
+      .filter((s) => !s.file || audioFiles.includes(s.file))
+      .map((s) => ({
+        id: s.id || s.file,
+        file: s.file,
+        name: s.name || s.file.replace(/\.[^.]+$/, ''),
+        category: s.category || 'brasil',
+        color: s.color || 'blue',
+        url: s.url || `/sounds/pad/${encodeURIComponent(s.file)}`,
+      }));
+    for (const f of audioFiles.sort((a, b) => a.localeCompare(b, 'pt-BR'))) {
+      if (knownFiles.has(f)) continue;
+      sounds.push({
+        id: 'file:' + f,
+        file: f,
+        name: f.replace(/\.[^.]+$/, ''),
+        category: 'brasil',
+        color: 'blue',
+        url: `/sounds/pad/${encodeURIComponent(f)}`,
+      });
+    }
+    res.set('Cache-Control', 'no-store').json({ sounds });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Falha ao listar sons do Pad.' });
+  }
+});
+
+// Link + chave para o controle remoto do Pad no celular (QR Code em #panel-music e /pad.html)
+api.get('/pad-remote-link/:id', (req, res) => {
+  const reqId = String(req.params.id || '').trim();
+  const stats = hub.roomStats();
+  let s = reqId && reqId !== 'local' ? store.getStudio(reqId) : null;
+  if (!s) {
+    const online = stats.find((r) => r.hostOnline);
+    if (online) s = store.getStudio(online.id);
+  }
+  if (!s) s = (store.listStudios() || [])[0] || null;
+  if (!s) return res.status(404).json({ error: 'Crie um estúdio primeiro para conectar o controle por QR Code.' });
+  const key = store.studioOutKey(s.id);
+  const hostOnline = !!stats.find((r) => r.id === s.id && r.hostOnline);
+  res.set('Cache-Control', 'no-store').json({
+    studioId: s.id,
+    studioName: s.name || s.id,
+    key,
+    hostOnline,
+    httpPort: HTTP_PORT,
+    httpsPort: HTTPS_PORT,
+    lan: lanIps(),
+    tunnel: { url: tunnel.url || null, running: !!tunnel.proc, provider: store.getSettings().tunnelProvider || 'cloudflare' },
+  });
+});
 
 // legenda ao vivo (controle pelo estúdio)
 api.get('/caption', (req, res) => res.set('Cache-Control', 'no-store').json(caption.info(String(req.query.studio || ''))));

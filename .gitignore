@@ -62,6 +62,7 @@ id_ed25519
 /docs/ai/
 /docs/artigo-imprensa.md
 /docs/PLANO-MELHORIAS.md
+/plano.md
 
 # Logs, temporários e lixo de sistema
 *.log

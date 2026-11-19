@@ -636,6 +636,13 @@ async function main() {
   api.delete('/social/sources/:id', async (req, res) => {
     res.json({ ok: await socialScraper.removeSource(req.params.id) });
   });
+  api.post('/social/sources/:id/reconnect', async (req, res) => {
+    try {
+      res.json(await socialScraper.reconnectSource(req.params.id));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
   api.post('/social/feature', (req, res) => {
     socialScraper.featureMessage(req.body?.message || null);
     res.json({ ok: true, featured: socialScraper.currentFeatured });

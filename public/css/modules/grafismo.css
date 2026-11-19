@@ -625,3 +625,23 @@
   .gf-tabs button { min-height: 32px; }
   .gf-gallery-grid { grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); }
 }
+
+/* ---- Painel Grafismo: nada pode estourar a largura do painel (coluna de 350 px) ----
+   A grade do Template Studio (canvas + campos) e as linhas de ferramentas não tinham
+   min-width: 0, então os campos "Nome/Cargo/Etiqueta" ficavam 25 px mais largos que o
+   painel e a barra cortava os botões da direita. */
+.gc-op,
+.gc-op-head,
+.gc-op-grid,
+.gc-op-fields,
+#gc-dyn-fields {
+  min-width: 0;
+}
+.gc-op-head { flex-wrap: wrap; row-gap: 6px; }
+.gc-op-head .row { flex-wrap: wrap; }
+.gc-op-grid { grid-template-columns: minmax(0, 1fr); }
+.gc-op-fields { grid-template-columns: minmax(0, 1fr); }
+#gc-dyn-fields > *,
+.gc-op-fields > * { min-width: 0; max-width: 100%; }
+.gc-lib-tools { grid-template-columns: minmax(0, 1fr) minmax(96px, 150px) auto; }
+.gc-lib-tools .input { min-width: 0; }

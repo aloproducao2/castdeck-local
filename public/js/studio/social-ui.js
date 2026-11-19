@@ -42,16 +42,44 @@ const load = () => {
     return {
       ...DEFAULTS,
       ...data,
+      searchQuery: '',
       accOpen: { ...DEFAULTS.accOpen, ...(data.accOpen || {}) },
     };
   } catch {
-    return { ...DEFAULTS, accOpen: { ...DEFAULTS.accOpen } };
+    return { ...DEFAULTS, searchQuery: '', accOpen: { ...DEFAULTS.accOpen } };
   }
 };
 
+function detectSocialTarget(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  if (/socialstream\.ninja|[?&]session=/i.test(s)) {
+    try {
+      const u = new URL(/^https?:\/\//i.test(s) ? s : `https://io.socialstream.ninja/${s.replace(/^\?/, '?')}`);
+      const sess = cleanSession(u.searchParams.get('session') || u.searchParams.get('id') || '');
+      if (sess) return { type: 'ssn', target: sess };
+    } catch {}
+    const m = s.match(/[?&](?:session|id)=([A-Za-z0-9_-]+)/i);
+    if (m) return { type: 'ssn', target: cleanSession(m[1]) };
+    return { type: 'ssn', target: s };
+  }
+  if (/youtube\.com|youtu\.be/i.test(s)) {
+    return { type: 'youtube', target: s };
+  }
+  if (/twitch\.tv\//i.test(s)) {
+    const m = s.match(/twitch\.tv\/([a-zA-Z0-9_]{3,25})/i);
+    return { type: 'twitch', target: m ? m[1] : s };
+  }
+  return null;
+}
+
 export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
   const st = load();
-  const save = () => localStorage.setItem(KEY, JSON.stringify(st));
+  const save = () => {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({ ...st, searchQuery: '' }));
+    } catch {}
+  };
   const msgs = [];
   const seen = new Set();
   const recentHashes = new Map(); // anti-spam
@@ -72,9 +100,11 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
   let isUserBrowsing = false;
   let unreadWhilePaused = 0;
 
-  // Fontes conectadas no backend (YouTube, Twitch, etc.)
+  // Fontes conectadas no backend (YouTube, Twitch) e Social Stream Ninja (SSN)
   let activeSources = [];
+  const ssnSources = [];
   let localWs = null;
+  const getAllSources = () => [...activeSources, ...ssnSources];
 
   const comp = () => getComp();
   const applyOpts = () => comp()?.setSocialOpts({ pos: st.pos, feedOn: st.feedOn, feedMax: st.feedMax, feedTtl: st.feedTtl, avatars: st.avatars });
@@ -395,8 +425,8 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
     // Se houver busca ou filtro ativo e a mensagem não se encaixar, ignora
     if (!matchesFilter(m)) return;
 
-    // Remove mensagem de "vazio" se houver
-    const emptyEl = $('.empty', list);
+    // Remove mensagem de "vazio" / boas-vindas / aviso inteligente se houver
+    const emptyEl = $('.empty, .soc-empty-box, .soc-empty-smart', list);
     if (emptyEl) emptyEl.remove();
 
     const el = msgEl(m);
@@ -440,10 +470,26 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
   }
 
   // ---------- WebSocket Local & Sincronização Popout ----------
+  function hydrateHistory(items) {
+    if (!Array.isArray(items) || !items.length) return false;
+    let added = false;
+    for (const rawItem of items) {
+      const m = normalizeMessage(rawItem);
+      if (!m || m.clear || seen.has(m.id)) continue;
+      seen.add(m.id);
+      if (seen.size > 800) seen.delete(seen.values().next().value);
+      msgs.push(m);
+      if (msgs.length > 250) msgs.shift();
+      added = true;
+    }
+    return added;
+  }
+
   function connectLocalStream() {
     if (localWs && (localWs.readyState === 0 || localWs.readyState === 1)) return;
     try {
-      const ws = new WebSocket(`ws://${location.host}/social-stream`);
+      const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const ws = new WebSocket(`${wsProto}://${location.host}/social-stream`);
       localWs = ws;
       ws.onopen = () => {
         ws.send(JSON.stringify({ type: 'get-state' }));
@@ -456,6 +502,7 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
             if (Array.isArray(msg.queue)) {
               queue.splice(0, queue.length, ...msg.queue);
             }
+            const gotHistory = hydrateHistory(msg.history);
             if (typeof msg.autoSequence === 'boolean') st.autoSequence = msg.autoSequence;
             if (typeof msg.autoDur === 'number') st.autoDur = msg.autoDur;
             syncAutoInputs();
@@ -469,9 +516,11 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
             updateOnAirCards();
             updateQueueButtons();
             updateFilterCounts();
+            if (gotHistory) refreshList();
           } else if (msg.type === 'sources') {
             activeSources = msg.sources || [];
             refreshSourcesUI();
+            if (!msgs.length && getAllSources().length) refreshList();
           } else if (msg.type === 'queue-update') {
             if (Array.isArray(msg.queue)) {
               queue.splice(0, queue.length, ...msg.queue);
@@ -491,8 +540,17 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
           } else if (msg.type === 'clear-all') {
             clearAllMessages(false);
           } else if (msg.type === 'chat' && msg.message) {
+            const sid = msg.message.sourceId;
+            if (sid) {
+              const src = activeSources.find((x) => x.id === sid);
+              if (src) {
+                src.count = typeof msg.sourceCount === 'number' ? msg.sourceCount : (src.count || 0) + 1;
+                const cntEl = panel ? $(`[data-src-count="${CSS.escape(sid)}"]`, panel) : null;
+                if (cntEl) cntEl.textContent = `${src.count} msgs`;
+              }
+            }
             const m = normalizeMessage(msg.message);
-            if (m) addMessage(m);
+            if (m && !m.clear) addMessage(m);
           } else if (msg.type === 'featured') {
             if (msg.message) {
               comp()?.showFeatured(msg.message);
@@ -518,26 +576,172 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
   }
 
   // ---------- Gerenciamento de Fontes ----------
+  function parseSsnSession(input) {
+    const raw = String(input || '').trim();
+    if (!raw) return '';
+    try {
+      const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://io.socialstream.ninja/${raw.replace(/^\?/, '?')}`);
+      const s = u.searchParams.get('session') || u.searchParams.get('id');
+      if (s) return cleanSession(s);
+    } catch {}
+    const m = raw.match(/[?&](?:session|id)=([A-Za-z0-9_-]+)/i);
+    if (m) return cleanSession(m[1]);
+    return cleanSession(raw);
+  }
+
+  function addSsnSource(input) {
+    const session = parseSsnSession(input);
+    if (!session) throw new Error('Sessão do Social Stream Ninja inválida.');
+    const id = `ssn:${session}`;
+    const existing = ssnSources.find((x) => x.id === id);
+    if (existing) return existing;
+
+    const src = {
+      id,
+      type: 'ssn',
+      target: session,
+      label: `Social Ninja (${session})`,
+      status: 'connecting',
+      error: null,
+      count: 0,
+      chatStatus: 'connecting',
+      dockStatus: 'connecting',
+      chatClient: null,
+      dockClient: null,
+    };
+
+    const syncStatus = () => {
+      const a = src.chatStatus;
+      const b = src.dockStatus;
+      if (a === 'online' || b === 'online') {
+        src.status = 'connected';
+        src.error = null;
+      } else if (a === 'error' && b === 'error') {
+        src.status = 'error';
+        src.error = 'Falha ao conectar ao Social Stream Ninja.';
+      } else if (a === 'connecting' || a === 'reconnecting' || b === 'connecting' || b === 'reconnecting') {
+        src.status = 'connecting';
+      } else {
+        src.status = 'idle';
+      }
+      status.chat = a;
+      status.dock = b;
+      refreshSourcesUI();
+      if (!msgs.length) refreshList();
+    };
+
+    src.chatClient = new SSNClient({
+      server: st.server || SSN_DEFAULT_SERVER,
+      session,
+      channel: 4,
+      onStatus: (s) => {
+        src.chatStatus = s;
+        syncStatus();
+      },
+      onMessage: (raw) => {
+        if (!st.listenChat) return;
+        const m = normalizeMessage(raw);
+        if (!m || m.clear) return;
+        m.sourceId = src.id;
+        src.count = (src.count || 0) + 1;
+        const cntEl = panel ? $(`[data-src-count="${CSS.escape(src.id)}"]`, panel) : null;
+        if (cntEl) cntEl.textContent = `${src.count} msgs`;
+        addMessage(m);
+        if (localWs?.readyState === WebSocket.OPEN) {
+          localWs.send(JSON.stringify({ type: 'chat', message: m }));
+        }
+      },
+    });
+
+    src.dockClient = new SSNClient({
+      server: st.server || SSN_DEFAULT_SERVER,
+      session,
+      channel: 2,
+      onStatus: (s) => {
+        src.dockStatus = s;
+        syncStatus();
+      },
+      onMessage: (raw) => {
+        if (!st.followDock) return;
+        const m = normalizeMessage(raw);
+        if (!m) return;
+        if (m.clear) return hide();
+        m.sourceId = src.id;
+        showFeatured(m, 0);
+      },
+    });
+
+    ssnSources.push(src);
+    src.chatClient.connect();
+    src.dockClient.connect();
+    refreshSourcesUI();
+    return src;
+  }
+
   async function addSource(type, target) {
-    if (!target) return toast('Informe o link ou canal da rede social', 'err');
+    if (!target) {
+      toast('Informe o link ou canal da rede social', 'err');
+      return false;
+    }
+    const resolvedType = String(type || 'youtube').toLowerCase();
     try {
       toast('Conectando à rede…', 'ok');
-      await api('/social/sources', { method: 'POST', body: { type, target } });
+      if (resolvedType === 'ssn') {
+        addSsnSource(target);
+        toast('Rede conectada com sucesso!', 'ok');
+        return true;
+      }
+      await api('/social/sources', { method: 'POST', body: { type: resolvedType, target } });
       toast('Rede conectada com sucesso!', 'ok');
-      loadSources();
+      await loadSources();
+      return true;
     } catch (e) {
       toast(e.message || 'Erro ao conectar à rede', 'err');
+      refreshSourcesUI();
+      return false;
+    }
+  }
+
+  async function reconnectSource(id) {
+    const ssnIdx = ssnSources.findIndex((x) => x.id === id);
+    if (ssnIdx !== -1) {
+      const s = ssnSources[ssnIdx];
+      s.chatClient?.close();
+      s.dockClient?.close();
+      ssnSources.splice(ssnIdx, 1);
+      addSsnSource(s.target);
+      toast('Reconectando ao Social Stream Ninja…', 'ok');
+      return;
+    }
+    try {
+      toast('Reconectando à rede…', 'ok');
+      await api(`/social/sources/${encodeURIComponent(id)}/reconnect`, { method: 'POST' });
+      await loadSources();
+      refreshList();
+    } catch (e) {
+      toast(e.message || 'Erro ao reconectar', 'err');
     }
   }
 
   async function removeSource(id) {
+    const ssnIdx = ssnSources.findIndex((x) => x.id === id);
+    if (ssnIdx !== -1) {
+      const s = ssnSources[ssnIdx];
+      s.chatClient?.close();
+      s.dockClient?.close();
+      ssnSources.splice(ssnIdx, 1);
+      deleteMessagesForSource(id, 'ssn', true);
+      refreshSourcesUI();
+      toast('Rede desconectada', 'ok');
+      return;
+    }
     const s = activeSources.find((x) => x.id === id);
     const sType = s?.type;
     try {
       await api(`/social/sources/${encodeURIComponent(id)}`, { method: 'DELETE' });
       deleteMessagesForSource(id, sType, false);
       toast('Rede desconectada', 'ok');
-      loadSources();
+      await loadSources();
     } catch (e) {
       toast(e.message || 'Erro ao remover rede', 'err');
     }
@@ -551,55 +755,78 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
   }
 
   function refreshSourcesUI() {
-    if (!panel) return;
-    const box = $('#soc-active-sources', panel);
-    if (!box) return;
+    const allSources = getAllSources();
+    if (panel) {
+      const box = $('#soc-active-sources', panel);
+      if (box) {
+        if (!allSources.length) {
+          box.innerHTML = `<div class="hint" style="font-size:12px;padding:6px 0">Nenhuma rede ativa. Adicione abaixo para iniciar a captura.</div>`;
+        } else {
+          box.innerHTML = allSources.map((s) => {
+            const isYt = s.type === 'youtube';
+            const isTw = s.type === 'twitch';
+            const isSsn = s.type === 'ssn';
+            const isLive = s.status === 'connected';
+            const tagCls = isYt ? 'youtube' : isTw ? 'twitch' : isSsn ? 'ssn' : '';
+            const tagTxt = isYt ? '🔴 YouTube' : isTw ? '🟣 Twitch' : isSsn ? '🥷 Social Ninja' : '🌐';
+            const pillCls = isLive ? 'ok' : s.status === 'connecting' ? 'warn' : 'err';
+            const pillTxt = isLive ? 'Ao vivo' : s.status === 'connecting' ? 'Conectando…' : 'Erro';
+            return `
+              <div class="soc-src-item" data-src-item="${esc(s.id)}">
+                <div class="soc-src-main">
+                  <span class="src-tag ${tagCls}">${tagTxt}</span>
+                  <div class="soc-src-info">
+                    <strong title="${esc(s.label || s.target)}">${esc(s.label || s.target)}</strong>
+                    ${s.error ? `<small class="soc-src-err" title="${esc(s.error)}">${esc(s.error)}</small>` : ''}
+                  </div>
+                  <span class="pill sm ${pillCls}">${pillTxt}</span>
+                </div>
+                <div class="src-meta">
+                  <span data-src-count="${esc(s.id)}">${s.count || 0} msgs</span>
+                  ${s.status === 'error' || s.status === 'idle' ? `<button class="reconn" data-reconn-src="${esc(s.id)}" title="Reconectar esta rede">↻</button>` : ''}
+                  <button class="del" data-del-src="${esc(s.id)}" title="Desconectar esta rede">✕</button>
+                </div>
+              </div>
+            `;
+          }).join('');
 
-    if (!activeSources.length) {
-      box.innerHTML = `<div class="hint" style="font-size:12px;padding:6px 0">Nenhuma rede ativa. Adicione abaixo para iniciar a captura.</div>`;
-      return;
+          $$('[data-del-src]', box).forEach((b) => {
+            b.onclick = () => removeSource(b.dataset.delSrc);
+          });
+          $$('[data-reconn-src]', box).forEach((b) => {
+            b.onclick = () => reconnectSource(b.dataset.reconnSrc);
+          });
+        }
+      }
     }
-
-    box.innerHTML = activeSources.map((s) => {
-      const isYt = s.type === 'youtube';
-      const isTw = s.type === 'twitch';
-      const isLive = s.status === 'connected';
-      return `
-        <div class="soc-src-item">
-          <div style="display:flex;align-items:center;gap:8px;min-width:0">
-            <span class="src-tag ${isYt ? 'youtube' : isTw ? 'twitch' : ''}">
-              ${isYt ? '🔴 YouTube' : isTw ? '🟣 Twitch' : '🌐'}
-            </span>
-            <strong style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.label || s.target)}</strong>
-            <span class="pill sm ${isLive ? 'ok' : s.status === 'connecting' ? 'warn' : 'err'}">${isLive ? 'Ao vivo' : s.status === 'connecting' ? 'Conectando…' : 'Erro'}</span>
-          </div>
-          <div class="src-meta">
-            <span>${s.count || 0} msgs</span>
-            <button class="del" data-del-src="${esc(s.id)}" title="Desconectar esta rede">✕</button>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    $$('[data-del-src]', box).forEach((b) => {
-      b.onclick = () => removeSource(b.dataset.delSrc);
-    });
     updateSummaryBadges();
   }
 
   function updateSummaryBadges() {
-    if (!panel) return;
-    const srcBadge = $('#soc-src-badge', panel);
-    if (srcBadge) {
-      srcBadge.className = `pill sm ${activeSources.length ? 'ok' : ''}`;
-      srcBadge.textContent = activeSources.length ? `${activeSources.length} ativa(s)` : '0 ativas';
+    const allSources = getAllSources();
+    const hasAny = allSources.length > 0;
+    if (panel) {
+      const toggleBtn = $('#soc-btn-toggle-src', panel);
+      const srcBadge = $('#soc-src-badge', panel);
+      const connBtn = $('#soc-btn-connect', panel);
+      if (toggleBtn) toggleBtn.classList.toggle('online', hasAny);
+      // O badge é status, não ação: antes ele repetia "+ Conectar rede" ao lado do botão que já faz isso.
+      if (srcBadge) srcBadge.textContent = hasAny ? `${allSources.length} ativa(s)` : 'Nenhuma rede';
+      if (connBtn) {
+        connBtn.className = `btn sm ${hasAny ? 'ghost' : 'primary'}`;
+        const sp = $('span', connBtn);
+        if (sp) sp.textContent = hasAny ? '+ Rede' : '+ Conectar';
+      }
+      const cfgBadge = $('#soc-cfg-badge', panel);
+      if (cfgBadge) {
+        const spd = st.slowMode === 0 ? '⚡ Tempo real' : st.slowMode === -1 ? '⭐ Só doações' : `⏳ ${st.slowMode}s`;
+        const seq = st.autoSequence ? `🔄 ${st.autoDur}s` : 'Manual';
+        cfgBadge.textContent = `${spd} · ${seq}`;
+      }
     }
-    const cfgBadge = $('#soc-cfg-badge', panel);
-    if (cfgBadge) {
-      const spd = st.slowMode === 0 ? '⚡ Tempo real' : st.slowMode === -1 ? '⭐ Só doações' : `⏳ ${st.slowMode}s`;
-      const seq = st.autoSequence ? `🔄 ${st.autoDur}s` : 'Manual';
-      cfgBadge.textContent = `${spd} · ${seq}`;
-    }
+    document.querySelectorAll('.sq-pill[data-goto-tab="social"], .subtabs .tab[data-tab="social"]').forEach((el) => {
+      el.classList.toggle('has-live', hasAny);
+    });
   }
 
   function setFocusMode(on) {
@@ -814,14 +1041,16 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
         list.append(queueBar);
       }
 
+      const allSources = getAllSources();
       if (!filtered.length) {
-        if (!msgs.length && !activeSources.length && st.filterTab === 'all' && !st.searchQuery) {
+        const q = (st.searchQuery || '').trim();
+        if (!msgs.length && !allSources.length && st.filterTab === 'all' && !q) {
           const emptyBox = h(`
             <div class="soc-empty-box" style="padding:28px 16px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;background:var(--bg-2);border-radius:12px;border:1px dashed var(--line);margin:12px 0">
               <span style="font-size:28px;line-height:1">💬</span>
               <strong style="font-size:14px;color:var(--text-0)">Aguardando comentários das redes</strong>
-              <p class="hint" style="font-size:12px;margin:0;max-width:280px;line-height:1.4">Conecte sua live do YouTube ou Twitch para receber comentários do público em tempo real e destacar na tela.</p>
-              <button class="btn sm primary" id="soc-empty-btn-conn" style="margin-top:4px">+ Conectar YouTube ou Twitch</button>
+              <p class="hint" style="font-size:12px;margin:0;max-width:280px;line-height:1.4">Conecte sua live do YouTube, Twitch ou Social Stream Ninja para receber comentários em tempo real e destacar na tela.</p>
+              <button class="btn sm primary" id="soc-empty-btn-conn" style="margin-top:4px">+ Conectar YouTube, Twitch ou Ninja</button>
             </div>
           `);
           const bConn = $('#soc-empty-btn-conn', emptyBox);
@@ -835,11 +1064,84 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
             };
           }
           list.append(emptyBox);
+        } else if (st.filterTab === 'queue') {
+          list.append(h(`<div class="empty" style="padding:32px 14px;text-align:center;color:var(--text-1)">Nenhuma mensagem na fila. Clique em "+ Fila" nos cards para adicionar mensagens à sequência.</div>`));
+        } else if (q) {
+          const detected = detectSocialTarget(q);
+          const smartBox = detected
+            ? h(`<div class="soc-empty-smart">
+                <strong>🔗 Link detectado na busca</strong>
+                <p class="hint">${msgs.length ? `Este campo apenas filtra mensagens já recebidas (${msgs.length} ocultas pelo filtro). Para capturar o chat dessa live, conecte-a como fonte:` : 'Este campo apenas filtra mensagens já recebidas. Para capturar o chat dessa live, conecte-a como fonte:'}</p>
+                <div class="soc-empty-acts">
+                  <button type="button" class="btn sm primary" id="soc-smart-connect">▶ Conectar esta live</button>
+                  <button type="button" class="btn sm ghost" id="soc-smart-clear">✕ Limpar busca</button>
+                </div>
+              </div>`)
+            : h(`<div class="soc-empty-smart">
+                <p class="hint">${msgs.length ? `Nenhuma mensagem contém “${esc(q)}” (${msgs.length} no total).` : `Nenhuma mensagem contém “${esc(q)}”.`}</p>
+                <div class="soc-empty-acts">
+                  <button type="button" class="btn sm ghost" id="soc-smart-clear">✕ Limpar busca</button>
+                </div>
+              </div>`);
+          const bClr = $('#soc-smart-clear', smartBox);
+          if (bClr) {
+            bClr.onclick = () => {
+              st.searchQuery = '';
+              const inp = $('#soc-search', panel);
+              if (inp) inp.value = '';
+              syncSearchUi();
+              refreshList();
+            };
+          }
+          const bSmartConn = $('#soc-smart-connect', smartBox);
+          if (bSmartConn && detected) {
+            bSmartConn.onclick = async () => {
+              st.searchQuery = '';
+              const inp = $('#soc-search', panel);
+              if (inp) inp.value = '';
+              syncSearchUi();
+              const ok = await addSource(detected.type, detected.target);
+              if (ok) {
+                const box = $('#soc-box-connect', panel);
+                if (box) box.hidden = true;
+              }
+              refreshList();
+            };
+          }
+          list.append(smartBox);
+        } else if (st.filterTab !== 'all' && msgs.length > 0) {
+          const tabBox = h(`<div class="soc-empty-smart">
+            <p class="hint">Nenhuma mensagem nesta aba (${msgs.length} em Todas).</p>
+            <div class="soc-empty-acts">
+              <button type="button" class="btn sm primary" id="soc-smart-all">Mostrar todas (${msgs.length})</button>
+            </div>
+          </div>`);
+          $('#soc-smart-all', tabBox).onclick = () => {
+            st.filterTab = 'all';
+            save();
+            $$('.soc-chip[data-tab]', panel).forEach((x) => x.classList.toggle('active', x.dataset.tab === 'all'));
+            refreshList();
+          };
+          list.append(tabBox);
+        } else if (allSources.length > 0 && !msgs.length) {
+          const errSrc = allSources.find((x) => x.status === 'error');
+          const connecting = allSources.every((x) => x.status === 'connecting');
+          const waitBox = errSrc
+            ? h(`<div class="soc-empty-smart">
+                <strong>⚠️ ${esc(errSrc.label || errSrc.type)}</strong>
+                <p class="hint">${esc(errSrc.error || 'Não foi possível carregar o chat ao vivo.')}</p>
+                <div class="soc-empty-acts">
+                  <button type="button" class="btn sm primary" id="soc-smart-reconn">↻ Reconectar</button>
+                </div>
+              </div>`)
+            : h(`<div class="soc-empty-smart">
+                <p class="hint">${connecting ? 'Conectando à transmissão ao vivo…' : 'Conectado — aguardando novos comentários no chat ao vivo…'}</p>
+              </div>`);
+          const bRe = $('#soc-smart-reconn', waitBox);
+          if (bRe && errSrc) bRe.onclick = () => reconnectSource(errSrc.id);
+          list.append(waitBox);
         } else {
-          const emptyMsg = st.filterTab === 'queue'
-            ? 'Nenhuma mensagem na fila. Clique em "+ Fila" nos cards para adicionar mensagens à sequência.'
-            : 'Nenhuma mensagem para este filtro.';
-          list.append(h(`<div class="empty" style="padding:32px 14px;text-align:center;color:var(--text-1)">${emptyMsg}</div>`));
+          list.append(h(`<div class="empty" style="padding:32px 14px;text-align:center;color:var(--text-1)">Nenhuma mensagem para este filtro.</div>`));
         }
       } else {
         const shown = st.filterTab === 'queue' ? filtered : filtered.slice(-120);
@@ -857,20 +1159,31 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
     }, 40);
   }
 
+  function syncSearchUi() {
+    if (!panel) return;
+    const wrap = $('#soc-search-wrap', panel);
+    const clr = $('#soc-search-clear', panel);
+    const has = !!(st.searchQuery && st.searchQuery.length);
+    if (wrap) wrap.classList.toggle('has-query', has);
+    if (clr) clr.hidden = !has;
+  }
+
   // ---------- Painel Principal (Foco total nas Mensagens) ----------
   function render(p) {
     panel = p;
+    if (!isScrollLocked) isUserBrowsing = false;
+    const allCount = getAllSources().length;
     const isFloating = !!p.closest?.('.fw') || !!p.closest?.('.fw-popout-root') || p.classList.contains('fw-panel') || !!window.__castdeck?.floatWins?.has?.('social');
     p.innerHTML = `
       <!-- Barra Superior Compacta: Redes Ativas + Ações -->
       <div class="soc-top-bar">
-        <button class="soc-stat-pill ${activeSources.length ? 'online' : ''}" id="soc-btn-toggle-src" title="Clique para ver ou conectar redes">
+        <button class="soc-stat-pill ${allCount ? 'online' : ''}" id="soc-btn-toggle-src" title="Clique para ver ou conectar redes">
           <span class="soc-dot"></span>
-          <span id="soc-src-badge">${activeSources.length ? `${activeSources.length} ativa(s)` : '+ Conectar rede'}</span>
+          <span id="soc-src-badge">${allCount ? `${allCount} ativa(s)` : '+ Conectar rede'}</span>
         </button>
         <div class="soc-top-actions">
-          <button class="btn sm ${activeSources.length ? 'ghost' : 'primary'}" id="soc-btn-connect" title="Conectar transmissão do YouTube ou Twitch">
-            <span>${activeSources.length ? '+ Rede' : '+ Conectar'}</span>
+          <button class="btn sm ${allCount ? 'ghost' : 'primary'}" id="soc-btn-connect" title="Conectar transmissão do YouTube, Twitch ou Social Stream Ninja">
+            <span>${allCount ? '+ Rede' : '+ Conectar'}</span>
           </button>
           <button class="btn sm ghost icon" id="soc-btn-options" title="Opções de velocidade, anti-flood, carrossel e limpeza">
             <span>⚙️</span>
@@ -905,11 +1218,12 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
             <select class="input sm" id="soc-new-type">
               <option value="youtube">🔴 YouTube</option>
               <option value="twitch">🟣 Twitch</option>
+              <option value="ssn">🥷 Social Ninja</option>
             </select>
-            <input class="input sm" id="soc-new-target" placeholder="Link da live ou nome do canal...">
+            <input class="input sm" id="soc-new-target" placeholder="Link da live do YouTube (ou @canal/live)…">
             <button class="btn sm primary" id="soc-new-add">+ Conectar</button>
           </div>
-          <span class="hint" style="font-size:11px">Você pode conectar YouTube e Twitch simultaneamente sem gastar cota de API.</span>
+          <span class="hint" id="soc-new-hint" style="font-size:11px">Conecte YouTube, Twitch ou Social Stream Ninja simultaneamente sem gastar cota de API.</span>
         </div>
       </div>
 
@@ -969,12 +1283,13 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
 
       <!-- Barra de Filtros e Busca Rápida -->
       <div class="soc-controls-row">
-        <div class="soc-search-wrap">
+        <div class="soc-search-wrap ${st.searchQuery ? 'has-query' : ''}" id="soc-search-wrap">
           <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"></circle>
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
           <input class="input sm" id="soc-search" placeholder="Filtrar por nome, texto ou doação..." value="${esc(st.searchQuery || '')}">
+          <button type="button" class="soc-search-clear" id="soc-search-clear" title="Limpar busca" aria-label="Limpar busca" ${st.searchQuery ? '' : 'hidden'}>✕</button>
         </div>
         <button class="btn sm ghost soc-pause-btn" id="soc-lock-scroll" title="Pausar ou seguir rolagem ao vivo">
           ${isScrollLocked ? '▶ Retomar' : '⏸ Pausar'}
@@ -1039,12 +1354,50 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
     // Fechar destaque no banner
     $('#soc-cur-hide', p).onclick = hide;
 
-    // Conectar nova rede
-    $('#soc-new-add', p).onclick = () => {
+    // Conectar nova rede (com autodetecção de link e suporte a Enter)
+    const newTypeSel = $('#soc-new-type', p);
+    const newTargetInp = $('#soc-new-target', p);
+    const newHintEl = $('#soc-new-hint', p);
+    const syncNewTargetHint = () => {
+      const v = newTypeSel?.value;
+      if (newTargetInp) {
+        newTargetInp.placeholder = v === 'twitch'
+          ? 'Nome do canal da Twitch ou URL…'
+          : v === 'ssn'
+            ? 'Sessão do Social Stream Ninja ou URL (?session=)…'
+            : 'Link da live do YouTube (ou @canal/live)…';
+      }
+      if (newHintEl) {
+        newHintEl.textContent = v === 'ssn'
+          ? 'No Social Stream Ninja, ligue "Send chat messages to API server" para receber o chat e destacar do dock.'
+          : 'Conecte YouTube, Twitch ou Social Stream Ninja simultaneamente sem gastar cota de API.';
+      }
+    };
+    if (newTypeSel) newTypeSel.onchange = syncNewTargetHint;
+    if (newTargetInp) {
+      newTargetInp.oninput = () => {
+        const det = detectSocialTarget(newTargetInp.value);
+        if (det && newTypeSel && newTypeSel.value !== det.type) {
+          newTypeSel.value = det.type;
+          syncNewTargetHint();
+        }
+      };
+      newTargetInp.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          $('#soc-new-add', p)?.click();
+        }
+      };
+    }
+    $('#soc-new-add', p).onclick = async () => {
       const type = $('#soc-new-type', p).value;
       const target = $('#soc-new-target', p).value.trim();
-      addSource(type, target);
-      $('#soc-new-target', p).value = '';
+      const ok = await addSource(type, target);
+      if (ok) {
+        $('#soc-new-target', p).value = '';
+        toggleConnect(false);
+        refreshList();
+      }
     };
 
     // Controle de Slow Mode
@@ -1125,6 +1478,14 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
     const listEl = $('#soc-list', p);
     if (listEl) {
       listEl.addEventListener('scroll', () => {
+        if (listEl.scrollHeight <= listEl.clientHeight + 30) {
+          if (!isScrollLocked) {
+            isUserBrowsing = false;
+            unreadWhilePaused = 0;
+            updateResumeFloat();
+          }
+          return;
+        }
         // Se a distância do final for maior que 60px, o usuário rolou para cima e está lendo
         const distFromBottom = listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight;
         if (distFromBottom > 60) {
@@ -1139,7 +1500,7 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
 
       // Detecção de roda do mouse e toque
       listEl.addEventListener('wheel', (e) => {
-        if (e.deltaY < 0) {
+        if (e.deltaY < 0 && listEl.scrollHeight > listEl.clientHeight + 30) {
           // Rolou para cima
           isUserBrowsing = true;
           updateResumeFloat();
@@ -1161,9 +1522,19 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
     // Busca
     $('#soc-search', p).oninput = (e) => {
       st.searchQuery = e.target.value;
-      save();
+      syncSearchUi();
       refreshList();
     };
+    const clrSearch = $('#soc-search-clear', p);
+    if (clrSearch) {
+      clrSearch.onclick = () => {
+        st.searchQuery = '';
+        const inp = $('#soc-search', p);
+        if (inp) { inp.value = ''; inp.focus(); }
+        syncSearchUi();
+        refreshList();
+      };
+    }
 
     $('#soc-clear', p).onclick = clearAll;
 
@@ -1214,6 +1585,16 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
     status,
     render,
     boot,
+    openConnect: () => {
+      if (!panel) return;
+      const box = $('#soc-box-connect', panel);
+      const opt = $('#soc-box-options', panel);
+      if (opt) opt.hidden = true;
+      if (box) {
+        box.hidden = false;
+        $('#soc-new-target', box)?.focus();
+      }
+    },
     addMessage,
     showFeatured,
     hide,
@@ -1227,7 +1608,12 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
     deleteMessagesForSource,
     openPopout,
     isFeatured: (id) => featuredId === id,
-    stop: () => {},
+    stop: () => {
+      for (const s of ssnSources) {
+        try { s.chatClient?.close(); } catch {}
+        try { s.dockClient?.close(); } catch {}
+      }
+    },
   };
 }
 

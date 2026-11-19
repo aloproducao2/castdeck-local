@@ -182,6 +182,9 @@ const TAB_GROUPS = [
   {
     id: 'interaction',
     label: 'Interatividade',
+    // Rótulo curto dos chips: "Interatividade" não cabe no chip de 3 colunas nem no trilho de 68 px
+    // e quebrava no meio da palavra ("Interativida de").
+    short: 'Interação',
     icon: 'spark',
     hint: 'Enquetes com votação, códigos QR e mensagens do público no ar',
     tabs: [
@@ -396,7 +399,7 @@ async function buildStudio() {
       <button class="btn icon" id="btn-intercom-mini" title="Mini intercom: PTT e corte de câmeras juntos" aria-label="Mini intercom" aria-pressed="false">${icons.mic}</button>
       <button class="btn icon" id="btn-remote" title="Controle remoto no celular: leia o QR e comande a mesa de corte" aria-label="Controle remoto">${REMOTE_ICON}</button>
       <button class="btn icon" data-fs="studio" data-tip="Tela cheia do estúdio" title="Tela cheia do estúdio" aria-label="Tela cheia do estúdio">${icons.expand}</button>
-      <button class="btn tools-toggle" id="btn-tools" title="Painel de recursos: NDI, WhatsApp, Multi-Rec, Câmeras, PTZ, Intercom e Controle Remoto" aria-label="Painel de recursos" aria-expanded="false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="tools-lbl">Painel Rápido</span><span class="tools-chev" aria-hidden="true">▾</span></button>
+      <button class="btn tools-toggle" id="btn-tools" title="Painel de recursos: NDI, WhatsApp, Multi-Rec, Câmeras, PTZ, Intercom e Controle Remoto" aria-label="Recursos" aria-expanded="false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="tools-lbl">Recursos</span><span class="tools-chev" aria-hidden="true">▾</span></button>
       <button class="btn" id="btn-panel" title="Abrir painel de controle (mídia, banners, jornal...)" aria-expanded="false">Painel</button>
       <button class="btn oa-multi" id="btn-multirec" type="button" title="Multi-Rec: grave cada câmera ou fonte em um arquivo separado (ISO), sem alterar Gravar/Transmitir" aria-pressed="false">${icons.record}<span class="mr-lbl">Multi-Rec</span></button>
       <button class="btn oa-rec" id="btn-record" title="Gravar o programa localmente em MP4 (independente da transmissão)" aria-pressed="false"><span class="oa-dot"></span><span class="lbl">Gravar</span></button>
@@ -459,21 +462,20 @@ async function buildStudio() {
 
     <aside class="side" id="side">
       <div class="rz rz-side" id="rz-side" role="separator" aria-orientation="vertical" title="Arraste para redimensionar o painel (duplo clique restaura)"></div>
+      <button type="button" class="side-drawer-close" id="side-drawer-close" title="Fechar o painel" aria-label="Fechar o painel">✕</button>
       <div class="side-head">
-        <span class="side-title">▤ Painel de Controle</span>
+        <span class="side-title"><span class="side-title-ico" aria-hidden="true">▤</span> Painel de Controle</span>
         <span class="side-cur-badge" id="side-cur-tab">Mídia</span>
+        <button class="side-mini-btn" id="btn-cmd" title="Busca rápida de painéis e ações (Ctrl+K)" aria-label="Busca rápida (Ctrl+K)">🔍</button>
         <button class="side-mini-btn" id="btn-detach" aria-pressed="false" title="Destacar este painel em uma janela flutuante (também: duplo clique na aba)">⧉</button>
         <button class="side-mini-btn" id="btn-side-mini" aria-pressed="false" title="Recolher o painel em ícones (economiza espaço)">${SIDE_ICON}</button>
       </div>
       <div class="side-quick-strip" aria-label="Atalhos rápidos do painel">
+        <button type="button" class="sq-pill" data-goto-tab="social" title="Abrir Redes (comentários do YouTube, Twitch e Social Stream Ninja)">Redes</button>
         <button type="button" class="sq-pill" data-goto-tab="banners" title="Abrir Grafismo e GCs">GC / Grafismo</button>
-        <button type="button" class="sq-pill" data-goto-tab="multirec" title="Abrir Multi-Rec (gravação ISO de fontes)">Multi-Rec</button>
-        ${IS_MOBILE ? '' : '<button type="button" class="sq-pill" data-goto-tab="ndi" title="Abrir painel NDI">NDI</button>'}
-        ${S.system.platform === 'android' ? '' : '<button type="button" class="sq-pill" data-goto-tab="whatsapp" title="Abrir WhatsApp no painel">WhatsApp</button>'}
-        <button type="button" class="sq-pill" data-goto-tab="audio" title="Abrir Mesa de Áudio">Áudio</button>
         <button type="button" class="sq-pill" id="sq-open-pad" title="Abrir Pad de efeitos sonoros (duplo clique abre janela separada)">🎛️ Pad</button>
       </div>
-      <nav class="grp-tabs" aria-label="Seções do painel">${TAB_GROUPS.map((g) => `<button class="grp" data-group="${g.id}" title="${esc(g.label)} — ${esc(g.hint)}">${icons[g.icon]}<span>${g.label}</span>${g.id === 'audience' ? '<i class="count chat-count" hidden></i>' : g.id === 'interaction' ? '<i class="count msg-count" hidden></i>' : g.id === 'content' ? '<i class="count gf-live-count" hidden></i>' : ''}</button>`).join('')}</nav>
+      <nav class="grp-tabs" aria-label="Seções do painel">${TAB_GROUPS.map((g) => `<button class="grp" data-group="${g.id}" title="${esc(g.label)} — ${esc(g.hint)}">${icons[g.icon]}<span>${esc(g.short || g.label)}</span>${g.id === 'audience' ? '<i class="count chat-count" hidden></i>' : g.id === 'interaction' ? '<i class="count msg-count" hidden></i>' : g.id === 'content' ? '<i class="count gf-live-count" hidden></i>' : ''}</button>`).join('')}</nav>
       <div class="side-body" id="side-body">
       <div class="side-fly-head">
         <strong id="side-fly-title"></strong>
@@ -1203,13 +1205,135 @@ async function buildStudio() {
   function openShortcuts() {
     modal(`<h3>Atalhos do estúdio</h3>
       <p class="sub">Atalhos funcionam fora de campos de texto e com o estúdio em foco.</p>
-      <div class="shortcut-grid">
-        <span><kbd>F</kbd> Tela cheia do programa</span><span><kbd>Shift</kbd> + <kbd>F</kbd> Tela cheia da mesa</span>
-        <span><kbd>Shift</kbd> + <kbd>P</kbd> Projetor em outra tela</span><span><kbd>Shift</kbd> + <kbd>R</kbd> Replay &amp; VAR</span>
-        <span><kbd>F8</kbd> Replay 5 s</span><span><kbd>F9</kbd> Replay 10 s</span>
-        <span><kbd>F10</kbd> Replay 15 s</span><span><kbd>?</kbd> Abrir esta ajuda</span>
-      </div>
+      <div class="shortcut-sec"><h4>Navegação &amp; Comandos</h4><div class="shortcut-grid">
+        <span><kbd>Ctrl</kbd> + <kbd>K</kbd> Busca rápida de painéis</span><span><kbd>?</kbd> Abrir esta ajuda</span>
+        <span><kbd>Esc</kbd> Fechar janela / tirar destaque</span><span><kbd>Duplo clique</kbd> Destacar ou ir ao ar (Redes)</span>
+      </div></div>
+      <div class="shortcut-sec"><h4>Palco, Cenas &amp; Telas</h4><div class="shortcut-grid">
+        <span><kbd>F1</kbd>–<kbd>F6</kbd> Aplicar cena rápida</span><span><kbd>F</kbd> Tela cheia do programa</span>
+        <span><kbd>Shift</kbd> + <kbd>F</kbd> Tela cheia da mesa</span><span><kbd>Shift</kbd> + <kbd>P</kbd> Projetor em outra tela</span>
+      </div></div>
+      <div class="shortcut-sec"><h4>Mesa de Corte &amp; Replay</h4><div class="shortcut-grid">
+        <span><kbd>1</kbd>–<kbd>9</kbd> / <kbd>0</kbd> Selecionar Prévia (0 = Cena)</span><span><kbd>Shift</kbd> + <kbd>1</kbd>–<kbd>9</kbd> Corte direto ao vivo</span>
+        <span><kbd>Espaço</kbd> / <kbd>Enter</kbd> Corte seco (CORTE)</span><span><kbd>T</kbd> Transição suave (AUTO)</span>
+        <span><kbd>Shift</kbd> + <kbd>R</kbd> Abrir Replay &amp; VAR</span><span><kbd>F8</kbd> / <kbd>F9</kbd> / <kbd>F10</kbd> Clipe 5 s / 10 s / 15 s</span>
+      </div></div>
       <div class="modal-actions"><button class="btn primary" data-close>Entendi</button></div>`);
+  }
+
+  const CMD_TAB_KEYWORDS = {
+    media: 'video audio imagem youtube download biblioteca arquivo',
+    playout: 'fila mini player break intervalo comercial',
+    banners: 'gc grafismo banner tarja template dados lower third',
+    journal: 'jornal logo noticia rss manchete letreiro',
+    sports: 'esporte futebol placar cronometro time gol',
+    brand: 'marca cor fundo logo overlay tema visual',
+    display: 'exibicao nomes cantos espacamento',
+    widgets: 'enquete votacao qr code poll',
+    raffle: 'sorteio roleta premio numero qr',
+    messages: 'mensagem publico caixa entrada qr',
+    whatsapp: 'whatsapp celular mensagem audio bridge',
+    chat: 'chat convidado estudio interno',
+    social: 'redes comentarios youtube twitch social stream ninja ssn moderacao super chat',
+    director: 'diretor corte automatico auto voz ducking',
+    audio: 'audio mixer som volume ganho bus',
+    music: 'trilha sonora musica pad efeitos sample',
+    intercom: 'intercom camera reporter ptt',
+    captions: 'legenda transcricao whisper traducao',
+    outputs: 'sinais obs vmix browser source iso',
+    ndi: 'ndi rede saida',
+    multirec: 'multirec multi-rec gravacao iso cameras',
+    output: 'destinos rtmp youtube facebook twitch chave transmissao bitrate',
+    devices: 'dispositivos camera microfone pasta gravacoes',
+  };
+
+  function openCommandPalette() {
+    if (document.querySelector('#cmd-input')) {
+      document.querySelector('#cmd-input').focus();
+      return;
+    }
+    const items = [
+      { id: 'act:social-connect', title: 'Conectar chat (YouTube / Twitch / Social Ninja)', hint: 'Ação rápida · Redes', kw: 'conectar youtube twitch social stream ninja ssn comentarios chat', run: () => { openSideTab('social'); setTimeout(() => social?.openConnect?.(), 60); } },
+      { id: 'act:invite', title: 'Convidar participantes (link / QR)', hint: 'Ação rápida · Pessoas', kw: 'convidar convidado link qr co-host', run: () => $('#c-invite')?.click() },
+      { id: 'act:pad', title: 'Abrir Pad de efeitos sonoros', hint: 'Ação rápida · Áudio', kw: 'pad soundboard efeitos vinheta audio', run: () => { music?.setViewMode?.('pad'); openSideTab('music'); } },
+      { id: 'act:cameras', title: 'Abrir painel de Câmeras', hint: 'Ação rápida · Vídeo', kw: 'camera zoom exposicao lanterna uvc', run: () => cameras?.open?.() },
+      { id: 'act:switcher', title: S.switcher ? 'Voltar para o Modo Estúdio' : 'Abrir Mesa de Corte (PRÉVIA / PGM)', hint: 'Ação rápida · Modo', kw: 'mesa corte switcher previa pgm', run: () => switcher?.setMode(!S.switcher) },
+      { id: 'act:safe', title: safeOn ? 'Desativar Cena Segura' : 'Ativar Cena Segura', hint: 'Ação rápida · Segurança', kw: 'cena segura emergencia mudo cartela', run: () => setSafeMode(!safeOn) },
+      { id: 'act:ready', title: 'Checar Prontidão para o ar', hint: 'Ação rápida · Diagnóstico', kw: 'pronto prontidao diagnostico checagem', run: () => openReadiness() },
+      { id: 'act:live', title: S.streaming ? 'Encerrar transmissão ao vivo' : 'Transmitir ao vivo', hint: 'Ação rápida · Live', kw: 'transmitir live rtmp stream entrar ao vivo', run: () => $('#btn-live')?.click() },
+      { id: 'act:rec', title: S.recording ? 'Parar gravação MP4' : 'Gravar localmente (MP4)', hint: 'Ação rápida · Gravação', kw: 'gravar gravacao mp4 disco', run: () => $('#btn-record')?.click() },
+      { id: 'act:shortcuts', title: 'Ver atalhos de teclado (?)', hint: 'Ajuda', kw: 'atalhos teclado ajuda', run: () => openShortcuts() },
+      ...TAB_GROUPS.flatMap((g) => g.tabs.map(([id, label, _icon, hint]) => ({
+        id: 'tab:' + id,
+        title: label,
+        hint: `${g.label} · ${hint}`,
+        kw: `${label} ${g.label} ${hint} ${CMD_TAB_KEYWORDS[id] || ''}`,
+        run: () => openSideTab(id),
+      }))),
+    ];
+    const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    modal(`<div class="cmd-palette">
+      <div class="cmd-head">
+        <span aria-hidden="true">🔍</span>
+        <input class="input cmd-input" id="cmd-input" placeholder="Buscar painel ou ação (ex.: youtube, ninja, gc, sorteio, mixer)…" autocomplete="off">
+        <kbd>Esc</kbd>
+      </div>
+      <div class="cmd-list" id="cmd-list" role="listbox"></div>
+    </div>`, {
+      onMount(m, close) {
+        const inp = $('#cmd-input', m);
+        const listEl = $('#cmd-list', m);
+        let filtered = items.slice(0, 14);
+        let selIdx = 0;
+
+        const paint = () => {
+          const q = norm(inp.value).trim();
+          const terms = q ? q.split(/\s+/).filter(Boolean) : [];
+          filtered = (terms.length
+            ? items.filter((it) => {
+                const hay = norm(`${it.title} ${it.hint} ${it.kw}`);
+                return terms.every((w) => hay.includes(w));
+              })
+            : items.slice(0, 14));
+          if (!filtered.length) {
+            listEl.innerHTML = `<div class="empty" style="padding:20px 12px">Nenhum painel ou ação encontrado para “${esc(inp.value)}”.</div>`;
+            return;
+          }
+          if (selIdx >= filtered.length) selIdx = 0;
+          listEl.innerHTML = filtered.map((it, idx) => `
+            <button type="button" class="cmd-item ${idx === selIdx ? 'sel' : ''}" data-cmd-idx="${idx}" role="option" aria-selected="${idx === selIdx}">
+              <strong>${esc(it.title)}</strong>
+              <span>${esc(it.hint)}</span>
+            </button>`).join('');
+          $$('[data-cmd-idx]', listEl).forEach((b) => {
+            b.onclick = () => {
+              const chosen = filtered[Number(b.dataset.cmdIdx)];
+              close();
+              chosen?.run?.();
+            };
+          });
+          listEl.querySelector('.cmd-item.sel')?.scrollIntoView({ block: 'nearest' });
+        };
+
+        inp.oninput = () => { selIdx = 0; paint(); };
+        inp.onkeydown = (e) => {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (filtered.length) { selIdx = (selIdx + 1) % filtered.length; paint(); }
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (filtered.length) { selIdx = (selIdx - 1 + filtered.length) % filtered.length; paint(); }
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const chosen = filtered[selIdx];
+            if (chosen) { close(); chosen.run?.(); }
+          }
+        };
+        paint();
+        setTimeout(() => inp.focus(), 10);
+      },
+    });
   }
 
   function applyDeckState() {
@@ -1450,7 +1574,13 @@ async function buildStudio() {
       }
       setSafeMode(!safeOn);
     });
+    $('#btn-cmd')?.addEventListener('click', openCommandPalette);
     document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        openCommandPalette();
+        return;
+      }
       if (e.key !== '?' || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.target?.closest?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('.modal-back')) return;
       e.preventDefault();
@@ -1708,7 +1838,7 @@ function openSideTab(tab) {
   if (st?.classList.contains('side-mini')) {
     st.classList.add('side-fly');
     const grp = TAB_GROUPS.find((g) => g.tabs.some(([id]) => id === tab));
-    $('#side-fly-title').textContent = grp?.label || '';
+    $('#side-fly-title').textContent = grp?.short || grp?.label || '';
   } else if (isDrawer) {
     // No mobile o painel vira gaveta fixa; abrir a aba precisa revelar a gaveta
     st?.classList.add('panel-open');
@@ -1721,6 +1851,14 @@ function openSideTab(tab) {
 }
 function closeSideFly() {
   $('.studio')?.classList.remove('side-fly');
+}
+// No celular/tablet o painel é uma gaveta por cima do palco: além de tocar fora, agora há um ✕ explícito
+// (antes só dava para fechar tocando no fundo, o que não é descobrível).
+function closePanelDrawer() {
+  const st = $('.studio');
+  if (!st?.classList.contains('panel-open')) return;
+  st.classList.remove('panel-open');
+  syncPanelState();
 }
 // foco no vertical: expandir / recolher
 const FOCUS_ICONS = [
@@ -3575,6 +3713,7 @@ function bindUI() {
   $('#btn-side-mini').onclick = () => setSideMini(!$('.studio').classList.contains('side-mini'));
   $('#side-pin').onclick = () => setSideMini(false);
   $('#side-fly-close').onclick = closeSideFly;
+  $('#side-drawer-close').onclick = closePanelDrawer;
   // painel flutuante fecha com Esc ou clicando fora dele (como um menu)
   document.addEventListener('pointerdown', (e) => {
     if (!$('.studio')?.classList.contains('side-fly')) return;
@@ -3582,7 +3721,9 @@ function bindUI() {
     closeSideFly();
   });
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && $('.studio')?.classList.contains('side-fly') && !document.querySelector('.modal-back')) closeSideFly();
+    if (e.key !== 'Escape' || document.querySelector('.modal-back')) return;
+    if ($('.studio')?.classList.contains('side-fly')) closeSideFly();
+    else closePanelDrawer();
   });
   $('#layouts').onclick = (e) => {
     const act = e.target.closest('[data-act]');
@@ -3733,6 +3874,7 @@ function renderLayouts() {
   const custom = S.brand.customLayouts || [];
   const btn = (l) => `<button class="layout-btn" data-layout="${l.id}" title="${esc(l.label)}${l.id.startsWith('c-') ? ' (duplo clique para editar)' : ''}"><svg viewBox="0 0 48 28">${l.icon}</svg></button>`;
   box.innerHTML =
+    '<span class="lay-lbl" aria-hidden="true">Layout</span>' +
     LAYOUTS.map(btn).join('') +
     (custom.length ? '<i class="lay-sep"></i>' : '') +
     custom.map((c) => btn({ id: c.id, label: c.label, icon: slotsIcon(c.slots) })).join('') +
@@ -4721,7 +4863,8 @@ function renderMediaPanel() {
     mediaQuery = q;
     mediaFilter = $('#m-filter', p)?.value || 'all';
     let shown = 0;
-    $$('.m-card', p).forEach((card) => {
+    const cards = $$('.m-card', p);
+    cards.forEach((card) => {
       const okText = !q || (card.dataset.name || '').includes(q);
       const okKind = mediaFilter === 'all' || card.dataset.kind === mediaFilter;
       card.hidden = !(okText && okKind);
@@ -4729,6 +4872,23 @@ function renderMediaPanel() {
     });
     const c = $('#m-count', p);
     if (c) c.textContent = String(shown);
+    const listBox = $('#m-list', p);
+    if (listBox) {
+      let emptyFilt = $('#m-filter-empty', listBox);
+      if (shown === 0 && cards.length > 0 && (q || mediaFilter !== 'all')) {
+        if (!emptyFilt) {
+          emptyFilt = h(`<div class="m-empty" id="m-filter-empty"><b>Nenhum item encontrado</b><span>Nenhum arquivo corresponde à busca ou ao filtro atual.</span><button type="button" class="btn sm ghost" id="m-filter-clear" style="margin-top:6px">✕ Limpar busca</button></div>`);
+          $('#m-filter-clear', emptyFilt).onclick = () => {
+            if ($('#m-search', p)) $('#m-search', p).value = '';
+            if ($('#m-filter', p)) $('#m-filter', p).value = 'all';
+            filterCards();
+          };
+          listBox.appendChild(emptyFilt);
+        }
+      } else if (emptyFilt) {
+        emptyFilt.remove();
+      }
+    }
   };
   $('#m-search', p).oninput = filterCards;
   $('#m-filter', p).onchange = filterCards;
@@ -6518,17 +6678,18 @@ function renderGcBar() {
   ].filter(([, l]) => l.length);
   const selOn = !!gcSel && S.activeBanner === gcSel;
   $('.deck-gc-body', bar).innerHTML = `
-    <button class="btn danger sm" id="gc-off" title="Tira o GC/banner da tela agora" ${on ? '' : 'hidden'}>✕<span class="deck-txt"> Tirar</span></button>
+    <button class="btn danger sm gc-off-btn" id="gc-off" title="${on ? 'Tira o GC/banner da tela agora' : 'Nada no ar agora'}" ${on ? '' : 'disabled'}>✕<span class="deck-txt"> Tirar</span></button>
     ${pick.length
       ? `<div class="gc-strip-pills" role="list" aria-label="GCs cadastrados">${pick.map((b) => {
         const isOn = S.activeBanner === b.id;
-        return `<button type="button" class="gc-pill ${isOn ? 'on' : ''}" data-gc-pill="${esc(b.id)}" title="${esc(b.title)}${b.subtitle ? ' — ' + esc(b.subtitle) : ''}"><i style="background:${esc(b.color || S.brand.color || '#7c5cff')}"></i><span>${esc(b.title)}</span></button>`;
+        return `<button type="button" class="gc-pill ${isOn ? 'on' : ''}" data-gc-pill="${esc(b.id)}" title="${esc(b.title)}${b.subtitle ? ' — ' + esc(b.subtitle) : ''}${isOn ? ' · clique para tirar do ar' : ' · clique para pôr no ar'}"><i style="background:${esc(b.color || S.brand.color || '#7c5cff')}"></i><span>${esc(b.title)}</span></button>`;
       }).join('')}</div>
           <select class="input deck-sel gc-sel" id="gc-sel" title="Escolher GC cadastrado (${pick.length})" aria-label="Escolher GC">
             ${groups.length > 1 ? groups.map(([lbl, l]) => `<optgroup label="${lbl}">${l.map(opt).join('')}</optgroup>`).join('') : pick.map(opt).join('')}
           </select>
           <button class="btn sm ${selOn ? 'onair' : 'primary'}" id="gc-go" title="${selOn ? 'Este GC já está no ar (clique para tirar)' : 'Mandar o GC escolhido para a tela'}">${selOn ? '● No ar' : '▶ Mandar'}</button>`
-      : '<span class="hint deck-empty">Sem GCs cadastrados — cadastre em Grafismo ou use ＋</span>'
+      // Texto curto: a frase inteira era cortada pelo deck a 1366 px; a instrução vive no title.
+      : '<span class="hint deck-empty" title="Sem GCs cadastrados — cadastre em Grafismo ou use ＋">Sem GCs cadastrados</span>'
     }
     <button class="btn sm icon" id="gc-quick" title="Banner rápido: escreva e mande na hora">＋</button>`;
   $('#gc-off', bar)?.addEventListener('click', () => S.activeBanner && toggleBanner(S.activeBanner));

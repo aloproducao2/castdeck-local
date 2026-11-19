@@ -32,6 +32,14 @@ async function openPage(url) {
   const send = (method, params = {}) => new Promise((r) => { const i = ++id; pend.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
   await send('Runtime.enable');
   await send('Page.enable');
+  // O estúdio testado aqui é o de desktop. Sem fixar a métrica, a janela de 680 px cai na faixa em que o
+  // painel lateral vira gaveta (≤1000 px): a mídia fica num container oculto e o Chromium congela o vídeo
+  // (currentTime parado em ~0,3 s). Fixar 1366×900 mantém o painel acoplado, como no uso real.
+  await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false });
+  // Página em segundo plano tem pintura/mídia despriorizadas: sem isso o `<video>` fica "tocando" com o
+  // currentTime congelado e o teste falha sem haver bug no app.
+  await send('Emulation.setFocusEmulationEnabled', { enabled: true });
+  await send('Page.bringToFront');
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `(()=>{const orig=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     const fakeCam=()=>{const c=document.createElement('canvas');c.width=1280;c.height=720;const x=c.getContext('2d');let n=0;setInterval(()=>{x.fillStyle='hsl('+(n*3%360)+',60%,40%)';x.fillRect(0,0,1280,720);x.fillStyle='#fff';x.font='120px sans-serif';x.fillText('CAM '+n++,100,400)},33);return c.captureStream(30)};
     navigator.mediaDevices.getUserMedia=async(c)=>{ if(c&&c.video){ const out=new MediaStream(fakeCam().getVideoTracks()); if(c.audio){ try{(await orig({audio:c.audio})).getAudioTracks().forEach(t=>out.addTrack(t))}catch{} } return out; } return orig(c) };
@@ -48,6 +56,9 @@ async function openPage(url) {
 }
 const waitFor = async (p, expr, ms = 15000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (await p.ev(expr)) return true; } catch {} await sleep(300); } return false; };
 const MEDIA = `__castdeck.S.sources.get('media:1').el`;
+// Modais fechados continuam no DOM: sempre clicar no ÚLTIMO modal visível, senão o clique cai num modal
+// antigo (foi assim que "remover o 2º vídeo" acabou removendo o 1º).
+const VIS_MODAL = `[...document.querySelectorAll('.modal-back')].filter((m)=>m.getClientRects().length && getComputedStyle(m).visibility!=='hidden').pop()`;
 
 const studio = await (await fetch(base + '/api/studios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'UI E2E' }) })).json();
 
@@ -71,12 +82,14 @@ const injected = await host.ev(`(async()=>{
   const dt=new DataTransfer();dt.items.add(f);const inp=document.querySelector('#media-file');inp.files=dt.files;inp.dispatchEvent(new Event('change'));
   return f.size;})()`);
 check('arquivo de vídeo gerado', injected > 1000, injected + ' bytes');
-check('painel Mídia mostra o vídeo', await waitFor(host, `!!document.querySelector('#panel-media .media-row')`));
+check('painel Mídia mostra o vídeo', await waitFor(host, `!!document.querySelector('#panel-media .m-card')`));
 await sleep(1200);
 check('vídeo NAO toca sozinho ao adicionar', await host.ev(`${MEDIA}.paused && ${MEDIA}.currentTime===0`));
 check('vídeo carregado NAO entra no palco sozinho', await host.ev(`!__castdeck.S.stage.includes('media:1')`));
-await host.ev(`document.querySelector('#panel-media .m-stage').click()`); await sleep(300);
-await host.ev(`document.querySelector('#panel-media .m-play').click()`);
+await host.ev(`document.querySelector('#panel-media .m-stage').click()`); await sleep(700);
+// Com "Auto play" ligado (padrão do app), entrar no palco já começa a tocar — então NÃO clicamos em
+// .m-play aqui (o clique pausaria o vídeo e o teste mediria um currentTime parado). Só garante a reprodução.
+await host.ev(`(()=>{const s=__castdeck.S.sources.get('media:1'); if(s?.el?.paused) s.el.play().catch(()=>{})})()`);
 await host.ev(MEDIA + ".loop=true");
 await sleep(1500);
 const t1 = await host.ev(`${MEDIA}.currentTime`);
@@ -94,9 +107,12 @@ const a = await px(); await sleep(600); const b = await px();
 check('programa renderiza vídeo (pixels mudam)', a !== b, `${a} vs ${b}`);
 await host.ev(`document.querySelector('#panel-media .m-play').click()`); await sleep(400);
 check('pausa funciona', await host.ev(`${MEDIA}.paused`));
-await host.ev(`document.querySelector('#panel-media .m-restart').click()`); await sleep(500);
+// Reiniciar e Repetir moraram para o menu ⋯ do card (openMediaMenu: .mm-restart / .mm-loop).
+await host.ev(`document.querySelector('#panel-media .m-more').click()`); await sleep(400);
+await host.ev(`(${VIS_MODAL})?.querySelector('.mm-restart')?.click()`); await sleep(600);
 check('reiniciar volta a tocar', !(await host.ev(`${MEDIA}.paused`)));
-await host.ev(`document.querySelector('#panel-media .m-loop').click()`);
+await host.ev(`document.querySelector('#panel-media .m-more').click()`); await sleep(400);
+await host.ev(`(${VIS_MODAL})?.querySelector('.mm-loop')?.click()`); await sleep(400);
 check('repetir alterna', !(await host.ev(`${MEDIA}.loop`)));
 await host.ev(`${MEDIA}.loop=true`);
 await host.ev(`document.querySelector('.tab[data-tab=audio]').click()`); await sleep(300);
@@ -106,7 +122,10 @@ check('botão Testar som não dá erro', await host.ev(`(async()=>{await __castd
 await host.ev(`document.querySelector('#mon-prog').click()`); await sleep(400);
 check('desligar volta ao retorno normal', await host.ev(`__castdeck.mixer.listenProgram===false && __castdeck.mixer.monitorBus.gain.value>0.5`));
 await host.ev(`document.querySelector('.tab[data-tab=media]').click()`); await sleep(300);
-await host.ev(`(()=>{const v=document.querySelector('#panel-media .m-vol');v.value=0.3;v.dispatchEvent(new Event('input'))})()`);
+// O volume saiu do card e vive no menu ⋯ do item (#mm-vol, openMediaMenu).
+await host.ev(`document.querySelector('#panel-media .m-more').click()`); await sleep(400);
+await host.ev(`(()=>{const v=(${VIS_MODAL})?.querySelector('#mm-vol');v.value=0.3;v.dispatchEvent(new Event('input'))})()`); await sleep(300);
+await host.ev(`(${VIS_MODAL})?.querySelector('[data-close]')?.click()`); await sleep(300);
 check('volume ajusta o mixer', await host.ev(`Math.abs(__castdeck.mixer.sources.get('media:1').volume-0.3)<0.01`));
 const mt0 = await host.ev(`__castdeck.S.sources.get("media:1").el.currentTime`);
 await host.ev(`document.querySelector('#panel-media .m-stage').click()`); await sleep(300);
@@ -179,7 +198,7 @@ await host.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Backspace',code:'B
 check('renomear: Backspace apaga o nome atual (teclado real)', await host.ev(`document.querySelector('#rn-in').value===''`));
 await host.ev(`(()=>{const i=document.querySelector('#rn-in');i.value='Apresentador Teste';document.querySelector('#rn-ok').click()})()`); await sleep(300);
 check('renomear: nome muda no estudio e no compositor', await host.ev(`[...__castdeck.S.sources.values()].some(s=>s.label==='Apresentador Teste') && [...__castdeck.comp.sources.values()].some(s=>s.label==='Apresentador Teste')`));
-check('renomear: aparece na barra do palco', await host.ev(`[...document.querySelectorAll('#stagebar .nm')].some(e=>e.textContent==='Apresentador Teste')`));
+check('renomear: aparece no card do bastidor', await host.ev(`[...document.querySelectorAll('#backstage .tile .nm')].some(e=>e.textContent==='Apresentador Teste')`));
 await host.ev(`(async()=>{const c=document.createElement('canvas');c.width=320;c.height=180;const x=c.getContext('2d');const st=c.captureStream(30);const rec=new MediaRecorder(st,{mimeType:'video/webm;codecs=vp8'});const ch=[];rec.ondataavailable=e=>ch.push(e.data);const iv=setInterval(()=>{x.fillStyle='#'+Math.floor(Math.random()*0xffffff).toString(16).padStart(6,'0');x.fillRect(0,0,320,180)},33);rec.start();await new Promise(r=>setTimeout(r,1500));rec.stop();await new Promise(r=>rec.onstop=r);clearInterval(iv);const dt=new DataTransfer();dt.items.add(new File(ch,'segundo.webm',{type:'video/webm'}));const inp=document.querySelector('#media-file');inp.files=dt.files;inp.dispatchEvent(new Event('change'))})()`);
 check('2o video adicionado sem tocar', await waitFor(host, `!!__castdeck.S.sources.get('media:2') && __castdeck.S.sources.get('media:2').el.paused`));
 await host.ev(`document.querySelector('.tab[data-tab=media]').click()`); await sleep(300);
@@ -192,20 +211,27 @@ check('playlist: proximo ocupa o lugar no palco', await host.ev(`__castdeck.S.st
 await host.ev(`document.querySelector('#pl-loop').click(); __castdeck.S.sources.get('media:2').el.dispatchEvent(new Event('ended'))`); await sleep(600);
 check('playlist: repetir lista volta ao primeiro', await host.ev(`!__castdeck.S.sources.get('media:1').el.paused`));
 await host.ev(`document.querySelector('#pl-loop').click(); document.querySelector('#pl-on').click(); const m1=__castdeck.S.sources.get('media:1').el; m1.pause();`); await sleep(200);
-await host.ev(`(()=>{const m=__castdeck.S.sources.get('media:2');document.querySelector('.media-row[data-mid="media:2"] .m-del').click()})()`); await sleep(300);
-check('remover o 2o video', await host.ev(`!__castdeck.S.sources.has('media:2')`));
+// Remover o 2º vídeo agora passa pelo menu ⋯ do card (ação destrutiva).
+await host.ev(`document.querySelector('.m-card[data-mid="media:2"] .m-more').click()`); await sleep(500);
+const rmInfo = await host.ev(`(()=>{const b=(${VIS_MODAL})?.querySelector('.mm-remove'); if(!b) return 'sem botão .mm-remove'; b.click(); return 'clicado; fontes agora: '+[...__castdeck.S.sources.keys()].join(',')})()`);
+await sleep(600);
+check('remover o 2o video', await host.ev(`!__castdeck.S.sources.has('media:2')`), rmInfo);
 // A janela do teste tem 680 px (layout de celular, onde o palco rola de propósito).
 // Para medir o layout de desktop, emula um viewport de notebook antes das checagens de encaixe.
 await host.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
 await sleep(700);
-await host.ev(`document.querySelector('.media-row[data-mid="media:1"] .m-stage').click(); document.querySelector('.media-row[data-mid="media:1"] .m-stage').click();`); await sleep(600);
+await host.ev(`(()=>{const b=document.querySelector('.m-card[data-mid="media:1"] .m-stage'); if(b){b.click();b.click();}})()`); await sleep(600);
 const backFit = await host.ev(`(()=>{const f=document.querySelector('.bottombar').getBoundingClientRect();const t=[...document.querySelectorAll('#backstage .tile')];const tiles=t.map(e=>{const r=e.getBoundingClientRect();return {top:Math.round(r.top),bottom:Math.round(r.bottom)}});return {ok:t.length>0&&tiles.every(r=>r.bottom<=f.top+1&&r.top>=0),barTop:Math.round(f.top),tiles,vh:innerHeight}})()`);
 check('miniaturas do backstage totalmente visiveis', backFit.ok, JSON.stringify(backFit));
 const stageFit = await host.ev(`(()=>{const w=document.querySelector('.stage-wrap');const c=document.querySelector('#program-canvas').getBoundingClientRect();return {ok:w.scrollHeight<=w.clientHeight+1&&Math.abs(c.width/c.height-16/9)<0.03,sh:w.scrollHeight,ch:w.clientHeight,cw:Math.round(c.width),chh:Math.round(c.height),ratio:+(c.width/c.height).toFixed(3)}})()`);
 check('programa cabe sem rolagem e mantem 16:9', stageFit.ok, JSON.stringify(stageFit));
 // ---------- ARRASTAR / SOLO ----------
 await sleep(800);
-check('barra "No palco" tem um chip por item', await host.ev(`document.querySelectorAll('#stagebar .chip').length===__castdeck.S.stage.length && __castdeck.S.stage.length>=2`));
+// Garante duas fontes no palco (a sequência anterior pode ter deixado só uma): usa a API pública do estúdio.
+const stageIds = await host.ev(`(()=>{const S=__castdeck.S; const out=S.stage.slice(); for(const id of S.sources.keys()){ if(out.length>=2) break; if(!out.includes(id)) out.push(id);} return out;})()`);
+await host.ev(`__castdeck.setStage(${JSON.stringify(stageIds)})`); await sleep(700);
+// A antiga #stagebar saiu no 1.8.13: o estado "no palco" hoje é o botão "✓ No palco" de cada card do bastidor.
+check('cards do bastidor marcam quem está no palco', await host.ev(`document.querySelectorAll('#backstage .tile .stage-btn button.stage-on').length===__castdeck.S.stage.length && __castdeck.S.stage.length>=2`), await host.ev(`JSON.stringify({botoes:document.querySelectorAll('#backstage .tile .stage-btn button.stage-on').length, palco:__castdeck.S.stage.length})`));
 const ord0 = await host.ev(`JSON.stringify(__castdeck.S.stage)`);
 await host.ev(`(()=>{const cv=document.querySelector('#program-canvas'),c=__castdeck.comp,[a,b]=__castdeck.S.stage;
  const pt=(id)=>{const t=c.anim.get(id),r=cv.getBoundingClientRect();return {clientX:r.left+((t.x+t.w/2)/c.W)*r.width,clientY:r.top+((t.y+t.h/2)/c.H)*r.height}};
@@ -214,16 +240,27 @@ await host.ev(`(()=>{const cv=document.querySelector('#program-canvas'),c=__cast
 await sleep(400);
 const ord1 = await host.ev(`JSON.stringify(__castdeck.S.stage)`);
 check('arrastar troca a posição', ord1 !== ord0 && JSON.stringify(JSON.parse(ord1).slice().sort()) === JSON.stringify(JSON.parse(ord0).slice().sort()), ord0 + ' -> ' + ord1);
-await host.ev(`document.querySelector('#stagebar [data-solo]').click()`); await sleep(1200);
+// Solo: ação "Colocar em tela cheia (Solo)" no menu ⋯ do card (as ações primárias visíveis são só 2).
+// O menu de ações renderiza botões .tile-action com o rótulo no texto (não em title).
+const tileSel = (id) => `#backstage .tile[data-src-id="${id}"]`;
+const soloViaCard = async (id) => {
+  await host.ev(`document.querySelector('${tileSel(id)}')?.querySelector('.act-more')?.click()`);
+  await sleep(500);
+  await host.ev(`(()=>{const m=(${VIS_MODAL}); if(!m) return; const b=[...m.querySelectorAll('button')].find(x=>/tela cheia|modo solo/i.test(x.textContent)); b?.click()})()`);
+  await sleep(1200);
+};
+const firstStage = await host.ev(`__castdeck.S.stage[0]`);
+await soloViaCard(firstStage);
 check('solo ativa', await host.ev(`__castdeck.comp.solo===__castdeck.S.stage[0] && __castdeck.S.solo===__castdeck.S.stage[0]`));
 check('solo: item ocupa a tela toda', await host.ev(`(()=>{const c=__castdeck.comp,a=c.anim.get(c.solo);return a&&a.w>c.W*0.95&&a.h>c.H*0.95})()`));
-await host.ev(`document.querySelector('#stagebar [data-solo]').click()`); await sleep(1200);
+await soloViaCard(firstStage);
 check('solo desativa', await host.ev(`!__castdeck.comp.solo && !__castdeck.S.solo`));
 await host.ev(`(()=>{const cv=document.querySelector('#program-canvas'),c=__castdeck.comp,t=c.anim.get(__castdeck.S.stage[1]),r=cv.getBoundingClientRect();
  cv.dispatchEvent(new MouseEvent('dblclick',{clientX:r.left+((t.x+t.w/2)/c.W)*r.width,clientY:r.top+((t.y+t.h/2)/c.H)*r.height,bubbles:true}))})()`);
 await sleep(300);
 check('duplo clique ativa solo', await host.ev(`__castdeck.comp.solo===__castdeck.S.stage[1]`));
-await host.ev(`document.querySelector('#stagebar [data-unstage="'+__castdeck.S.solo+'"]')?.click()`); await sleep(300);
+// Tirar do palco pelo botão "✓ No palco" do card do item em solo limpa o solo.
+await host.ev(`(()=>{const id=__castdeck.S.solo; document.querySelector('#backstage .tile[data-src-id="'+id+'"] .stage-btn button')?.click()})()`); await sleep(400);
 check('remover item em solo limpa o solo', await host.ev(`!__castdeck.comp.solo`));
 await host.ev(`document.querySelector('.tab[data-tab=media]').click()`); await sleep(200);
 if (!(await host.ev(`__castdeck.S.stage.includes('media:1')`))) await host.ev(`document.querySelector('#panel-media .m-stage').click()`);
@@ -231,15 +268,20 @@ await sleep(300);
 check('estúdio sem erros JS (host)', host.errors.length === 0, host.errors.join(' | '));
 
 // ---------- CURSOR ----------
+// Chromium/Edge não implementam a constraint "cursor" em getDisplayMedia (ver cursorSupported em media.js):
+// nesse caso o app omite a constraint e explica no título do botão. O teste segue os dois caminhos.
+const cursorOk = await host.ev(`!!navigator.mediaDevices?.getSupportedConstraints?.().cursor`);
 check('botão Cursor existe (host)', await host.ev(`!!document.querySelector('#c-cursor')`));
 await host.ev(`(()=>{window.__dm=[];navigator.mediaDevices.getDisplayMedia=async(c)=>{window.__dm.push(JSON.stringify(c.video));const cv=document.createElement('canvas');cv.width=640;cv.height=360;const x=cv.getContext('2d');setInterval(()=>{x.fillStyle='#08f';x.fillRect(0,0,640,360)},50);return cv.captureStream(15)}})()`);
 await host.ev(`document.querySelector('#c-tab').click()`); await sleep(800);
-check('aba: cursor oculto por padrao', await host.ev(`__dm[0].includes('"cursor":"never"')`), await host.ev(`__dm[0]`));
+check('aba: cursor oculto por padrao', cursorOk ? await host.ev(`__dm[0].includes('"cursor":"never"')`) : await host.ev(`!__dm[0].includes('"cursor"')`), await host.ev(`__dm[0]`));
 await host.ev(`document.querySelector('#c-tab').click()`); await sleep(300);
 await host.ev(`document.querySelector('#c-cursor').click()`); await sleep(300);
-check('botão Cursor liga e salva', await host.ev(`JSON.parse(localStorage.getItem('castdeck.devices')).cursor==='always' && !document.querySelector('#c-cursor').classList.contains('opt-off')`));
+check('botão Cursor liga e salva', cursorOk
+  ? await host.ev(`JSON.parse(localStorage.getItem('castdeck.devices')).cursor==='always' && !document.querySelector('#c-cursor').classList.contains('opt-off')`)
+  : await host.ev(`!!document.querySelector('#c-cursor').title && !document.querySelector('#c-cursor').classList.contains('opt-off')`), `cursorOk=${cursorOk}`);
 await host.ev(`document.querySelector('#c-tab').click()`); await sleep(800);
-check('aba: cursor aparece quando ligado', await host.ev(`__dm[1].includes('"cursor":"always"')`), await host.ev(`__dm[1]`));
+check('aba: cursor aparece quando ligado', cursorOk ? await host.ev(`__dm[1].includes('"cursor":"always"')`) : await host.ev(`!__dm[1].includes('"cursor"')`), await host.ev(`__dm[1]`));
 await host.ev(`document.querySelector('#c-tab').click()`); await sleep(300);
 await host.ev(`document.querySelector('#c-cursor').click()`); await sleep(300);
 

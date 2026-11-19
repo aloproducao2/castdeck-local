@@ -36,6 +36,20 @@
 
 /* ---------- aba Estúdios ---------- */
 .dash .hero { margin-bottom: 30px; }
+/* Hero compacto na volta (já existe estúdio): sai o texto de apresentação e a primeira dobra passa a
+   mostrar "Continuar" + "Seus estúdios", que é o que o usuário quer ao abrir o app pela segunda vez. */
+.dash .hero.hero-compact { grid-template-columns: minmax(0, 1.15fr) minmax(300px, .85fr); gap: 18px; margin-bottom: 22px; align-items: start; }
+.dash .hero-compact .hero-main { padding: 16px 18px; }
+.dash .hero-compact .hero-main h1,
+.dash .hero-compact .hero-main p { display: none; }
+.dash .hero-compact .hero-main .db-continue { margin-bottom: 10px; }
+.dash .hero-compact .hero-create { max-width: none; }
+.dash .steps-compact-row .tick.next { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; background: var(--accent-soft); color: var(--accent-text); flex: none; }
+.dash .steps-compact-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
+/* telas estreitas: o hero compacto volta a ser uma coluna (senão "Continuar"/"Criar" ficam cortados) */
+@media (max-width: 900px) {
+  .dash .hero.hero-compact { grid-template-columns: 1fr; }
+}
 .dash .hero-main { display: flex; flex-direction: column; align-items: flex-start; }
 .dash .db-continue { position: relative; z-index: 1; margin-bottom: 12px; max-width: 100%; }
 .dash .db-continue span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
@@ -49,6 +63,12 @@
 }
 .dash .steps h4 { font-size: 12.5px; color: var(--text-1); text-transform: uppercase; letter-spacing: .08em; }
 .dash .steps h4 .hint { text-transform: none; letter-spacing: 0; }
+.dash .steps-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dash .steps.compact { padding: 14px 18px; align-self: start; }
+.dash .steps-compact-row { display: flex; align-items: center; gap: 10px; }
+.dash .steps-compact-row .tick.done { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; background: hsl(158 78% 42% / 0.2); color: var(--ok); flex: none; }
+.dash .section-head { flex-wrap: wrap; gap: 10px; }
+.dash .db-studio-search { width: min(240px, 100%); height: 34px; font-size: 13px; margin-left: auto; }
 .dash .step { padding: 9px 10px; border-radius: 10px; background: hsl(230 30% 6% / 0.55); border: 1px solid var(--line); }
 .dash .step.done { border-color: hsl(158 78% 42% / 0.28); background: hsl(158 78% 42% / 0.06); }
 .dash .step .grow { min-width: 0; }
@@ -355,3 +375,20 @@
 .rec-strip-acts .btn.primary {
   justify-content: center;
 }
+
+/* Faixa do túnel em espera longa: chip de uma linha (ver tunnelStrip em dashboard.js) */
+.dash .tun-slim {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--bg-1), var(--bg-0));
+  color: var(--text-1);
+  font-size: 12.5px;
+}
+.dash .tun-slim strong { font-weight: 600; color: var(--text-0); }
+.dash .tun-slim .hint { font-variant-numeric: tabular-nums; }
+.dash .tun-slim #tun-expand { margin-left: auto; }

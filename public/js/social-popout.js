@@ -10,6 +10,7 @@ const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').
 
 let ws = null;
 const msgs = [];
+const seen = new Set();
 const queue = [];
 let autoSequence = false;
 let autoDur = 8;
@@ -64,12 +65,36 @@ function syncAutoControls() {
   if (wrap) wrap.style.display = autoSequence ? 'flex' : 'none';
 }
 
+function hydrateHistory(items) {
+  if (!Array.isArray(items) || !items.length) return false;
+  let added = false;
+  for (const rawItem of items) {
+    const m = normalizeMessage(rawItem);
+    if (!m || m.clear || seen.has(m.id)) continue;
+    seen.add(m.id);
+    if (seen.size > 800) seen.delete(seen.values().next().value);
+    msgs.push(m);
+    if (msgs.length > 300) msgs.shift();
+    added = true;
+  }
+  return added;
+}
+
+function syncSearchUi() {
+  const wrap = $('#pop-search-wrap');
+  const clr = $('#pop-search-clear');
+  const has = !!(searchQuery && searchQuery.length);
+  if (wrap) wrap.classList.toggle('has-query', has);
+  if (clr) clr.hidden = !has;
+}
+
 function connect() {
   statusPill.className = 'pill sm warn';
   statusPill.textContent = 'Conectando…';
 
   try {
-    ws = new WebSocket(`ws://${location.host}/social-stream`);
+    const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${wsProto}://${location.host}/social-stream`);
     ws.onopen = () => {
       statusPill.className = 'pill sm ok';
       statusPill.textContent = 'Ao vivo';
@@ -84,12 +109,14 @@ function connect() {
           if (Array.isArray(data.queue)) {
             queue.splice(0, queue.length, ...data.queue);
           }
+          const gotHistory = hydrateHistory(data.history);
           if (typeof data.autoSequence === 'boolean') autoSequence = data.autoSequence;
           if (typeof data.autoDur === 'number') autoDur = data.autoDur;
           syncAutoControls();
           updateFeatured(data.featured);
           updateFilterCounts();
           updateQueueButtons();
+          if (gotHistory) renderList();
         } else if (data.type === 'sources') {
           updateSources(data.sources || []);
         } else if (data.type === 'queue-update') {
@@ -148,7 +175,10 @@ function deleteMessagesForSource(sourceId, sourceType) {
     const m = msgs[i];
     const match = (sourceId && m.sourceId === sourceId) ||
                   (!m.sourceId && sourceType && m.type === sourceType);
-    if (match) msgs.splice(i, 1);
+    if (match) {
+      seen.delete(m.id);
+      msgs.splice(i, 1);
+    }
   }
   if (currentFeatured && ((sourceId && currentFeatured.sourceId === sourceId) || (!currentFeatured.sourceId && sourceType && currentFeatured.type === sourceType))) {
     updateFeatured(null);
@@ -158,6 +188,7 @@ function deleteMessagesForSource(sourceId, sourceType) {
 
 function clearAllMessages(broadcast = false) {
   msgs.length = 0;
+  seen.clear();
   queue.length = 0;
   newCountWhilePaused = 0;
   btnResume.classList.remove('show');
@@ -261,6 +292,9 @@ function toggleFeatured(m) {
 function handleIncomingMessage(raw) {
   const m = normalizeMessage(raw);
   if (!m || m.clear) return;
+  if (seen.has(m.id)) return;
+  seen.add(m.id);
+  if (seen.size > 800) seen.delete(seen.values().next().value);
 
   // Throttling / Slow Mode
   const isDonation = !!m.donation;
@@ -305,7 +339,7 @@ function matchesFilter(m) {
 function appendMessage(m) {
   if (!matchesFilter(m)) return;
 
-  const emptyEl = $('.empty', feed);
+  const emptyEl = $('.empty, .soc-empty-box, .soc-empty-smart', feed);
   if (emptyEl) emptyEl.remove();
 
   const el = createMessageEl(m);
@@ -415,10 +449,34 @@ function renderList() {
   }
 
   if (!filtered.length) {
-    const emptyMsg = filterTab === 'queue'
-      ? 'Nenhuma mensagem na fila. Clique em "+ Fila" nos cards para adicionar mensagens à sequência.'
-      : 'Nenhuma mensagem para este filtro.';
-    feed.innerHTML += `<div class="empty" style="padding:40px 20px;text-align:center;color:var(--text-1)">${emptyMsg}</div>`;
+    const q = searchQuery.trim();
+    if (filterTab === 'queue') {
+      feed.innerHTML += '<div class="empty" style="padding:40px 20px;text-align:center;color:var(--text-1)">Nenhuma mensagem na fila. Clique em "+ Fila" nos cards para adicionar mensagens à sequência.</div>';
+    } else if (q) {
+      const box = document.createElement('div');
+      box.className = 'soc-empty-smart';
+      box.innerHTML = `<p class="hint">${msgs.length ? `Nenhuma mensagem contém “${esc(q)}” (${msgs.length} no total).` : `Nenhuma mensagem contém “${esc(q)}”.`}</p><div class="soc-empty-acts"><button type="button" class="btn sm ghost" id="pop-smart-clear">✕ Limpar busca</button></div>`;
+      $('#pop-smart-clear', box).onclick = () => {
+        searchQuery = '';
+        const inp = $('#pop-search');
+        if (inp) inp.value = '';
+        syncSearchUi();
+        renderList();
+      };
+      feed.appendChild(box);
+    } else if (filterTab !== 'all' && msgs.length > 0) {
+      const box = document.createElement('div');
+      box.className = 'soc-empty-smart';
+      box.innerHTML = `<p class="hint">Nenhuma mensagem nesta aba (${msgs.length} em Todas).</p><div class="soc-empty-acts"><button type="button" class="btn sm primary" id="pop-smart-all">Mostrar todas (${msgs.length})</button></div>`;
+      $('#pop-smart-all', box).onclick = () => {
+        filterTab = 'all';
+        $$('.soc-chip[data-tab]').forEach((x) => x.classList.toggle('active', x.dataset.tab === 'all'));
+        renderList();
+      };
+      feed.appendChild(box);
+    } else {
+      feed.innerHTML += '<div class="empty" style="padding:40px 20px;text-align:center;color:var(--text-1)">Nenhuma mensagem para este filtro.</div>';
+    }
     return;
   }
 
@@ -504,8 +562,19 @@ $$('.soc-chip[data-tab]').forEach((b) => {
 // Busca em tempo real
 $('#pop-search').oninput = (e) => {
   searchQuery = e.target.value;
+  syncSearchUi();
   renderList();
 };
+const popClr = $('#pop-search-clear');
+if (popClr) {
+  popClr.onclick = () => {
+    searchQuery = '';
+    const inp = $('#pop-search');
+    if (inp) { inp.value = ''; inp.focus(); }
+    syncSearchUi();
+    renderList();
+  };
+}
 
 // Redução de volume
 $('#pop-slow').onchange = (e) => {

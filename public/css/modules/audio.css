@@ -213,3 +213,34 @@
 .ax-sec-body { padding: 8px 10px 10px; }
 .ax-sec .ax-master, .ax-sec .ax-buses, .ax-sec .ax-mon { border: 0; background: transparent; padding: 2px 2px 4px; box-shadow: none; }
 .ax-sec .ax-head { margin-bottom: 6px; }
+
+/* ---- Mixer dentro do painel lateral (≈320 px de conteúdo) ----
+   A tarja do Master ("PGM · Programa · o que vai ao ar · MUTE · DIM · LIM") não quebrava linha:
+   "Programa/o que vai ao ar" era espremido em coluna e o LIM saía cortado na borda do painel.
+   Na janela destacada (mais larga) o layout continua em uma linha. */
+.side .ax-head { flex-wrap: wrap; row-gap: 4px; }
+.side .ax-head b { flex: none; }
+.side .ax-head .ax-sub {
+  flex: 1 1 80px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.side .ax-head .ax-mini,
+.side .ax-head .ax-gr { flex: none; }
+
+/* Canal no painel lateral: a linha (ícone · nome · NO AR · Áudio auto · CC · S · M) estourava
+   os 320 px e o botão M ficava cortado. Aqui a linha pode quebrar e o select de rota encolhe. */
+.side .ch-top { flex-wrap: wrap; row-gap: 4px; }
+.side .ch-top > * { min-width: 0; }
+.side .ch-top .ch-name { flex: 1 1 60px; }
+.side .ch-top select.input { flex: 0 1 auto; max-width: 118px; }
+.side .ax-buses .ax-head { flex-wrap: wrap; row-gap: 4px; }
+
+/* Bus (A–G) no painel lateral: "A · medidor · M · fader · % · saída · TESTE" não cabia em 320 px
+   e o TESTE era cortado. A linha pode quebrar e o seletor de saída encolhe. */
+.side .ax-bus { flex-wrap: wrap; row-gap: 4px; min-width: 0; }
+.side .ax-bus > * { min-width: 0; }
+.side .ax-bus select { flex: 0 1 88px; }
+.side .ax-bus .ax-mini { flex: none; }

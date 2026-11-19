@@ -31,8 +31,40 @@ export function extractYoutubeVideoId(input = '') {
   if (m2) return m2[1];
   const m3 = input.match(/youtube\.com\/(?:live|shorts|embed)\/([a-zA-Z0-9_-]{11})/);
   if (m3) return m3[1];
+  const m4 = input.match(/studio\.youtube\.com\/video\/([a-zA-Z0-9_-]{11})/i);
+  if (m4) return m4[1];
+  const m5 = input.match(/youtube\.com\/live_chat\?.*v=([a-zA-Z0-9_-]{11})/i);
+  if (m5) return m5[1];
   if (/^[a-zA-Z0-9_-]{11}$/.test(input)) return input;
   return null;
+}
+
+export async function resolveYoutubeChannelLive(input = '') {
+  const m = String(input || '').trim().match(/youtube\.com\/(@[^/?#]+|channel\/[^/?#]+|c\/[^/?#]+|user\/[^/?#]+)(?:\/live)?/i);
+  if (!m) return null;
+  try {
+    const res = await fetch(`https://www.youtube.com/${m[1]}/live`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(8000),
+    });
+    const finalVid = extractYoutubeVideoId(res.url);
+    if (finalVid) return finalVid;
+    const html = await res.text();
+    const c1 = html.match(/rel=["']canonical["'][^>]*href=["'][^"']*watch\?v=([a-zA-Z0-9_-]{11})/i)
+      || html.match(/live_chat\?[^"'\s]*v=([a-zA-Z0-9_-]{11})/i);
+    if (c1) return c1[1];
+    if (html.includes('"isLive":true') || html.includes('"isLiveNow":true')) {
+      const c2 = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
+      return c2 ? c2[1] : null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export function cleanTwitchChannel(input = '') {
@@ -48,11 +80,17 @@ const INJECTED_SCRAPER_JS = `(() => {
   window.__cd_yt_injected = true;
 
   const seen = new Set();
+  let switchedMode = false;
+  let activeObserver = null;
+  let activeList = null;
+  let watchdogTimer = null;
+  let lastStatus = '';
 
   function extractChatHtml(node) {
     if (!node) return '';
     let out = '';
-    for (const child of node.childNodes) {
+    const kids = (node.childNodes && node.childNodes.length) ? node.childNodes : (node.shadowRoot ? node.shadowRoot.childNodes : []);
+    for (const child of kids) {
       if (child.nodeType === 3) {
         out += child.textContent;
       } else if (child.nodeName === 'IMG') {
@@ -70,16 +108,58 @@ const INJECTED_SCRAPER_JS = `(() => {
     return out.trim();
   }
 
-  function emitMessage(data) {
-    if (!data) return;
+  function emitStatus(status, detail = '') {
+    const sig = status + '|' + detail;
+    if (sig === lastStatus) return;
+    lastStatus = sig;
+    let tries = 0;
     const send = () => {
-      if (typeof window.__castdeck_social_message === 'function') {
-        window.__castdeck_social_message(JSON.stringify(data));
-      } else {
+      if (typeof window.__castdeck_social_status === 'function') {
+        window.__castdeck_social_status(JSON.stringify({ status, detail }));
+      } else if (tries++ < 25) {
         setTimeout(send, 100);
       }
     };
     send();
+  }
+
+  function emitMessage(data) {
+    if (!data) return;
+    let tries = 0;
+    const send = () => {
+      if (typeof window.__castdeck_social_message === 'function') {
+        window.__castdeck_social_message(JSON.stringify(data));
+      } else if (tries++ < 30) {
+        setTimeout(send, 100);
+      }
+    };
+    send();
+  }
+
+  function acceptConsentIfNeeded() {
+    try {
+      const btn = document.querySelector('button[aria-label*="Accept"], button[aria-label*="Aceitar"], form[action*="consent"] button[type="submit"], form[action*="consent"] button');
+      if (btn) {
+        btn.click();
+        return true;
+      }
+    } catch {}
+    return false;
+  }
+
+  function trySwitchLiveChat() {
+    if (switchedMode) return;
+    try {
+      const hdr = document.querySelector('yt-live-chat-header-renderer');
+      if (!hdr) return;
+      const items = document.querySelectorAll('yt-sort-filter-sub-menu-renderer tp-yt-paper-listbox a, yt-sort-filter-sub-menu-renderer a.yt-simple-endpoint');
+      if (items.length >= 2) {
+        switchedMode = true;
+        const second = items[1];
+        const selected = second.getAttribute('aria-selected') === 'true' || second.classList.contains('iron-selected');
+        if (!selected) second.click();
+      }
+    } catch {}
   }
 
   function processItem(item, retryCount = 0) {
@@ -100,6 +180,10 @@ const INJECTED_SCRAPER_JS = `(() => {
       avatar = item.querySelector('#author-photo img')?.src || '';
       text = extractChatHtml(item.querySelector('#message'));
       nameColor = item.querySelector('#author-name')?.style?.color || '';
+      if (!text && retryCount < 4) {
+        setTimeout(() => processItem(item, retryCount + 1), 80);
+        return;
+      }
     } else if (tag === 'yt-live-chat-paid-message-renderer') {
       author = item.querySelector('#author-name')?.textContent?.trim() || '';
       avatar = item.querySelector('#author-photo img')?.src || '';
@@ -125,8 +209,8 @@ const INJECTED_SCRAPER_JS = `(() => {
     }
 
     if (!author && !text && !donation && !membership) {
-      if (retryCount < 3) {
-        setTimeout(() => processItem(item, retryCount + 1), 60);
+      if (retryCount < 4) {
+        setTimeout(() => processItem(item, retryCount + 1), 80);
       }
       return;
     }
@@ -147,31 +231,65 @@ const INJECTED_SCRAPER_JS = `(() => {
     });
   }
 
+  function handleAddedNode(n) {
+    if (!n || n.nodeType !== 1) return;
+    const tag = n.tagName ? n.tagName.toLowerCase() : '';
+    if (tag.startsWith('yt-live-chat-')) {
+      processItem(n);
+    } else if (n.querySelectorAll) {
+      const nested = n.querySelectorAll('yt-live-chat-text-message-renderer, yt-live-chat-paid-message-renderer, yt-live-chat-membership-item-renderer, yt-live-chat-paid-sticker-renderer');
+      for (const el of nested) processItem(el);
+    }
+  }
+
   function attach() {
+    acceptConsentIfNeeded();
+    const unavailable = document.querySelector('yt-live-chat-unavailable-message-renderer');
     const list = document.querySelector('yt-live-chat-item-list-renderer #items, #items.yt-live-chat-item-list-renderer, #item-scroller > #item-offset > #items');
     if (!list) {
+      const bodyTxt = document.body?.innerText || '';
+      if (unavailable || /chat (is )?disabled|chat est[aá] desativado|live chat is not available|bate-papo ao vivo n[aã]o est[aá] dispon[ií]vel|o chat está desativado/i.test(bodyTxt)) {
+        emitStatus('error', 'Chat ao vivo indisponível ou desativado neste vídeo.');
+        return;
+      }
       setTimeout(attach, 500);
       return;
     }
+
+    if (activeObserver) {
+      try { activeObserver.disconnect(); } catch {}
+      activeObserver = null;
+    }
+    activeList = list;
+    emitStatus('connected', '');
+    trySwitchLiveChat();
+
     const children = list.children;
     for (let i = Math.max(0, children.length - 25); i < children.length; i++) {
       processItem(children[i]);
     }
-    const observer = new MutationObserver((mutations) => {
+    activeObserver = new MutationObserver((mutations) => {
+      trySwitchLiveChat();
       for (const m of mutations) {
-        for (const n of m.addedNodes) {
-          if (n.nodeType === 1) processItem(n);
-        }
+        for (const n of m.addedNodes) handleAddedNode(n);
       }
     });
-    observer.observe(list, { childList: true, subtree: true });
+    activeObserver.observe(list, { childList: true });
 
-    setInterval(() => {
-      try {
-        const scroller = document.querySelector('#item-scroller');
-        if (scroller) scroller.scrollTop = scroller.scrollHeight;
-      } catch {}
-    }, 2000);
+    if (!watchdogTimer) {
+      watchdogTimer = setInterval(() => {
+        try {
+          trySwitchLiveChat();
+          const scroller = document.querySelector('#item-scroller');
+          if (scroller) scroller.scrollTop = scroller.scrollHeight;
+          if (activeList && !activeList.isConnected) {
+            if (activeObserver) { try { activeObserver.disconnect(); } catch {} activeObserver = null; }
+            activeList = null;
+            attach();
+          }
+        } catch {}
+      }, 2500);
+    }
   }
 
   if (document.readyState === 'loading') {
@@ -363,8 +481,16 @@ export class SocialHub extends EventEmitter {
     this.sources = new Map(); // id -> { id, type, target, label, status, error, count, targetId, sessionId, client }
     this.currentFeatured = null;
     this.queue = [];
+    this.history = [];
     this.autoSequence = false;
     this.autoDur = 8;
+  }
+
+  recordMessage(msg) {
+    if (!msg || !msg.id) return;
+    if (this.history.some((m) => m.id === msg.id)) return;
+    this.history.push(msg);
+    if (this.history.length > 250) this.history.shift();
   }
 
   handleClient(ws) {
@@ -380,6 +506,7 @@ export class SocialHub extends EventEmitter {
             sources: this.listSources(),
             featured: this.currentFeatured,
             queue: this.queue,
+            history: this.history,
             autoSequence: this.autoSequence,
             autoDur: this.autoDur,
           }));
@@ -388,6 +515,7 @@ export class SocialHub extends EventEmitter {
         } else if (msg.type === 'hide') {
           this.hideMessage();
         } else if (msg.type === 'chat') {
+          if (msg.message) this.recordMessage(msg.message);
           this.broadcast(msg);
         } else if (msg.type === 'queue-add') {
           this.addToQueue(msg.message);
@@ -404,6 +532,7 @@ export class SocialHub extends EventEmitter {
             this.hideMessage();
           }
           this.queue = this.queue.filter((m) => !((msg.sourceId && m.sourceId === msg.sourceId) || (!m.sourceId && msg.sourceType && m.type === msg.sourceType)));
+          this.history = this.history.filter((m) => !((msg.sourceId && m.sourceId === msg.sourceId) || (!m.sourceId && msg.sourceType && m.type === msg.sourceType)));
           this.broadcast({ type: 'queue-update', queue: this.queue });
           this.broadcast(msg);
         } else if (msg.type === 'clear-all') {
@@ -418,6 +547,7 @@ export class SocialHub extends EventEmitter {
       sources: this.listSources(),
       featured: this.currentFeatured,
       queue: this.queue,
+      history: this.history,
       autoSequence: this.autoSequence,
       autoDur: this.autoDur,
     }));
@@ -481,6 +611,7 @@ export class SocialHub extends EventEmitter {
 
   clearAllMessages() {
     this.queue = [];
+    this.history = [];
     this.hideMessage();
     this.broadcast({ type: 'queue-update', queue: [] });
     this.broadcast({ type: 'clear-all' });
@@ -630,8 +761,20 @@ export class SocialHub extends EventEmitter {
               source.count = (source.count || 0) + 1;
               data.sourceId = source.id;
             }
+            this.recordMessage(data);
             this.emit('message', data);
-            this.broadcast({ type: 'chat', message: data });
+            this.broadcast({ type: 'chat', message: data, sourceCount: source?.count });
+          } catch {}
+        } else if (msg.method === 'Runtime.bindingCalled' && msg.params?.name === '__castdeck_social_status') {
+          try {
+            const info = JSON.parse(msg.params.payload);
+            const source = Array.from(this.sources.values()).find((s) => s.sessionId === msg.sessionId) || Array.from(this.sources.values()).find((s) => s.type === 'youtube');
+            if (source) {
+              clearTimeout(source._fallbackTimer);
+              source.status = info.status === 'error' ? 'error' : 'connected';
+              source.error = info.status === 'error' ? (info.detail || 'Erro ao carregar o chat ao vivo.') : null;
+              this.broadcast({ type: 'sources', sources: this.listSources() });
+            }
           } catch {}
         }
       } catch {}
@@ -644,8 +787,8 @@ export class SocialHub extends EventEmitter {
     target = String(target || '').trim();
 
     if (type === 'youtube') {
-      const vid = extractYoutubeVideoId(target);
-      if (!vid) throw new Error('Link ou ID do vídeo do YouTube inválido.');
+      const vid = extractYoutubeVideoId(target) || (await resolveYoutubeChannelLive(target));
+      if (!vid) throw new Error('Link do YouTube inválido ou nenhuma transmissão ao vivo ativa encontrada.');
       const id = `yt:${vid}`;
       if (this.sources.has(id)) return this.sources.get(id);
 
@@ -675,14 +818,20 @@ export class SocialHub extends EventEmitter {
           userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
         }, sessionId);
         await this.sendCdp('Runtime.addBinding', { name: '__castdeck_social_message' }, sessionId);
+        await this.sendCdp('Runtime.addBinding', { name: '__castdeck_social_status' }, sessionId);
         await this.sendCdp('Page.addScriptToEvaluateOnNewDocument', { source: INJECTED_SCRAPER_JS }, sessionId);
-        await this.sendCdp('Page.navigate', { url: `https://www.youtube.com/live_chat?v=${vid}` }, sessionId);
+        await this.sendCdp('Page.navigate', { url: `https://www.youtube.com/live_chat?is_popout=1&v=${vid}` }, sessionId);
 
-        source.status = 'connected';
+        source._fallbackTimer = setTimeout(() => {
+          if (this.sources.get(id) === source && source.status === 'connecting') {
+            source.status = 'connected';
+            this.broadcast({ type: 'sources', sources: this.listSources() });
+          }
+        }, 6000);
         console.log(`[social-hub] canal YouTube conectado: v=${vid}`);
-        this.broadcast({ type: 'sources', sources: this.listSources() });
         return source;
       } catch (e) {
+        clearTimeout(source._fallbackTimer);
         source.status = 'error';
         source.error = e.message;
         console.error(`[social-hub] erro no YouTube v=${vid}:`, e.message);
@@ -711,8 +860,9 @@ export class SocialHub extends EventEmitter {
 
       client.on('message', (msg) => {
         source.count = (source.count || 0) + 1;
+        this.recordMessage(msg);
         this.emit('message', msg);
-        this.broadcast({ type: 'chat', message: msg });
+        this.broadcast({ type: 'chat', message: msg, sourceCount: source.count });
       });
 
       client.on('status', ({ status, error }) => {
@@ -731,6 +881,7 @@ export class SocialHub extends EventEmitter {
   async removeSource(id) {
     const s = this.sources.get(id);
     if (!s) return false;
+    clearTimeout(s._fallbackTimer);
     this.sources.delete(id);
 
     if (s.type === 'youtube') {
@@ -749,14 +900,23 @@ export class SocialHub extends EventEmitter {
       this.hideMessage();
     }
 
-    // Remove mensagens da fonte removida da fila do servidor
+    // Remove mensagens da fonte removida da fila e do histórico do servidor
     this.queue = this.queue.filter((m) => !((id && m.sourceId === id) || (!m.sourceId && s.type && m.type === s.type)));
+    this.history = this.history.filter((m) => !((id && m.sourceId === id) || (!m.sourceId && s.type && m.type === s.type)));
     this.broadcast({ type: 'queue-update', queue: this.queue });
 
     // Notifica todos os clientes para apagarem as mensagens da rede removida
     this.broadcast({ type: 'clear-source', sourceId: id, sourceType: s.type });
     this.broadcast({ type: 'sources', sources: this.listSources() });
     return true;
+  }
+
+  async reconnectSource(id) {
+    const s = this.sources.get(id);
+    if (!s) throw new Error('Fonte não encontrada.');
+    const { type, target } = s;
+    await this.removeSource(id);
+    return this.addSource({ type, target });
   }
 
   closeBrowser() {

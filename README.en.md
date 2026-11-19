@@ -145,7 +145,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.8.0** — USB/UVC camera & UAC audio support on Android (with automatic detection, resolution/FPS and mixer routing), top-bar audio mixer, live Scene Thumbnail and WebView cache/Android 14+ compatibility fixes.
+Version **1.8.17** — Social feed improvements (history restored when the panel reopens, clear-search button, paste-a-link shortcut and Social Stream Ninja support), lower-third bar with fixed button positions, a faster home screen (your studios first, next step only), cleaner control panel (no duplicate shortcuts, clear "Resources" button, close button on the phone drawer), tunnel status collapsing into a discreet chip after 30 s, and layout fixes in the mixer and Template Studio.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

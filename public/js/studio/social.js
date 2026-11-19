@@ -287,14 +287,23 @@ export function normalizeMessage(raw) {
   if (d && typeof d === 'object' && d.contents) d = d.contents;
   if (d === false || d === null || d === 'false') return { clear: true };
   if (typeof d !== 'object') return null;
+  if (Array.isArray(d.tokens) && typeof d.name === 'string' && typeof d.text === 'string' && d.ts) {
+    return {
+      ...d,
+      id: String(d.id ?? `${d.type || 'x'}:${d.name}:${Date.now()}:${seq++}`),
+      type: d.type ? String(d.type).toLowerCase() : 'youtube',
+      sourceId: d.sourceId ? String(d.sourceId) : '',
+    };
+  }
   if (d.action && !d.chatmessage && !d.chatname) return /^(clear|clearOverlay)$/i.test(d.action) ? { clear: true } : null;
-  if (!d.chatname && !d.chatmessage && !d.contentimg && !d.hasDonation && !d.donation && !d.author && !d.text) return null;
-  const name = d.chatname || d.author || 'Anônimo';
+  if (!d.chatname && !d.chatmessage && !d.contentimg && !d.hasDonation && !d.donation && !d.author && !d.name && !d.text) return null;
+  const name = d.chatname || d.author || d.name || 'Anônimo';
   const textRaw = d.chatmessage ?? d.text ?? d.textContent ?? '';
   const tokens = tokenize(textRaw);
   const text = tokens.map((t) => (t.t === 'img' ? (t.alt || ' ') : t.v)).join('').replace(/\s+/g, ' ').trim();
   const strip = (v) => (v == null ? '' : String(v).replace(/<[^>]*>/g, '').trim());
   const avatarUrl = d.chatimg || d.avatar || '';
+  const colorRaw = d.nameColor || d.color || '';
   return {
     id: String(d.id ?? d.messageId ?? `${d.type || 'x'}:${name}:${text.slice(0, 40)}:${Date.now()}:${seq++}`),
     name: strip(name),
@@ -303,7 +312,7 @@ export function normalizeMessage(raw) {
     avatar: typeof avatarUrl === 'string' && /^https?:/i.test(avatarUrl) ? avatarUrl : '',
     type: d.type ? String(d.type).toLowerCase() : 'youtube',
     sourceId: d.sourceId ? String(d.sourceId) : '',
-    color: typeof d.nameColor === 'string' && /^#[0-9a-f]{3,8}$/i.test(d.nameColor) ? d.nameColor : '',
+    color: typeof colorRaw === 'string' && /^#[0-9a-f]{3,8}$/i.test(colorRaw) ? colorRaw : '',
     donation: strip(d.hasDonation || d.donation),
     membership: strip(d.membership || d.hasMembership),
     event: d.event ? String(d.event) : '',

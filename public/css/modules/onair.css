@@ -224,6 +224,9 @@ body:has(.studio) #toasts { bottom: 112px; }
 .qscenes.collapsed { margin: 0; min-height: 0; }
 .qscenes.collapsed .qs { display: none; }
 .qs-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-2); margin-right: 0; flex: none; }
+/* "Cenas" (o que a linha é) + as teclas F1–F6 em cinza: antes só existia "F1–F6", que não dizia do que. */
+.qs-keys { font-size: 9px; font-weight: 700; letter-spacing: .04em; color: var(--text-2); opacity: .65; }
+@media (max-width: 760px) { .qs-keys { display: none; } }
 .qs-toggle { display: inline-flex; align-items: center; gap: 4px; height: 20px; border: 1px solid transparent; background: transparent; color: var(--text-2); padding: 0 6px; border-radius: 5px; cursor: pointer; font: inherit; transition: all .15s; }
 .qs-toggle:hover { background: var(--bg-3); color: var(--text-0); border-color: var(--line); }
 .qs-toggle .qs-chev { font-size: 9px; opacity: .75; }
@@ -247,6 +250,14 @@ body:has(.studio) #toasts { bottom: 112px; }
 .qs.flash { animation: qsFlash .6s ease-out; }
 @keyframes qsFlash { 0% { box-shadow: 0 0 0 0 hsl(252 95% 66% / .8); } 100% { box-shadow: 0 0 0 8px hsl(252 95% 66% / 0); } }
 @media (max-width: 700px) { .qscenes { justify-content: flex-start; } .qs { height: 24px; font-size: 11px; } }
+
+/* Celular estreito: `.studio .qscenes { flex: none }` (studio.css) empurrava o chip "Recolher deck"
+   para fora da tela. Aqui a fileira de cenas volta a encolher e rolar, e o chip fica só com o chevron. */
+@media (max-width: 560px) {
+  .studio .deck-toggle-row .qscenes { flex: 1 1 auto; min-width: 0; }
+  .studio .deck-toggle-row .deck-chip { width: 28px; padding: 0; justify-content: center; }
+  .studio .deck-toggle-row .deck-chip > span:not(.deck-chev) { display: none; }
+}
 
 /* Checagem antes de entrar ao vivo */
 .gl-check { margin: 10px 0 4px; border-radius: 10px; border: 1px solid var(--line); padding: 8px 12px; font-size: 13px; }
@@ -576,8 +587,9 @@ body:has(.studio) #toasts { bottom: 112px; }
 }
 /* Rótulo do menu lateral em duas linhas quando necessário, em vez de "Interati…" */
 .studio:not(.side-mini) .side .grp span { white-space: normal; line-height: 1.1; text-align: center; }
-/* No trilho de ícones (68 px) o rótulo também precisa caber; senão some cortado na borda. */
-.studio.side-mini .side .grp span { font-size: 8.5px; line-height: 1.05; white-space: normal; overflow-wrap: anywhere; max-height: 2.1em; padding: 0 1px; }
+/* No trilho de ícones (68 px) o rótulo também precisa caber; em uma linha com reticências,
+   porque quebrar no meio da palavra ("Interativida de") parece defeito. */
+.studio.side-mini .side .grp span { font-size: 8.5px; line-height: 1.05; letter-spacing: -.1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; padding: 0 1px; }
 /* A fileira de cenas era o único item flex que encolhia: a 900×700 ela ficava com 4 px de altura
    e os botões apareciam cortados no meio. */
 .studio .qscenes { flex: none; }
@@ -1050,11 +1062,26 @@ body:has(.studio) #toasts { bottom: 112px; }
   min-height: 34px;
   padding: 0 10px;
 }
+/* Legenda da linha de layouts: os chips são só desenhos, sem nome; a palavra "Layout" situa
+   quem chega no estúdio pela primeira vez (traduzida pelo dicionário). */
+.studio .layouts .lay-lbl {
+  align-self: center;
+  flex: none;
+  margin-right: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+@media (max-width: 700px) {
+  .studio .layouts .lay-lbl { display: none; }
+}
 .studio .layouts .bs-tool-btn span { font-size: 13px; line-height: 1; }
 .studio .layouts .bs-tool-btn small { font-size: 10.5px; font-weight: 700; letter-spacing: -.01em; }
 @media (max-width: 640px) {
-  .studio .layouts .bs-tool-btn { height: 30px; min-height: 30px; padding: 0 8px; }
-  .studio .layouts .bs-tool-btn small { display: none; }
+  .studio .layouts .bs-tool-btn { height: 30px; min-height: 30px; padding: 0 8px; }  .studio .layouts .bs-tool-btn small { display: none; }
 }
 
 /* 5. Backstage Tiles: Barra de áudio LED horizontal na base do vídeo */
@@ -1439,10 +1466,18 @@ body:has(.studio) #toasts { bottom: 112px; }
   border-bottom: 1px solid hsl(0 0% 100% / .05);
   background: linear-gradient(180deg, hsl(228 28% 11%), hsl(228 28% 8.5%));
 }
+/* Cabeçalho em uma linha: o título encurta com "…" em vez de quebrar ("PAINEL DE / CONTROLE")
+   e roubar altura do conteúdo do painel. */
 .side-title {
   color: var(--text-0);
   letter-spacing: .09em;
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+.side-title-ico { font-style: normal; opacity: .85; margin-right: 2px; }
 .side-cur-badge {
   flex: none;
   max-width: 96px;
@@ -1461,11 +1496,13 @@ body:has(.studio) #toasts { bottom: 112px; }
   display: flex;
   align-items: center;
   gap: 4px;
+  row-gap: 3px;
   padding: 3px 6px;
   border-bottom: 1px solid var(--line);
   background: hsl(228 28% 6.8%);
-  overflow-x: auto;
-  scrollbar-width: none;
+  /* Quebra em 2 linhas em vez de rolar escondido: antes a pílula "Áudio" aparecia cortada
+     no meio, sem nenhuma pista de que a faixa rolava. */
+  flex-wrap: wrap;
 }
 .side-quick-strip::-webkit-scrollbar { display: none; }
 .sq-pill {
@@ -1487,6 +1524,30 @@ body:has(.studio) #toasts { bottom: 112px; }
   background: var(--accent-soft);
   border-color: var(--accent);
   color: #fff;
+}
+
+/* Fechar a gaveta do painel no celular/tablet (E22). Antes o único jeito era tocar no fundo escuro,
+   o que ninguém descobre; o ✕ fica no canto superior direito e a barra rápida abre espaço para ele. */
+.side-drawer-close { display: none; }
+@media (max-width: 1000px) {
+  .studio .side .side-drawer-close {
+    display: grid;
+    place-items: center;
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    width: 30px;
+    height: 30px;
+    z-index: 6;
+    border-radius: 9px;
+    border: 1px solid var(--line-strong);
+    background: var(--bg-2);
+    color: var(--text-1);
+    font: 600 13px var(--font);
+    cursor: pointer;
+  }
+  .studio .side .side-drawer-close:hover { color: #fff; background: var(--bg-3); }
+  .studio .side .side-quick-strip { padding-right: 46px; }
 }
 
 /* ===== Mini player de GC (#gcbar) em 2 linhas empilhadas (GC em cima, Playout embaixo) ===== */
@@ -1582,7 +1643,9 @@ body:has(.studio) #toasts { bottom: 112px; }
 
 .gc-strip-pills {
   flex: 1 1 0;
-  min-width: 0;
+  /* Pelo menos uma pílula visível: sem isso o seletor (flex 0 1 180px) ocupava tudo e a fita de GCs
+     sumia (largura 0) em telas de 1366 com o painel aberto. */
+  min-width: 64px;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1628,6 +1691,17 @@ body:has(.studio) #toasts { bottom: 112px; }
 .gc-pill span {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Posições fixas na barra do GC: "▶ Mandar" e "● No ar" são o mesmo botão com rótulos de larguras
+   diferentes — reserva a largura do maior. E o "✕ Tirar" passou a ficar sempre no DOM (desabilitado
+   quando nada está no ar), em vez de aparecer e empurrar pílulas e seletor para o lado. */
+#gcbar #gc-go {
+  min-width: 92px;
+  justify-content: center;
+}
+#gcbar #gc-off[disabled] {
+  cursor: default;
 }
 
 /* ===== Modo WebTV / Rádio Visual (.studio.webtv-on) & Break Comercial (.pl-breaks) ===== */
@@ -2045,6 +2119,20 @@ body:has(.studio) #toasts { bottom: 112px; }
   background: var(--bg-2);
   font-size: 11.5px;
 }
+
+/* ===== Paleta Rápida (Ctrl+K) e Atalhos por categoria ===== */
+.modal:has(.cmd-palette) { width: min(560px, 94vw); padding: 12px; }
+.cmd-palette { display: flex; flex-direction: column; gap: 10px; }
+.cmd-head { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--line-strong, var(--line)); }
+.cmd-input { flex: 1; border: 0 !important; background: transparent !important; box-shadow: none !important; padding: 6px 2px !important; font-size: 14px; }
+.cmd-head kbd { font-size: 10.5px; padding: 2px 6px; border-radius: 5px; border: 1px solid var(--line); background: var(--bg-3); color: var(--text-2); }
+.cmd-list { display: flex; flex-direction: column; gap: 4px; max-height: min(380px, 58vh); overflow-y: auto; }
+.cmd-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 9px 12px; border-radius: 9px; border: 1px solid transparent; background: transparent; color: var(--text-0); text-align: left; font: inherit; cursor: pointer; transition: background .12s, border-color .12s; }
+.cmd-item:hover, .cmd-item.sel { background: var(--accent-soft); border-color: hsl(252 90% 68% / 0.45); }
+.cmd-item strong { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmd-item span { font-size: 11.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 52%; }
+.shortcut-sec { margin: 10px 0 6px; }
+.shortcut-sec h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-2); }
 
 
 

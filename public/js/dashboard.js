@@ -58,11 +58,17 @@ const tunBusy = (t) => ['starting', 'downloading'].includes(t?.status);
 const inviteMode = (t) => (t?.status === 'on' && t.url ? 'ready' : tunBusy(t) ? 'wait' : 'local');
 
 let tunWatch = { status: null, since: Date.now() };
+// A faixa grande só ocupa a primeira dobra enquanto a espera é curta: passados 30 s de espera passiva
+// ela vira um chip discreto (a lista de estúdios ganha a altura de volta) com "Detalhes" para reabrir.
+let tunSlim = false;
+let tunExpanded = false;
 function trackTunnel(t) {
   const st = t.status;
   if (st === tunWatch.status) return;
   if (tunWatch.status && tunWatch.status !== 'on' && st === 'on') toast('Conexão para convidados pronta! Já pode convidar.', 'ok');
   tunWatch = { status: st, since: Date.now() };
+  tunSlim = false;
+  tunExpanded = false;
 }
 
 // chip no topo: estado resumido, sempre visível; clicar leva às configurações de conexão
@@ -81,6 +87,10 @@ function tunnelStrip(t) {
     return `<div class="tun-card err"><span class="tun-ico">!</span><div class="grow"><strong>Não consegui abrir a conexão para convidados</strong><div class="hint">${esc(t.error || '')} Convidados na mesma rede Wi‑Fi continuam podendo entrar.</div></div><button class="btn sm" id="tun-retry">Tentar de novo</button></div>`;
   }
   if (!tunBusy(t)) return '';
+  // espera longa e sem pedido de detalhes: chip de uma linha (mesmo conteúdo essencial, 1/4 da altura)
+  if (tunSlim && !tunExpanded && tunWatch.since && Date.now() - tunWatch.since >= 30000) {
+    return `<div class="tun-slim" role="status"><span class="db-spin" aria-hidden="true"></span><strong>Conectando para receber convidados</strong><span class="hint" id="tun-secs"></span><button class="btn sm ghost" id="tun-expand" type="button">Detalhes</button></div>`;
+  }
   const dl = t.download || {};
   let pct = Number(dl.progress) || 0;
   if (pct > 0 && pct <= 1) pct *= 100;
@@ -95,6 +105,12 @@ function tunnelStrip(t) {
 setInterval(() => {
   const el = document.getElementById('tun-secs');
   if (el) el.textContent = '· ' + Math.round((Date.now() - tunWatch.since) / 1000) + 's';
+  // aos 30 s de espera passiva a faixa encolhe sozinha (só uma vez, para não redesenhar a cada segundo)
+  if (!tunSlim && !tunExpanded && tunBusy(D.system?.tunnel) && Date.now() - tunWatch.since >= 30000) {
+    tunSlim = true;
+    const slot = document.getElementById('tun-slot');
+    if (slot) slot.innerHTML = tunnelStrip(D.system.tunnel);
+  }
 }, 1000);
 
 function inviteBtn(id, t) {
@@ -209,28 +225,42 @@ function syncLang() {
   else if (sv !== i.lang) window.CD_I18N_ONSET(i.lang);
 }
 
-// redesenha preservando o que estava sendo digitado no campo "novo estúdio" e a rolagem
+// redesenha preservando o que estava sendo digitado no campo "novo estúdio" / busca e a rolagem
 function safeRender() {
-  const inp = $('#ns-name');
-  const keep = inp ? { v: inp.value, f: document.activeElement === inp, s: inp.selectionStart } : null;
+  const act = document.activeElement;
+  const inp = act && (act.id === 'ns-name' || act.id === 'studio-search') ? act : $('#ns-name');
+  const keep = inp ? { id: inp.id, v: inp.value, f: document.activeElement === inp, s: inp.selectionStart } : null;
   const y = scrollY;
   render();
   if (keep) {
-    const n = $('#ns-name');
-    n.value = keep.v;
-    if (keep.f) { n.focus(); try { n.setSelectionRange(keep.s, keep.s); } catch {} }
+    const n = $('#' + keep.id);
+    if (n) {
+      n.value = keep.v;
+      if (keep.f) { n.focus(); try { n.setSelectionRange(keep.s, keep.s); } catch {} }
+    }
   }
   scrollTo(0, y);
 }
 
 // ---------- painéis ----------
 let studiosShown = 8; // "Mostrar mais" aumenta
+let stepsExpanded = false;
+let studioQuery = '';
 function studiosPanel(tun, last, steps) {
   const doneN = steps.filter((s) => s.done).length;
+  const allDone = doneN === steps.length;
+  const nextStep = steps.find((s) => !s.done) || null;
+  // Quem já tem estúdio quer continuar a live, não ler a apresentação: hero compacto e checklist
+  // resumido no próximo passo. Na primeira visita (sem estúdio) tudo continua aberto.
+  const returning = !!last;
+  const compactSteps = !stepsExpanded && (allDone || returning);
   const recentRecs = D.recordings.slice(0, 4);
-  const studioList = D.studios.slice().reverse().slice(0, studiosShown);
+  const qNorm = studioQuery.trim().toLowerCase();
+  const revStudios = D.studios.slice().reverse();
+  const filteredStudios = qNorm ? revStudios.filter((s) => String(s.name || '').toLowerCase().includes(qNorm)) : revStudios;
+  const studioList = qNorm ? filteredStudios : filteredStudios.slice(0, studiosShown);
   return `
-    <section class="hero">
+    <section class="hero${returning ? ' hero-compact' : ''}">
       <div class="hero-main card">
         <h1>Seu estúdio de live,<br><span class="grad">100% no seu ${D.system.platform === 'android' ? 'celular' : 'PC'}.</span></h1>
         <p>Convidados, cenas com sua marca, banners e transmissão simultânea para várias plataformas, sem nuvem e sem mensalidade.</p>
@@ -240,18 +270,37 @@ function studiosPanel(tun, last, steps) {
           <button class="btn ${last ? '' : 'primary'}">${icons.plus}<span>Criar estúdio</span></button>
         </form>
       </div>
-      <aside class="card steps">
-        <h4>Como começar <span class="hint">${doneN}/${steps.length}</span></h4>
-        <div class="progress"><i style="width:${(doneN / steps.length) * 100}%"></i></div>
-        ${steps
-          .map(
-            (s) => `<div class="step ${s.done ? 'done' : ''}"><span class="tick">${s.done ? '✓' : ''}</span><div class="grow"><strong>${s.title}</strong><div class="hint">${s.hint}</div></div>${s.done || !s.label ? '' : `<button class="btn sm" data-step="${s.act}">${s.label}</button>`}</div>`,
-          )
-          .join('')}
+      <aside class="card steps ${compactSteps ? 'compact' : ''}">
+        ${allDone && !stepsExpanded
+          ? `<div class="steps-compact-row">
+              <span class="tick done">✓</span>
+              <div class="grow"><strong>Tudo pronto para gravar e transmitir</strong><div class="hint">${doneN}/${steps.length} etapas concluídas</div></div>
+              <button class="btn sm ghost" id="steps-toggle" type="button">Ver passo a passo</button>
+            </div>`
+          : returning && !stepsExpanded && nextStep
+            ? `<div class="steps-compact-row">
+                <span class="tick next">→</span>
+                <div class="grow"><strong>${nextStep.title}</strong><div class="hint">${nextStep.hint}</div></div>
+                ${nextStep.label ? `<button class="btn sm primary" data-step="${nextStep.act}">${nextStep.label}</button>` : ''}
+              </div>
+              <div class="steps-compact-foot">
+                <span class="hint">${doneN}/${steps.length}</span>
+                <button class="btn sm ghost" id="steps-toggle" type="button">Ver passo a passo</button>
+              </div>`
+          : `<div class="steps-head"><h4>Como começar <span class="hint">${doneN}/${steps.length}</span></h4>${allDone ? '<button class="btn sm ghost" id="steps-toggle" type="button">Recolher</button>' : ''}</div>
+            <div class="progress"><i style="width:${(doneN / steps.length) * 100}%"></i></div>
+            ${steps
+              .map(
+                (s) => `<div class="step ${s.done ? 'done' : ''}"><span class="tick">${s.done ? '✓' : ''}</span><div class="grow"><strong>${s.title}</strong><div class="hint">${s.hint}</div></div>${s.done || !s.label ? '' : `<button class="btn sm" data-step="${s.act}">${s.label}</button>`}</div>`,
+              )
+              .join('')}`}
       </aside>
     </section>
     <section class="section" id="estudios">
-      <div class="section-head"><h2>Seus estúdios <span class="db-count">${D.studios.length}</span></h2></div>
+      <div class="section-head">
+        <h2>Seus estúdios <span class="db-count">${D.studios.length}</span></h2>
+        ${D.studios.length >= 4 ? `<input class="input db-studio-search" id="studio-search" type="search" placeholder="Filtrar estúdios…" value="${esc(studioQuery)}" autocomplete="off">` : ''}
+      </div>
       ${
         studioList.length
           ? `<div class="grid-cards">${studioList
@@ -277,8 +326,10 @@ function studiosPanel(tun, last, steps) {
                   </div>
                 </article>`;
               })
-              .join('')}</div>${D.studios.length > studiosShown ? `<div class="rec-more"><button class="btn" id="studios-more" type="button">Mostrar mais estúdios (${D.studios.length - studiosShown})</button></div>` : ''}`
-          : '<div class="empty">Crie seu primeiro estúdio acima para começar.</div>'
+              .join('')}</div>${!qNorm && D.studios.length > studiosShown ? `<div class="rec-more"><button class="btn" id="studios-more" type="button">Mostrar mais estúdios (${D.studios.length - studiosShown})</button></div>` : ''}`
+          : qNorm
+            ? `<div class="empty">Nenhum estúdio corresponde a “${esc(studioQuery)}”. <button type="button" class="btn sm ghost" id="studio-search-clear" style="margin-left:8px">✕ Limpar filtro</button></div>`
+            : '<div class="empty">Crie seu primeiro estúdio acima para começar.</div>'
       }
     </section>
     ${
@@ -431,7 +482,7 @@ function configPanel(f, hw) {
             ${[['app', 'Janela do app'], ['browser', 'Navegador'], ['none', 'Não abrir']].map(([v, l]) => `<option value="${v}" ${(D.system.settings?.openMode || 'app') === v ? 'selected' : ''}>${l}</option>`).join('')}
           </select>
         </div>
-        <div class="sys-row"><span>Licença</span><span class="db-legal">© Miguel Kallemback / flue.live · <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener">AGPL-3.0</a>, sem garantia · <a href="https://cast.flue.live/downloads/source/" target="_blank" rel="noopener">código-fonte (em breve)</a></span></div>
+        <div class="sys-row"><span>Licença</span><span class="db-legal">© Miguel Kallemback / flue.live · <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener">AGPL-3.0</a>, sem garantia · <a href="https://github.com/aloproducao2/castdeck-local" target="_blank" rel="noopener">código-fonte (GitHub)</a></span></div>
         ${f.available ? '' : `<p class="hint db-err">${esc(f.error)}</p>`}
       </div>
     </section>`;
@@ -482,6 +533,14 @@ function render() {
   $$('.db-tab').forEach((a) => (a.onclick = (e) => { e.preventDefault(); showTab(a.dataset.tab); scrollTo({ top: 0, behavior: 'smooth' }); }));
   $$('[data-goto-tab]').forEach((b) => (b.onclick = () => { showTab(b.dataset.gotoTab); scrollTo({ top: 0, behavior: 'smooth' }); }));
   $('#tun-chip').onclick = () => { showTab('config'); $('#conexao').scrollIntoView({ behavior: 'smooth' }); };
+  // "Detalhes" no chip discreto devolve a faixa completa (até a próxima mudança de estado da conexão)
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest?.('#tun-expand')) return;
+    tunExpanded = true;
+    tunSlim = false;
+    const slot = $('#tun-slot');
+    if (slot && D.system) slot.innerHTML = tunnelStrip(D.system.tunnel);
+  });
 
   $$('[data-step]').forEach(
     (b) =>
@@ -564,6 +623,12 @@ function render() {
   $$('[data-reveal]').forEach((b) => (b.onclick = () => revealRecording(b.dataset.reveal)));
   const more = $('#rec-more');
   if (more) more.onclick = () => { recShown += 24; safeRender(); };
+  const stTog = $('#steps-toggle');
+  if (stTog) stTog.onclick = () => { stepsExpanded = !stepsExpanded; safeRender(); };
+  const stSrch = $('#studio-search');
+  if (stSrch) stSrch.oninput = (e) => { studioQuery = e.target.value; safeRender(); };
+  const stClr = $('#studio-search-clear');
+  if (stClr) stClr.onclick = () => { studioQuery = ''; safeRender(); };
   const smore = $('#studios-more');
   if (smore) smore.onclick = () => { studiosShown += 16; safeRender(); };
   lazyThumbs();

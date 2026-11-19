@@ -151,7 +151,7 @@ export function createScenes({ S, comp, $, esc, toast, modal, promptDialog, conf
     if (!force && k === lastKey) return;
     lastKey = k;
     box.classList.toggle('collapsed', collapsed);
-    let html = `<button class="qs-lbl qs-toggle" id="qs-toggle" type="button" aria-expanded="${!collapsed}" title="${collapsed ? t('Expandir atalhos F1–F6 (salvam layout, palco e GC)') : t('Recolher atalhos F1–F6')}"><span class="qs-chev">${collapsed ? '▸' : '▾'}</span> <span>F1–F6</span>${collapsed && act >= 0 && arr[act] ? ` <b class="qs-active-tag">F${act + 1}: ${esc(arr[act].name)}</b>` : ''}</button>`;
+    let html = `<button class="qs-lbl qs-toggle" id="qs-toggle" type="button" aria-expanded="${!collapsed}" title="${collapsed ? t('Expandir atalhos F1–F6 (salvam layout, palco e GC)') : t('Recolher atalhos F1–F6')}"><span class="qs-chev">${collapsed ? '▸' : '▾'}</span> <span>Cenas</span> <span class="qs-keys" aria-hidden="true">F1–F6</span>${collapsed && act >= 0 && arr[act] ? ` <b class="qs-active-tag">F${act + 1}: ${esc(arr[act].name)}</b>` : ''}</button>`;
     if (!collapsed) {
       for (let i = 0; i < MAX; i++) {
         const sc = arr[i];

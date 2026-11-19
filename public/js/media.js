@@ -269,15 +269,20 @@ export function lobby({ mount, title, subtitle, askName = true, defaultName = ''
             ${askName ? `<label class="field"><span>Seu nome</span><input class="input" id="lb-name" maxlength="40" placeholder="Como você aparecerá na tela" value="${esc(prefs.name || defaultName)}"></label>` : ''}
             <label class="field"><span>Câmera</span><select class="input" id="lb-camsel"></select></label>
             <label class="field"><span>Microfone</span><select class="input" id="lb-micsel"></select></label>
-            <div class="meter" style="margin:-4px 0 8px"><i id="lb-level"></i></div>
-            <label class="switch-row" style="display:flex;gap:8px;align-items:center;margin:0 0 8px;font-size:13px"><input type="checkbox" id="lb-raw" ${prefs.rawMic ? 'checked' : ''}> Áudio puro (sem redução de ruído e sem cancelamento de eco)</label>
-            <div class="row" style="gap:8px;align-items:center;margin:0 0 6px"><button class="btn sm" id="lb-spk" type="button" title="Tocar um tom curto para confirmar que você está ouvindo">${icons.play} Testar alto-falante</button><button class="btn sm ghost" id="lb-echo-help" type="button" title="Explicação de eco, fone, caixa e AEC">? Como evitar eco</button></div>
-            <p class="hint" style="margin:0 0 12px">Prefira <b>fone</b>. Com caixa de som, o microfone pode captar o programa e gerar eco para todos.</p>
-            <p class="hint" id="lb-net" style="margin:0 0 12px">Rede: será verificada ao entrar.</p>
-            <label class="field"><span>Qualidade da câmera</span>
-              <select class="input" id="lb-quality"><option value="720">HD 720p</option><option value="1080">Full HD 1080p</option><option value="480">SD 480p (economia)</option></select>
-            </label>
-            ${models ? `<details class="lb-models" id="lb-models" style="margin:0 0 10px"><summary style="cursor:pointer;font-size:12.5px;color:var(--text-2)">Modelos de IA — liberar espaço</summary><div id="lb-models-list" class="hint" style="margin-top:8px">Carregando…</div></details>` : ''}
+            <div class="meter" style="margin:-4px 0 10px"><i id="lb-level"></i></div>
+            <details class="lb-adv" id="lb-adv">
+              <summary><span>Ajustes de áudio e vídeo</span><small id="lb-adv-sum">${({ 1080: 'Full HD 1080p', 480: 'SD 480p' }[prefs.quality] || 'HD 720p')} · Fone recomendado</small></summary>
+              <div class="lb-adv-body">
+                <label class="field"><span>Qualidade da câmera</span>
+                  <select class="input" id="lb-quality"><option value="720">HD 720p</option><option value="1080">Full HD 1080p</option><option value="480">SD 480p (economia)</option></select>
+                </label>
+                <label class="switch-row" style="display:flex;gap:8px;align-items:center;margin:0 0 8px;font-size:13px"><input type="checkbox" id="lb-raw" ${prefs.rawMic ? 'checked' : ''}> Áudio puro (sem redução de ruído e sem cancelamento de eco)</label>
+                <div class="row" style="gap:8px;align-items:center;margin:0 0 6px"><button class="btn sm" id="lb-spk" type="button" title="Tocar um tom curto para confirmar que você está ouvindo">${icons.play} Testar alto-falante</button><button class="btn sm ghost" id="lb-echo-help" type="button" title="Explicação de eco, fone, caixa e AEC">? Como evitar eco</button></div>
+                <p class="hint" style="margin:0 0 8px">Prefira <b>fone</b>. Com caixa de som, o microfone pode captar o programa e gerar eco para todos.</p>
+                <p class="hint" id="lb-net" style="margin:0 0 8px">Rede: será verificada ao entrar.</p>
+                ${models ? `<details class="lb-models" id="lb-models" style="margin:0"><summary style="cursor:pointer;font-size:12.5px;color:var(--text-2)">Modelos de IA — liberar espaço</summary><div id="lb-models-list" class="hint" style="margin-top:8px">Carregando…</div></details>` : ''}
+              </div>
+            </details>
             <div style="flex:1"></div>
             <button class="btn primary lb-cta" id="lb-go" style="height:46px;font-size:15px">${esc(cta)} →</button>
             <div class="hint" id="lb-err" style="margin-top:10px;color:hsl(354 90% 72%)"></div>
@@ -482,8 +487,16 @@ export function lobby({ mount, title, subtitle, askName = true, defaultName = ''
       netHint.textContent = `Rede: ${type || 'conectada'}${Number.isFinite(mbps) ? ` · ~${mbps.toFixed(1)} Mbps` : ''}${conn.rtt ? ` · ${conn.rtt} ms` : ''}`;
     }
     let entered = false;
+    const advSum = $('#lb-adv-sum', el);
+    const syncAdvSum = () => {
+      if (!advSum) return;
+      const ql = { 1080: 'Full HD 1080p', 720: 'HD 720p', 480: 'SD 480p' }[qSel.value] || 'HD 720p';
+      const fone = window.CDi18n?.t?.('Fone recomendado') || 'Fone recomendado';
+      advSum.textContent = `${ql} · ${fone}`;
+    };
+    syncAdvSum();
     camSel.onchange = () => ((camRetries = 0), startCam());
-    qSel.onchange = () => ((camRetries = 0), startCam());
+    qSel.onchange = () => { syncAdvSum(); camRetries = 0; startCam(); };
     micSel.onchange = startMic;
     $('#lb-raw', el).onchange = (e) => {
       savePrefs({ rawMic: e.target.checked });

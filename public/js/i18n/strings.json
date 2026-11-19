@@ -31390,5 +31390,539 @@
     "＋ Guardar y añadir a la barra",
     "＋ Enregistrer et ajouter à la barre",
     "＋ Speichern und zur Leiste hinzufügen"
+  ],
+  "🥷 Social Ninja": [
+    "🥷 Social Ninja",
+    "🥷 Social Ninja",
+    "🥷 Social Ninja",
+    "🥷 Social Ninja"
+  ],
+  "Link da live do YouTube (ou @canal/live)…": [
+    "YouTube live link (or @channel/live)…",
+    "Enlace del directo de YouTube (o @canal/live)…",
+    "Lien du direct YouTube (ou @chaîne/live)…",
+    "YouTube-Live-Link (oder @Kanal/live)…"
+  ],
+  "Nome do canal da Twitch ou URL…": [
+    "Twitch channel name or URL…",
+    "Nombre del canal de Twitch o URL…",
+    "Nom de la chaîne Twitch ou URL…",
+    "Twitch-Kanalname oder URL…"
+  ],
+  "Sessão do Social Stream Ninja ou URL (?session=)…": [
+    "Social Stream Ninja session or URL (?session=)…",
+    "Sesión de Social Stream Ninja o URL (?session=)…",
+    "Session Social Stream Ninja ou URL (?session=)…",
+    "Social Stream Ninja-Sitzung oder URL (?session=)…"
+  ],
+  "Conecte YouTube, Twitch ou Social Stream Ninja simultaneamente sem gastar cota de API.": [
+    "Connect YouTube, Twitch or Social Stream Ninja simultaneously without spending API quota.",
+    "Conecta YouTube, Twitch o Social Stream Ninja simultáneamente sin gastar cuota de API.",
+    "Connectez YouTube, Twitch ou Social Stream Ninja simultanément sans consommer de quota API.",
+    "Verbinde YouTube, Twitch oder Social Stream Ninja gleichzeitig ohne API-Kontingent."
+  ],
+  "No Social Stream Ninja, ligue \"Send chat messages to API server\" para receber o chat e destacar do dock.": [
+    "In Social Stream Ninja, turn on \"Send chat messages to API server\" to receive chat and highlight from the dock.",
+    "En Social Stream Ninja, activa \"Send chat messages to API server\" para recibir el chat y destacar desde el dock.",
+    "Dans Social Stream Ninja, activez « Send chat messages to API server » pour recevoir le chat et mettre en avant depuis le dock.",
+    "Aktiviere in Social Stream Ninja „Send chat messages to API server“, um den Chat zu empfangen und aus dem Dock hervorzuheben."
+  ],
+  "Conecte sua live do YouTube, Twitch ou Social Stream Ninja para receber comentários em tempo real e destacar na tela.": [
+    "Connect your YouTube, Twitch or Social Stream Ninja stream to receive real-time comments and display them on screen.",
+    "Conecta tu transmisión de YouTube, Twitch o Social Stream Ninja para recibir comentarios en tiempo real y mostrarlos en pantalla.",
+    "Connectez votre live YouTube, Twitch ou Social Stream Ninja pour recevoir les commentaires en temps réel et les afficher à l'écran.",
+    "Verbinde deinen YouTube-, Twitch- oder Social-Stream-Ninja-Stream, um Kommentare in Echtzeit zu empfangen und einzublenden."
+  ],
+  "+ Conectar YouTube, Twitch ou Ninja": [
+    "+ Connect YouTube, Twitch or Ninja",
+    "+ Conectar YouTube, Twitch o Ninja",
+    "+ Connecter YouTube, Twitch ou Ninja",
+    "+ YouTube, Twitch oder Ninja verbinden"
+  ],
+  "Conectar transmissão do YouTube, Twitch ou Social Stream Ninja": [
+    "Connect YouTube, Twitch or Social Stream Ninja stream",
+    "Conectar transmisión de YouTube, Twitch o Social Stream Ninja",
+    "Connecter un live YouTube, Twitch ou Social Stream Ninja",
+    "YouTube-, Twitch- oder Social-Stream-Ninja-Stream verbinden"
+  ],
+  "✕ Limpar busca": [
+    "✕ Clear search",
+    "✕ Limpiar búsqueda",
+    "✕ Effacer la recherche",
+    "✕ Suche leeren"
+  ],
+  "✕ Limpar filtro": [
+    "✕ Clear filter",
+    "✕ Limpiar filtro",
+    "✕ Effacer le filtre",
+    "✕ Filter zurücksetzen"
+  ],
+  "🔗 Link detectado na busca": [
+    "🔗 Link detected in search",
+    "🔗 Enlace detectado en la búsqueda",
+    "🔗 Lien détecté dans la recherche",
+    "🔗 Link in der Suche erkannt"
+  ],
+  "Este campo apenas filtra mensagens já recebidas. Para capturar o chat dessa live, conecte-a como fonte:": [
+    "This field only filters already received messages. To capture this stream's chat, connect it as a source:",
+    "Este campo solo filtra los mensajes ya recibidos. Para capturar el chat de este directo, conéctalo como fuente:",
+    "Ce champ filtre uniquement les messages déjà reçus. Pour capturer le chat de ce live, connectez-le comme source :",
+    "Dieses Feld filtert nur bereits empfangene Nachrichten. Um den Chat dieses Streams abzurufen, verbinde ihn als Quelle:"
+  ],
+  "Este campo apenas filtra mensagens já recebidas ({0} ocultas pelo filtro). Para capturar o chat dessa live, conecte-a como fonte:": [
+    "This field only filters already received messages ({0} hidden by the filter). To capture this stream's chat, connect it as a source:",
+    "Este campo solo filtra los mensajes ya recibidos ({0} ocultos por el filtro). Para capturar el chat de este directo, conéctalo como fuente:",
+    "Ce champ filtre uniquement les messages déjà reçus ({0} masqués par le filtre). Pour capturer le chat de ce live, connectez-le comme source :",
+    "Dieses Feld filtert nur bereits empfangene Nachrichten ({0} durch den Filter ausgeblendet). Um den Chat dieses Streams abzurufen, verbinde ihn als Quelle:"
+  ],
+  "▶ Conectar esta live": [
+    "▶ Connect this stream",
+    "▶ Conectar este directo",
+    "▶ Connecter ce live",
+    "▶ Diesen Stream verbinden"
+  ],
+  "Nenhuma mensagem contém “{0}”.": [
+    "No message contains “{0}”.",
+    "Ningún mensaje contiene “{0}”.",
+    "Aucun message ne contient « {0} ».",
+    "Keine Nachricht enthält „{0}“."
+  ],
+  "Nenhuma mensagem contém “{0}” ({1} no total).": [
+    "No message contains “{0}” ({1} total).",
+    "Ningún mensaje contiene “{0}” ({1} en total).",
+    "Aucun message ne contient « {0} » ({1} au total).",
+    "Keine Nachricht enthält „{0}“ ({1} insgesamt)."
+  ],
+  "Nenhuma mensagem nesta aba ({0} em Todas).": [
+    "No messages in this tab ({0} in All).",
+    "No hay mensajes en esta pestaña ({0} en Todas).",
+    "Aucun message dans cet onglet ({0} dans Tous).",
+    "Keine Nachrichten in diesem Tab ({0} unter Alle)."
+  ],
+  "Mostrar todas ({0})": [
+    "Show all ({0})",
+    "Mostrar todas ({0})",
+    "Tout afficher ({0})",
+    "Alle anzeigen ({0})"
+  ],
+  "Reconectar esta rede": [
+    "Reconnect this network",
+    "Reconectar esta red",
+    "Reconnecter ce réseau",
+    "Dieses Netzwerk neu verbinden"
+  ],
+  "↻ Reconectar": [
+    "↻ Reconnect",
+    "↻ Reconectar",
+    "↻ Reconnecter",
+    "↻ Neu verbinden"
+  ],
+  "Conectando à transmissão ao vivo…": [
+    "Connecting to the live stream…",
+    "Conectando a la transmisión en vivo…",
+    "Connexion au direct en cours…",
+    "Verbindung zum Livestream wird hergestellt…"
+  ],
+  "Conectado — aguardando novos comentários no chat ao vivo…": [
+    "Connected — waiting for new comments in live chat…",
+    "Conectado — esperando nuevos comentarios en el chat en vivo…",
+    "Connecté — en attente de nouveaux commentaires dans le chat en direct…",
+    "Verbunden — warte auf neue Kommentare im Live-Chat…"
+  ],
+  "Não foi possível carregar o chat ao vivo.": [
+    "Could not load the live chat.",
+    "No se pudo cargar el chat en vivo.",
+    "Impossible de charger le chat en direct.",
+    "Live-Chat konnte nicht geladen werden."
+  ],
+  "Reconectando à rede…": [
+    "Reconnecting to the network…",
+    "Reconectando a la red…",
+    "Reconnexion au réseau…",
+    "Verbindung zum Netzwerk wird wiederhergestellt…"
+  ],
+  "Reconectando ao Social Stream Ninja…": [
+    "Reconnecting to Social Stream Ninja…",
+    "Reconectando a Social Stream Ninja…",
+    "Reconnexion à Social Stream Ninja…",
+    "Verbindung zu Social Stream Ninja wird wiederhergestellt…"
+  ],
+  "Erro ao reconectar": [
+    "Error reconnecting",
+    "Error al reconectar",
+    "Erreur lors de la reconnexion",
+    "Fehler beim erneuten Verbinden"
+  ],
+  "Falha ao conectar ao Social Stream Ninja.": [
+    "Failed to connect to Social Stream Ninja.",
+    "Error al conectar con Social Stream Ninja.",
+    "Échec de connexion à Social Stream Ninja.",
+    "Verbindung zu Social Stream Ninja fehlgeschlagen."
+  ],
+  "Sessão do Social Stream Ninja inválida.": [
+    "Invalid Social Stream Ninja session.",
+    "Sesión de Social Stream Ninja no válida.",
+    "Session Social Stream Ninja invalide.",
+    "Ungültige Social Stream Ninja-Sitzung."
+  ],
+  "Fonte não encontrada.": [
+    "Source not found.",
+    "Fuente no encontrada.",
+    "Source introuvable.",
+    "Quelle nicht gefunden."
+  ],
+  "Chat ao vivo indisponível ou desativado neste vídeo.": [
+    "Live chat unavailable or disabled for this video.",
+    "El chat en vivo no está disponible o está desactivado en este vídeo.",
+    "Le chat en direct est indisponible ou désactivé pour cette vidéo.",
+    "Der Live-Chat ist für dieses Video nicht verfügbar oder deaktiviert."
+  ],
+  "Link do YouTube inválido ou nenhuma transmissão ao vivo ativa encontrada.": [
+    "Invalid YouTube link or no active live stream found.",
+    "Enlace de YouTube no válido o no se encontró ninguna transmisión en vivo activa.",
+    "Lien YouTube invalide ou aucun direct actif trouvé.",
+    "Ungültiger YouTube-Link oder kein aktiver Livestream gefunden."
+  ],
+  "Busca rápida de painéis e ações (Ctrl+K)": [
+    "Quick search panels and actions (Ctrl+K)",
+    "Búsqueda rápida de paneles y acciones (Ctrl+K)",
+    "Recherche rapide de panneaux et d'actions (Ctrl+K)",
+    "Schnellsuche für Panels und Aktionen (Ctrl+K)"
+  ],
+  "Busca rápida (Ctrl+K)": [
+    "Quick search (Ctrl+K)",
+    "Búsqueda rápida (Ctrl+K)",
+    "Recherche rapide (Ctrl+K)",
+    "Schnellsuche (Ctrl+K)"
+  ],
+  "Abrir Redes (comentários do YouTube, Twitch e Social Stream Ninja)": [
+    "Open Networks (YouTube, Twitch and Social Stream Ninja comments)",
+    "Abrir Redes (comentarios de YouTube, Twitch y Social Stream Ninja)",
+    "Ouvrir Réseaux (commentaires YouTube, Twitch et Social Stream Ninja)",
+    "Netzwerke öffnen (YouTube-, Twitch- und Social Stream Ninja-Kommentare)"
+  ],
+  "Navegação & Comandos": [
+    "Navigation & Commands",
+    "Navegación y comandos",
+    "Navigation et commandes",
+    "Navigation & Befehle"
+  ],
+  "Busca rápida de painéis": [
+    "Quick search panels",
+    "Búsqueda rápida de paneles",
+    "Recherche rapide de panneaux",
+    "Schnellsuche für Panels"
+  ],
+  "Fechar janela / tirar destaque": [
+    "Close window / clear highlight",
+    "Cerrar ventana / quitar destacado",
+    "Fermer fenêtre / retirer la mise en avant",
+    "Fenster schließen / Einblendung ausblenden"
+  ],
+  "Destacar ou ir ao ar (Redes)": [
+    "Highlight or go on air (Networks)",
+    "Destacar o salir al aire (Redes)",
+    "Mettre en avant ou passer à l'antenne (Réseaux)",
+    "Hervorheben oder auf Sendung (Netzwerke)"
+  ],
+  "Palco, Cenas & Telas": [
+    "Stage, Scenes & Displays",
+    "Escenario, Escenas y Pantallas",
+    "Scène, Scènes et Écrans",
+    "Bühne, Szenen & Bildschirme"
+  ],
+  "Aplicar cena rápida": [
+    "Apply quick scene",
+    "Aplicar escena rápida",
+    "Appliquer une scène rapide",
+    "Schnellszene anwenden"
+  ],
+  "Mesa de Corte & Replay": [
+    "Switcher & Replay",
+    "Mesa de corte y Replay",
+    "Table de mixage et Replay",
+    "Bildmischer & Replay"
+  ],
+  "Selecionar Prévia (0 = Cena)": [
+    "Select Preview (0 = Scene)",
+    "Seleccionar Vista previa (0 = Escena)",
+    "Sélectionner l'Aperçu (0 = Scène)",
+    "Vorschau wählen (0 = Szene)"
+  ],
+  "Corte direto ao vivo": [
+    "Direct live cut",
+    "Corte directo al aire",
+    "Coupe directe à l'antenne",
+    "Direkter Live-Schnitt"
+  ],
+  "Corte seco (CORTE)": [
+    "Hard cut (CUT)",
+    "Corte seco (CORTE)",
+    "Coupe franche (COUPER)",
+    "Harter Schnitt (CUT)"
+  ],
+  "Transição suave (AUTO)": [
+    "Smooth transition (AUTO)",
+    "Transición suave (AUTO)",
+    "Transition douce (AUTO)",
+    "Weicher Übergang (AUTO)"
+  ],
+  "Abrir Replay & VAR": [
+    "Open Replay & VAR",
+    "Abrir Replay y VAR",
+    "Ouvrir Replay & VAR",
+    "Replay & VAR öffnen"
+  ],
+  "Clipe 5 s / 10 s / 15 s": [
+    "5s / 10s / 15s clip",
+    "Clip de 5 s / 10 s / 15 s",
+    "Clip 5 s / 10 s / 15 s",
+    "5s- / 10s- / 15s-Clip"
+  ],
+  "Buscar painel ou ação (ex.: youtube, ninja, gc, sorteio, mixer)…": [
+    "Search panel or action (e.g. youtube, ninja, lower third, raffle, mixer)…",
+    "Buscar panel o acción (ej.: youtube, ninja, rótulo, sorteo, mezclador)…",
+    "Rechercher un panneau ou une action (ex. : youtube, ninja, bandeau, tirage, mixeur)…",
+    "Panel oder Aktion suchen (z. B. youtube, ninja, bauchbinde, verlosung, mixer)…"
+  ],
+  "Nenhum painel ou ação encontrado para “{0}”.": [
+    "No panel or action found for “{0}”.",
+    "No se encontró ningún panel o acción para “{0}”.",
+    "Aucun panneau ou action trouvé pour « {0} ».",
+    "Kein Panel oder keine Aktion für „{0}“ gefunden."
+  ],
+  "Conectar chat (YouTube / Twitch / Social Ninja)": [
+    "Connect chat (YouTube / Twitch / Social Ninja)",
+    "Conectar chat (YouTube / Twitch / Social Ninja)",
+    "Connecter le chat (YouTube / Twitch / Social Ninja)",
+    "Chat verbinden (YouTube / Twitch / Social Ninja)"
+  ],
+  "Ação rápida · Redes": [
+    "Quick action · Networks",
+    "Acción rápida · Redes",
+    "Action rapide · Réseaux",
+    "Schnellaktion · Netzwerke"
+  ],
+  "Convidar participantes (link / QR)": [
+    "Invite participants (link / QR)",
+    "Invitar participantes (enlace / QR)",
+    "Inviter des participants (lien / QR)",
+    "Teilnehmende einladen (Link / QR)"
+  ],
+  "Ação rápida · Pessoas": [
+    "Quick action · People",
+    "Acción rápida · Personas",
+    "Action rapide · Personnes",
+    "Schnellaktion · Personen"
+  ],
+  "Abrir Pad de efeitos sonoros": [
+    "Open Soundboard Pad",
+    "Abrir Pad de efectos de sonido",
+    "Ouvrir le Pad d'effets sonores",
+    "Soundeffekt-Pad öffnen"
+  ],
+  "Ação rápida · Áudio": [
+    "Quick action · Audio",
+    "Acción rápida · Audio",
+    "Action rapide · Audio",
+    "Schnellaktion · Audio"
+  ],
+  "Abrir painel de Câmeras": [
+    "Open Cameras panel",
+    "Abrir panel de Cámaras",
+    "Ouvrir le panneau Caméras",
+    "Kameras-Panel öffnen"
+  ],
+  "Ação rápida · Vídeo": [
+    "Quick action · Video",
+    "Acción rápida · Vídeo",
+    "Action rapide · Vidéo",
+    "Schnellaktion · Video"
+  ],
+  "Voltar para o Modo Estúdio": [
+    "Back to Studio Mode",
+    "Volver al Modo Estudio",
+    "Revenir au mode Studio",
+    "Zurück zum Studio-Modus"
+  ],
+  "Abrir Mesa de Corte (PRÉVIA / PGM)": [
+    "Open Switcher (PREVIEW / PGM)",
+    "Abrir Mesa de Corte (PREVIA / PGM)",
+    "Ouvrir la Console de commutation (APERÇU / PGM)",
+    "Bildmischer öffnen (VORSCHAU / PGM)"
+  ],
+  "Ação rápida · Modo": [
+    "Quick action · Mode",
+    "Acción rápida · Modo",
+    "Action rapide · Mode",
+    "Schnellaktion · Modus"
+  ],
+  "Desativar Cena Segura": [
+    "Disable Safe Scene",
+    "Desactivar Escena Segura",
+    "Désactiver la Scène de secours",
+    "Notfallszene deaktivieren"
+  ],
+  "Ativar Cena Segura": [
+    "Enable Safe Scene",
+    "Activar Escena Segura",
+    "Activer la Scène de secours",
+    "Notfallszene aktivieren"
+  ],
+  "Ação rápida · Segurança": [
+    "Quick action · Safety",
+    "Acción rápida · Seguridad",
+    "Action rapide · Sécurité",
+    "Schnellaktion · Sicherheit"
+  ],
+  "Checar Prontidão para o ar": [
+    "Check Ready check",
+    "Comprobar preparación para el aire",
+    "Vérifier l'état Prêt à diffuser",
+    "Sendebereitschaft prüfen"
+  ],
+  "Ação rápida · Diagnóstico": [
+    "Quick action · Diagnostics",
+    "Acción rápida · Diagnóstico",
+    "Action rapide · Diagnostic",
+    "Schnellaktion · Diagnose"
+  ],
+  "Encerrar transmissão ao vivo": [
+    "Stop live stream",
+    "Finalizar transmisión en vivo",
+    "Arrêter la diffusion en direct",
+    "Livestream beenden"
+  ],
+  "Ação rápida · Live": [
+    "Quick action · Live",
+    "Acción rápida · Directo",
+    "Action rapide · Direct",
+    "Schnellaktion · Live"
+  ],
+  "Parar gravação MP4": [
+    "Stop MP4 recording",
+    "Detener grabación MP4",
+    "Arrêter l'enregistrement MP4",
+    "MP4-Aufnahme stoppen"
+  ],
+  "Gravar localmente (MP4)": [
+    "Record locally (MP4)",
+    "Grabar localmente (MP4)",
+    "Enregistrer localement (MP4)",
+    "Lokal aufnehmen (MP4)"
+  ],
+  "Ação rápida · Gravação": [
+    "Quick action · Recording",
+    "Acción rápida · Grabación",
+    "Action rapide · Enregistrement",
+    "Schnellaktion · Aufnahme"
+  ],
+  "Ver atalhos de teclado (?)": [
+    "View keyboard shortcuts (?)",
+    "Ver atajos de teclado (?)",
+    "Voir les raccourcis clavier (?)",
+    "Tastaturkürzel anzeigen (?)"
+  ],
+  "Ajuda": [
+    "Help",
+    "Ayuda",
+    "Aide",
+    "Hilfe"
+  ],
+  "Nenhum item encontrado": [
+    "No items found",
+    "No se encontraron elementos",
+    "Aucun élément trouvé",
+    "Keine Elemente gefunden"
+  ],
+  "Nenhum arquivo corresponde à busca ou ao filtro atual.": [
+    "No file matches the current search or filter.",
+    "Ningún archivo coincide con la búsqueda o el filtro actual.",
+    "Aucun fichier ne correspond à la recherche ou au filtre actuel.",
+    "Keine Datei entspricht der aktuellen Suche oder dem Filter."
+  ],
+  "Tudo pronto para gravar e transmitir": [
+    "All set to record and stream",
+    "Todo listo para grabar y transmitir",
+    "Tout est prêt pour enregistrer et diffuser",
+    "Alles bereit zum Aufnehmen und Streamen"
+  ],
+  "{0}/{1} etapas concluídas": [
+    "{0}/{1} steps completed",
+    "{0}/{1} pasos completados",
+    "{0}/{1} étapes terminées",
+    "{0}/{1} Schritte abgeschlossen"
+  ],
+  "Ver passo a passo": [
+    "Show checklist",
+    "Ver paso a paso",
+    "Voir les étapes",
+    "Schritte anzeigen"
+  ],
+  "Filtrar estúdios…": [
+    "Filter studios…",
+    "Filtrar estudios…",
+    "Filtrer les studios…",
+    "Studios filtern…"
+  ],
+  "Nenhum estúdio corresponde a “{0}”.": [
+    "No studio matches “{0}”.",
+    "Ningún estudio coincide con “{0}”.",
+    "Aucun studio ne correspond à « {0} ».",
+    "Kein Studio passt zu „{0}“."
+  ],
+  "código-fonte (GitHub)": [
+    "source code (GitHub)",
+    "código fuente (GitHub)",
+    "code source (GitHub)",
+    "Quellcode (GitHub)"
+  ],
+  "Ajustes de áudio e vídeo": [
+    "Audio & video settings",
+    "Ajustes de audio y vídeo",
+    "Réglages audio et vidéo",
+    "Audio- & Videoeinstellungen"
+  ],
+  "Fone recomendado": [
+    "Headphones recommended",
+    "Auriculares recomendados",
+    "Casque recommandé",
+    "Kopfhörer empfohlen"
+  ],
+  "Interação": [
+    "Interaction",
+    "Interacción",
+    "Interaction",
+    "Interaktion"
+  ],
+  "Interatividade": [
+    "Interaction",
+    "Interactividad",
+    "Interaction",
+    "Interaktion"
+  ],
+  "Painel de Controle": [
+    "Control Panel",
+    "Panel de control",
+    "Panneau de contrôle",
+    "Kontrollpanel"
+  ],
+  "Sem GCs cadastrados": [
+    "No lower thirds added",
+    "Sin rótulos registrados",
+    "Aucun bandeau enregistré",
+    "Keine Bauchbinden vorhanden"
+  ],
+  "Nenhuma rede": [
+    "No networks",
+    "Ninguna red",
+    "Aucun réseau",
+    "Kein Netzwerk"
+  ],
+  "Recursos": [
+    "Resources",
+    "Recursos",
+    "Ressources",
+    "Ressourcen"
   ]
 }

@@ -52,13 +52,15 @@ check('estudio abriu', await waitFor(host, `!!document.querySelector('#program-c
 await sleep(800);
 check('barra: GC + midia + limpar', await host.ev(`!!document.querySelector('#gcbar #gc-off') && !!document.querySelector('#gc-quick') && !!document.querySelector('#deck-media') && !!document.querySelector('#deck-clear') && !!document.querySelector('#dm-add')`));
 const dh = await host.ev(`document.querySelector('#gcbar').getBoundingClientRect().height`);
-check('barra compacta (1 linha) em 1366', dh <= 50, 'altura ' + dh);
+// Desde a v1.8.15 o deck é empilhado: GC na linha de cima e Playout embaixo (~74 px), não mais 1 linha.
+check('barra em 2 linhas (GC acima de Playout)', dh > 55 && dh < 100, 'altura ' + dh);
 // video de teste gerado no navegador e solto no painel de midia
 await host.ev(`(async()=>{const c=document.createElement('canvas');c.width=320;c.height=180;const x=c.getContext('2d');let k=0;const t=setInterval(()=>{x.fillStyle='hsl('+(k*20%360)+',70%,50%)';x.fillRect(0,0,320,180);k++},40);const rec=new MediaRecorder(c.captureStream(25),{mimeType:'video/webm'});const ch=[];rec.ondataavailable=e=>ch.push(e.data);rec.start();await new Promise(r=>setTimeout(r,3000));rec.stop();await new Promise(r=>rec.onstop=r);clearInterval(t);const f=new File(ch,'clipe-teste.webm',{type:'video/webm'});const dt=new DataTransfer();dt.items.add(f);document.querySelector('#panel-media').dispatchEvent(new DragEvent('drop',{dataTransfer:dt,bubbles:true,cancelable:true}));return true})()`);
 check('midia aparece na barra', await waitFor(host, `!!document.querySelector('#dm-sel') && document.querySelector('#dm-sel').options.length===1`));
 await host.ev(`document.querySelector('#dm-stage').click()`);
 check('por no palco pela barra', await waitFor(host, `document.querySelector('#dm-stage').classList.contains('on')`));
-await host.ev(`document.querySelector('#dm-play').click()`);
+// Auto play (padrão) já inicia ao entrar no palco; o ▶ da barra alterna, então só clica se estiver pausado.
+await host.ev(`(() => { const s = [...window.__castdeck.S.sources.values()].find((x) => x.kind === 'media'); if (s?.el.paused) document.querySelector('#dm-play').click(); })()`);
 check('tocar pela barra', await waitFor(host, `!![...window.__castdeck.S.sources.values()].find(s=>s.kind==='media'&&!s.el.paused)`, 5000));
 await sleep(900);
 check('tempo/progresso atualiza', await host.ev(`parseFloat(document.querySelector('#dm-prog i').style.width)>0`));

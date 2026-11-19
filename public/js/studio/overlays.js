@@ -930,7 +930,7 @@ function drawFeed(c, now, top, anchorY, m, o) {
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = it.msg.color || rgb(mix(pc, [255, 255, 255], 0.5));
-      ctx.fillText(fitText(ctx, it.msg.name || 'Anônimo', textW), tx, y + pad + nfs * 0.75);
+      ctx.fillText(fitText(ctx, it.msg.name || (window.CDi18n?.t?.('Anônimo') || 'Anônimo'), textW), tx, y + pad + nfs * 0.75);
       ctx.font = `600 ${fs}px Inter, sans-serif`;
       drawLines(c, lay, tx, y + pad + nfs * 1.5);
       ctx.restore();

@@ -25,16 +25,16 @@ final class I18n {
             if (f.exists()) {
                 JSONObject s = new JSONObject(new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8)).optJSONObject("settings");
                 String l = s == null ? "" : s.optString("lang", "");
-                if (l.equals("pt") || l.equals("en") || l.equals("es")) return l;
+                if (l.equals("pt") || l.equals("en") || l.equals("es") || l.equals("fr") || l.equals("de")) return l;
             }
         } catch (Exception ignored) { /* usa o idioma do aparelho */ }
         String d = Locale.getDefault().getLanguage();
-        return d.equals("pt") ? "pt" : d.equals("es") ? "es" : "en";
+        return d.equals("pt") ? "pt" : d.equals("es") ? "es" : d.equals("fr") ? "fr" : d.equals("de") ? "de" : "en";
     }
 
-    /** Escolhe o texto em português, inglês ou espanhol. */
-    static String t(Context ctx, String pt, String en, String es) {
+    /** Escolhe o texto em português, inglês, espanhol, francês ou alemão. */
+    static String t(Context ctx, String pt, String en, String es, String fr, String de) {
         String l = lang(ctx);
-        return l.equals("en") ? en : l.equals("es") ? es : pt;
+        return l.equals("en") ? en : l.equals("es") ? es : l.equals("fr") ? fr : l.equals("de") ? de : pt;
     }
 }

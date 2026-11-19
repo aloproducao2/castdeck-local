@@ -39,7 +39,7 @@ public class ServerService extends Service {
     public void onCreate() {
         super.onCreate();
         NotificationManager nm = getSystemService(NotificationManager.class);
-        nm.createNotificationChannel(new NotificationChannel(CHANNEL, I18n.t(ServerService.this, "Servidor do estúdio", "Studio server", "Servidor del estudio"), NotificationManager.IMPORTANCE_LOW));
+        nm.createNotificationChannel(new NotificationChannel(CHANNEL, I18n.t(ServerService.this, "Servidor do estúdio", "Studio server", "Servidor del estudio", "Serveur du studio", "Studio-Server"), NotificationManager.IMPORTANCE_LOW));
         Notification n = buildNotification();
         if (Build.VERSION.SDK_INT >= 34) {
             // câmera/mic: sem esses tipos o Android corta a captura do host quando o app sai da tela
@@ -96,11 +96,11 @@ public class ServerService extends Service {
         PendingIntent qi = PendingIntent.getService(this, 1, quit, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         return new Notification.Builder(this, CHANNEL)
                 .setSmallIcon(R.drawable.ic_stat_live)
-                .setContentTitle(I18n.t(ServerService.this, "CastDeck está ativo", "CastDeck is running", "CastDeck está activo"))
-                .setContentText(I18n.t(ServerService.this, "Estúdio, convidados e transmissão rodando neste aparelho", "Studio, guests and streaming running on this device", "Estudio, invitados y transmisión funcionando en este dispositivo"))
+                .setContentTitle(I18n.t(ServerService.this, "CastDeck está ativo", "CastDeck is running", "CastDeck está activo", "CastDeck est actif", "CastDeck ist aktiv"))
+                .setContentText(I18n.t(ServerService.this, "Estúdio, convidados e transmissão rodando neste aparelho", "Studio, guests and streaming running on this device", "Estudio, invitados y transmisión funcionando en este dispositivo", "Studio, invités et diffusion en cours sur cet appareil", "Studio, Gäste und Stream laufen auf diesem Gerät"))
                 .setContentIntent(pi)
                 .setOngoing(true)
-                .addAction(new Notification.Action.Builder(null, I18n.t(ServerService.this, "Encerrar", "Quit", "Cerrar"), qi).build())
+                .addAction(new Notification.Action.Builder(null, I18n.t(ServerService.this, "Encerrar", "Quit", "Cerrar", "Quitter", "Beenden"), qi).build())
                 .build();
     }
 

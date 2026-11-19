@@ -5,6 +5,7 @@
 import { hexToRgb, rgb, mix, luminance, roundRectPath } from './gfx.js';
 import { makeQR } from './qr.js';
 
+const T = (s) => window.CDi18n?.t?.(s) ?? s;
 const ease = (p) => 1 - Math.pow(1 - p, 3);
 const fit = (ctx, text, maxW) => {
   text = String(text ?? '');
@@ -266,7 +267,7 @@ export class WidgetLayer {
     const w = pad + qrS + pad + tw + pad;
     ctx.save();
     ctx.font = `800 ${21 * u}px Outfit, Inter, sans-serif`;
-    const lines = wrap(ctx, data.title || 'Mande sua mensagem', tw, 3);
+    const lines = wrap(ctx, data.title || T('Mande sua mensagem'), tw, 3);
     ctx.restore();
     const h = Math.max(qrS + pad * 2, pad + 24 * u + lines.length * 25 * u + 40 * u);
     return {
@@ -286,7 +287,7 @@ export class WidgetLayer {
         ctx.textBaseline = 'middle';
         ctx.textAlign = 'left';
         ctx.font = `800 ${11 * u}px Inter, sans-serif`;
-        const tag = data.audio ? 'TEXTO OU ÁUDIO' : 'MENSAGENS';
+        const tag = data.audio ? T('TEXTO OU ÁUDIO') : T('MENSAGENS');
         const tagW = ctx.measureText(tag).width + 18 * u;
         let ty = y + (h - (24 * u + lines.length * 25 * u + 34 * u)) / 2;
         ctx.fillStyle = rgb(bc);
@@ -303,7 +304,7 @@ export class WidgetLayer {
         }
         ctx.fillStyle = 'rgba(255,255,255,.62)';
         ctx.font = `600 ${12 * u}px Inter, sans-serif`;
-        ctx.fillText(fit(ctx, 'Aponte a câmera do celular', tw), tx, ty + 4 * u);
+        ctx.fillText(fit(ctx, T('Aponte a câmera do celular'), tw), tx, ty + 4 * u);
       },
     };
   }
@@ -342,7 +343,7 @@ export class WidgetLayer {
         ctx.textBaseline = 'middle';
         ctx.textAlign = 'left';
         ctx.font = `800 ${11 * u}px Inter, sans-serif`;
-        const tag = isAudio ? 'ÁUDIO DO PÚBLICO' : 'MENSAGEM DO PÚBLICO';
+        const tag = isAudio ? T('ÁUDIO DO PÚBLICO') : T('MENSAGEM DO PÚBLICO');
         const tw = ctx.measureText(tag).width + 18 * u;
         ctx.fillStyle = accent;
         roundRectPath(ctx, x + pad, y + pad, tw, 21 * u, 11 * u);
@@ -353,7 +354,7 @@ export class WidgetLayer {
         let ty = y + pad + headH + 8 * u + nameH / 2;
         ctx.fillStyle = '#fff';
         ctx.font = `800 ${22 * u}px Outfit, Inter, sans-serif`;
-        ctx.fillText(fit(ctx, m.name || 'Espectador', w - pad * 2), x + pad, ty);
+        ctx.fillText(fit(ctx, m.name || T('Espectador'), w - pad * 2), x + pad, ty);
         ty += nameH / 2 + lineH / 2;
         // texto
         ctx.fillStyle = 'rgba(255,255,255,.9)';
@@ -453,17 +454,17 @@ export class WidgetLayer {
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.font = `700 ${11 * u}px Inter, sans-serif`;
-          ctx.fillText(fit(ctx, 'Aponte a câmera', qrS + pad * 0.6), qx + qrS / 2, qy + qrS + 11 * u);
+          ctx.fillText(fit(ctx, T('Aponte a câmera'), qrS + pad * 0.6), qx + qrS / 2, qy + qrS + 11 * u);
           ctx.fillStyle = 'rgba(255,255,255,.6)';
           ctx.font = `600 ${10.5 * u}px Inter, sans-serif`;
-          ctx.fillText(fit(ctx, 'e vote pelo celular', qrS + pad * 0.6), qx + qrS / 2, qy + qrS + 25 * u);
+          ctx.fillText(fit(ctx, T('e vote pelo celular'), qrS + pad * 0.6), qx + qrS / 2, qy + qrS + 25 * u);
           ctx.textAlign = 'left';
         }
         // cabeçalho
         ctx.textBaseline = 'middle';
         ctx.textAlign = 'left';
         ctx.font = `800 ${11.5 * u}px Inter, sans-serif`;
-        const tag = closed ? 'RESULTADO' : 'ENQUETE';
+        const tag = closed ? T('RESULTADO') : T('ENQUETE');
         const tw = ctx.measureText(tag).width + 18 * u;
         ctx.fillStyle = closed ? 'rgba(255,255,255,.14)' : accent;
         roundRectPath(ctx, x + pad, y + pad, tw, 21 * u, 11 * u);
@@ -478,10 +479,10 @@ export class WidgetLayer {
           ctx.fill();
           ctx.fillStyle = 'rgba(255,255,255,.7)';
           ctx.font = `600 ${11 * u}px Inter, sans-serif`;
-          let label = 'votação aberta';
+          let label = T('votação aberta');
           if (poll.endsAt) {
             const left = Math.max(0, Math.ceil((poll.endsAt - Date.now()) / 1000));
-            label = `encerra em ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+            label = T(`encerra em ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`);
           }
           ctx.fillText(label, x + pad + tw + 22 * u, y + pad + 11.5 * u);
         }
@@ -527,7 +528,7 @@ export class WidgetLayer {
           ctx.fillStyle = '#fff';
           ctx.shadowColor = 'rgba(0,0,0,.5)';
           ctx.shadowBlur = 4 * u;
-          ctx.fillText(fit(ctx, o.text || `Opção ${i + 1}`, rw - 46 * u - pw - 14 * u), x + pad + 36 * u, oy + rowH / 2 + 0.5 * u);
+          ctx.fillText(fit(ctx, o.text || T(`Opção ${i + 1}`), rw - 46 * u - pw - 14 * u), x + pad + 36 * u, oy + rowH / 2 + 0.5 * u);
           ctx.textAlign = 'right';
           ctx.font = `800 ${15 * u}px Outfit, Inter, sans-serif`;
           ctx.fillText(pctTxt, x + pad + rw - 10 * u, oy + rowH / 2 + 0.5 * u);
@@ -538,11 +539,12 @@ export class WidgetLayer {
         // rodapé
         ctx.fillStyle = 'rgba(255,255,255,.62)';
         ctx.font = `600 ${12 * u}px Inter, sans-serif`;
+        const rangeTxt = opts.length > 1 ? T(`1 a ${opts.length}`) : '1';
         const foot = closed
-          ? `Votação encerrada · ${total} ${total === 1 ? 'voto' : 'votos'}`
+          ? T(`Votação encerrada · ${total} ${total === 1 ? 'voto' : 'votos'}`)
           : qrCv
-            ? `QR Code ou chat (${opts.length > 1 ? `1 a ${opts.length}` : '1'}) · ${total} ${total === 1 ? 'voto' : 'votos'}`
-            : `Vote no chat digitando ${opts.length > 1 ? `1 a ${opts.length}` : '1'} · ${total} ${total === 1 ? 'voto' : 'votos'}`;
+            ? T(`QR Code ou chat (${rangeTxt}) · ${total} ${total === 1 ? 'voto' : 'votos'}`)
+            : T(`Vote no chat digitando ${rangeTxt} · ${total} ${total === 1 ? 'voto' : 'votos'}`);
         ctx.fillText(fit(ctx, foot, rw), x + pad, oy + footH / 2 - 3 * u);
       },
     };
@@ -563,7 +565,7 @@ export class WidgetLayer {
 
     ctx.save();
     ctx.font = `800 ${20 * u}px Outfit, Inter, sans-serif`;
-    const titleLines = wrap(ctx, rf.title || 'Sorteio ao vivo', w - pad * 2, 2);
+    const titleLines = wrap(ctx, rf.title || T('Sorteio ao vivo'), w - pad * 2, 2);
     ctx.restore();
 
     const badgeH = 22 * u;
@@ -601,17 +603,17 @@ export class WidgetLayer {
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.font = `700 ${11 * u}px Inter, sans-serif`;
-          ctx.fillText(fit(ctx, 'Aponte a câmera', qrS + pad * 0.6), qx + qrS / 2, qy + qrS + 11 * u);
+          ctx.fillText(fit(ctx, T('Aponte a câmera'), qrS + pad * 0.6), qx + qrS / 2, qy + qrS + 11 * u);
           ctx.fillStyle = 'rgba(255,255,255,.65)';
           ctx.font = `600 ${10.5 * u}px Inter, sans-serif`;
-          ctx.fillText(fit(ctx, 'para participar', qrS + pad * 0.6), qx + qrS / 2, qy + qrS + 25 * u);
+          ctx.fillText(fit(ctx, T('para participar'), qrS + pad * 0.6), qx + qrS / 2, qy + qrS + 25 * u);
           ctx.textAlign = 'left';
         }
 
         let cy = y + pad;
         ctx.textBaseline = 'middle';
         ctx.textAlign = 'left';
-        const tag = isWin ? '🏆 GANHADOR!' : isSpin ? '🎲 SORTEANDO…' : '🎁 SORTEIO';
+        const tag = isWin ? T('🏆 GANHADOR!') : isSpin ? T('🎲 SORTEANDO…') : T('🎁 SORTEIO');
         ctx.font = `800 ${11.5 * u}px Inter, sans-serif`;
         const tw = ctx.measureText(tag).width + 18 * u;
         ctx.fillStyle = isWin ? '#f59e0b' : accent;
@@ -723,7 +725,7 @@ export class WidgetLayer {
           if (rf.winner?.ticketNo) {
             ctx.fillStyle = '#fcd34d';
             ctx.font = `700 ${12 * u}px Inter, sans-serif`;
-            ctx.fillText(`Número #${rf.winner.ticketNo} · ${rf.winner.source || 'QR'}`, bx + bw / 2, cy + boxH * 0.74);
+            ctx.fillText(`${T(`Número #${rf.winner.ticketNo}`)} · ${rf.winner.source || 'QR'}`, bx + bw / 2, cy + boxH * 0.74);
           }
           ctx.textAlign = 'left';
           ctx.restore();
@@ -755,11 +757,11 @@ export class WidgetLayer {
           }
         }
 
-        const countTxt = `${rf.count || 0} ${(rf.count || 0) === 1 ? 'inscrito' : 'inscritos'}`;
+        const countTxt = `${rf.count || 0} ${T((rf.count || 0) === 1 ? 'inscrito' : 'inscritos')}`;
         const foot = rf.keyword && !isWin && !isSpin
-          ? `QR Code ou ${rf.keyword} no chat · ${countTxt}`
+          ? `${T(`QR Code ou ${rf.keyword} no chat`)} · ${countTxt}`
           : qrCv
-            ? `Escaneie o QR Code · ${countTxt}`
+            ? `${T('Escaneie o QR Code')} · ${countTxt}`
             : countTxt;
         ctx.fillStyle = 'rgba(255,255,255,.7)';
         ctx.font = `600 ${12 * u}px Inter, sans-serif`;

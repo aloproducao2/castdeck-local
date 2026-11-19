@@ -1434,7 +1434,7 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
               pctx.fillStyle = '#c9c9d6';
               pctx.font = `600 ${Math.round(W / 22)}px Inter, system-ui, sans-serif`;
               pctx.textAlign = 'center';
-              pctx.fillText('⏻ DSK desligado', W / 2, H / 2);
+              pctx.fillText(window.CDi18n?.t?.('⏻ DSK desligado') || '⏻ DSK desligado', W / 2, H / 2);
               pctx.textAlign = 'start';
               return;
             }

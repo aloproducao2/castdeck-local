@@ -16,7 +16,7 @@ export function createBrowserSources({ S, comp, mixer, api, addVideoSource, remo
   const keyOf = (id) => `br-${String(id).replace(/[^\w.-]/g, '').slice(0, 32)}`;
   const findKey = (key) => items.get(key) || null;
   const preset = () => S.system?.presets?.[S.preset] || { width: 1280, height: 720, fps: 30 };
-  const locale = () => window.CDi18n?.locale || ({ pt: 'pt-BR', en: 'en-US', es: 'es-ES' }[localStorage.getItem('castdeck.lang')] || 'pt-BR');
+  const locale = () => window.CDi18n?.locale || ({ pt: 'pt-BR', en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE' }[localStorage.getItem('castdeck.lang')] || 'pt-BR');
 
 
   function connect() {

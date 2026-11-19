@@ -4,7 +4,7 @@
 // Extrai textos visíveis (pt-BR) do app e da landing page para os dicionários de tradução.
 //   node build/i18n-extract.mjs app      → lista textos de public/ que ainda não têm tradução
 //   node build/i18n-extract.mjs site     → idem para landpage/
-// Saída: JSON { "texto": "" } com as chaves faltantes (en e es), para completar os dicionários.
+// Saída: JSON { "texto": ["", "", "", ""] } com as chaves faltantes ou incompletas (en, es, fr, de).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -56,9 +56,38 @@ const scanMarkup = (txt) => {
   stripped.split(/<[^>]*>/).forEach(add);
 };
 
+const scanHead = (txt) => {
+  const head = (txt.match(/<head\b[^>]*>([\s\S]*?)<\/head>/i) || ['', ''])[1];
+  const tm = head.match(/<title>([\s\S]*?)<\/title>/i);
+  if (tm) add(tm[1]);
+  for (const m of head.matchAll(/<meta\s+[^>]*(?:name=["'](?:description|twitter:title|twitter:description)["']|property=["']og:(?:title|description)["'])[^>]*content=(["'])([\s\S]*?)\1/gi)) {
+    add(m[2]);
+  }
+  for (const m of head.matchAll(/<meta\s+[^>]*content=(["'])([\s\S]*?)\1[^>]*(?:name=["'](?:description|twitter:title|twitter:description)["']|property=["']og:(?:title|description)["'])/gi)) {
+    add(m[2]);
+  }
+};
+const scanInlineScripts = (txt) => {
+  for (const m of txt.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+    const attrs = m[1] || '';
+    if (/\bsrc\s*=|\bapplication\/ld\+json\b/i.test(attrs)) continue;
+    const body = m[2] || '';
+    if (!body.trim() || (/gtag\s*\(/.test(body) && !/[áàâãéêíóôõúçÁÀÂÃÉÊÍÓÔÕÚÇ]/.test(body))) continue;
+    for (const v0 of jsStrings(body)) {
+      const v = v0.replace(/\\n/g, ' ').replace(/\\(['"`])/g, '$1');
+      if (/[<>]/.test(v)) scanMarkup(v); else add(v);
+    }
+  }
+};
+
 for (const f of files) {
   const code = fs.readFileSync(path.join(root, f), 'utf8');
-  if (f.endsWith('.html')) { scanMarkup(code.replace(/<head>[\s\S]*?<\/head>/, '')); continue; }
+  if (f.endsWith('.html')) {
+    scanHead(code);
+    scanMarkup(code.replace(/<head\b[^>]*>[\s\S]*?<\/head>/i, ''));
+    scanInlineScripts(code);
+    continue;
+  }
   for (const v0 of jsStrings(code)) {
     const v = v0.replace(/\\n/g, ' ').replace(/\\(['"`])/g, '$1');
     if (which === 'server' && !ACC.test(v)) continue; // no servidor, só mensagens em português (logs técnicos ficam de fora)
@@ -119,8 +148,9 @@ const have = () => {
   return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
 };
 const en = have();
-const missing = [...out].filter((s) => !(s in en)).sort();
+const complete = (v) => Array.isArray(v) && v.length >= 4 && [0, 1, 2, 3].every((k) => typeof v[k] === 'string' && v[k].trim().length > 0);
+const missing = [...out].filter((s) => !(s in en) || !complete(en[s])).sort();
 const dest = process.argv[3];
-const json = JSON.stringify(Object.fromEntries(missing.map((s) => [s, ''])), null, 1);
+const json = JSON.stringify(Object.fromEntries(missing.map((s) => [s, ['', '', '', '']])), null, 1);
 if (dest) fs.writeFileSync(dest, json, 'utf8'); else console.log(json);
-console.error(`${out.size} textos encontrados, ${missing.length} sem tradução (${which})`);
+console.error(`${out.size} textos encontrados, ${missing.length} sem tradução completa (${which})`);

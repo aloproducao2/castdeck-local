@@ -231,7 +231,7 @@ export function createWidgets({ S, comp, $, $$, esc, h, toast, icons, modal, sav
       g.fillStyle = 'rgba(255,255,255,.55)';
       g.font = '600 13px Inter, sans-serif';
       g.textAlign = 'center';
-      g.fillText('Digite um link', cv.width / 2, cv.height / 2);
+      g.fillText(window.CDi18n?.t?.('Digite um link') || 'Digite um link', cv.width / 2, cv.height / 2);
       return;
     }
     const sc = Math.min(max / src.width, max / src.height);

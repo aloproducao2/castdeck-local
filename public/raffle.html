@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>Sorteio ao vivo</title>
   <link rel="icon" type="image/png" href="/icon.png">
+  <script src="/js/i18n.js"></script>
   <style>
     :root { --bg:#0d0e17; --card:#161829; --line:rgba(255,255,255,.1); --txt:#f4f5f8; --muted:#9aa0b8; --acc:#7c5cff; --ok:#2ecc71; --warn:#f59e0b; }
     * { box-sizing: border-box; }
@@ -27,13 +28,21 @@
     .win strong { font-size:22px; }
     .err { color:#ff6b7a; font-size:13px; margin:8px 0 0; text-align:center; }
     .empty { text-align:center; color:var(--muted); padding:24px 8px; }
+    .rf-wrap { width:100%; max-width:420px; }
+    .foot { margin-top:12px; text-align:center; font-size:12px; color:var(--muted); display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap; }
+    .foot select.cd-lang { background:rgba(255,255,255,.06); color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:3px 8px; font:inherit; cursor:pointer; }
   </style>
 </head>
 <body>
-  <main class="box" id="app"><div class="empty">Carregando sorteio…</div></main>
+  <div class="rf-wrap">
+    <main class="box" id="app"><div class="empty">Carregando sorteio…</div></main>
+    <footer class="foot" id="rf-foot">Sorteio ao vivo · <b translate="no">CastDeck</b></footer>
+  </div>
   <script>
     const studioId = location.pathname.split('/').filter(Boolean).pop() || 'local';
     const app = document.getElementById('app');
+    const foot = document.getElementById('rf-foot');
+    if (foot && window.CDi18n) foot.insertAdjacentHTML('beforeend', ' · ' + window.CDi18n.selectHTML({ short: true, id: 'raffle-lang' }));
     let pid = localStorage.getItem('castdeck.raffle.pid');
     if (!pid || pid.length < 8) {
       pid = 'rf_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -41,6 +50,7 @@
     }
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
     let lastSig = '';
+    let lastData = null;
     let submitting = false;
     let errMsg = '';
 
@@ -49,11 +59,19 @@
         const r = await fetch(`/api/public/raffle/${encodeURIComponent(studioId)}?participant=${encodeURIComponent(pid)}`, { cache: 'no-store' });
         if (!r.ok) throw new Error();
         const data = await r.json();
+        lastData = data;
         if (data.studio?.color) document.documentElement.style.setProperty('--acc', data.studio.color);
         render(data.studio, data.raffle);
       } catch {
         app.innerHTML = '<div class="empty">Não foi possível conectar ao estúdio agora.</div>';
       }
+    }
+    if (window.CDi18n) {
+      window.CDi18n.onChange(() => {
+        lastSig = '';
+        if (lastData) render(lastData.studio, lastData.raffle);
+        else poll();
+      });
     }
 
     function render(studio, rf) {
@@ -66,21 +84,21 @@
       if (sig === lastSig) return;
       lastSig = sig;
 
-      const hdr = `<div class="head"><span class="st">${esc(studio?.name || 'Sorteio')}</span><span class="pill">${rf.count} participante${rf.count === 1 ? '' : 's'}</span></div><h1>🎁 ${esc(rf.title)}</h1>`;
+      const hdr = `<div class="head"><span class="st"${studio?.name ? ' translate="no"' : ''}>${esc(studio?.name || 'Sorteio')}</span><span class="pill">${rf.count} participante${rf.count === 1 ? '' : 's'}</span></div><h1>🎁 <span translate="no">${esc(rf.title)}</span></h1>`;
 
       if (rf.state === 'winner' && rf.winner) {
         const iWon = rf.joined && rf.joined.ticketNo && rf.joined.ticketNo === rf.winner.ticketNo;
         app.innerHTML = `${hdr}
           <div class="win">
             <b>${iWon ? '🎉 VOCÊ GANHOU!' : '🏆 GANHADOR DO SORTEIO'}</b>
-            <strong>${esc(rf.winner.name)}</strong>
+            <strong translate="no">${esc(rf.winner.name)}</strong>
             ${rf.winner.ticketNo ? `<div class="sub" style="margin:6px 0 0">Número #${rf.winner.ticketNo}</div>` : ''}
           </div>`;
         return;
       }
 
       if (rf.state === 'spinning') {
-        app.innerHTML = `${hdr}<div class="win"><b>🎲 SORTEANDO…</b><strong>${esc(rf.spinName || 'Boa sorte!')}</strong></div>`;
+        app.innerHTML = `${hdr}<div class="win"><b>🎲 SORTEANDO…</b><strong${rf.spinName ? ' translate="no"' : ''}>${esc(rf.spinName || 'Boa sorte!')}</strong></div>`;
         return;
       }
 
@@ -88,7 +106,7 @@
         app.innerHTML = `${hdr}
           <div class="status">
             <strong>✔ Você está participando!</strong>
-            <span>${esc(rf.joined.name)} · Número da sorte <b>#${rf.joined.ticketNo}</b></span>
+            <span><span translate="no">${esc(rf.joined.name)}</span> · <span>Número da sorte</span> <b>#${rf.joined.ticketNo}</b></span>
           </div>
           <p class="sub" style="margin:12px 0 0;text-align:center">Fique de olho na live para acompanhar o resultado.</p>`;
         return;

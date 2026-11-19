@@ -144,7 +144,7 @@ export class Store {
     if (typeof patch.autoTunnel === 'boolean') s.autoTunnel = patch.autoTunnel;
     if (['auto', 'localhostrun', 'cloudflare'].includes(patch.tunnelProvider)) s.tunnelProvider = patch.tunnelProvider;
     if (['app', 'browser', 'none'].includes(patch.openMode)) s.openMode = patch.openMode;
-    if (['pt', 'en', 'es'].includes(patch.lang)) s.lang = patch.lang;
+    if (['pt', 'en', 'es', 'fr', 'de'].includes(patch.lang)) s.lang = patch.lang;
     if (typeof patch.recordingsDir === 'string') {
       if (patch.recordingsDir.trim()) s.recordingsDir = patch.recordingsDir.trim().slice(0, 500);
       else delete s.recordingsDir;

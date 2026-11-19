@@ -3181,7 +3181,7 @@ async function openFx(id) {
             cx.fillStyle = '#8a8aa0';
             cx.font = '600 15px Inter, sans-serif';
             cx.textAlign = 'center';
-            cx.fillText('Câmera desligada — ligue para ver a prévia', 240, 140);
+            cx.fillText(window.CDi18n?.t?.('Câmera desligada — ligue para ver a prévia') || 'Câmera desligada — ligue para ver a prévia', 240, 140);
           }
           st.textContent = vfx.status === 'loading' ? 'Carregando motor de efeitos…' : vfx.status === 'error' ? 'Erro: ' + vfx.error : '';
           st.hidden = !st.textContent;
@@ -3348,7 +3348,7 @@ async function openSourceAdjust(id) {
             cx.font = '600 16px Inter, sans-serif';
             cx.textAlign = 'center';
             cx.textBaseline = 'middle';
-            cx.fillText(src?.kind === 'media' && src.camOff ? 'Fonte somente de áudio' : 'Sem sinal — a prévia aparece quando a fonte carregar', cv.width / 2, cv.height / 2);
+            cx.fillText(window.CDi18n?.t?.(src?.kind === 'media' && src.camOff ? 'Fonte somente de áudio' : 'Sem sinal — a prévia aparece quando a fonte carregar') || (src?.kind === 'media' && src.camOff ? 'Fonte somente de áudio' : 'Sem sinal — a prévia aparece quando a fonte carregar'), cv.width / 2, cv.height / 2);
             q('#sa-st').textContent = '';
             q('#sa-st').hidden = true;
           }

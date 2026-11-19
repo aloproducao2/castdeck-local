@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
-/* CastDeck – tradução da interface (Português do Brasil, English, Español).
+/* CastDeck – tradução da interface (Português do Brasil, English, Español, Français, Deutsch).
  *
  * O texto-fonte é o português escrito no próprio código; este módulo troca o que aparece na tela
- * usando o dicionário i18n/strings.json ({ "texto pt": ["english", "español"] }).
+ * usando o dicionário i18n/strings.json ({ "texto pt": ["english", "español", "français", "deutsch"] }).
  * Funciona por observação do DOM, então qualquer tela, modal ou aviso criado depois também é traduzido,
  * e a troca de idioma acontece na hora, sem recarregar (importante: o estúdio pode estar ao vivo).
  *
@@ -17,9 +17,10 @@
   'use strict';
   if (window.CDi18n) return;
 
-  const LANGS = { pt: 'Português (BR)', en: 'English', es: 'Español' };
-  const LOCALES = { pt: 'pt-BR', en: 'en-US', es: 'es-ES' };
-  const IDX = { en: 0, es: 1 };
+  const LANGS = { pt: 'Português (BR)', en: 'English', es: 'Español', fr: 'Français', de: 'Deutsch' };
+  const LOCALES = { pt: 'pt-BR', en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE' };
+  const IDX = { en: 0, es: 1, fr: 2, de: 3 };
+  const SHORT = { pt: '🇧🇷 PT', en: '🇺🇸 EN', es: '🇪🇸 ES', fr: '🇫🇷 FR', de: '🇩🇪 DE' };
   const KEY = 'castdeck.lang';
   const ATTRS = ['placeholder', 'title', 'aria-label', 'alt', 'data-tip', 'data-label'];
   const META = 'meta[name="description"],meta[property="og:title"],meta[property="og:description"],meta[name="twitter:title"],meta[name="twitter:description"]';
@@ -31,13 +32,15 @@
 
   const valid = (l) => (l && LANGS[l] ? l : null);
   function detect() {
-    // robôs de busca/IA sem ?lang= ficam com o original em português (as versões en/es têm URL própria via hreflang)
-    if (/bot|crawl|spider|slurp|google|bing|yandex|duckduck|gpt|claude|anthropic|perplexity|facebookexternalhit/i.test(navigator.userAgent || '')) return 'pt';
-    const list = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'pt-BR'];
+    // robôs de busca/IA sem ?lang= ficam com o original em português (as versões en/es/fr/de têm URL própria via hreflang)
+    if (/\b(bot|crawl|spider|slurp|googlebot|bingbot|yandexbot|duckduckbot|gptbot|claudebot|anthropic|perplexitybot|facebookexternalhit|lighthouse)\b/i.test(navigator.userAgent || '')) return 'pt';
+    const list = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || navigator.userLanguage || 'en'];
     for (const raw of list) {
       const l = String(raw).toLowerCase();
       if (l.startsWith('pt')) return 'pt';
       if (l.startsWith('es')) return 'es';
+      if (l.startsWith('fr')) return 'fr';
+      if (l.startsWith('de')) return 'de';
       if (l.startsWith('en')) return 'en';
     }
     return 'en'; // outros idiomas: inglês é o mais útil
@@ -90,7 +93,14 @@
     let m = s.match(/^([^\p{L}\p{N}"“'(¿¡{]+)([\s\S]+)$/u);
     if (m) { r = lookup(m[2], depth + 1); if (r != null) return m[1] + r; }
     m = s.match(/^([\s\S]+?)([\s.:;,…!?)\]]+)$/);
-    if (m) { r = exact.get(m[1]); if (r !== undefined) return r + m[2]; }
+    if (m) {
+      r = exact.get(m[1]);
+      if (r !== undefined) return r + m[2];
+      if (m[1].length < s.length) {
+        r = lookup(m[1], depth + 1);
+        if (r != null) return r + m[2];
+      }
+    }
     for (const p of patterns) {
       const g = p.re.exec(s);
       if (!g) continue;
@@ -223,7 +233,7 @@
   const root = document.documentElement;
   function setHtmlLang() { root.lang = LOCALES[lang]; window.CD_LANG = lang; window.CD_LOCALE = LOCALES[lang]; }
   setHtmlLang();
-  // site: a versão ?lang=en/es é canônica de si mesma (combina com os <link hreflang>)
+  // site: a versão ?lang=en/es/fr/de é canônica de si mesma (combina com os <link hreflang>)
   if (fromUrl && fromUrl !== 'pt') {
     const c = document.querySelector('link[rel="canonical"]');
     if (c) try { const u = new URL(c.href); u.searchParams.set('lang', fromUrl); c.href = u.href; } catch (e) { /* ok */ }
@@ -316,8 +326,8 @@
     const o = opts || {};
     const cls = o.className || '';
     const id = o.id ? ` id="${o.id}"` : '';
-    return `<select class="cd-lang ${cls}"${id} data-cd-lang translate="no" aria-label="Idioma / Language / Idioma" title="Idioma · Language · Idioma">${Object.keys(LANGS)
-      .map((k) => `<option value="${k}"${k === lang ? ' selected' : ''}>${o.short ? (k === 'pt' ? '🇧🇷 PT' : k === 'en' ? '🇺🇸 EN' : '🇪🇸 ES') : LANGS[k]}</option>`)
+    return `<select class="cd-lang ${cls}"${id} data-cd-lang translate="no" aria-label="Idioma / Language / Langue / Sprache" title="Idioma · Language · Langue · Sprache">${Object.keys(LANGS)
+      .map((k) => `<option value="${k}"${k === lang ? ' selected' : ''}>${o.short ? SHORT[k] : LANGS[k]}</option>`)
       .join('')}</select>`;
   }
   function syncSelectors() { document.querySelectorAll('select[data-cd-lang]').forEach((s) => { if (s.value !== lang) s.value = lang; }); }

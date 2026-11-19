@@ -86,7 +86,7 @@ public class MainActivity extends Activity {
         splashMsg = new TextView(this);
         splashMsg.setTextColor(Color.parseColor("#B8B5D6"));
         splashMsg.setTextSize(13);
-        splashMsg.setText(I18n.t(MainActivity.this, "Iniciando o estúdio…", "Starting the studio…", "Iniciando el estudio…"));
+        splashMsg.setText(I18n.t(MainActivity.this, "Iniciando o estúdio…", "Starting the studio…", "Iniciando el estudio…", "Démarrage du studio…", "Studio wird gestartet…"));
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.CENTER_HORIZONTAL;
         lp.bottomMargin = (int) (36 * getResources().getDisplayMetrics().density);
@@ -163,7 +163,7 @@ public class MainActivity extends Activity {
                     startActivityForResult(i, REQ_FILE);
                 } catch (Exception e) {
                     fileCb = null;
-                    Toast.makeText(MainActivity.this, I18n.t(MainActivity.this, "Nenhum seletor de arquivos disponível", "No file picker available", "No hay selector de archivos disponible"), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, I18n.t(MainActivity.this, "Nenhum seletor de arquivos disponível", "No file picker available", "No hay selector de archivos disponible", "Aucun sélecteur de fichiers disponible", "Keine Dateiauswahl verfügbar"), Toast.LENGTH_SHORT).show();
                     return false;
                 }
                 return true;
@@ -216,7 +216,7 @@ public class MainActivity extends Activity {
             if (hasMediaPerms()) r.grant(r.getResources());
             else r.deny();
         }
-        if (!hasMediaPerms()) Toast.makeText(this, I18n.t(this, "Sem câmera/microfone o estúdio funciona só com mídias e convidados.", "Without camera/microphone the studio works only with media and guests.", "Sin cámara/micrófono el estudio funciona solo con medios e invitados."), Toast.LENGTH_LONG).show();
+        if (!hasMediaPerms()) Toast.makeText(this, I18n.t(this, "Sem câmera/microfone o estúdio funciona só com mídias e convidados.", "Without camera/microphone the studio works only with media and guests.", "Sin cámara/micrófono el estudio funciona solo con medios e invitados.", "Sans caméra ni micro, le studio fonctionne uniquement avec les médias et les invités.", "Ohne Kamera/Mikrofon funktioniert das Studio nur mit Medien und Gästen."), Toast.LENGTH_LONG).show();
         startServerAndLoad();
     }
 
@@ -249,7 +249,7 @@ public class MainActivity extends Activity {
             boolean ok = up;
             ui.post(() -> {
                 if (ok) web.loadUrl(HOME);
-                else splashMsg.setText(I18n.t(MainActivity.this, "Não foi possível iniciar o servidor local (porta " + LocalServer.HTTP_PORT + " ocupada?). Feche e abra o app.", "Could not start the local server (port " + LocalServer.HTTP_PORT + " in use?). Close and reopen the app.", "No se pudo iniciar el servidor local (¿puerto " + LocalServer.HTTP_PORT + " ocupado?). Cierra y abre la app."));
+                else splashMsg.setText(I18n.t(MainActivity.this, "Não foi possível iniciar o servidor local (porta " + LocalServer.HTTP_PORT + " ocupada?). Feche e abra o app.", "Could not start the local server (port " + LocalServer.HTTP_PORT + " in use?). Close and reopen the app.", "No se pudo iniciar el servidor local (¿puerto " + LocalServer.HTTP_PORT + " ocupado?). Cierra y abre la app.", "Impossible de démarrer le serveur local (port " + LocalServer.HTTP_PORT + " occupé ?). Fermez puis rouvrez l'application.", "Lokaler Server konnte nicht gestartet werden (Port " + LocalServer.HTTP_PORT + " belegt?). App schließen und neu öffnen."));
             });
         }, "wait-server").start();
     }

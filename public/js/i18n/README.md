@@ -1,12 +1,12 @@
 # public/js/i18n/ — traduções
 
-Arquivos de idioma (pt/en/es) consumidos por i18n.js.
+Arquivos de idioma (`pt`/`en`/`es`/`fr`/`de`) consumidos por `i18n.js`.
 
 | Arquivo | Contrato |
 |---|---|
-| `*.js` | Dicionários de chaves de UI por idioma |
+| `strings.json` | Dicionário de chaves `pt` → `[en, es, fr, de]` |
 
 ## Invariantes
 
-- Toda chave nova entra nos três idiomas.
+- Toda chave nova entra nos cinco idiomas (`pt` + 4 traduções `[en, es, fr, de]`).
 - Chaves em pt-BR são a referência.

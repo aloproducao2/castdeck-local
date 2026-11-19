@@ -1455,7 +1455,7 @@ export class Compositor {
       ctx.shadowBlur = 0;
       ctx.font = `700 ${Math.round(size * 0.22)}px "Inter", -apple-system, sans-serif`;
       ctx.fillStyle = 'rgba(226, 232, 240, 0.75)';
-      ctx.fillText(isOut ? 'RETORNANDO PARA O SINAL AO VIVO' : 'INSTANT REPLAY', W / 2, H / 2 + size * 0.78);
+      ctx.fillText(isOut ? (window.CDi18n?.t?.('RETORNANDO PARA O SINAL AO VIVO') || 'RETORNANDO PARA O SINAL AO VIVO') : 'INSTANT REPLAY', W / 2, H / 2 + size * 0.78);
       ctx.globalAlpha = 1;
     }
     ctx.restore();

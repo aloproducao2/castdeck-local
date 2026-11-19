@@ -168,7 +168,7 @@ public class Store {
         String om = patch.optString("openMode", "");
         if (om.equals("app") || om.equals("browser") || om.equals("none")) s.put("openMode", om);
         String lg = patch.optString("lang", "");
-        if (lg.equals("pt") || lg.equals("en") || lg.equals("es")) s.put("lang", lg);
+        if (lg.equals("pt") || lg.equals("en") || lg.equals("es") || lg.equals("fr") || lg.equals("de")) s.put("lang", lg);
         if (patch.has("recordingsDir") && patch.get("recordingsDir") instanceof String) {
             String d = patch.getString("recordingsDir").trim();
             if (!d.isEmpty()) s.put("recordingsDir", cut(d, 500));

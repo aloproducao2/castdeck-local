@@ -118,15 +118,18 @@ namespace CastDeck
                 string f = Path.Combine(Data, "db.json");
                 if (File.Exists(f))
                 {
-                    Match m = Regex.Match(File.ReadAllText(f, Encoding.UTF8), "\"settings\"\\s*:\\s*\\{[^{}]*?\"lang\"\\s*:\\s*\"(pt|en|es)\"");
+                    Match m = Regex.Match(File.ReadAllText(f, Encoding.UTF8), "\"settings\"\\s*:\\s*\\{[^{}]*?\"lang\"\\s*:\\s*\"(pt|en|es|fr|de)\"");
                     if (m.Success) return m.Groups[1].Value;
                 }
             }
             catch { }
             string c = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
-            return c == "pt" ? "pt" : c == "es" ? "es" : "en";
+            return c == "pt" ? "pt" : c == "es" ? "es" : c == "fr" ? "fr" : c == "de" ? "de" : "en";
         }
-        public static string L(string pt, string en, string es) { return Lang == "en" ? en : Lang == "es" ? es : pt; }
+        public static string L(string pt, string en, string es, string fr, string de)
+        {
+            return Lang == "en" ? en : Lang == "es" ? es : Lang == "fr" ? fr : Lang == "de" ? de : pt;
+        }
 
         public static string Http(string method, string path, int timeout)
         {
@@ -204,7 +207,7 @@ namespace CastDeck
             try
             {
                 string sys = Http("GET", "/api/system", 4000);
-                Match lm = Regex.Match(sys, "\"lang\"\\s*:\\s*\"(pt|en|es)\"");
+                Match lm = Regex.Match(sys, "\"lang\"\\s*:\\s*\"(pt|en|es|fr|de)\"");
                 if (lm.Success) Lang = lm.Groups[1].Value;
                 Match m = Regex.Match(sys, "\"openMode\"\\s*:\\s*\"(\\w+)\"");
                 return m.Success ? m.Groups[1].Value : "app";
@@ -218,7 +221,7 @@ namespace CastDeck
     {
         readonly Image bg;
         readonly Image icon;
-        string status = Core.L("Iniciando…", "Starting…", "Iniciando…");
+        string status = Core.L("Iniciando…", "Starting…", "Iniciando…", "Démarrage…", "Wird gestartet…");
         float phase;
         readonly System.Windows.Forms.Timer anim = new System.Windows.Forms.Timer();
         readonly Font fTitle = new Font("Segoe UI Semibold", 30f, FontStyle.Regular, GraphicsUnit.Point);
@@ -290,7 +293,7 @@ namespace CastDeck
             using (SolidBrush white = new SolidBrush(Color.White))
                 g.DrawString("CastDeck", fTitle, white, 40 * k, 156 * k);
             using (SolidBrush sub = new SolidBrush(Color.FromArgb(185, 185, 215)))
-                g.DrawString(Core.L("Estúdio ao vivo · local", "Live studio · local", "Estudio en vivo · local"), fSub, sub, 46 * k, 212 * k);
+                g.DrawString(Core.L("Estúdio ao vivo · local", "Live studio · local", "Estudio en vivo · local", "Studio en direct · local", "Live-Studio · lokal"), fSub, sub, 46 * k, 212 * k);
             // barra de progresso indeterminada
             RectangleF track = new RectangleF(48 * k, 282 * k, 250 * k, 3 * k);
             using (SolidBrush tb = new SolidBrush(Color.FromArgb(40, 255, 255, 255))) g.FillRectangle(tb, track);
@@ -386,9 +389,9 @@ namespace CastDeck
             string target = Path.Combine(dir, "castdeck-server-" + id + ".exe");
             using (Stream s = Res.Open("server.bin"))
             {
-                if (s == null) throw new Exception(Core.L("Servidor embutido não encontrado.", "Embedded server not found.", "No se encontró el servidor integrado."));
+                if (s == null) throw new Exception(Core.L("Servidor embutido não encontrado.", "Embedded server not found.", "No se encontró el servidor integrado.", "Serveur intégré introuvable.", "Eingebetteter Server nicht gefunden."));
                 if (File.Exists(target) && new FileInfo(target).Length == s.Length) return target;
-                splash.SetStatus(Core.L("Preparando a primeira execução…", "Preparing first run…", "Preparando la primera ejecución…"));
+                splash.SetStatus(Core.L("Preparando a primeira execução…", "Preparing first run…", "Preparando la primera ejecución…", "Préparation du premier lancement…", "Erster Start wird vorbereitet…"));
                 string tmp = target + ".tmp";
                 using (FileStream f = File.Create(tmp)) s.CopyTo(f, 1 << 20);
                 if (File.Exists(target)) File.Delete(target);
@@ -402,10 +405,10 @@ namespace CastDeck
 
         static string Friendly(string line)
         {
-            if (line.Contains("verificando FFmpeg")) return Core.L("Verificando FFmpeg e aceleração de vídeo…", "Checking FFmpeg and video acceleration…", "Verificando FFmpeg y aceleración de video…");
-            if (line.Contains("[boot] FFmpeg")) return Core.L("Codificadores de vídeo prontos", "Video encoders ready", "Codificadores de video listos");
-            if (line.Contains("baixando")) return Core.L("Baixando componentes…", "Downloading components…", "Descargando componentes…");
-            if (line.Contains("CastDeck Local pronto")) return Core.L("Abrindo o estúdio…", "Opening the studio…", "Abriendo el estudio…");
+            if (line.Contains("verificando FFmpeg")) return Core.L("Verificando FFmpeg e aceleração de vídeo…", "Checking FFmpeg and video acceleration…", "Verificando FFmpeg y aceleración de video…", "Vérification de FFmpeg et de l'accélération vidéo…", "FFmpeg und Videobeschleunigung werden geprüft…");
+            if (line.Contains("[boot] FFmpeg")) return Core.L("Codificadores de vídeo prontos", "Video encoders ready", "Codificadores de video listos", "Encodeurs vidéo prêts", "Video-Encoder bereit");
+            if (line.Contains("baixando")) return Core.L("Baixando componentes…", "Downloading components…", "Descargando componentes…", "Téléchargement des composants…", "Komponenten werden heruntergeladen…");
+            if (line.Contains("CastDeck Local pronto")) return Core.L("Abrindo o estúdio…", "Opening the studio…", "Abriendo el estudio…", "Ouverture du studio…", "Studio wird geöffnet…");
             return null;
         }
 
@@ -434,7 +437,7 @@ namespace CastDeck
                         return;
                     }
                     Log("[launcher] servidor de outra versão em " + Core.Url + ": encerrando para abrir " + mine);
-                    splash.SetStatus(Core.L("Fechando a versão anterior…", "Closing the previous version…", "Cerrando la versión anterior…"));
+                    splash.SetStatus(Core.L("Fechando a versão anterior…", "Closing the previous version…", "Cerrando la versión anterior…", "Fermeture de la version précédente…", "Vorherige Version wird geschlossen…"));
                     try { Core.Http("POST", "/api/quit", 2000); } catch { }
                     for (int i = 0; i < 40 && Core.Healthy(500); i++) Thread.Sleep(250);
                     if (Core.Healthy(500))
@@ -444,9 +447,9 @@ namespace CastDeck
                         return;
                     }
                 }
-                splash.SetStatus(Core.L("Carregando…", "Loading…", "Cargando…"));
+                splash.SetStatus(Core.L("Carregando…", "Loading…", "Cargando…", "Chargement…", "Wird geladen…"));
                 string exe = Extract();
-                splash.SetStatus(Core.L("Iniciando o servidor local…", "Starting the local server…", "Iniciando el servidor local…"));
+                splash.SetStatus(Core.L("Iniciando o servidor local…", "Starting the local server…", "Iniciando el servidor local…", "Démarrage du serveur local…", "Lokaler Server wird gestartet…"));
                 ProcessStartInfo si = new ProcessStartInfo(exe);
                 si.UseShellExecute = false;
                 si.CreateNoWindow = true;
@@ -493,7 +496,7 @@ namespace CastDeck
                 while (!Core.Healthy(1000))
                 {
                     if (quitting || server.HasExited) return;
-                    if (DateTime.Now > limit) throw new Exception(Core.L("O servidor não respondeu em 90 s.", "The server did not respond within 90 s.", "El servidor no respondió en 90 s."));
+                    if (DateTime.Now > limit) throw new Exception(Core.L("O servidor não respondeu em 90 s.", "The server did not respond within 90 s.", "El servidor no respondió en 90 s.", "Le serveur n'a pas répondu en 90 s.", "Der Server hat nicht innerhalb von 90 s geantwortet."));
                     Thread.Sleep(250);
                 }
                 StartWindow();
@@ -501,7 +504,7 @@ namespace CastDeck
             catch (Exception ex)
             {
                 Log("[launcher] erro: " + ex);
-                Ui(delegate { Fatal(Core.L("Não foi possível iniciar o CastDeck.", "Could not start CastDeck.", "No se pudo iniciar CastDeck.") + "\n\n" + ex.Message); });
+                Ui(delegate { Fatal(Core.L("Não foi possível iniciar o CastDeck.", "Could not start CastDeck.", "No se pudo iniciar CastDeck.", "Impossible de démarrer CastDeck.", "CastDeck konnte nicht gestartet werden.") + "\n\n" + ex.Message); });
             }
         }
 
@@ -512,7 +515,7 @@ namespace CastDeck
             if (mode == "none")
             {
                 splash.FadeOut();
-                Ui(delegate { Balloon(Core.L("O CastDeck está rodando na bandeja. Clique no ícone para abrir.", "CastDeck is running in the tray. Click the icon to open it.", "CastDeck se está ejecutando en la bandeja. Haz clic en el icono para abrirlo.")); });
+                Ui(delegate { Balloon(Core.L("O CastDeck está rodando na bandeja. Clique no ícone para abrir.", "CastDeck is running in the tray. Click the icon to open it.", "CastDeck se está ejecutando en la bandeja. Haz clic en el icono para abrirlo.", "CastDeck est actif dans la barre d'état. Cliquez sur l'icône pour l'ouvrir.", "CastDeck läuft in der Taskleiste. Klicken Sie zum Öffnen auf das Symbol.")); });
                 return;
             }
             if (mode == "browser")
@@ -522,7 +525,7 @@ namespace CastDeck
                 splash.FadeOut();
                 return;
             }
-            splash.SetStatus(Core.L("Abrindo o estúdio…", "Opening the studio…", "Abriendo el estudio…"));
+            splash.SetStatus(Core.L("Abrindo o estúdio…", "Opening the studio…", "Abriendo el estudio…", "Ouverture du studio…", "Studio wird geöffnet…"));
             window = Core.OpenWindow(true);
             windowStarted = DateTime.Now;
             if (window != null)
@@ -547,7 +550,7 @@ namespace CastDeck
             if (quitting) return;
             if ((DateTime.Now - windowStarted).TotalSeconds < 4)
             {
-                Balloon(Core.L("O CastDeck continua na bandeja. Use \"Sair\" para encerrar.", "CastDeck is still in the tray. Use \"Quit\" to close it.", "CastDeck sigue en la bandeja. Usa \"Salir\" para cerrarlo."));
+                Balloon(Core.L("O CastDeck continua na bandeja. Use \"Sair\" para encerrar.", "CastDeck is still in the tray. Use \"Quit\" to close it.", "CastDeck sigue en la bandeja. Usa \"Salir\" para cerrarlo.", "CastDeck reste actif dans la barre d'état. Utilisez « Quitter » pour fermer.", "CastDeck läuft weiter in der Taskleiste. Zum Beenden „Beenden“ wählen."));
                 return;
             }
             Quit(false);
@@ -560,15 +563,15 @@ namespace CastDeck
             try { tray.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { tray.Icon = SystemIcons.Application; }
             tray.Text = "CastDeck";
             ContextMenuStrip menu = new ContextMenuStrip();
-            ToolStripMenuItem open = new ToolStripMenuItem(Core.L("Abrir estúdio", "Open studio", "Abrir estudio"), null, delegate { ReopenWindow(); });
+            ToolStripMenuItem open = new ToolStripMenuItem(Core.L("Abrir estúdio", "Open studio", "Abrir estudio", "Ouvrir le studio", "Studio öffnen"), null, delegate { ReopenWindow(); });
             open.Font = new Font(open.Font, FontStyle.Bold);
             menu.Items.Add(open);
-            menu.Items.Add(new ToolStripMenuItem(Core.L("Abrir no navegador", "Open in browser", "Abrir en el navegador"), null, delegate { try { Process.Start(Core.Url); } catch { } }));
+            menu.Items.Add(new ToolStripMenuItem(Core.L("Abrir no navegador", "Open in browser", "Abrir en el navegador", "Ouvrir dans le navigateur", "Im Browser öffnen"), null, delegate { try { Process.Start(Core.Url); } catch { } }));
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(new ToolStripMenuItem(Core.L("Pasta das gravações", "Recordings folder", "Carpeta de grabaciones"), null, delegate { try { Core.AllowSetForegroundWindow(-1); } catch { } ThreadPool.QueueUserWorkItem(delegate { try { Core.Http("POST", "/api/recordings/open-folder", 4000); } catch { } }); }));
-            menu.Items.Add(new ToolStripMenuItem(Core.L("Ver log", "View log", "Ver log"), null, delegate { try { Process.Start("notepad.exe", "\"" + Core.LogFile + "\""); } catch { } }));
+            menu.Items.Add(new ToolStripMenuItem(Core.L("Pasta das gravações", "Recordings folder", "Carpeta de grabaciones", "Dossier des enregistrements", "Aufnahmeordner"), null, delegate { try { Core.AllowSetForegroundWindow(-1); } catch { } ThreadPool.QueueUserWorkItem(delegate { try { Core.Http("POST", "/api/recordings/open-folder", 4000); } catch { } }); }));
+            menu.Items.Add(new ToolStripMenuItem(Core.L("Ver log", "View log", "Ver log", "Voir le journal", "Protokoll anzeigen"), null, delegate { try { Process.Start("notepad.exe", "\"" + Core.LogFile + "\""); } catch { } }));
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(new ToolStripMenuItem(Core.L("Sair do CastDeck", "Quit CastDeck", "Salir de CastDeck"), null, delegate { Quit(true); }));
+            menu.Items.Add(new ToolStripMenuItem(Core.L("Sair do CastDeck", "Quit CastDeck", "Salir de CastDeck", "Quitter CastDeck", "CastDeck beenden"), null, delegate { Quit(true); }));
             tray.ContextMenuStrip = menu;
             tray.DoubleClick += delegate { ReopenWindow(); };
             tray.Visible = true;
@@ -596,7 +599,7 @@ namespace CastDeck
         {
             string t;
             lock (logLock) t = string.Join("\n", tail.ToArray());
-            Fatal(Core.L("O servidor do CastDeck parou inesperadamente.\n\nÚltimas linhas do log:\n", "The CastDeck server stopped unexpectedly.\n\nLast log lines:\n", "El servidor de CastDeck se detuvo inesperadamente.\n\nÚltimas líneas del log:\n") + t + Core.L("\n\nLog completo: ", "\n\nFull log: ", "\n\nLog completo: ") + Core.LogFile);
+            Fatal(Core.L("O servidor do CastDeck parou inesperadamente.\n\nÚltimas linhas do log:\n", "The CastDeck server stopped unexpectedly.\n\nLast log lines:\n", "El servidor de CastDeck se detuvo inesperadamente.\n\nÚltimas líneas del log:\n", "Le serveur CastDeck s'est arrêté de manière inattendue.\n\nDernières lignes du journal :\n", "Der CastDeck-Server wurde unerwartet beendet.\n\nLetzte Protokollzeilen:\n") + t + Core.L("\n\nLog completo: ", "\n\nFull log: ", "\n\nLog completo: ", "\n\nJournal complet : ", "\n\nVollständiges Protokoll: ") + Core.LogFile);
         }
 
         void Fatal(string msg)
@@ -613,7 +616,7 @@ namespace CastDeck
             {
                 bool live = false;
                 try { live = !Core.Http("GET", "/api/health", 1500).Contains("\"live\":0"); } catch { }
-                if (live && MessageBox.Show(Core.L("Há uma transmissão ou gravação em andamento.\nEncerrar o CastDeck mesmo assim?", "A stream or recording is in progress.\nQuit CastDeck anyway?", "Hay una transmisión o grabación en curso.\n¿Cerrar CastDeck de todos modos?"), "CastDeck", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+                if (live && MessageBox.Show(Core.L("Há uma transmissão ou gravação em andamento.\nEncerrar o CastDeck mesmo assim?", "A stream or recording is in progress.\nQuit CastDeck anyway?", "Hay una transmisión o grabación en curso.\n¿Cerrar CastDeck de todos modos?", "Une diffusion ou un enregistrement est en cours.\nQuitter CastDeck quand même ?", "Ein Stream oder eine Aufnahme läuft.\nCastDeck trotzdem beenden?"), "CastDeck", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
             }
             quitting = true;
             if (tray != null) { tray.Visible = false; tray.Dispose(); tray = null; }

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
-// Gera os guias em PDF "Onde pegar a chave de transmissão" por plataforma (pt/en/es).
+// Gera os guias em PDF "Onde pegar a chave de transmissão" por plataforma (pt/en/es/fr/de).
 //   node build/make-key-guides.mjs
-// Fonte dos textos: public/js/dest-help.js (pt) + public/js/i18n/strings.json (en/es).
+// Fonte dos textos: public/js/dest-help.js (pt) + public/js/i18n/strings.json (en/es/fr/de).
 // Saída: public/guias/<plataforma>-<idioma>.pdf (vai junto no app, funciona offline) e cópia em landpage/guias/.
 // Usa o Edge/Chrome em modo headless para imprimir o HTML em PDF.
 import fs from 'node:fs';
@@ -15,7 +15,7 @@ import { KEY_HELP } from '../public/js/dest-help.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dict = JSON.parse(fs.readFileSync(path.join(root, 'public/js/i18n/strings.json'), 'utf8'));
-const LANGS = { pt: -1, en: 0, es: 1 };
+const LANGS = { pt: -1, en: 0, es: 1, fr: 2, de: 3 };
 const PLAT = {
   youtube: { label: 'YouTube', short: 'YT', color: '#ff0033', v: false },
   facebook: { label: 'Facebook', short: 'FB', color: '#1877f2', v: false },

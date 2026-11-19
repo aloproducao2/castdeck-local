@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
 // "Onde pego a chave?": passo a passo por plataforma, link direto para a página da chave e guia em PDF.
 // Dados puros (sem DOM) — também usados por build/make-key-guides.mjs para gerar os PDFs em public/guias/.
-// Os textos ficam em português; a tradução (en/es) vem do dicionário public/js/i18n/strings.json.
+// Os textos ficam em português; a tradução (en/es/fr/de) vem do dicionário public/js/i18n/strings.json.
 
 export const KEY_HELP = {
   youtube: {
@@ -105,7 +105,7 @@ export const KEY_HELP = {
   },
 };
 
-// PDFs gerados por build/make-key-guides.mjs (pt/en/es). No app Android o WebView não abre PDF:
+// PDFs gerados por build/make-key-guides.mjs (pt/en/es/fr/de). No app Android o WebView não abre PDF:
 // usa a cópia publicada no site, que o navegador do celular abre direto.
 const PDF_BASE = typeof navigator !== 'undefined' && /CastDeckAndroid/.test(navigator.userAgent) ? 'https://cast.flue.live' : '';
-export const guidePdf = (plat, lang = 'pt') => (KEY_HELP[plat]?.link ? `${PDF_BASE}/guias/${plat}-${['en', 'es'].includes(lang) ? lang : 'pt'}.pdf` : '');
+export const guidePdf = (plat, lang = 'pt') => (KEY_HELP[plat]?.link ? `${PDF_BASE}/guias/${plat}-${['en', 'es', 'fr', 'de'].includes(lang) ? lang : 'pt'}.pdf` : '');

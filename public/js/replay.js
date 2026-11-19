@@ -2934,7 +2934,7 @@ function drawVarOverlay() {
       varCtx.fillStyle = '#fff';
       varCtx.font = 'bold 11px sans-serif';
       varCtx.textAlign = 'center';
-      varCtx.fillText(`Δ ${Math.round(width)}px · ${isOffside ? 'IMPEDIMENTO' : 'POSIÇÃO LEGAL'}`, midX, deltaY + 3);
+      varCtx.fillText(`Δ ${Math.round(width)}px · ${window.CDi18n?.t?.(isOffside ? 'IMPEDIMENTO' : 'POSIÇÃO LEGAL') || (isOffside ? 'IMPEDIMENTO' : 'POSIÇÃO LEGAL')}`, midX, deltaY + 3);
     }
   }
 

@@ -175,6 +175,41 @@ function bindConnection() {
   };
 }
 
+// ---------- seleção e exclusão em massa de estúdios ----------
+function toggleStudioPick(id) {
+  if (!id) return;
+  if (studioSelected.has(id)) studioSelected.delete(id);
+  else studioSelected.add(id);
+  safeRender();
+}
+
+async function deleteSelectedStudios() {
+  const ids = [...studioSelected].filter((id) => D.studios.some((s) => s.id === id));
+  if (!ids.length) return;
+  const studios = ids.map((id) => D.studios.find((s) => s.id === id)).filter(Boolean);
+  const names = studios.map((s) => s.name);
+  const shown = names.length <= 3 ? names.join(', ') : `${names.slice(0, 3).join(', ')} +${names.length - 3}`;
+  const liveN = ids.filter((id) => D.system.broadcasts.some((b) => b.studioId === id)).length;
+  const title = ids.length === 1 ? 'Excluir este estúdio?' : `Excluir ${ids.length} estúdios?`;
+  const sub = `${shown}\n\nMarca e banners serão perdidos.${liveN ? `\n\n${liveN} ${liveN === 1 ? 'está ao vivo agora' : 'estão ao vivo agora'}.` : ''}`;
+  const okLabel = ids.length === 1 ? 'Excluir' : `Excluir ${ids.length}`;
+  if (!(await confirmDialog(`${title}\n\n${sub}`, { ok: okLabel, danger: true }))) return;
+  let done = 0;
+  let failed = 0;
+  for (const id of ids) {
+    try {
+      await api('/studios/' + id, { method: 'DELETE' });
+      done++;
+    } catch {
+      failed++;
+    }
+  }
+  studioSelected.clear();
+  studioSelectMode = false;
+  toast(failed ? `${done} excluído(s), ${failed} falhou(aram)` : `${done} ${done === 1 ? 'estúdio excluído' : 'estúdios excluídos'}`, failed ? 'err' : 'ok');
+  await load();
+}
+
 // ---------- atualização periódica ----------
 // Um só polling de /system (antes eram dois: 1,5 s e 5 s). Redesenha a página só quando algo visível muda
 // de estado; o progresso do túnel atualiza apenas a faixa, sem apagar o que o usuário está digitando.
@@ -211,6 +246,12 @@ async function pollSystem() {
 
 async function load() {
   [D.studios, D.destinations, D.recordings, D.system] = await Promise.all([api('/studios'), api('/destinations'), api('/recordings'), api('/system')]);
+  // seleção em massa: descarta ids que não existem mais e sai do modo se sobrar menos de 2 estúdios
+  for (const id of [...studioSelected]) if (!D.studios.some((s) => s.id === id)) studioSelected.delete(id);
+  if (D.studios.length < 2) {
+    studioSelectMode = false;
+    studioSelected.clear();
+  }
   syncLang();
   safeRender();
 }
@@ -246,6 +287,12 @@ function safeRender() {
 let studiosShown = 8; // "Mostrar mais" aumenta
 let stepsExpanded = false;
 let studioQuery = '';
+// A busca só filtra depois de interação real do usuário. Sem isso o navegador às vezes preenche o campo
+// sozinho (autofill do último usuário, ex.: "admin") e a lista abria já filtrada e vazia.
+let filterTouched = false;
+// seleção em massa de estúdios
+let studioSelectMode = false;
+const studioSelected = new Set();
 function studiosPanel(tun, last, steps) {
   const doneN = steps.filter((s) => s.done).length;
   const allDone = doneN === steps.length;
@@ -299,30 +346,57 @@ function studiosPanel(tun, last, steps) {
     <section class="section" id="estudios">
       <div class="section-head">
         <h2>Seus estúdios <span class="db-count">${D.studios.length}</span></h2>
-        ${D.studios.length >= 4 ? `<input class="input db-studio-search" id="studio-search" type="search" placeholder="Filtrar estúdios…" value="${esc(studioQuery)}" autocomplete="off">` : ''}
+        <div class="db-studio-tools">
+          ${D.studios.length >= 4 ? `<span class="db-search-wrap ${studioQuery ? 'has-query' : ''}">
+            <input class="input db-studio-search" id="studio-search" type="search" placeholder="Filtrar estúdios…" value="${esc(studioQuery)}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" name="cd-filtro-estudios" aria-label="Filtrar estúdios">
+            <button type="button" class="db-search-x" id="studio-search-x" title="Limpar filtro" aria-label="Limpar filtro" ${studioQuery ? '' : 'hidden'}>✕</button>
+          </span>` : ''}
+          ${D.studios.length >= 2 ? `<button class="btn sm ${studioSelectMode ? 'primary' : 'ghost'}" id="studios-select" type="button" aria-pressed="${studioSelectMode}" title="Selecionar estúdios para excluir em massa">${studioSelectMode ? 'Concluir' : 'Selecionar'}</button>` : ''}
+        </div>
       </div>
+      ${
+        studioSelectMode
+          ? `<div class="db-select-bar" role="group" aria-label="Seleção de estúdios">
+              <span class="hint" id="studios-select-count">${studioSelected.size ? `${studioSelected.size} selecionado(s)` : 'Nenhum estúdio selecionado'}</span>
+              <button class="btn sm ghost" id="studios-select-all" type="button">Selecionar todos</button>
+              ${studioSelected.size ? '<button class="btn sm ghost" id="studios-select-none" type="button">Limpar seleção</button>' : ''}
+              <button class="btn sm live" id="studios-delete-selected" type="button" ${studioSelected.size ? '' : 'disabled'}>Excluir selecionados</button>
+            </div>`
+          : ''
+      }
       ${
         studioList.length
           ? `<div class="grid-cards">${studioList
               .map((s, i) => {
                 const live = D.system.broadcasts.some((b) => b.studioId === s.id);
-                return `<article class="studio-card card">
-                  <a class="studio-thumb" href="/studio/${s.id}" tabindex="-1" style="background-image:linear-gradient(180deg,hsl(230 35% 5%/.25),hsl(230 35% 4%/.75)),url('${BGS[i % BGS.length]}')">
+                const picked = studioSelected.has(s.id);
+                const thumbStyle = `background-image:linear-gradient(180deg,hsl(230 35% 5%/.25),hsl(230 35% 4%/.75)),url('${BGS[i % BGS.length]}')`;
+                return `<article class="studio-card card ${studioSelectMode ? 'is-pickable' : ''} ${picked ? 'is-picked' : ''}" data-studio="${s.id}">
+                  ${studioSelectMode ? `<button class="db-pick ${picked ? 'on' : ''}" type="button" data-pick="${s.id}" aria-pressed="${picked}" title="Selecionar este estúdio" aria-label="Selecionar este estúdio">${picked ? '✓' : ''}</button>` : ''}
+                  ${
+                    studioSelectMode
+                      ? `<div class="studio-thumb" style="${thumbStyle}">`
+                      : `<a class="studio-thumb" href="/studio/${s.id}" tabindex="-1" style="${thumbStyle}">`
+                  }
                     ${live ? '<span class="pill live"><span class="dot"></span>AO VIVO</span>' : '<span class="pill ok"><span class="dot"></span>PRONTO</span>'}
                     <span class="st-ar-badge">16:9</span>
                     <span class="initial">${esc((s.name[0] || '?').toUpperCase())}</span>
-                  </a>
+                  ${studioSelectMode ? '</div>' : '</a>'}
                   <div class="studio-body">
                     <div class="studio-meta">
                       <h3 translate="no" title="${esc(s.name)}">${esc(s.name)}</h3>
                       <span class="hint">Criado em ${new Date(s.createdAt).toLocaleDateString(window.CD_LOCALE || 'pt-BR')}</span>
                     </div>
-                    <div class="db-acts">
+                    ${
+                      studioSelectMode
+                        ? ''
+                        : `<div class="db-acts">
                       <a class="btn primary sm db-open" href="/studio/${s.id}">${icons.play}<span>Abrir estúdio</span></a>
                       ${inviteBtn(s.id, tun)}
                       <button class="btn sm db-ico" data-edit="${s.id}" title="Renomear" aria-label="Renomear">${icons.edit}</button>
                       <button class="btn sm db-ico danger" data-del="${s.id}" title="Excluir" aria-label="Excluir">${icons.trash}</button>
-                    </div>
+                    </div>`
+                    }
                   </div>
                 </article>`;
               })
@@ -626,9 +700,59 @@ function render() {
   const stTog = $('#steps-toggle');
   if (stTog) stTog.onclick = () => { stepsExpanded = !stepsExpanded; safeRender(); };
   const stSrch = $('#studio-search');
-  if (stSrch) stSrch.oninput = (e) => { studioQuery = e.target.value; safeRender(); };
-  const stClr = $('#studio-search-clear');
-  if (stClr) stClr.onclick = () => { studioQuery = ''; safeRender(); };
+  if (stSrch) {
+    // Só filtra depois de interação real (tecla, colar ou toque). Sem isso, um autofill do navegador
+    // ("admin", último usuário salvo) disparava `input` e a lista já abria filtrada.
+    const markTouched = () => { filterTouched = true; };
+    stSrch.addEventListener('keydown', markTouched);
+    stSrch.addEventListener('paste', markTouched);
+    stSrch.addEventListener('pointerdown', markTouched);
+    stSrch.addEventListener('compositionstart', markTouched);
+    stSrch.oninput = (e) => {
+      if (!filterTouched) { e.target.value = studioQuery; return; }
+      studioQuery = e.target.value;
+      safeRender();
+    };
+    if (!filterTouched && stSrch.value !== studioQuery) stSrch.value = studioQuery;
+  }
+  const stClr = $('#studio-search-x');
+  if (stClr)
+    stClr.onclick = () => {
+      studioQuery = '';
+      filterTouched = true;
+      safeRender();
+      $('#studio-search')?.focus();
+    };
+  // ---- seleção em massa ----
+  const selToggle = $('#studios-select');
+  if (selToggle)
+    selToggle.onclick = () => {
+      studioSelectMode = !studioSelectMode;
+      studioSelected.clear();
+      safeRender();
+    };
+  const selAll = $('#studios-select-all');
+  if (selAll)
+    selAll.onclick = () => {
+      const q = studioQuery.trim().toLowerCase();
+      const list = q ? D.studios.filter((s) => String(s.name || '').toLowerCase().includes(q)) : D.studios;
+      list.forEach((s) => studioSelected.add(s.id));
+      safeRender();
+    };
+  const selNone = $('#studios-select-none');
+  if (selNone) selNone.onclick = () => { studioSelected.clear(); safeRender(); };
+  const selDel = $('#studios-delete-selected');
+  if (selDel) selDel.onclick = () => deleteSelectedStudios();
+  // no modo seleção o card inteiro alterna a marcação (e não abre o estúdio)
+  if (studioSelectMode) {
+    $$('.studio-card[data-studio]').forEach((card) => {
+      card.onclick = (e) => {
+        if (e.target.closest('a, button')) return;
+        toggleStudioPick(card.dataset.studio);
+      };
+    });
+  }
+  $$('[data-pick]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); toggleStudioPick(b.dataset.pick); }));
   const smore = $('#studios-more');
   if (smore) smore.onclick = () => { studiosShown += 16; safeRender(); };
   lazyThumbs();

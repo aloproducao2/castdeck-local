@@ -392,3 +392,73 @@
 .dash .tun-slim strong { font-weight: 600; color: var(--text-0); }
 .dash .tun-slim .hint { font-variant-numeric: tabular-nums; }
 .dash .tun-slim #tun-expand { margin-left: auto; }
+
+/* ---------- Seleção em massa de estúdios ---------- */
+.dash .db-studio-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.dash .db-studio-tools .db-studio-search { margin-left: 0; }
+.dash .db-select-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  margin: 0 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--bg-1), var(--bg-0));
+}
+.dash .db-select-bar #studios-select-count { margin-right: auto; font-variant-numeric: tabular-nums; }
+.dash .studio-card { position: relative; }
+.dash .studio-card.is-pickable { cursor: pointer; }
+.dash .studio-card.is-pickable:hover { border-color: var(--line-strong); }
+.dash .studio-card.is-picked {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset, 0 12px 30px -18px hsl(252 95% 60% / .8);
+}
+.dash .db-pick {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 3;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid hsl(0 0% 100% / .35);
+  background: hsl(228 30% 6% / .72);
+  color: transparent;
+  font: 800 13px var(--font);
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+.dash .db-pick:hover { border-color: #fff; }
+.dash .db-pick.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.dash .studio-card.is-pickable .studio-thumb .pill { left: 44px; }
+@media (max-width: 700px) {
+  .dash .db-studio-tools { width: 100%; }
+  .dash .db-studio-tools .db-studio-search { flex: 1 1 160px; }
+}
+
+/* Campo de filtro com ✕ embutido (antes o limpar só existia no estado vazio) */
+.dash .db-search-wrap { position: relative; display: flex; align-items: center; }
+.dash .db-search-wrap .db-studio-search { padding-right: 30px; }
+.dash .db-search-x {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: hsl(0 0% 100% / .08);
+  color: var(--text-1);
+  font: 700 11px var(--font);
+  cursor: pointer;
+  z-index: 2;
+}
+.dash .db-search-x[hidden] { display: none; }
+.dash .db-search-x:hover { background: hsl(0 0% 100% / .16); color: var(--text-0); }

@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **1.8.17** — mejoras en Redes (el historial vuelve al reabrir el panel, botón para limpiar la búsqueda, atajo al pegar un enlace y soporte de Social Stream Ninja), barra de rótulos (GC) con botones en posición fija, pantalla inicial más directa (tus estudios primero, solo el próximo paso), panel más limpio (sin atajos duplicados, botón «Recursos» claro, botón de cerrar en la bandeja del celular), estado de conexión que se convierte en aviso discreto después de 30 s y correcciones de espacio en el mezclador y en el Template Studio.
+Versión **1.8.18** — exclusión de estudios en masa (un botón «Seleccionar» en la pantalla inicial permite marcar varios estudios y eliminarlos de una vez, con una confirmación que lista los nombres) y filtro de estudios corregido (el campo empieza vacío, ignora el autocompletado del navegador y ahora tiene botón para limpiar).
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

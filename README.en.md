@@ -145,7 +145,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.8.17** — Social feed improvements (history restored when the panel reopens, clear-search button, paste-a-link shortcut and Social Stream Ninja support), lower-third bar with fixed button positions, a faster home screen (your studios first, next step only), cleaner control panel (no duplicate shortcuts, clear "Resources" button, close button on the phone drawer), tunnel status collapsing into a discreet chip after 30 s, and layout fixes in the mixer and Template Studio.
+Version **1.8.18** — bulk deletion of studios (a "Select" button on the home screen lets you mark several studios and delete them at once, with a confirmation listing the names) and a fixed studio filter (the field starts empty, ignores browser autofill and now has a clear button).
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

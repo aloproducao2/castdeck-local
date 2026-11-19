@@ -31924,5 +31924,101 @@
     "Recursos",
     "Ressources",
     "Ressourcen"
+  ],
+  "Selecionar": [
+    "Select",
+    "Seleccionar",
+    "Sélectionner",
+    "Auswählen"
+  ],
+  "Concluir": [
+    "Done",
+    "Listo",
+    "Terminer",
+    "Fertig"
+  ],
+  "Selecionar todos": [
+    "Select all",
+    "Seleccionar todos",
+    "Tout sélectionner",
+    "Alle auswählen"
+  ],
+  "Limpar seleção": [
+    "Clear selection",
+    "Limpiar selección",
+    "Effacer la sélection",
+    "Auswahl löschen"
+  ],
+  "Excluir selecionados": [
+    "Delete selected",
+    "Eliminar seleccionados",
+    "Supprimer la sélection",
+    "Auswahl löschen"
+  ],
+  "Selecionar este estúdio": [
+    "Select this studio",
+    "Seleccionar este estudio",
+    "Sélectionner ce studio",
+    "Dieses Studio auswählen"
+  ],
+  "Selecionar estúdios para excluir em massa": [
+    "Select studios to delete them in bulk",
+    "Selecciona estudios para eliminarlos en masa",
+    "Sélectionnez des studios pour les supprimer en masse",
+    "Studios auswählen, um sie gesammelt zu löschen"
+  ],
+  "Seleção de estúdios": [
+    "Studio selection",
+    "Selección de estudios",
+    "Sélection de studios",
+    "Studio-Auswahl"
+  ],
+  "{0} selecionado(s)": [
+    "{0} selected",
+    "{0} seleccionado(s)",
+    "{0} sélectionné(s)",
+    "{0} ausgewählt"
+  ],
+  "Nenhum estúdio selecionado": [
+    "No studio selected",
+    "Ningún estudio seleccionado",
+    "Aucun studio sélectionné",
+    "Kein Studio ausgewählt"
+  ],
+  "Excluir {0} estúdios?": [
+    "Delete {0} studios?",
+    "¿Eliminar {0} estudios?",
+    "Supprimer {0} studios ?",
+    "{0} Studios löschen?"
+  ],
+  "{0} está ao vivo agora": [
+    "{0} is live right now",
+    "{0} está en vivo ahora",
+    "{0} est en direct maintenant",
+    "{0} ist gerade live"
+  ],
+  "{0} estão ao vivo agora": [
+    "{0} are live right now",
+    "{0} están en vivo ahora",
+    "{0} sont en direct maintenant",
+    "{0} sind gerade live"
+  ],
+  "{0} excluído(s), {1} falhou(aram)": [
+    "{0} deleted, {1} failed",
+    "{0} eliminado(s), {1} falló/fallaron",
+    "{0} supprimé(s), {1} échec(s)",
+    "{0} gelöscht, {1} fehlgeschlagen"
+  ],
+  "{0} estúdios excluídos": [
+    "{0} studios deleted",
+    "{0} estudios eliminados",
+    "{0} studios supprimés",
+    "{0} Studios gelöscht"
+  ],
+  "{0} estúdio excluído": [
+    "{0} studio deleted",
+    "{0} estudio eliminado",
+    "{0} studio supprimé",
+    "{0} Studio gelöscht"
   ]
 }

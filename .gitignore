@@ -9,6 +9,7 @@
 /deploy/
 /build/deploy.mjs
 /build/release.mjs
+/build/pack-source.mjs
 
 # Landing page e ferramentas internas do site (marketing, analytics, contatos)
 /landpage/
@@ -18,6 +19,7 @@
 /dist/
 /build/tmp/
 /build/vendor/
+/crates/*/target/
 /src-tauri/server.bin
 *.zip
 *.exe

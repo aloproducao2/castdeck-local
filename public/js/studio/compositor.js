@@ -854,6 +854,19 @@ export class Compositor {
       L.getContext('2d').drawImage(this.canvas, 0, 0);
     }
 
+    // overlays de vídeo disparados pelo Pad (WebM com alpha ou MP4): acima do palco/transição, abaixo de artes da tela e GCs
+    const padOvs = typeof this.getPadOverlays === 'function' ? this.getPadOverlays() : [];
+    for (const ov of padOvs) {
+      const vel = ov?.el;
+      if (!vel || vel.readyState < 2 || !(vel.videoWidth > 0 && vel.videoHeight > 0)) continue;
+      const sc = Math.min(W / vel.videoWidth, H / vel.videoHeight);
+      const dw = vel.videoWidth * sc;
+      const dh = vel.videoHeight * sc;
+      try {
+        ctx.drawImage(vel, (W - dw) / 2, (H - dh) / 2, dw, dh);
+      } catch {}
+    }
+
     // overlays da marca: vários PNGs/WebPs empilhados, na ordem; mantém o campo antigo por compatibilidade
     const ovs = [...(Array.isArray(brand.overlays) ? brand.overlays : [])];
     if (brand.overlay && !ovs.includes(brand.overlay)) ovs.unshift(brand.overlay);
@@ -911,12 +924,11 @@ export class Compositor {
 
     this._wz = [];
     if (!front) {
-      drawWidgets();
       this._socialH = drawSocialAndBanner();
       this.scoped(false, () => this.drawTicker(color, dt, tickerH));
       drawCaptionsNow(this._socialH);
     } else {
-      // Acima do DSK: comentários, enquetes e banner vão para depois das camadas DSK.
+      // Acima do DSK: comentários e banner vão para depois das camadas DSK.
       // O letreiro/legenda continuam atrás do DSK; usam a altura do social do quadro anterior.
       this.scoped(false, () => this.drawTicker(color, dt, tickerH));
       drawCaptionsNow(this._socialH || 0);
@@ -935,12 +947,16 @@ export class Compositor {
     }
 
     if (front) {
-      // Grupo acima do DSK, na mesma ordem relativa de antes: widgets/enquete → social → banner.
-      drawWidgets();
+      // Grupo acima do DSK: social → banner.
       this._socialH = drawSocialAndBanner();
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';
     }
+
+    // Gráficos de Interatividade (Enquetes, QR Codes, Sorteio, Mensagens e Placar): sempre acima de imagens, GCs, grafismo e DSK
+    drawWidgets();
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
 
     // Linhas/carimbo do VAR também no PGM (o console envia coordenadas normalizadas)
     if (this.varOverlay?.on) this.drawVarOverlayPgm(now);

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Sorteio ao vivo</title>
+  <link rel="icon" type="image/png" href="/icon.png">
+  <style>
+    :root { --bg:#0d0e17; --card:#161829; --line:rgba(255,255,255,.1); --txt:#f4f5f8; --muted:#9aa0b8; --acc:#7c5cff; --ok:#2ecc71; --warn:#f59e0b; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100dvh; display:grid; place-items:center; padding:16px; background:radial-gradient(circle at top, rgba(124,92,255,.16), transparent 55%), var(--bg); color:var(--txt); font:15px/1.45 Inter, system-ui, -apple-system, sans-serif; }
+    .box { width:100%; max-width:420px; background:var(--card); border:1px solid var(--line); border-radius:18px; padding:20px; box-shadow:0 20px 50px rgba(0,0,0,.45); }
+    .head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+    .st { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+    .pill { font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; background:rgba(124,92,255,.2); border:1px solid rgba(124,92,255,.4); }
+    h1 { margin:0 0 6px; font-size:21px; line-height:1.25; }
+    .sub { margin:0 0 16px; color:var(--muted); font-size:13px; }
+    label { display:block; font-size:12px; font-weight:600; color:var(--muted); margin:0 0 5px; }
+    input { width:100%; height:44px; border-radius:11px; border:1px solid var(--line); background:rgba(0,0,0,.28); color:var(--txt); padding:0 12px; font:inherit; margin-bottom:12px; outline:none; }
+    input:focus { border-color:var(--acc); }
+    button { width:100%; height:46px; border:0; border-radius:12px; background:var(--acc); color:#fff; font:700 15px/1 inherit; cursor:pointer; }
+    button:disabled { opacity:.55; cursor:not-allowed; }
+    .status { padding:14px; border-radius:12px; background:rgba(46,204,113,.12); border:1px solid rgba(46,204,113,.35); text-align:center; }
+    .status strong { display:block; font-size:17px; margin-bottom:4px; }
+    .win { padding:16px; border-radius:14px; background:linear-gradient(135deg, rgba(245,158,11,.22), rgba(124,92,255,.22)); border:1px solid rgba(245,158,11,.55); text-align:center; margin-top:12px; }
+    .win b { display:block; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--warn); margin-bottom:4px; }
+    .win strong { font-size:22px; }
+    .err { color:#ff6b7a; font-size:13px; margin:8px 0 0; text-align:center; }
+    .empty { text-align:center; color:var(--muted); padding:24px 8px; }
+  </style>
+</head>
+<body>
+  <main class="box" id="app"><div class="empty">Carregando sorteio…</div></main>
+  <script>
+    const studioId = location.pathname.split('/').filter(Boolean).pop() || 'local';
+    const app = document.getElementById('app');
+    let pid = localStorage.getItem('castdeck.raffle.pid');
+    if (!pid || pid.length < 8) {
+      pid = 'rf_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      try { localStorage.setItem('castdeck.raffle.pid', pid); } catch {}
+    }
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    let lastSig = '';
+    let submitting = false;
+    let errMsg = '';
+
+    async function poll() {
+      try {
+        const r = await fetch(`/api/public/raffle/${encodeURIComponent(studioId)}?participant=${encodeURIComponent(pid)}`, { cache: 'no-store' });
+        if (!r.ok) throw new Error();
+        const data = await r.json();
+        if (data.studio?.color) document.documentElement.style.setProperty('--acc', data.studio.color);
+        render(data.studio, data.raffle);
+      } catch {
+        app.innerHTML = '<div class="empty">Não foi possível conectar ao estúdio agora.</div>';
+      }
+    }
+
+    function render(studio, rf) {
+      if (!rf) {
+        lastSig = 'none';
+        app.innerHTML = `<div class="head"><span class="st">${esc(studio?.name || 'CastDeck')}</span></div><div class="empty">Nenhum sorteio ativo no momento.</div>`;
+        return;
+      }
+      const sig = JSON.stringify([rf.id, rf.round, rf.title, rf.state, rf.count, rf.askContact, rf.joined?.ticketNo, rf.winner?.name, rf.spinName, errMsg]);
+      if (sig === lastSig) return;
+      lastSig = sig;
+
+      const hdr = `<div class="head"><span class="st">${esc(studio?.name || 'Sorteio')}</span><span class="pill">${rf.count} participante${rf.count === 1 ? '' : 's'}</span></div><h1>🎁 ${esc(rf.title)}</h1>`;
+
+      if (rf.state === 'winner' && rf.winner) {
+        const iWon = rf.joined && rf.joined.ticketNo && rf.joined.ticketNo === rf.winner.ticketNo;
+        app.innerHTML = `${hdr}
+          <div class="win">
+            <b>${iWon ? '🎉 VOCÊ GANHOU!' : '🏆 GANHADOR DO SORTEIO'}</b>
+            <strong>${esc(rf.winner.name)}</strong>
+            ${rf.winner.ticketNo ? `<div class="sub" style="margin:6px 0 0">Número #${rf.winner.ticketNo}</div>` : ''}
+          </div>`;
+        return;
+      }
+
+      if (rf.state === 'spinning') {
+        app.innerHTML = `${hdr}<div class="win"><b>🎲 SORTEANDO…</b><strong>${esc(rf.spinName || 'Boa sorte!')}</strong></div>`;
+        return;
+      }
+
+      if (rf.joined) {
+        app.innerHTML = `${hdr}
+          <div class="status">
+            <strong>✔ Você está participando!</strong>
+            <span>${esc(rf.joined.name)} · Número da sorte <b>#${rf.joined.ticketNo}</b></span>
+          </div>
+          <p class="sub" style="margin:12px 0 0;text-align:center">Fique de olho na live para acompanhar o resultado.</p>`;
+        return;
+      }
+
+      if (rf.state !== 'open') {
+        app.innerHTML = `${hdr}<div class="empty">Inscrições encerradas. Aguarde o sorteio!</div>`;
+        return;
+      }
+
+      app.innerHTML = `${hdr}
+        <p class="sub">Preencha seus dados abaixo para entrar no sorteio.</p>
+        <form id="rf-form">
+          <label for="rf-name">Seu nome</label>
+          <input id="rf-name" maxlength="60" required placeholder="Ex.: Maria Silva" autocomplete="name">
+          ${rf.askContact ? `<label for="rf-contact">${esc(rf.contactLabel || '@Instagram ou WhatsApp')}</label><input id="rf-contact" maxlength="60" required placeholder="Ex.: @maria">` : ''}
+          <button type="submit" ${submitting ? 'disabled' : ''}>${submitting ? 'Enviando…' : 'Participar do Sorteio'}</button>
+          ${errMsg ? `<div class="err">${esc(errMsg)}</div>` : ''}
+        </form>`;
+
+      document.getElementById('rf-form').onsubmit = async (e) => {
+        e.preventDefault();
+        if (submitting) return;
+        errMsg = '';
+        submitting = true;
+        const name = document.getElementById('rf-name').value.trim();
+        const contact = document.getElementById('rf-contact')?.value?.trim() || '';
+        try {
+          const res = await fetch(`/api/public/raffle/${encodeURIComponent(studioId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ raffleId: rf.id, round: rf.round, participant: pid, name, contact }),
+          });
+          const j = await res.json();
+          if (!res.ok) errMsg = j.error || 'Erro ao enviar inscrição.';
+        } catch {
+          errMsg = 'Sem conexão com o estúdio.';
+        } finally {
+          submitting = false;
+          lastSig = '';
+          poll();
+        }
+      };
+    }
+
+    poll();
+    setInterval(poll, 1500);
+  </script>
+</body>
+</html>

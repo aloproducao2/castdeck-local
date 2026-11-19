@@ -27,6 +27,7 @@ import { isFinalizing, cleanupTemp, isFragmented, finalizeRecording, needsCompat
 import { parseFeed } from './feeds.js';
 import { PollHub } from './polls.js';
 import { MsgHub } from './messages.js';
+import { RaffleHub } from './raffles.js';
 import { Updater } from './updater.js';
 import { WhatsAppService } from './whatsapp.js';
 import { Ytdlp } from './ytdlp.js';
@@ -121,6 +122,7 @@ async function main() {
   const ndiOutput = new NdiOutputServer({ root: ROOT, ffmpegPath: ffmpegInfo.path, binDir: BIN });
   const pollHub = new PollHub();
   const msgHub = new MsgHub();
+  const raffleHub = new RaffleHub();
   const ndiSource = new NdiSourceServer({ root: ROOT, ffmpegPath: ffmpegInfo.path, ingest, binDir: BIN });
   const whatsapp = new WhatsAppService({ dataDir: DATA });
   await whatsapp.init();
@@ -194,6 +196,8 @@ async function main() {
   app.get('/vote/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'vote.html')));
   // página pública de mensagens do público (QR Code da caixa de mensagens: texto curto ou áudio)
   app.get('/msg/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'msg.html')));
+  // página pública de sorteio ao vivo (QR Code)
+  app.get('/raffle/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'raffle.html')));
   // saídas individuais para OBS/vMix (fonte de navegador); fora deste PC exigem a chave do link
   app.get('/out/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'out.html')));
   // player WebRTC (WHEP) para reproduzir saídas ou entradas RTMP/SRT em navegador externo/LAN
@@ -287,6 +291,20 @@ async function main() {
     const { status, ...out } = msgHub.send(req.params.id, req.body, clientIp(req));
     res.status(status).set('Cache-Control', 'no-store').json(out);
   });
+  // sorteio ao vivo pelo celular
+  app.get('/api/public/raffle/:id', (req, res) => {
+    const s = store.getStudio(req.params.id);
+    if (!s) return res.status(404).json({ error: 'Estúdio não encontrado' });
+    res.set('Cache-Control', 'no-store').json({
+      studio: { name: s.name, color: s.brand?.color || null },
+      raffle: raffleHub.view(s.id, req.query.participant),
+    });
+  });
+  app.post('/api/public/raffle/:id', (req, res) => {
+    if (!store.getStudio(req.params.id)) return res.status(404).json({ error: 'Estúdio não encontrado' });
+    const { status, ...out } = raffleHub.enter(req.params.id, req.body, clientIp(req));
+    res.status(status).set('Cache-Control', 'no-store').json(out);
+  });
 
   // Servidores ICE: STUN gratuito + TURN opcional configurado pelo usuário (para redes que bloqueiam P2P)
   // TURN oficial do CastDeck (turn.flue.live): credenciais temporárias, renovadas antes de expirar
@@ -376,7 +394,7 @@ async function main() {
         if (Array.isArray(raw?.sounds)) manifest = raw.sounds;
       } catch { }
       const files = await fs.readdir(padDir).catch(() => []);
-      const audioFiles = files.filter((f) => /\.(mp3|wav|ogg|oga|m4a|aac|flac|opus|weba|webm)$/i.test(f));
+      const audioFiles = files.filter((f) => /\.(mp3|wav|ogg|oga|m4a|aac|flac|opus|weba|webm|mp4)$/i.test(f));
       const knownFiles = new Set(manifest.map((s) => s.file));
       const sounds = manifest
         .filter((s) => !s.file || audioFiles.includes(s.file))
@@ -386,6 +404,8 @@ async function main() {
           name: s.name || s.file.replace(/\.[^.]+$/, ''),
           category: s.category || 'brasil',
           color: s.color || 'blue',
+          kind: s.kind === 'video' || /\.(webm|mp4)$/i.test(s.file || s.url || '') ? 'video' : 'audio',
+          overlayMode: s.overlayMode || 'once',
           url: s.url || `/sounds/pad/${encodeURIComponent(s.file)}`,
         }));
       for (const f of audioFiles.sort((a, b) => a.localeCompare(b, 'pt-BR'))) {
@@ -1096,6 +1116,8 @@ async function main() {
   api.post('/studios/:id/poll', (req, res) => res.json({ votes: pollHub.sync(req.params.id, req.body?.poll) }));
   // o estúdio publica a caixa de mensagens e recebe as que chegaram pela página /msg
   api.post('/studios/:id/msgs', (req, res) => res.json({ msgs: msgHub.sync(req.params.id, req.body?.box) }));
+  // o estúdio publica o sorteio e recebe os participantes que entraram pela página /raffle
+  api.post('/studios/:id/raffle', (req, res) => res.json({ entries: raffleHub.sync(req.params.id, req.body?.raffle) }));
 
   const maskKey = (d) => ({ ...d, key: d.key ? d.key.slice(0, 4) + '•'.repeat(Math.max(4, d.key.length - 4)) : '', hasKey: !!d.key });
   api.get('/destinations', (req, res) => res.json(store.listDestinations().map(maskKey)));

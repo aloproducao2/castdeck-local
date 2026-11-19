@@ -22,6 +22,7 @@ import { initResizers } from './resize.js';
 import { createExtras } from './extras.js';
 import { createIngest } from './ingest.js';
 import { createWidgets } from './widgets.js';
+import { createRaffle } from './raffle.js';
 import { createMessages } from './messages.js';
 import { createSports } from './sports.js';
 import { chooseRecordingsDir } from '../recdir.js';
@@ -120,6 +121,7 @@ let remote; // controle remoto por celular (QR, papel 'remote' na sinalização)
 let autoVoice; // AUTO-VOZ: corte automático por quem está falando (só com a mesa de corte)
 let meters; // medidores de áudio à vista (programa + miniaturas)
 let scenes; // cenas rápidas F1–F6
+let raffle; // sorteio ao vivo (QR Code + chat)
 let breaks; // blocos de Break Comercial
 let dsk; // DSK 1 e 2 (camadas por cima do programa)
 let browserSources; // fonte Browser (página URL em navegador headless)
@@ -184,6 +186,7 @@ const TAB_GROUPS = [
     hint: 'Enquetes com votação, códigos QR e mensagens do público no ar',
     tabs: [
       ['widgets', 'Widgets & QR', 'widgets', 'Enquetes (votação pelo celular ou chat) e códigos QR no ar'],
+      ['raffle', 'Sorteio', 'spark', 'Sorteio ao vivo com QR Code na tela e captura pelo chat'],
       ['messages', 'Mensagens', 'inbox', 'O público manda texto curto ou áudio pelo QR Code; você escolhe o que vai ao ar'],
       ['whatsapp', 'WhatsApp', 'whatsapp', 'Bridge local: receba mensagens e áudios do WhatsApp e escolha o que vai ao ar'],
     ],
@@ -484,6 +487,7 @@ async function buildStudio() {
         <div class="panel" id="panel-journal"></div>
       <div class="panel" id="panel-sports"></div>
       <div class="panel" id="panel-widgets"></div>
+      <div class="panel" id="panel-raffle"></div>
       <div class="panel" id="panel-messages"></div>
       <div class="panel" id="panel-whatsapp"></div>
       <div class="panel" id="panel-brand"></div>
@@ -556,6 +560,7 @@ async function buildStudio() {
     allowPopout: !IS_MOBILE && S.system?.platform !== 'android',
   });
   widgets = createWidgets({ S, comp, $, $$, esc, h, toast, icons, modal, saveStudio, readImage, pickFile, api, studioId, copyText, onAir: () => renderGcBar() });
+  raffle = createRaffle({ S, comp, $, $$, esc, toast, icons, saveStudio, api, studioId, onAir: () => renderGcBar() });
   // mensagens do público (texto/áudio pelo QR Code); o mixer é criado logo abaixo, por isso o getter
   messages = createMessages({
     S,
@@ -621,6 +626,7 @@ async function buildStudio() {
   });
   await mixer.resume();
   music = createMusic({ studioId, mixer, getStudioName: () => S.studio?.name || '' });
+  comp.getPadOverlays = () => music?.getActiveVideoOverlays?.() || [];
   music.restore().catch((e) => console.warn('[trilha]', e));
   // Se o volume/mudo for alterado no Mixer ou no Pad, ambos + remoto acompanham em tempo real.
   mixer.onChange = (id) => {
@@ -1484,6 +1490,7 @@ async function buildStudio() {
   scenes = createScenes({ S, comp, $, esc, toast, modal, promptDialog, confirmDialog, saveStudio, setStage, setSolo, setLayout, toggleBanner, getSwitcher: () => switcher });
   scenes.mount();
   window.__castdeck.scenes = scenes;
+  window.__castdeck.raffle = raffle;
   // DSK 1 e 2: camadas por cima do programa, iguais no modo Estúdio e na mesa de corte
   dsk = createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studioId, saveStudio, onChange: applyDskAir });
   window.__castdeck.dsk = dsk;
@@ -1552,7 +1559,7 @@ async function buildStudio() {
   }
 
   initAccordions();
-  social = createSocial({ getComp: () => comp, toast, h, esc, $, $$, onVote: (m) => widgets.onChatMessage(m) });
+  social = createSocial({ getComp: () => comp, toast, h, esc, $, $$, onVote: (m) => { widgets.onChatMessage(m); raffle?.onChatMessage?.(m); } });
   window.__castdeck.social = social;
   social.boot();
   applyBannerRotation();
@@ -5603,7 +5610,7 @@ function tabOpen(t) {
   return S.tab === t || !!floatWins?.has(t);
 }
 function renderTabContent(tab) {
-  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, music: renderMusicPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, outputs: () => outputs.open(), ndi: renderNdiPanel, multirec: () => multiRec?.render?.(), intercom: renderIntercomPanel })[tab]?.();
+  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), raffle: () => raffle.render($('#panel-raffle')), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, music: renderMusicPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, outputs: () => outputs.open(), ndi: renderNdiPanel, multirec: () => multiRec?.render?.(), intercom: renderIntercomPanel })[tab]?.();
 }
 
 // marca nas abas da lateral quais estão destacadas e cuida do botão ⧉
@@ -6478,6 +6485,7 @@ function renderGcBar() {
     $('#deck-clear', bar).onclick = () => {
       if (S.activeBanner) toggleBanner(S.activeBanner);
       widgets.clearAir();
+      raffle?.clearAir?.();
       messages?.clearAir();
       sports.clearAir();
       for (const m of mediaList()) m.el.pause();

@@ -90,6 +90,7 @@ public class LocalServer {
     final AndroidTunnel tunnel;
     final PollHub polls = new PollHub();
     final MsgHub msgs = new MsgHub();
+    final RaffleHub raffles = new RaffleHub();
     final Updater updater;
     final UvcManager uvc;
     public Runnable onQuit;
@@ -476,6 +477,25 @@ public class LocalServer {
                 return json(r.status, r.body);
             }
         }
+        // sorteio ao vivo pelo celular (QR Code do sorteio)
+        pm = Pattern.compile("^/public/raffle/([^/]+)$").matcher(path);
+        if (pm.matches()) {
+            JSONObject st = store.getStudio(pm.group(1));
+            if (st == null) return err(404, "Estúdio não encontrado");
+            if (m == NanoHTTPD.Method.GET) {
+                JSONObject brand = st.optJSONObject("brand");
+                JSONObject studio = new JSONObject().put("name", st.optString("name"))
+                        .put("color", brand != null && brand.has("color") ? brand.get("color") : JSONObject.NULL);
+                return json(200, new JSONObject().put("studio", studio).put("raffle", raffles.view(st.optString("id"), param(s, "participant"))));
+            }
+            if (m == NanoHTTPD.Method.POST) {
+                String ip = s.getRemoteIpAddress();
+                String cf = s.getHeaders().get("cf-connecting-ip");
+                if (isLoopback(ip) && cf != null && !cf.isEmpty()) ip = cf;
+                PollHub.Result r = raffles.enter(st.optString("id"), jsonBody(s), ip == null ? "" : ip);
+                return json(r.status, r.body);
+            }
+        }
         if (m == NanoHTTPD.Method.GET && path.equals("/public/ice")) {
             JSONArray servers = new JSONArray();
             servers.put(new JSONObject().put("urls", new JSONArray(Arrays.asList("stun:stun.cloudflare.com:3478", "stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"))));
@@ -618,6 +638,11 @@ public class LocalServer {
         pm = Pattern.compile("^/studios/([^/]+)/msgs$").matcher(path);
         if (pm.matches() && m == NanoHTTPD.Method.POST) {
             return json(200, new JSONObject().put("msgs", msgs.sync(pm.group(1), jsonBody(s).opt("box"))));
+        }
+        // o estúdio publica o sorteio e recebe os participantes que entraram pela página /raffle
+        pm = Pattern.compile("^/studios/([^/]+)/raffle$").matcher(path);
+        if (pm.matches() && m == NanoHTTPD.Method.POST) {
+            return json(200, new JSONObject().put("entries", raffles.sync(pm.group(1), jsonBody(s).opt("raffle"))));
         }
 
         // destinos
@@ -809,6 +834,7 @@ public class LocalServer {
             if (uri.matches("^/cam/[^/]+/?$")) return page("cam.html", false); // câmera remota (celular pelo QR)
             if (uri.matches("^/vote/[^/]+/?$")) return page("vote.html", false);
             if (uri.matches("^/msg/[^/]+/?$")) return page("msg.html", false); // mensagens do público (QR Code)
+            if (uri.matches("^/raffle/[^/]+/?$")) return page("raffle.html", false); // sorteio ao vivo (QR Code)
             if (uri.matches("^/out/[^/]+/?$")) return page("out.html", false); // saídas para OBS/vMix (chave conferida na sinalização)
             if (uri.matches("^/remote/[^/]+/?$")) return page("remote.html", false);
             if (uri.matches("^/pad-remote/[^/]+/?$")) return page("pad-remote.html", false);

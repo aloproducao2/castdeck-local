@@ -23,6 +23,7 @@ const MODES = [
 export const DEFAULT_PAD_GROUPS = [
   { id: 'plateia', name: 'Plateia & Auditório', icon: '👏', color: 'blue' },
   { id: 'cena', name: 'Cena & Transições', icon: '🎬', color: 'purple' },
+  { id: 'videos', name: 'Vídeos / Overlay', icon: '🎞️', color: 'pink' },
   { id: 'brasil', name: 'Brasil & TV', icon: '🇧🇷', color: 'cyan' },
   { id: 'bolsonaro', name: 'Bolsonaro', icon: '🟢', color: 'green' },
   { id: 'lula', name: 'Lula', icon: '🔴', color: 'red' },
@@ -45,8 +46,25 @@ export const PAD_COLORS = [
 ];
 export const PAD_HOTKEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'];
 
+const PAD_VIDEO_EXT = /\.(webm|mp4)$/i;
+const PAD_OVERLAY_MODES = ['once', 'hold', 'loop'];
+const PAD_OVERLAY_LABEL = { once: '1×', hold: 'Fim', loop: 'Loop' };
+const PAD_OVERLAY_TITLE = {
+  once: 'Roda e sai depois (padrão). Clique para mudar para Travar no último frame.',
+  hold: 'Roda e trava no último frame até clicar de novo. Clique para mudar para Loop.',
+  loop: 'Roda em loop até clicar de novo. Clique para mudar para Roda e sai.',
+};
+
 function isAudio(file) {
   return /^audio\//i.test(file?.type || '') || AUDIO_EXT.test(file?.name || '');
+}
+
+function isPadVideo(file) {
+  return /^video\/(webm|mp4)/i.test(file?.type || '') || PAD_VIDEO_EXT.test(file?.name || '');
+}
+
+function isPadMedia(file) {
+  return isAudio(file) || isPadVideo(file);
 }
 
 function openIdb(name, store) {
@@ -173,6 +191,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
 
   // ---------- Estado do Pad de Efeitos Sonoros ----------
   let padSamples = [];
+  const activeVideoOverlays = new Map(); // playId -> { playId, sampleId, name, el, mode, held, startedAt, duration }
   let padRestored = false;
   let padRestorePromise = null;
   let padWin = null;
@@ -746,17 +765,19 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
   }
 
   function probePadSamples(list) {
-    const pending = list.filter((s) => s.url && !(s.duration > 0));
+    const pending = list.filter((s) => s.url && (!(s.duration > 0) || (s.kind === 'video' && !s.thumb)));
     if (!pending.length) return;
     let cursor = 0;
     const next = () => {
       if (cursor >= pending.length) return;
       const sample = pending[cursor++];
-      const a = new Audio();
-      a.preload = 'metadata';
+      const isVid = sample.kind === 'video';
+      const a = isVid ? document.createElement('video') : new Audio();
+      a.preload = isVid ? 'auto' : 'metadata';
+      if (isVid) a.muted = true;
       a.src = sample.url;
       const done = () => {
-        try { a.removeAttribute('src'); } catch {}
+        try { a.onseeked = null; a.onloadedmetadata = null; a.onerror = null; a.removeAttribute('src'); a.load?.(); } catch {}
         next();
       };
       a.onloadedmetadata = () => {
@@ -765,8 +786,33 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
           padMeta[sample.id] = { ...(padMeta[sample.id] || {}), duration: a.duration };
           flushProbeUi();
         }
+        if (isVid && !sample.thumb) {
+          try {
+            a.currentTime = Number.isFinite(a.duration) && a.duration > 0.2 ? Math.min(0.4, a.duration * 0.2) : 0.05;
+            return;
+          } catch {}
+        }
         done();
       };
+      if (isVid) {
+        a.onseeked = () => {
+          try {
+            if (a.videoWidth > 0 && a.videoHeight > 0) {
+              const cv = document.createElement('canvas');
+              cv.width = 128;
+              cv.height = 72;
+              const ctx = cv.getContext('2d');
+              const sc = Math.min(128 / a.videoWidth, 72 / a.videoHeight);
+              const dw = a.videoWidth * sc;
+              const dh = a.videoHeight * sc;
+              ctx.drawImage(a, (128 - dw) / 2, (72 - dh) / 2, dw, dh);
+              sample.thumb = cv.toDataURL('image/webp', 0.72);
+              flushProbeUi();
+            }
+          } catch {}
+          done();
+        };
+      }
       a.onerror = done;
     };
     for (let k = 0; k < Math.min(3, pending.length); k++) next();
@@ -789,6 +835,8 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
         color: m.color || p.color || 'blue',
         fav: !!m.fav,
         url: p.url,
+        kind: p.kind === 'video' || PAD_VIDEO_EXT.test(p.url || p.file || '') ? 'video' : 'audio',
+        overlayMode: PAD_OVERLAY_MODES.includes(m.overlayMode || p.overlayMode) ? (m.overlayMode || p.overlayMode) : 'once',
         builtin: true,
         duration: Number(m.duration || p.duration || 0),
         addedAt: 0,
@@ -804,6 +852,8 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
         fav: !!m.fav,
         file: c.file,
         url: c.url,
+        kind: c.kind === 'video' ? 'video' : 'audio',
+        overlayMode: PAD_OVERLAY_MODES.includes(m.overlayMode || c.overlayMode) ? (m.overlayMode || c.overlayMode) : 'once',
         builtin: false,
         duration: Number(m.duration || c.duration || 0),
         addedAt: c.addedAt || 0,
@@ -848,6 +898,8 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
             color: rec.color || 'purple',
             file: rec.file,
             url: URL.createObjectURL(rec.file),
+            kind: rec.kind === 'video' || isPadVideo(rec.file) ? 'video' : 'audio',
+            overlayMode: PAD_OVERLAY_MODES.includes(rec.overlayMode) ? rec.overlayMode : 'once',
             duration: Number(rec.duration) || 0,
             addedAt: rec.addedAt || 0,
           });
@@ -978,12 +1030,17 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
     return decoded;
   }
 
+  function getActiveVideoOverlays() {
+    return [...activeVideoOverlays.values()].filter((o) => o.el && o.el.readyState >= 2 && o.el.videoWidth > 0);
+  }
+
   function stopAllPads() {
-    if (!activePadPlays.size) return;
+    if (!activePadPlays.size && !activeVideoOverlays.size) return;
     for (const p of [...activePadPlays.values()]) {
       try { p.stop(); } catch {}
     }
     activePadPlays.clear();
+    activeVideoOverlays.clear();
     syncAmbientDucking();
     stopPadTickIfIdle();
     if (panel && viewMode === 'pad') paint();
@@ -1011,15 +1068,107 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
   async function playPad(id) {
     const sample = padSamples.find((s) => s.id === id);
     if (!sample) return;
+    // Se um overlay de vídeo deste pad já está ativo ou travado no PGM, clicar de novo tira do ar (toggle).
+    if (sample.kind === 'video' && [...activeVideoOverlays.values()].some((o) => o.sampleId === sample.id)) {
+      stopPadSample(sample.id);
+      return;
+    }
     lastPadSampleId = sample.id;
     if (!padOverlap) {
       for (const p of [...activePadPlays.values()]) {
         try { p.stop(); } catch {}
       }
       activePadPlays.clear();
+      activeVideoOverlays.clear();
     }
 
     const playId = `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    if (sample.kind === 'video') {
+      const mode = PAD_OVERLAY_MODES.includes(sample.overlayMode) ? sample.overlayMode : 'once';
+      const vid = document.createElement('video');
+      vid.playsInline = true;
+      vid.preload = 'auto';
+      vid.crossOrigin = 'anonymous';
+      vid.loop = mode === 'loop';
+      vid.src = sample.url;
+      let mediaNode = null;
+      const ovEntry = {
+        playId,
+        sampleId: sample.id,
+        name: sample.name,
+        el: vid,
+        mode,
+        held: false,
+        startedAt: performance.now(),
+        duration: sample.duration || 0,
+      };
+      const cleanup = () => {
+        activeVideoOverlays.delete(playId);
+        activePadPlays.delete(playId);
+        try { vid.onended = null; vid.pause(); vid.removeAttribute('src'); vid.load(); } catch {}
+        try { mediaNode?.disconnect(); } catch {}
+      };
+      const entry = {
+        playId,
+        sampleId: sample.id,
+        name: sample.name,
+        startedAt: ovEntry.startedAt,
+        duration: ovEntry.duration,
+        setGain: (v) => { try { if (!mediaNode) vid.volume = clamp01(v); } catch {} },
+        stop: cleanup,
+      };
+      activePadPlays.set(playId, entry);
+      activeVideoOverlays.set(playId, ovEntry);
+      try {
+        await mixer?.resume?.();
+        const busInfo = ensurePadBus();
+        if (busInfo?.ctx?.state === 'suspended') await busInfo.ctx.resume().catch(() => {});
+        if (busInfo?.ctx && busInfo?.dest) {
+          mediaNode = busInfo.ctx.createMediaElementSource(vid);
+          mediaNode.connect(busInfo.dest);
+        } else {
+          vid.volume = padMuted ? 0 : padVolume;
+        }
+        vid.onloadedmetadata = () => {
+          if (Number.isFinite(vid.duration) && vid.duration > 0) {
+            entry.duration = vid.duration;
+            ovEntry.duration = vid.duration;
+            sample.duration = vid.duration;
+          }
+        };
+        vid.onended = () => {
+          if (!activeVideoOverlays.has(playId)) return;
+          if (mode === 'hold') {
+            ovEntry.held = true;
+            try {
+              vid.pause();
+              if (Number.isFinite(vid.duration) && vid.duration > 0.03) vid.currentTime = vid.duration - 0.015;
+            } catch {}
+            syncAmbientDucking();
+            stopPadTickIfIdle();
+            if (panel && viewMode === 'pad') paint();
+            emitPadState();
+            return;
+          }
+          cleanup();
+          syncAmbientDucking();
+          stopPadTickIfIdle();
+          if (panel && viewMode === 'pad') paint();
+          emitPadState();
+        };
+        await vid.play();
+        syncAmbientDucking();
+        startPadTick();
+        if (panel && viewMode === 'pad') paint();
+        emitPadState();
+      } catch (e) {
+        cleanup();
+        syncAmbientDucking();
+        toast(`Erro ao reproduzir overlay "${sample.name}": ${e.message}`, 'err');
+        emitPadState();
+      }
+      return;
+    }
     try {
       await mixer?.resume?.();
       const busInfo = ensurePadBus();
@@ -1096,34 +1245,39 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
     }
   }
 
-  async function addPadFiles(files, { category = 'custom', color = '', onProgress = null } = {}) {
+  async function addPadFiles(files, { category = 'custom', color = '', overlayMode = 'once', onProgress = null } = {}) {
     const rawList = [...(files || [])];
-    const audioFiles = rawList.filter((f) => isAudio(f));
-    const skipped = rawList.length - audioFiles.length;
-    if (!audioFiles.length) {
-      if (rawList.length) toast('Nenhum arquivo de áudio válido (.mp3, .wav, .ogg, .m4a...) encontrado.', 'err');
+    const mediaFiles = rawList.filter((f) => isPadMedia(f));
+    const skipped = rawList.length - mediaFiles.length;
+    if (!mediaFiles.length) {
+      if (rawList.length) toast('Nenhum arquivo válido (.mp3, .wav, .ogg, .webm, .mp4...) encontrado.', 'err');
       return 0;
     }
     const targetGroup = validGroupId(category || 'custom');
     const palette = PAD_COLORS.map(([c]) => c);
     const addedSamples = [];
-    for (let i = 0; i < audioFiles.length; i++) {
-      const file = audioFiles[i];
+    for (let i = 0; i < mediaFiles.length; i++) {
+      const file = mediaFiles[i];
       if (padSamples.length >= MAX_PAD_SAMPLES) {
         toast(`Limite de ${MAX_PAD_SAMPLES} samples no Pad.`, 'err');
         break;
       }
-      if (file.size > 50 * 1024 * 1024) {
-        toast(`${file.name}: maior que 50 MB para efeito rápido.`, 'err');
+      const isVid = isPadVideo(file);
+      const maxBytes = isVid ? 150 * 1024 * 1024 : 50 * 1024 * 1024;
+      if (file.size > maxBytes) {
+        toast(`${file.name}: maior que ${isVid ? '150' : '50'} MB.`, 'err');
         continue;
       }
       const id = `pad-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
       const padColor = color && color !== 'auto' ? color : palette[(padSamples.length + i) % palette.length];
+      const ovMode = PAD_OVERLAY_MODES.includes(overlayMode) ? overlayMode : 'once';
       try {
         await idbPut(PAD_DB_NAME, PAD_STORE, prefix + id, {
           name: file.name,
           category: targetGroup,
           color: padColor,
+          kind: isVid ? 'video' : 'audio',
+          overlayMode: ovMode,
           file,
           size: file.size,
           addedAt: Date.now(),
@@ -1140,21 +1294,23 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
         fav: false,
         file,
         url: URL.createObjectURL(file),
+        kind: isVid ? 'video' : 'audio',
+        overlayMode: ovMode,
         builtin: false,
         duration: 0,
         addedAt: Date.now(),
       };
       padSamples.push(sample);
       addedSamples.push(sample);
-      onProgress?.({ done: i + 1, total: audioFiles.length, added: addedSamples.length, name: sample.name });
+      onProgress?.({ done: i + 1, total: mediaFiles.length, added: addedSamples.length, name: sample.name });
     }
     if (addedSamples.length) {
       persistPad();
       probePadSamples(addedSamples);
       if (panel && viewMode === 'pad') render(panel);
       emitPadState();
-      const extra = skipped ? ` (${skipped} não-áudio ignorado${skipped === 1 ? '' : 's'})` : '';
-      toast(`${addedSamples.length} sample${addedSamples.length === 1 ? '' : 's'} cadastrado${addedSamples.length === 1 ? '' : 's'} no grupo.${extra}`, 'ok');
+      const extra = skipped ? ` (${skipped} arquivo${skipped === 1 ? '' : 's'} ignorado${skipped === 1 ? '' : 's'})` : '';
+      toast(`${addedSamples.length} item${addedSamples.length === 1 ? '' : 's'} cadastrado${addedSamples.length === 1 ? '' : 's'} no grupo.${extra}`, 'ok');
     }
     return addedSamples.length;
   }
@@ -1167,6 +1323,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
     if (typeof patch.color === 'string') sample.color = patch.color;
     if (typeof patch.category === 'string') sample.category = validGroupId(patch.category);
     if (typeof patch.fav === 'boolean') sample.fav = patch.fav;
+    if (PAD_OVERLAY_MODES.includes(patch.overlayMode)) sample.overlayMode = patch.overlayMode;
     persistPad();
     if (panel && viewMode === 'pad') render(panel);
     emitPadState();
@@ -1437,7 +1594,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
       playingCount: activePadPlays.size,
       nowPlaying: lastPlay,
       activeSamples: Object.fromEntries(activeBySample.entries()),
-      samples: padSamples.map(({ id, name, category, color, fav, builtin, duration }) => ({ id, name, category, color, fav, builtin, duration })),
+      samples: padSamples.map(({ id, name, category, color, fav, builtin, duration, kind, overlayMode, thumb }) => ({ id, name, category, color, fav, builtin, duration, kind: kind || 'audio', overlayMode: overlayMode || 'once', thumb: thumb || '' })),
       lastSampleId: lastPadSampleId || padSamples[0]?.id || '',
       lastSampleName: (padSamples.find((s) => s.id === lastPadSampleId) || padSamples[0])?.name || '',
       ambientPlaying: playing(),
@@ -1582,12 +1739,16 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
     grid.innerHTML = list
       .map((s) => {
         const st = active[s.id];
-        return `<div class="pad-mini-tile pad-c-${esc(s.color || 'blue')} ${st ? 'playing' : ''}" data-pad-id="${esc(s.id)}" draggable="true" title="${esc(s.name)} — clique para tocar ou arraste para reordenar">
+        const isVid = s.kind === 'video';
+        const mode = PAD_OVERLAY_MODES.includes(s.overlayMode) ? s.overlayMode : 'once';
+        return `<div class="pad-mini-tile pad-c-${esc(s.color || 'blue')} ${isVid ? 'is-video' : ''} ${st ? 'playing' : ''}" data-pad-id="${esc(s.id)}" draggable="true" title="${esc(s.name)} — clique para ${isVid ? 'disparar overlay' : 'tocar'} ou arraste para reordenar">
           <button type="button" class="pad-mini-trigger" data-pad-play="${esc(s.id)}">
-            <span class="pad-mini-name">${s.fav ? '★ ' : ''}${esc(s.name)}</span>
-            <small class="pad-mini-dur">${st && st.duration ? `${fmtPadClock(st.elapsed)} / -${fmtPadClock(st.remaining)}` : s.duration ? fmtDur(s.duration) : 'MP3'}</small>
+            ${isVid ? `<span class="pad-mini-thumb">${s.thumb ? `<img src="${esc(s.thumb)}" alt="">` : '<span class="pad-mini-vid-ico">🎞️</span>'}</span>` : ''}
+            <span class="pad-mini-name">${s.fav ? '★ ' : ''}${isVid ? '🎞️ ' : ''}${esc(s.name)}</span>
+            <small class="pad-mini-dur">${st && st.duration ? `${fmtPadClock(st.elapsed)} / -${fmtPadClock(st.remaining)}` : s.duration ? `${fmtDur(s.duration)}${isVid ? ` · ${PAD_OVERLAY_LABEL[mode]}` : ''}` : isVid ? `VID · ${PAD_OVERLAY_LABEL[mode]}` : 'MP3'}</small>
           </button>
           <span class="pad-mini-actions">
+            ${isVid ? `<button type="button" class="pad-mini-act pad-mode-act" data-pad-mode="${esc(s.id)}" title="${esc(PAD_OVERLAY_TITLE[mode])}">${PAD_OVERLAY_LABEL[mode]}</button>` : ''}
             <button type="button" class="pad-mini-act ${s.fav ? 'on' : ''}" data-pad-fav="${esc(s.id)}" title="Favorito">★</button>
             <button type="button" class="pad-mini-act" data-pad-del="${esc(s.id)}" title="Remover">✕</button>
           </span>
@@ -1598,6 +1759,16 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
 
     grid.querySelectorAll('[data-pad-play]').forEach((b) => {
       b.onclick = () => playPad(b.dataset.padPlay);
+    });
+    grid.querySelectorAll('[data-pad-mode]').forEach((b) => {
+      b.onclick = (e) => {
+        e.stopPropagation();
+        const item = padSamples.find((x) => x.id === b.dataset.padMode);
+        if (!item) return;
+        const cur = PAD_OVERLAY_MODES.indexOf(item.overlayMode || 'once');
+        const next = PAD_OVERLAY_MODES[(cur + 1) % PAD_OVERLAY_MODES.length];
+        updatePadMeta(item.id, { overlayMode: next });
+      };
     });
     grid.querySelectorAll('[data-pad-fav]').forEach((b) => {
       b.onclick = (e) => {
@@ -1719,7 +1890,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
           <button type="button" class="btn sm danger" id="pad-clear-yes">Confirmar</button>
           <button type="button" class="btn sm ghost" id="pad-clear-no">Cancelar</button>
         </div>
-        <input type="file" id="pad-file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.flac,.opus" multiple hidden>
+        <input type="file" id="pad-file" accept="audio/*,video/webm,video/mp4,.mp3,.wav,.ogg,.m4a,.flac,.opus,.webm,.mp4" multiple hidden>
       `;
 
       panel.querySelectorAll('[data-music-view]').forEach((b) => {
@@ -2095,6 +2266,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
     syncPadFromMixer,
     subscribePad,
     getPadSnapshot,
+    getActiveVideoOverlays,
     openPadWindow,
     closePadWindow,
     get tracks() { return tracks.map(({ id, name, duration }) => ({ id, name, duration })); },

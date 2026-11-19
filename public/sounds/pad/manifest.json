@@ -251,6 +251,17 @@
       "color": "orange",
       "url": "/sounds/pad/para-tudo-joao-kleber.mp3",
       "size": 86229
+    },
+    {
+      "id": "dancer1",
+      "file": "dancer1.webm",
+      "name": "Dançarino 1",
+      "category": "videos",
+      "color": "pink",
+      "kind": "video",
+      "overlayMode": "once",
+      "url": "/sounds/pad/dancer1.webm",
+      "size": 4086729
     }
   ]
 }

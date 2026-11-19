@@ -65,7 +65,10 @@ export function createMessages({ S, comp, $, $$, esc, toast, icons, modal, saveS
   let baseAt = 0;
 
   const brandColor = () => comp.brand?.color || S.brand.color || '#7c5cff';
-  const msgUrl = () => (base && studioId ? `${base}/msg/${encodeURIComponent(studioId)}` : '');
+  const msgUrl = () => {
+    const b = base || S.system?.tunnel?.url || S.system?.lan?.[0]?.url || location.origin;
+    return b && studioId ? `${String(b).replace(/\/+$/, '')}/msg/${encodeURIComponent(studioId)}` : '';
+  };
 
   async function refreshBase(force) {
     if (!api || (!force && Date.now() - baseAt < 15000)) return;
@@ -73,7 +76,7 @@ export function createMessages({ S, comp, $, $$, esc, toast, icons, modal, saveS
     try {
       const sys = await api('/system');
       const t = sys.tunnel?.url || '';
-      const b = t || sys.lan?.[0]?.url || '';
+      const b = t || sys.lan?.[0]?.url || location.origin;
       if (b !== base || !t !== localOnly) {
         base = b;
         localOnly = !t;

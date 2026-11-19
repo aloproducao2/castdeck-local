@@ -458,10 +458,12 @@ function renderCardHtml(s, hotkey, snap, gmap) {
       </select>
       <button type="button" class="pad-mv-btn" data-pad-mv="${esc(s.id)}" data-dir="1" title="Mover depois (▶)">▶</button>
     </div>
-    <button type="button" class="pad-card-hit" data-pad-hit="${esc(s.id)}" title="${esc(s.name)} — Clique para disparar">
-      <span class="pad-card-ring" aria-hidden="true">${icons.volume}</span>
-      <strong class="pad-card-name">${esc(s.name)}</strong>
-      <small class="pad-card-dur">${st && st.duration > 0 ? `${fmtPadClock(st.elapsed)} / -${fmtPadClock(st.remaining)}` : s.duration ? fmtDur(s.duration) : 'MP3'}</small>
+    <button type="button" class="pad-card-hit" data-pad-hit="${esc(s.id)}" title="${esc(s.name)} — Clique para ${s.kind === 'video' ? 'disparar overlay' : 'disparar'}">
+      ${s.kind === 'video'
+        ? `<span class="pad-card-ring pad-card-thumb" aria-hidden="true">${s.thumb ? `<img src="${esc(s.thumb)}" alt="">` : '🎞️'}</span>`
+        : `<span class="pad-card-ring" aria-hidden="true">${icons.volume}</span>`}
+      <strong class="pad-card-name">${s.kind === 'video' ? '🎞️ ' : ''}${esc(s.name)}</strong>
+      <small class="pad-card-dur">${st && st.duration > 0 ? `${fmtPadClock(st.elapsed)} / -${fmtPadClock(st.remaining)}` : s.duration ? fmtDur(s.duration) : s.kind === 'video' ? 'VID' : 'MP3'}</small>
     </button>
     <i class="pad-card-fill" style="width:${st ? Math.round(st.pct * 100) : 0}%"></i>
   </article>`;

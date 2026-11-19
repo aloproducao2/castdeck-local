@@ -201,8 +201,13 @@ export class WidgetLayer {
       const e = ease(p);
       const data = it.get();
       if (!data) continue;
-      const meas = { qr: this.mQr, poll: this.mPoll, msg: this.mMsg, msgqr: this.mMsgQr }[it.kind] || this.mScore;
-      const d = meas.call(this, c, data, color, it, now);
+      const meas = { qr: this.mQr, poll: this.mPoll, msg: this.mMsg, msgqr: this.mMsgQr, raffle: this.mRaffle }[it.kind] || this.mScore;
+      let d = null;
+      try {
+        d = meas.call(this, c, data, color, it, now);
+      } catch (err) {
+        console.warn('[wg]', it.kind, err);
+      }
       if (!d) continue;
       const pos = it.pos || 'br';
       const v = pos[0]; // t | b | m
@@ -231,7 +236,11 @@ export class WidgetLayer {
       ctx.shadowColor = 'rgba(0,0,0,.45)';
       ctx.shadowBlur = H * 0.03;
       ctx.shadowOffsetY = H * 0.006;
-      d.draw(x, y);
+      try {
+        d.draw(x, y);
+      } catch (err) {
+        console.warn('[wg]', it.kind, err);
+      }
       ctx.restore();
     }
   }
@@ -535,6 +544,226 @@ export class WidgetLayer {
             ? `QR Code ou chat (${opts.length > 1 ? `1 a ${opts.length}` : '1'}) · ${total} ${total === 1 ? 'voto' : 'votos'}`
             : `Vote no chat digitando ${opts.length > 1 ? `1 a ${opts.length}` : '1'} · ${total} ${total === 1 ? 'voto' : 'votos'}`;
         ctx.fillText(fit(ctx, foot, rw), x + pad, oy + footH / 2 - 3 * u);
+      },
+    };
+  }
+
+  // ---------- Sorteio (QR Code, Roleta 60 fps e Ganhador com Confetes) ----------
+  mRaffle(c, rf, color, _it, now = performance.now()) {
+    if (!rf) return null;
+    const { ctx, W, H } = c;
+    const uh = c.uh ? c.uh() : H;
+    const u = uh / 720;
+    const pad = 16 * u;
+    const isWin = rf.state === 'winner';
+    const isSpin = rf.state === 'spinning';
+    const showQr = !!rf.showQr && !!rf.raffleUrl && !isSpin && !isWin;
+    const qrCv = showQr ? renderQr({ url: rf.raffleUrl, useBrand: true }, (s) => c.image(s), c.brand?.color || '#7c5cff') : null;
+    const w = Math.min(W * 0.44, 360 * u);
+
+    ctx.save();
+    ctx.font = `800 ${20 * u}px Outfit, Inter, sans-serif`;
+    const titleLines = wrap(ctx, rf.title || 'Sorteio ao vivo', w - pad * 2, 2);
+    ctx.restore();
+
+    const badgeH = 22 * u;
+    const titleH = titleLines.length * 25 * u;
+    const boxH = isSpin ? 86 * u : isWin ? 68 * u : 0;
+    const footH = 24 * u;
+    let h = pad + badgeH + 8 * u + titleH + (boxH ? boxH + 12 * u : 8 * u) + footH + pad * 0.6;
+
+    let qrS = qrCv ? 116 * u : 0;
+    if (qrCv && w + qrS + pad > W * 0.92) qrS = Math.max(76 * u, W * 0.92 - w - pad);
+    const qrCol = qrCv ? qrS + pad : 0;
+    const capH = 34 * u;
+    if (qrCv) h = Math.max(h, pad + qrS + capH + pad * 0.6);
+    const cw = w + qrCol;
+
+    return {
+      w: cw,
+      h,
+      draw: (x, y) => {
+        const bc = c.brand?.color ? hexToRgb(c.brand.color) : color;
+        const accent = rgb(bc);
+        ctx.fillStyle = 'rgba(14,14,26,.94)';
+        roundRectPath(ctx, x, y, cw, h, 14 * u);
+        ctx.fill();
+        ctx.shadowColor = 'transparent';
+        ctx.fillStyle = isWin ? '#f59e0b' : accent;
+        roundRectPath(ctx, x, y, cw, 5 * u, 3 * u);
+        ctx.fill();
+
+        if (qrCv) {
+          const qx = x + w;
+          const qy = y + pad;
+          ctx.drawImage(qrCv, qx, qy, qrS, (qrS * qrCv.height) / qrCv.width);
+          ctx.fillStyle = 'rgba(255,255,255,.88)';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.font = `700 ${11 * u}px Inter, sans-serif`;
+          ctx.fillText(fit(ctx, 'Aponte a câmera', qrS + pad * 0.6), qx + qrS / 2, qy + qrS + 11 * u);
+          ctx.fillStyle = 'rgba(255,255,255,.65)';
+          ctx.font = `600 ${10.5 * u}px Inter, sans-serif`;
+          ctx.fillText(fit(ctx, 'para participar', qrS + pad * 0.6), qx + qrS / 2, qy + qrS + 25 * u);
+          ctx.textAlign = 'left';
+        }
+
+        let cy = y + pad;
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'left';
+        const tag = isWin ? '🏆 GANHADOR!' : isSpin ? '🎲 SORTEANDO…' : '🎁 SORTEIO';
+        ctx.font = `800 ${11.5 * u}px Inter, sans-serif`;
+        const tw = ctx.measureText(tag).width + 18 * u;
+        ctx.fillStyle = isWin ? '#f59e0b' : accent;
+        roundRectPath(ctx, x + pad, cy, tw, badgeH, 11 * u);
+        ctx.fill();
+        ctx.fillStyle = isWin ? '#111' : luminance(bc) > 0.6 ? '#111' : '#fff';
+        ctx.fillText(tag, x + pad + 9 * u, cy + badgeH / 2 + 0.5 * u);
+        cy += badgeH + 10 * u;
+
+        ctx.fillStyle = '#fff';
+        ctx.font = `800 ${20 * u}px Outfit, Inter, sans-serif`;
+        titleLines.forEach((ln) => {
+          ctx.fillText(ln, x + pad, cy + 10 * u);
+          cy += 25 * u;
+        });
+
+        if (isSpin) {
+          cy += 6 * u;
+          const bx = x + pad;
+          const bw = cw - pad * 2;
+          const dur = Number(rf.spinDuration) > 0 ? Number(rf.spinDuration) : 3600;
+          const t = Math.max(0, Math.min(1, (now - (Number(rf.spinStart) || now)) / dur));
+          const eased = 1 - Math.pow(1 - t, 4);
+          const reel = Array.isArray(rf.spinReel) && rf.spinReel.length ? rf.spinReel : [rf.spinName || '…'];
+          const fPos = eased * (reel.length - 1);
+          const idx = Math.floor(fPos);
+          const frac = fPos - idx;
+          const rowStep = 28 * u;
+
+          ctx.save();
+          roundRectPath(ctx, bx, cy, bw, boxH, 10 * u);
+          ctx.clip();
+
+          // Fundo da janela da roleta
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.36)';
+          ctx.fillRect(bx, cy, bw, boxH);
+
+          // Faixa central de destaque
+          const bandH = 30 * u;
+          const midY = cy + boxH / 2;
+          ctx.fillStyle = rgb(bc, 0.24);
+          ctx.fillRect(bx, midY - bandH / 2, bw, bandH);
+          ctx.fillStyle = rgb(bc, 0.55);
+          ctx.fillRect(bx, midY - bandH / 2, bw, 1.2 * u);
+          ctx.fillRect(bx, midY + bandH / 2 - 1.2 * u, bw, 1.2 * u);
+
+          // Nomes rolando verticalmente (slot reel)
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          for (let off = -1; off <= 2; off++) {
+            const rIdx = idx + off;
+            if (rIdx < 0 || rIdx >= reel.length) continue;
+            const itemY = midY + (off - frac) * rowStep;
+            const dist = Math.abs(off - frac);
+            const alpha = Math.max(0.18, 1 - dist * 0.62);
+            const fSize = Math.round((21 - Math.min(1.2, dist) * 5.5) * u);
+            ctx.font = `${dist < 0.45 ? 800 : 600} ${fSize}px Outfit, Inter, sans-serif`;
+            ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(2)})`;
+            ctx.fillText(fit(ctx, reel[rIdx], bw - 48 * u), bx + bw / 2, itemY);
+          }
+
+          // Setas indicadoras ▶ ◀ na linha central
+          ctx.fillStyle = '#f59e0b';
+          ctx.font = `800 ${12 * u}px Inter, sans-serif`;
+          ctx.textAlign = 'left';
+          ctx.fillText('▶', bx + 8 * u, midY + 0.5 * u);
+          ctx.textAlign = 'right';
+          ctx.fillText('◀', bx + bw - 8 * u, midY + 0.5 * u);
+          ctx.textAlign = 'left';
+
+          // Barra de progresso luminosa na base
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+          ctx.fillRect(bx, cy + boxH - 3 * u, bw, 3 * u);
+          ctx.fillStyle = rgb(bc, 0.95);
+          ctx.fillRect(bx, cy + boxH - 3 * u, bw * t, 3 * u);
+          ctx.restore();
+
+          // Borda com pulso suave a cada passo da roleta
+          roundRectPath(ctx, bx, cy, bw, boxH, 10 * u);
+          ctx.strokeStyle = rgb(bc, 0.45 + 0.5 * (1 - frac));
+          ctx.lineWidth = 2 * u;
+          ctx.stroke();
+        } else if (isWin) {
+          cy += 6 * u;
+          const bx = x + pad;
+          const bw = cw - pad * 2;
+          const winAge = rf.winAt ? Math.max(0, now - rf.winAt) : 9999;
+          const pop = winAge < 350 ? 0.92 + 0.08 * ease(winAge / 350) : 1;
+
+          ctx.save();
+          if (pop < 1) {
+            const cxBox = bx + bw / 2;
+            const cyBox = cy + boxH / 2;
+            ctx.translate(cxBox, cyBox);
+            ctx.scale(pop, pop);
+            ctx.translate(-cxBox, -cyBox);
+          }
+          ctx.fillStyle = 'rgba(245, 158, 11, 0.24)';
+          roundRectPath(ctx, bx, cy, bw, boxH, 10 * u);
+          ctx.fill();
+          ctx.strokeStyle = '#f59e0b';
+          ctx.lineWidth = 2.2 * u;
+          ctx.stroke();
+
+          ctx.fillStyle = '#fff';
+          ctx.font = `800 ${23 * u}px Outfit, Inter, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.fillText(fit(ctx, rf.winner?.name || '—', bw - 20 * u), bx + bw / 2, cy + (rf.winner?.ticketNo ? boxH * 0.37 : boxH / 2));
+          if (rf.winner?.ticketNo) {
+            ctx.fillStyle = '#fcd34d';
+            ctx.font = `700 ${12 * u}px Inter, sans-serif`;
+            ctx.fillText(`Número #${rf.winner.ticketNo} · ${rf.winner.source || 'QR'}`, bx + bw / 2, cy + boxH * 0.74);
+          }
+          ctx.textAlign = 'left';
+          ctx.restore();
+
+          // Confetes festivos clipados ao card nos primeiros 2.8 s
+          if (winAge < 2800) {
+            const p = winAge / 2800;
+            const fade = p > 0.7 ? (1 - p) / 0.3 : 1;
+            const confColors = ['#f59e0b', '#34d399', '#60a5fa', '#f472b6', '#a78bfa', '#fde047'];
+            ctx.save();
+            roundRectPath(ctx, x, y, cw, h, 14 * u);
+            ctx.clip();
+            for (let i = 0; i < 24; i++) {
+              const seedA = Math.sin(i * 19.37 + 1.1) * 43758.5453;
+              const rx = seedA - Math.floor(seedA);
+              const seedB = Math.sin(i * 41.23 + 2.7) * 24634.6345;
+              const rSpd = 0.65 + (seedB - Math.floor(seedB)) * 0.75;
+              const cx = x + (rx * cw) + Math.sin(p * 12 + i) * 14 * u;
+              const cyC = y - 10 * u + p * (h + 36 * u) * rSpd;
+              ctx.save();
+              ctx.translate(cx, cyC);
+              ctx.rotate(p * 10 + i * 0.9);
+              ctx.globalAlpha = Math.max(0, Math.min(1, fade * 0.92));
+              ctx.fillStyle = confColors[i % confColors.length];
+              ctx.fillRect(-3.5 * u, -2 * u, 7 * u, 4 * u);
+              ctx.restore();
+            }
+            ctx.restore();
+          }
+        }
+
+        const countTxt = `${rf.count || 0} ${(rf.count || 0) === 1 ? 'inscrito' : 'inscritos'}`;
+        const foot = rf.keyword && !isWin && !isSpin
+          ? `QR Code ou ${rf.keyword} no chat · ${countTxt}`
+          : qrCv
+            ? `Escaneie o QR Code · ${countTxt}`
+            : countTxt;
+        ctx.fillStyle = 'rgba(255,255,255,.7)';
+        ctx.font = `600 ${12 * u}px Inter, sans-serif`;
+        ctx.fillText(fit(ctx, foot, w - pad * 2), x + pad, y + h - pad * 0.9);
       },
     };
   }

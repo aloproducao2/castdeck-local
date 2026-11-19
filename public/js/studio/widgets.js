@@ -144,14 +144,17 @@ export function createWidgets({ S, comp, $, $$, esc, h, toast, icons, modal, sav
   let baseAt = 0;
   let synced = false;
   let syncing = false;
-  const voteUrl = () => (voteBase && studioId ? `${voteBase}/vote/${encodeURIComponent(studioId)}` : '');
+  const voteUrl = () => {
+    const b = voteBase || S.system?.tunnel?.url || S.system?.lan?.[0]?.url || location.origin;
+    return b && studioId ? `${String(b).replace(/\/+$/, '')}/vote/${encodeURIComponent(studioId)}` : '';
+  };
   async function refreshBase(force) {
     if (!api || (!force && Date.now() - baseAt < 15000)) return;
     baseAt = Date.now();
     try {
       const sys = await api('/system');
       const t = sys.tunnel?.url || '';
-      const base = t || sys.lan?.[0]?.url || '';
+      const base = t || sys.lan?.[0]?.url || location.origin;
       const local = !t;
       if (base !== voteBase || local !== voteLocalOnly) {
         voteBase = base;

@@ -33,6 +33,7 @@ import { createAutoVoice } from './autoswitch.js';
 import { createRemote } from './remote.js';
 import { createFloatWins } from './floatwin.js';
 import { createMeters } from './meters.js';
+import { createBreaks } from './breaks.js';
 import { createScenes } from './scenes.js';
 import { createDsk } from './dsk.js';
 import { createCameraPanel } from './camera-panel.js';
@@ -119,6 +120,7 @@ let remote; // controle remoto por celular (QR, papel 'remote' na sinalização)
 let autoVoice; // AUTO-VOZ: corte automático por quem está falando (só com a mesa de corte)
 let meters; // medidores de áudio à vista (programa + miniaturas)
 let scenes; // cenas rápidas F1–F6
+let breaks; // blocos de Break Comercial
 let dsk; // DSK 1 e 2 (camadas por cima do programa)
 let browserSources; // fonte Browser (página URL em navegador headless)
 let cameras; // painel "Câmeras": preview e ajustes das câmeras locais/remotas
@@ -424,10 +426,11 @@ async function buildStudio() {
         <aside class="vdock" id="vdock" hidden aria-label="Saída vertical 9:16"></aside>
       </div>
       <div class="rz rz-h" id="rz-stage" role="separator" aria-orientation="horizontal" title="Arraste para mudar a altura do preview (duplo clique restaura)"></div>
-      <div class="deck-toggle-row"><button class="deck-chip" id="btn-deck" type="button" aria-expanded="true" title="Recolher o deck de cenas e fontes para dar mais altura ao programa"><span class="deck-chev" aria-hidden="true">▾</span><span>Recolher deck</span></button></div>
+      <div class="deck-toggle-row">
+        <div class="qscenes" id="qscenes" role="toolbar" aria-label="Atalhos de cena (F1–F6)"></div>
+        <button class="deck-chip" id="btn-deck" type="button" aria-expanded="true" title="Recolher o deck de cenas e fontes para dar mais altura ao programa"><span class="deck-chev" aria-hidden="true">▾</span><span>Recolher deck</span></button>
+      </div>
       <div class="gcbar deck" id="gcbar"></div>
-      <div class="qscenes" id="qscenes" role="toolbar" aria-label="Cenas rápidas"></div>
-      <div class="stagebar" id="stagebar"></div>
       <div class="switcher" id="switcher" hidden></div>
       <div class="layouts" id="layouts"></div>
       <div class="backstage" id="backstage"></div>
@@ -1484,6 +1487,17 @@ async function buildStudio() {
   // DSK 1 e 2: camadas por cima do programa, iguais no modo Estúdio e na mesa de corte
   dsk = createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studioId, saveStudio, onChange: applyDskAir });
   window.__castdeck.dsk = dsk;
+  breaks = createBreaks({
+    S, $, $$, esc, toast, setBrand, mediaList, playMedia,
+    setStage, setSolo, setLayout, renderTiles, renderLayouts, switcher,
+    toggleMic: () => $('#c-mic')?.onclick?.(),
+    toggleSafe: (v) => setSafeMode(v),
+    fmtClock,
+    onStateChange: () => {
+      if (tabOpen('playout')) breaks.renderPlayoutSection($('#pl-breaks'));
+    },
+  });
+  window.__castdeck.breaks = breaks;
   cameras = createCameraPanel({
     S,
     getSig: () => sig,
@@ -3917,6 +3931,7 @@ function addMediaFile(file, opts = {}) {
   el.onended = () => {
     renderTiles();
     if (tabOpen('media')) updateMediaRows();
+    if (breaks?.onMediaEnded(id)) return;
     if (S.playlist.on && !el.loop) playlistStep(id, 1, { auto: true });
   };
   renderTiles();
@@ -4775,6 +4790,7 @@ function renderMediaPanel() {
 
 // ---- Playout: fila canônica + mini player estável (painel separado de Mídia) ----
 var playoutSig = null;
+var playoutSubTab = 'queue';
 
 function playoutCurrent() {
   const list = mediaList();
@@ -4831,7 +4847,11 @@ function renderPlayoutPanel() {
   const p = $('#panel-playout');
   if (!p) return;
   const list = mediaList();
-  if (!list.length) {
+  const brkSt = breaks?.getState?.() || { active: false, list: [], selected: null };
+  const brkList = brkSt.list || [];
+  const brkSel = brkSt.selected;
+
+  if (!list.length && playoutSubTab === 'queue') {
     playoutSig = '';
     p.innerHTML = `<div class="pl-empty"><b>Nenhum vídeo ou áudio na fila</b><span>Adicione arquivos na aba Mídia para começar.</span><button class="btn primary" id="pl-open-media">Abrir Mídia</button></div>`;
     $('#pl-open-media', p).onclick = () => openSideTab('media');
@@ -4844,52 +4864,98 @@ function renderPlayoutPanel() {
   playoutSig = sig;
   const duration = fmtClock(cur?.el?.duration);
   const pos = queuePosition(curId);
+  const curOnAir = cur ? (S.take === cur.id || S.solo === cur.id || S.stage.includes(cur.id)) : false;
+
   p.innerHTML = `
     <div class="pl-title-row">
-      <div><h3>${icons.play} Playout</h3><p class="hint">Fila, mini player e automação. A biblioteca fica em Mídia.</p></div>
-      <button class="btn sm" id="pl-open-media">Mídia</button>
+      <div><h3>${icons.play} Playout</h3><p class="hint">Controle de exibição e Breaks Comerciais.</p></div>
+      <button class="btn sm" id="pl-open-media">＋ Mídia</button>
     </div>
-    <section class="pl-now" id="pl-now">
-      <div class="pl-now-thumb"><canvas id="pl-thumb" width="320" height="180"></canvas><span class="pl-now-badge" id="pl-now-badge"></span></div>
-      <div class="pl-now-body">
-        <div class="pl-eyebrow">Agora</div>
-        <b id="pl-now-title">${esc(cur?.label || '')}</b>
-        <small id="pl-now-sub">#${pos || 1}/${list.length} · ${duration}</small>
-        <div class="pl-prog" id="pl-prog" title="Clique para buscar"><i></i></div>
-        <div class="pl-now-row">
-          <span id="pl-now-time">0:00 / ${duration}</span>
-          <span class="grow"></span>
-          <button class="btn sm icon" id="pl-prev" title="Anterior na fila">⏮</button>
-          <button class="btn sm icon primary" id="pl-play" title="Tocar/Pausar">▶</button>
-          <button class="btn sm icon" id="pl-next" title="Próximo na fila">⏭</button>
-          <input type="range" class="pl-vol" id="pl-vol" min="0" max="1" step="0.01" title="Volume" aria-label="Volume">
-          <button class="btn sm" id="pl-stage" title="Colocar/tirar do palco">Palco</button>
-        </div>
+    <div class="pl-subtabs" role="tablist" aria-label="Visões do Playout">
+      <button type="button" class="pl-subtab ${playoutSubTab === 'queue' ? 'active' : ''}" data-pl-sub="queue">▶ Fila / Ao Vivo</button>
+      <button type="button" class="pl-subtab ${playoutSubTab === 'breaks' ? 'active' : ''} ${brkSt.active ? 'live' : ''}" data-pl-sub="breaks">📺 Breaks (${brkList.length})</button>
+    </div>
+    ${brkList.length ? `
+      <div class="pl-brk-quick ${brkSt.active ? 'on' : ''}">
+        <select class="input sm" id="pl-brk-qsel" ${brkSt.active ? 'disabled' : ''} aria-label="Bloco comercial rápido">
+          ${brkList.map((b) => `<option value="${esc(b.id)}" ${b.id === brkSel?.id ? 'selected' : ''}>${esc(b.name)} (${fmtClock(breaks.totalDuration(b.id))})</option>`).join('')}
+        </select>
+        ${brkSt.active
+          ? `<button class="btn sm danger" id="pl-brk-qstop">⏹ Voltar (${fmtClock(brkSt.remaining)})</button>`
+          : `<button class="btn sm primary" id="pl-brk-qgo">▶ Soltar Break</button>`}
       </div>
-    </section>
-    <div class="pl-nextup"><span>Próximo</span><b id="pl-nextup-title">${next ? esc(next.label) : 'Fim da fila'}</b></div>
-    <section class="pl-queue">
-      <div class="pl-queue-head"><b>Fila</b><span class="hint">${list.length} ${list.length === 1 ? 'item' : 'itens'} · arraste para ordenar</span></div>
-      <div class="pl-list" id="pl-list">${list.map((s, i) => {
-    const onAir = S.take === s.id;
+    ` : ''}
+    ${playoutSubTab === 'breaks' ? `
+      <section class="pl-breaks" id="pl-breaks"></section>
+    ` : `
+      <section class="pl-now" id="pl-now">
+        <div class="pl-now-thumb"><canvas id="pl-thumb" width="320" height="180"></canvas><span class="pl-now-badge" id="pl-now-badge"></span></div>
+        <div class="pl-now-body">
+          <div class="pl-now-head-line">
+            <div class="pl-eyebrow">Agora · #${pos || 1}/${list.length}</div>
+            <span class="pl-now-rem" id="pl-now-rem">-${duration}</span>
+          </div>
+          <b id="pl-now-title">${esc(cur?.label || '')}</b>
+          <div class="pl-prog" id="pl-prog" title="Clique para buscar"><i></i></div>
+          <div class="pl-now-row">
+            <span id="pl-now-time">0:00 / ${duration}</span>
+            <span class="grow"></span>
+            <button class="btn sm icon" id="pl-prev" title="Anterior na fila">⏮</button>
+            <button class="btn sm icon" id="pl-play" title="Tocar/Pausar no player">▶</button>
+            <button class="btn sm icon" id="pl-next" title="Próximo na fila">⏭</button>
+            <input type="range" class="pl-vol" id="pl-vol" min="0" max="1" step="0.01" title="Volume" aria-label="Volume">
+          </div>
+          <div class="pl-now-air-row">
+            <button class="btn sm ${curOnAir ? 'danger' : 'primary'} pl-air-btn" id="pl-air">${curOnAir ? '✕ Tirar do Ar' : '▶ Entrar no Ar'}</button>
+            <button class="btn sm" id="pl-stage" title="Apenas colocar/tirar do palco sem dar play">Palco</button>
+          </div>
+        </div>
+      </section>
+      <div class="pl-nextup"><span>Próximo a entrar</span><b id="pl-nextup-title">${next ? esc(next.label) : 'Fim da fila'}</b></div>
+      <section class="pl-queue">
+        <div class="pl-queue-head"><b>Programação (${list.length})</b><span class="hint">arraste para ordenar</span></div>
+        <div class="pl-list" id="pl-list">${list.map((s, i) => {
+    const onAir = S.take === s.id || S.solo === s.id;
     const onStage = S.stage.includes(s.id);
     const playing = !s.el.paused && !s.el.ended;
     return `<div class="pl-item ${s.id === curId ? 'current' : ''} ${onAir ? 'on-air' : onStage ? 'on-stage' : ''} ${playing ? 'playing' : ''}" data-plid="${esc(s.id)}" draggable="true">
           <span class="pl-idx">${i + 1}</span>
           <canvas class="pl-item-thumb" width="128" height="72" data-plthumb></canvas>
-          <div class="pl-item-info"><b>${esc(String(s.label).replace(/^[^\p{L}\p{N}]+/u, ''))}</b><small>${onAir ? 'No ar' : onStage ? 'No palco' : playing ? 'Tocando' : fmtClock(s.el.duration)}</small></div>
-          <button class="btn sm icon" data-plcue title="Selecionar sem tocar">•</button>
+          <div class="pl-item-info"><b>${esc(String(s.label).replace(/^[^\p{L}\p{N}]+/u, ''))}</b><small>${onAir ? '● No ar' : onStage ? 'No palco' : playing ? 'Tocando' : fmtClock(s.el.duration)}</small></div>
+          <button class="btn sm icon" data-plgo title="Entrar no ar agora">▶</button>
           <button class="btn sm icon" data-plmore title="Mais ações">⋯</button>
         </div>`;
   }).join('')}</div>
-    </section>
-    <section class="pl-auto">
-      <label class="check pl-opt"><span>Tocar um após o outro</span><span class="switch"><input type="checkbox" id="pl-on" ${S.playlist.on ? 'checked' : ''}><span></span></span></label>
-      <label class="check pl-opt" title="${S.switcher ? 'Mesa: o próximo vídeo assume o take do PGM quando o atual termina' : 'Estúdio: o próximo vídeo assume o Solo ou o slot do palco quando o atual termina'}"><span>${S.switcher ? 'Seguir no PGM' : 'Seguir no palco'}</span><span class="switch"><input type="checkbox" id="pl-follow" ${S.playlist.follow !== false ? 'checked' : ''}><span></span></span></label>
-      <label class="check pl-opt"><span>Repetir a lista</span><span class="switch"><input type="checkbox" id="pl-loop" ${S.playlist.loop ? 'checked' : ''}><span></span></span></label>
-      <button class="btn sm primary" id="pl-start">▶ Tocar playlist</button>
-    </section>`;
+      </section>
+      <details class="pl-auto-acc">
+        <summary>Automação da fila</summary>
+        <section class="pl-auto">
+          <label class="check pl-opt"><span>Tocar um após o outro</span><span class="switch"><input type="checkbox" id="pl-on" ${S.playlist.on ? 'checked' : ''}><span></span></span></label>
+          <label class="check pl-opt" title="${S.switcher ? 'Mesa: o próximo vídeo assume o take do PGM quando o atual termina' : 'Estúdio: o próximo vídeo assume o Solo ou o slot do palco quando o atual termina'}"><span>${S.switcher ? 'Seguir no PGM' : 'Seguir no palco'}</span><span class="switch"><input type="checkbox" id="pl-follow" ${S.playlist.follow !== false ? 'checked' : ''}><span></span></span></label>
+          <label class="check pl-opt"><span>Repetir a lista</span><span class="switch"><input type="checkbox" id="pl-loop" ${S.playlist.loop ? 'checked' : ''}><span></span></span></label>
+          <button class="btn sm primary" id="pl-start">▶ Tocar playlist</button>
+        </section>
+      </details>
+    `}`;
   $('#pl-open-media', p).onclick = () => openSideTab('media');
+  $$('[data-pl-sub]', p).forEach((b) => {
+    b.onclick = () => {
+      playoutSubTab = b.dataset.plSub;
+      renderPlayoutPanel();
+    };
+  });
+  $('#pl-brk-qsel', p)?.addEventListener('change', (e) => breaks?.select(e.target.value));
+  $('#pl-brk-qgo', p)?.addEventListener('click', () => {
+    const id = $('#pl-brk-qsel', p)?.value || brkSel?.id;
+    breaks?.start(id);
+  });
+  $('#pl-brk-qstop', p)?.addEventListener('click', () => breaks?.stop({ restore: true }));
+
+  if (playoutSubTab === 'breaks') {
+    breaks?.renderPlayoutSection($('#pl-breaks', p));
+    return;
+  }
+
   $('#pl-play', p).onclick = () => {
     const s = S.sources.get(playoutCurrent());
     if (!s) return;
@@ -4898,6 +4964,26 @@ function renderPlayoutPanel() {
       playMedia(s.id);
     } else if (s.el.paused) playMedia(s.id);
     else s.el.pause();
+    renderPlayoutPanel();
+  };
+  $('#pl-air', p).onclick = () => {
+    const s = S.sources.get(playoutCurrent());
+    if (!s) return;
+    const isOn = S.take === s.id || S.solo === s.id || S.stage.includes(s.id);
+    if (isOn) {
+      if (S.switcher && S.take === s.id) switcher.cutTo(null);
+      if (S.solo === s.id) setSolo(null);
+      if (S.stage.includes(s.id)) toggleStage(s.id);
+      if (!s.el.paused) s.el.pause();
+    } else {
+      if (S.switcher) switcher.cutTo(s.id);
+      else {
+        if (!S.stage.includes(s.id)) setStage([...S.stage, s.id]);
+        setSolo(s.id);
+      }
+      if (s.el.ended) s.el.currentTime = 0;
+      if (s.el.paused) playMedia(s.id);
+    }
     renderPlayoutPanel();
   };
   $('#pl-prev', p).onclick = () => playoutAdvance(-1);
@@ -4933,22 +5019,25 @@ function renderPlayoutPanel() {
     if (!s) return;
     row.querySelector('canvas[data-plthumb]') && paintPlayoutThumb(row.querySelector('canvas[data-plthumb]'), s);
     row.onclick = (e) => {
-      if (e.target.closest('button[data-plmore]')) return;
-      if (e.target.closest('button[data-plcue]')) {
-        deckSel = s.id;
-        tickDeck();
-        renderPlayoutPanel();
-        return;
-      }
+      if (e.target.closest('button[data-plmore], button[data-plgo]')) return;
       deckSel = s.id;
       tickDeck();
       renderPlayoutPanel();
     };
-    row.ondblclick = () => {
-      s.el.currentTime = 0;
+    $('[data-plgo]', row).onclick = (e) => {
+      e.stopPropagation();
+      deckSel = s.id;
+      if (S.switcher) switcher.cutTo(s.id);
+      else {
+        if (!S.stage.includes(s.id)) setStage([...S.stage, s.id]);
+        setSolo(s.id);
+      }
+      if (s.el.ended) s.el.currentTime = 0;
       playMedia(s.id);
+      tickDeck();
       renderPlayoutPanel();
     };
+    row.ondblclick = () => $('[data-plgo]', row).click();
     $('[data-plmore]', row).onclick = (e) => {
       e.stopPropagation();
       openMediaMenu(s).then(() => {
@@ -4997,11 +5086,23 @@ function updatePlayout() {
   const pos = queuePosition(curId);
   const cv = $('#pl-thumb', p);
   if (cv) paintPlayoutThumb(cv, cur);
+  const remEl = $('#pl-now-rem', p);
+  if (remEl) {
+    const d = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : 0;
+    remEl.textContent = d ? `-${fmtClock(Math.max(0, d - el.currentTime))}` : fmtClock(el.currentTime);
+  }
   $('#pl-now-title', p).textContent = cur.label || '';
-  $('#pl-now-sub', p).textContent = `#${pos || 1}/${list.length} · ${fmtClock(el.duration)}`;
   $('#pl-now-time', p).textContent = `${fmtClock(el.currentTime)} / ${fmtClock(el.duration)}`;
-  $('#pl-now-badge', p).textContent = S.take === cur.id ? 'NO AR' : S.stage.includes(cur.id) ? 'NO PALCO' : '';
-  $('#pl-now-badge', p).className = 'pl-now-badge' + (S.take === cur.id ? ' live' : S.stage.includes(cur.id) ? ' stage' : '');
+  const isAir = S.take === cur.id || S.solo === cur.id || S.stage.includes(cur.id);
+  $('#pl-now-badge', p).textContent = isAir ? '● NO AR' : 'PRONTO';
+  $('#pl-now-badge', p).className = 'pl-now-badge' + (isAir ? ' live' : '');
+  const airBtn = $('#pl-air', p);
+  if (airBtn) {
+    airBtn.textContent = isAir ? '✕ Tirar do Ar' : '▶ Entrar no Ar';
+    airBtn.className = `btn sm ${isAir ? 'danger' : 'primary'} pl-air-btn`;
+  }
+  const brkStop = $('#pl-brk-qstop', p);
+  if (brkStop && breaks?.isActive?.()) brkStop.textContent = `⏹ Voltar (${fmtClock(breaks.remainingSeconds())})`;
   const prog = $('#pl-prog i', p);
   if (prog) prog.style.width = el.duration ? `${Math.min(100, (el.currentTime / el.duration) * 100)}%` : '0%';
   const play = $('#pl-play', p);

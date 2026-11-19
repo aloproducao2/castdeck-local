@@ -170,11 +170,13 @@ export function createProjectors({ S, getStreams, getMixer, getVfx, $, esc, toas
     }
   }
 
+  let projSeq = 0;
+
   function launch(src, scr) {
     const url = `/projector.html?src=${encodeURIComponent(src)}`;
-    // nome fixo por sinal + tela: clicar de novo reaproveita a mesma janela em vez de abrir outra
+    // nome único por abertura para permitir múltiplas janelas da mesma fonte quando o usuário pedir
     const safeName = String(src).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const name = `castdeck-proj-${safeName}-${scr ? `${scr.left}x${scr.top}` : 'win'}`;
+    const name = `castdeck-proj-${safeName}-${++projSeq}-${Date.now().toString(36)}`;
     const feat = scr
       ? `popup,left=${scr.availLeft ?? scr.left},top=${scr.availTop ?? scr.top},width=${scr.availWidth ?? scr.width},height=${scr.availHeight ?? scr.height},fullscreen`
       : `popup,width=${src === 'vpgm' ? 540 : 960},height=${src === 'vpgm' ? 960 : 540}`;

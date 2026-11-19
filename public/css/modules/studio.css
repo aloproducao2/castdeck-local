@@ -4078,9 +4078,17 @@ body.rz-row * {
 
 .deck-toggle-row {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   flex: none;
-  margin: -5px 0 -7px;
+  min-width: 0;
+  margin: -4px 0 -4px;
+}
+
+.deck-toggle-row .deck-chip {
+  margin-left: auto;
+  flex: none;
 }
 
 .deck-chip {

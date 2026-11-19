@@ -151,13 +151,13 @@ export function createScenes({ S, comp, $, esc, toast, modal, promptDialog, conf
     if (!force && k === lastKey) return;
     lastKey = k;
     box.classList.toggle('collapsed', collapsed);
-    let html = `<button class="qs-lbl qs-toggle" id="qs-toggle" type="button" aria-expanded="${!collapsed}" title="${collapsed ? t('Expandir barra de cenas (F1–F6)') : t('Recolher barra de cenas (economiza espaço)')}"><span class="qs-chev">${collapsed ? '▸' : '▾'}</span> <span>${t('Cenas')}</span>${collapsed && act >= 0 && arr[act] ? ` <b class="qs-active-tag">F${act + 1}: ${esc(arr[act].name)}</b>` : collapsed ? ` <span class="qs-hint-tag">F1–F6</span>` : ''}</button>`;
+    let html = `<button class="qs-lbl qs-toggle" id="qs-toggle" type="button" aria-expanded="${!collapsed}" title="${collapsed ? t('Expandir atalhos F1–F6 (salvam layout, palco e GC)') : t('Recolher atalhos F1–F6')}"><span class="qs-chev">${collapsed ? '▸' : '▾'}</span> <span>F1–F6</span>${collapsed && act >= 0 && arr[act] ? ` <b class="qs-active-tag">F${act + 1}: ${esc(arr[act].name)}</b>` : ''}</button>`;
     if (!collapsed) {
       for (let i = 0; i < MAX; i++) {
         const sc = arr[i];
         html += sc
           ? `<button class="qs ${i === act ? 'on' : ''}" data-qs="${i}" title="${esc(sc.name)} (F${i + 1}). ${t('Clique direito ou toque longo: salvar por cima, renomear, apagar')}"><b>F${i + 1}</b><span translate="no">${esc(sc.name)}</span></button>`
-          : `<button class="qs empty" data-qs="${i}" title="${t('Salvar a cena atual neste botão')} (F${i + 1})"><b>F${i + 1}</b><span>＋ ${t('Salvar')}</span></button>`;
+          : `<button class="qs empty" data-qs="${i}" title="${t('Salvar layout, palco e GC atuais em')} F${i + 1}"><b>F${i + 1}</b></button>`;
       }
     }
     box.innerHTML = html;

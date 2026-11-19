@@ -12,6 +12,8 @@ const PAD_STORE = 'samples';
 const CHANNEL = 'music:ambient';
 const PAD_CHANNEL = 'pad:sfx';
 const MAX_FILE = 300 * 1024 * 1024;
+const MAX_PAD_AUDIO = 50 * 1024 * 1024;
+const MAX_PAD_VIDEO = 1024 * 1024 * 1024; // 1 GB (armazenado como Blob no IndexedDB, sem base64)
 const MAX_TRACKS = 100;
 const MAX_PAD_SAMPLES = 400;
 const AUDIO_EXT = /\.(mp3|wav|ogg|oga|m4a|aac|flac|opus|weba|webm)$/i;
@@ -773,44 +775,77 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
       const sample = pending[cursor++];
       const isVid = sample.kind === 'video';
       const a = isVid ? document.createElement('video') : new Audio();
-      a.preload = isVid ? 'auto' : 'metadata';
-      if (isVid) a.muted = true;
+      a.preload = 'metadata';
+      if (isVid) {
+        a.muted = true;
+        a.playsInline = true;
+      }
       a.src = sample.url;
+      let finished = false;
+      let timer = null;
+      let capTimer = null;
+      const captureThumb = () => {
+        try {
+          if (a.videoWidth > 0 && a.videoHeight > 0) {
+            const cv = document.createElement('canvas');
+            cv.width = 128;
+            cv.height = 72;
+            const ctx = cv.getContext('2d');
+            const sc = Math.min(128 / a.videoWidth, 72 / a.videoHeight);
+            const dw = a.videoWidth * sc;
+            const dh = a.videoHeight * sc;
+            ctx.drawImage(a, (128 - dw) / 2, (72 - dh) / 2, dw, dh);
+            sample.thumb = cv.toDataURL('image/webp', 0.72);
+            flushProbeUi();
+          }
+        } catch {}
+      };
       const done = () => {
-        try { a.onseeked = null; a.onloadedmetadata = null; a.onerror = null; a.removeAttribute('src'); a.load?.(); } catch {}
+        if (finished) return;
+        finished = true;
+        if (timer) clearTimeout(timer);
+        if (capTimer) clearTimeout(capTimer);
+        try {
+          a.pause?.();
+          a.onloadedmetadata = null;
+          a.onloadeddata = null;
+          a.onseeked = null;
+          a.onerror = null;
+          a.removeAttribute('src');
+          a.load?.();
+        } catch {}
         next();
       };
+      timer = setTimeout(done, isVid ? 5000 : 4000);
       a.onloadedmetadata = () => {
         if (Number.isFinite(a.duration) && a.duration > 0) {
           sample.duration = a.duration;
           padMeta[sample.id] = { ...(padMeta[sample.id] || {}), duration: a.duration };
           flushProbeUi();
         }
-        if (isVid && !sample.thumb) {
-          try {
-            a.currentTime = Number.isFinite(a.duration) && a.duration > 0.2 ? Math.min(0.4, a.duration * 0.2) : 0.05;
-            return;
-          } catch {}
+        if (!isVid || sample.thumb) {
+          done();
+          return;
         }
-        done();
+        try {
+          const p = a.play?.();
+          if (p?.catch) {
+            p.catch(() => {
+              if (a.readyState >= 2) {
+                captureThumb();
+                done();
+              }
+            });
+          }
+        } catch {}
       };
       if (isVid) {
-        a.onseeked = () => {
-          try {
-            if (a.videoWidth > 0 && a.videoHeight > 0) {
-              const cv = document.createElement('canvas');
-              cv.width = 128;
-              cv.height = 72;
-              const ctx = cv.getContext('2d');
-              const sc = Math.min(128 / a.videoWidth, 72 / a.videoHeight);
-              const dw = a.videoWidth * sc;
-              const dh = a.videoHeight * sc;
-              ctx.drawImage(a, (128 - dw) / 2, (72 - dh) / 2, dw, dh);
-              sample.thumb = cv.toDataURL('image/webp', 0.72);
-              flushProbeUi();
-            }
-          } catch {}
-          done();
+        a.onloadeddata = () => {
+          if (finished || sample.thumb || capTimer) return;
+          capTimer = setTimeout(() => {
+            captureThumb();
+            done();
+          }, 320);
         };
       }
       a.onerror = done;
@@ -1263,9 +1298,9 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
         break;
       }
       const isVid = isPadVideo(file);
-      const maxBytes = isVid ? 150 * 1024 * 1024 : 50 * 1024 * 1024;
+      const maxBytes = isVid ? MAX_PAD_VIDEO : MAX_PAD_AUDIO;
       if (file.size > maxBytes) {
-        toast(`${file.name}: maior que ${isVid ? '150' : '50'} MB.`, 'err');
+        toast(`${file.name}: maior que ${isVid ? '1 GB' : '50 MB'}.`, 'err');
         continue;
       }
       const id = `pad-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;

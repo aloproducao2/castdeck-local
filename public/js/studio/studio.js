@@ -16,6 +16,7 @@ import { createBrowserSources } from './browser-source.js';
 import { VideoFx, FX_BACKGROUNDS } from './vfx.js';
 import { Broadcaster } from './broadcaster.js';
 import { createOnAir } from './onair.js';
+import { createPlugins } from './plugins.js';
 import { createSocial } from './social-ui.js';
 import { createNews } from './news.js';
 import { initResizers } from './resize.js';
@@ -106,7 +107,7 @@ const S = {
   intercom: { talk: {}, listen: {}, ifb: true, ifbLevel: 0.18, ptt: false, latch: false },
 };
 
-let comp, mixer, sig, programStream, broadcaster, ticker, social, news, gcDesigner, audioPanel, vfx, multiRec;
+let comp, mixer, sig, programStream, broadcaster, ticker, social, news, gcDesigner, audioPanel, vfx, multiRec, plugins;
 // FPS real do render do programa (janela de 1 s). Serve de medidor do custo dos 4 ISOs no replay.
 let renderFps = 0;
 let renderFrames = 0;
@@ -202,6 +203,7 @@ const TAB_GROUPS = [
       ['raffle', 'Sorteio', 'spark', 'Sorteio ao vivo com QR Code na tela e captura pelo chat'],
       ['messages', 'Mensagens', 'inbox', 'O público manda texto curto ou áudio pelo QR Code; você escolhe o que vai ao ar'],
       ['whatsapp', 'WhatsApp', 'whatsapp', 'Bridge local: receba mensagens e áudios do WhatsApp e escolha o que vai ao ar'],
+      ['plugins', 'Plugins', 'spark', 'Plugins gratuitos: comandos de chat, luz, planilha, agenda e mais'],
     ],
   },
   {
@@ -513,6 +515,7 @@ async function buildStudio() {
       <div class="panel" id="panel-output"></div>
       <div class="panel" id="panel-display"></div>
       <div class="panel" id="panel-devices"></div>
+      <div class="panel" id="panel-plugins"></div>
       <div class="panel" id="panel-outputs"></div>
       <div class="panel" id="panel-ndi"></div>
       <div class="panel" id="panel-multirec"></div>
@@ -527,6 +530,7 @@ async function buildStudio() {
   });
 
   comp = new Compositor($('#program-canvas'));
+  plugins = createPlugins({ S, $, toast, modal, confirmDialog, comp });
   comp.safeDefaults = safeCopy();
   window.CDi18n?.onChange?.(() => { comp.safeDefaults = safeCopy(); });
   // efeitos de câmera (fundo virtual, enquadramento automático): motores só carregam quando usados
@@ -1958,6 +1962,7 @@ function startRenderLoop() {
     }
   };
   ticker.postMessage(1000 / S.system.presets[S.preset].fps);
+  setInterval(() => plugins?.publicarEventos?.(), 2000);
 }
 
 // Recuperação não destrutiva da câmera do host: nada de parar o track sozinho.
@@ -5558,6 +5563,7 @@ function connectSignaling() {
     outputs.reset(m.outputs || []);
     pushStudioState();
   });
+  sig.on('plugin', (m) => plugins?.tratarAcao({ ...m, type: 'plugin' }));
   sig.on('output-joined', (m) => outputs.add(m.id, m.src));
   sig.on('output-left', (m) => outputs.remove(m.id));
   sig.on('guest-joined', (m) => {
@@ -5846,7 +5852,7 @@ function tabOpen(t) {
   return S.tab === t || !!floatWins?.has(t);
 }
 function renderTabContent(tab) {
-  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), raffle: () => raffle.render($('#panel-raffle')), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, music: renderMusicPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, outputs: () => outputs.open(), ndi: renderNdiPanel, multirec: () => multiRec?.render?.(), intercom: renderIntercomPanel })[tab]?.();
+  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), raffle: () => raffle.render($('#panel-raffle')), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, music: renderMusicPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, plugins: () => plugins?.render(), outputs: () => outputs.open(), ndi: renderNdiPanel, multirec: () => multiRec?.render?.(), intercom: renderIntercomPanel })[tab]?.();
 }
 
 // marca nas abas da lateral quais estão destacadas e cuida do botão ⧉

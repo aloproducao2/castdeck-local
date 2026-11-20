@@ -1,0 +1,480 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Miguel Kallemback / flue.live — CastDeck
+// Gerenciador de plugins: instala/atualiza/ativa, guarda consentimentos, executa ações e mantém auditoria.
+// Tudo fica em DATA/plugins — fora do executável, sobrevive a updates.
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import fsp from 'node:fs/promises';
+import path from 'node:path';
+import { EventEmitter } from 'node:events';
+import { readZip } from './zip.js';
+import { PluginRuntime } from './plugin-runtime.js';
+import { MotorDeclarativo } from './plugin-declarative.js';
+import { CatalogClient } from './plugin-catalog.js';
+import {
+  API_VERSION,
+  CAPABILITIES,
+  CAPACIDADES_SENSIVEIS,
+  descreverPermissoes,
+  hostPermitido,
+  normalizarPermissoes,
+  validarManifesto,
+  validarPacote,
+  vence,
+} from './plugin-manifest.js';
+
+const MAX_LOG = 200 * 1024;
+
+export class PluginManager extends EventEmitter {
+  constructor({ dataDir, appVersion, catalogUrl = '', logger = console, acoesCliente = null }) {
+    super();
+    this.dir = path.join(dataDir, 'plugins');
+    this.stateFile = path.join(this.dir, 'state.json');
+    this.auditFile = path.join(this.dir, 'audit.log');
+    this.appVersion = appVersion;
+    this.catalogUrl = catalogUrl;
+    this.log = logger;
+    this.acoesCliente = acoesCliente; // fn({studioId, type, payload}) -> envia ao estúdio
+    this.state = { plugins: {}, revoked: {} };
+    this.runtimes = new Map(); // id -> PluginRuntime
+    this.catalogoClient = new CatalogClient({
+      url: this.catalogUrl,
+      cacheFile: path.join(this.dir, 'catalog.json'),
+      log: (l) => this.log.log(l),
+    });
+    this.declarativos = new MotorDeclarativo({
+      executarAcao: (ctx) => this.executarAcao(ctx),
+      log: (l) => this.log.log(l),
+    });
+    this.prontos = false;
+  }
+
+  async carregar() {
+    await fsp.mkdir(this.dir, { recursive: true });
+    try {
+      const lido = JSON.parse(await fsp.readFile(this.stateFile, 'utf8'));
+      this.state = { plugins: lido.plugins || {}, revoked: lido.revoked || {} };
+    } catch {}
+    this.prontos = true;
+    // ativa o que estava ativo
+    for (const [id, st] of Object.entries(this.state.plugins)) {
+      if (!st?.enabled) continue;
+      try {
+        await this.ativar(id, { silencioso: true });
+      } catch (e) {
+        this.log.warn(`[plugins] ${id} não ativou: ${e.message}`);
+      }
+    }
+    return this;
+  }
+
+  async salvar() {
+    await fsp.mkdir(this.dir, { recursive: true });
+    await fsp.writeFile(this.stateFile, JSON.stringify(this.state, null, 2), 'utf8');
+  }
+
+  auditar(evento) {
+    const linha = JSON.stringify({ em: new Date().toISOString(), ...evento });
+    fs.appendFile(this.auditFile, linha + '\n', () => {});
+    this.emit('audit', evento);
+  }
+
+  pasta(id) {
+    return path.join(this.dir, id);
+  }
+
+  manifestoDe(id) {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(this.pasta(id), 'plugin.json'), 'utf8'));
+    } catch {
+      return null;
+    }
+  }
+
+  // Lista para a UI: instalados + estado
+  listar() {
+    const out = [];
+    for (const [id, st] of Object.entries(this.state.plugins)) {
+      const m = this.manifestoDe(id);
+      if (!m) continue;
+      const rt = this.runtimes.get(id);
+      out.push({
+        id,
+        nome: m.name,
+        versao: m.version,
+        autor: m.author?.name || '',
+        licenca: m.license,
+        tier: m.tier,
+        descricao: m.description || '',
+        instaladoEm: st.installedAt || null,
+        ativo: !!st.enabled,
+        rodando: !!rt?.ativo,
+        quarentena: !!rt?.quarentena,
+        erro: st.lastError || rt?.ultimoErro || null,
+        permissivas: (m.permissions || []).length,
+        permissoes: m.permissions || [],
+        permissoesTexto: descreverPermissoes(m.permissions),
+        sensiveis: (m.permissions || []).filter((p) => CAPACIDADES_SENSIVEIS.has(p) || String(p).startsWith('network:')),
+        concedidas: st.grants || [],
+        painel: (m.panels || [])[0] || null,
+        overlay: (m.overlays || [])[0] || null,
+        pronto: rt?.ativo || m.tier === 'declarative',
+      });
+    }
+    return out.sort((a, b) => a.nome.localeCompare(b.nome));
+  }
+
+  // Instala a partir de um .cdplug (zip) ou de uma pasta (plugins oficiais/dev)
+  async instalar({ zipBuffer = null, pastaOrigem = null, substituir = true, instaladoPor = 'manual' }) {
+    let entradas;
+    let origemHash = '';
+    if (zipBuffer) {
+      entradas = readZip(zipBuffer);
+      origemHash = crypto.createHash('sha256').update(zipBuffer).digest('hex');
+      const checagem = validarPacote(entradas, { castdeckVersion: this.appVersion });
+      if (!checagem.ok) throw new Error(checagem.erros.join('; '));
+    } else if (pastaOrigem) {
+      entradas = await this.lerPasta(pastaOrigem);
+      origemHash = crypto.createHash('sha256').update(JSON.stringify(entradas.map((e) => e.name))).digest('hex');
+    } else {
+      throw new Error('envie um arquivo .cdplug ou uma pasta');
+    }
+    const manifestoBruto = entradas.find((e) => /(^|\/)plugin\.json$/.test(e.name));
+    if (!manifestoBruto) throw new Error('pacote sem plugin.json');
+    let manifesto;
+    try {
+      manifesto = JSON.parse(manifestoBruto.data.toString('utf8'));
+    } catch (e) {
+      throw new Error(`plugin.json inválido: ${e.message}`);
+    }
+    if (this.revogado(manifesto.id, manifesto.version)) throw new Error('esta versão foi revogada pelo catálogo');
+    const v = validarManifesto(manifesto, { castdeckVersion: this.appVersion });
+    if (!v.ok) throw new Error(v.erros.join('; '));
+    const id = manifesto.id;
+    if (this.state.plugins[id]?.revoked) throw new Error('esta versão foi revogada pelo catálogo');
+    const destino = this.pasta(id);
+    const jaTem = !!this.state.plugins[id];
+    if (jaTem && !substituir) throw new Error('plugin já instalado');
+
+    // grava em pasta temporária e troca no final (instalação atômica)
+    const tmp = destino + '.novo';
+    await fsp.rm(tmp, { recursive: true, force: true });
+    await fsp.mkdir(tmp, { recursive: true });
+    for (const e of entradas) {
+      const rel = e.name.replace(/^\.?\//, '');
+      const alvo = path.join(tmp, rel);
+      if (!alvo.startsWith(tmp)) continue; // zip-slip
+      await fsp.mkdir(path.dirname(alvo), { recursive: true });
+      await fsp.writeFile(alvo, e.data);
+    }
+    // preserva settings/data do plugin já instalado
+    if (jaTem) {
+      for (const sub of ['settings.json', 'data']) {
+        const antigo = path.join(destino, sub);
+        const novo = path.join(tmp, sub);
+        if (fs.existsSync(antigo) && !fs.existsSync(novo)) {
+          await fsp.cp(antigo, novo, { recursive: true }).catch(() => {});
+        }
+      }
+    }
+    if (this.runtimes.has(id)) this.pararPlugin(id);
+    await fsp.rm(destino, { recursive: true, force: true });
+    await fsp.rename(tmp, destino);
+    await fsp.writeFile(path.join(destino, 'package.hash'), origemHash, 'utf8').catch(() => {});
+
+    this.state.plugins[id] = {
+      ...(this.state.plugins[id] || {}),
+      version: manifesto.version,
+      enabled: this.state.plugins[id]?.enabled ?? false,
+      installedAt: new Date().toISOString(),
+      instaladoPor,
+      originHash: origemHash,
+      lastError: null,
+    };
+    await this.salvar();
+    this.auditar({ tipo: 'instalar', id, versao: manifesto.version, hash: origemHash, por: instaladoPor });
+    this.log.log(`[plugins] ${id} ${manifesto.version} instalado`);
+    return { id, versao: manifesto.version, manifesto, atualizado: jaTem };
+  }
+
+  async lerPasta(origem) {
+    const out = [];
+    async function andar(dir, base = '') {
+      for (const e of await fsp.readdir(dir, { withFileTypes: true })) {
+        if (['node_modules', 'data', '.git'].includes(e.name)) continue;
+        const full = path.join(dir, e.name);
+        const rel = base ? `${base}/${e.name}` : e.name;
+        if (e.isDirectory()) await andar(full, rel);
+        else out.push({ name: rel, data: await fsp.readFile(full) });
+      }
+    }
+    await andar(origem);
+    const checagem = validarPacote(out, { castdeckVersion: this.appVersion });
+    if (!checagem.ok) throw new Error(checagem.erros.join('; '));
+    return out;
+  }
+
+  async remover(id) {
+    if (!this.state.plugins[id]) throw new Error('plugin não encontrado');
+    this.pararPlugin(id);
+    this.declarativos.remover(id);
+    await fsp.rm(this.pasta(id), { recursive: true, force: true });
+    delete this.state.plugins[id];
+    await this.salvar();
+    this.auditar({ tipo: 'remover', id });
+    this.emit('mudou');
+    return true;
+  }
+
+  async conceder(id, permissoes) {
+    const m = this.manifestoDe(id);
+    if (!m) throw new Error('plugin não encontrado');
+    const pedidas = new Set(m.permissions || []);
+    const lista = (permissoes || []).filter((p) => pedidas.has(p));
+    const faltando = [...pedidas].filter((p) => !lista.includes(p) && (CAPACIDADES_SENSIVEIS.has(p) || String(p).startsWith('network:')));
+    this.state.plugins[id] = { ...(this.state.plugins[id] || {}), grants: lista, lastError: null };
+    await this.salvar();
+    this.auditar({ tipo: 'consentimento', id, permissoes: lista });
+    return { faltando };
+  }
+
+  efetivas(id) {
+    const m = this.manifestoDe(id);
+    if (!m) return { caps: new Set(), hosts: [] };
+    const concedidas = this.state.plugins[id]?.grants || [];
+    const declaradas = (m.permissions || []).filter((p) => !CAPACIDADES_SENSIVEIS.has(p) && !String(p).startsWith('network:'));
+    return normalizarPermissoes([...new Set([...declaradas, ...concedidas])]);
+  }
+
+  async ativar(id, { silencioso = false } = {}) {
+    if (!this.state.plugins[id]) throw new Error('plugin não encontrado');
+    const m = this.manifestoDe(id);
+    if (!m) throw new Error('manifesto não encontrado');
+    if (this.revogado(id, m.version)) throw new Error('esta versão foi revogada pelo catálogo; atualize o plugin');
+    const sensiveis = (m.permissions || []).filter((p) => CAPACIDADES_SENSIVEIS.has(p) || String(p).startsWith('network:'));
+    const concedidas = this.state.plugins[id]?.grants || [];
+    const faltando = sensiveis.filter((p) => !concedidas.includes(p));
+    if (faltando.length) throw new Error(`permissões não aprovadas: ${descreverPermissoes(faltando).join(', ')}`);
+
+    this.pararPlugin(id);
+    if (m.tier === 'declarative') {
+      this.declarativos.registrar(m);
+    } else {
+      const rt = new PluginRuntime({
+        manifest: m,
+        dir: this.pasta(id),
+        dataDir: path.join(this.pasta(id), 'data'),
+        onAction: (ctx) => this.executarAcao({ ...ctx, caps: this.efetivas(id).caps, hosts: this.efetivas(id).hosts }),
+        onLog: (l) => this.escreverLog(id, l),
+      });
+      this.runtimes.set(id, rt);
+      const ok = await rt.iniciar();
+      if (!ok) {
+        this.state.plugins[id].enabled = false;
+        this.state.plugins[id].lastError = rt.ultimoErro || 'não iniciou';
+        await this.salvar();
+        throw new Error(rt.ultimoErro || 'o plugin não iniciou');
+      }
+    }
+    this.state.plugins[id].enabled = true;
+    this.state.plugins[id].lastError = null;
+    await this.salvar();
+    this.auditar({ tipo: 'ativar', id, versao: m.version });
+    if (!silencioso) this.emit('mudou');
+    return true;
+  }
+
+  async desativar(id) {
+    this.pararPlugin(id);
+    this.declarativos.remover(id);
+    if (this.state.plugins[id]) {
+      this.state.plugins[id].enabled = false;
+      await this.salvar();
+    }
+    this.auditar({ tipo: 'desativar', id });
+    this.emit('mudou');
+    return true;
+  }
+
+  async desativarTodos() {
+    for (const id of Object.keys(this.state.plugins)) await this.desativar(id);
+    return true;
+  }
+
+  pararPlugin(id) {
+    const rt = this.runtimes.get(id);
+    if (rt) {
+      rt.parar();
+      this.runtimes.delete(id);
+    }
+    this.declarativos.remover(id);
+  }
+
+  escreverLog(id, linha) {
+    const arquivo = path.join(this.pasta(id), 'log.txt');
+    const texto = `${new Date().toISOString()} ${linha}\n`;
+    fs.appendFile(arquivo, texto, () => {
+      try {
+        const st = fs.statSync(arquivo);
+        if (st.size > MAX_LOG) fs.writeFileSync(arquivo, texto, 'utf8');
+      } catch {}
+    });
+    this.emit('log', { id, linha });
+  }
+
+  lerLog(id) {
+    try {
+      const t = fs.readFileSync(path.join(this.pasta(id), 'log.txt'), 'utf8');
+      return t.split('\n').slice(-300).join('\n');
+    } catch {
+      return '';
+    }
+  }
+
+  // ---------- eventos ----------
+  async emitirEvento(nome, payload = {}) {
+    let executadas = [];
+    try {
+      executadas = await this.declarativos.emitir({ tipo: nome, ...payload });
+    } catch (e) {
+      this.log.warn(`[plugins] evento ${nome}: ${e.message}`);
+    }
+    for (const [id, rt] of this.runtimes) {
+      if (!rt.ativo) continue;
+      const caps = this.efetivas(id).caps;
+      const querChat = nome === 'chat' && caps.has('events:chat');
+      const querStage = (nome === 'stage' || nome === 'scene' || nome === 'live') && caps.has('events:stage');
+      const querGrav = nome === 'gravacao' && caps.has('events:recording');
+      if (querChat || querStage || querGrav) rt.enviarEvento(nome, payload);
+    }
+    return executadas;
+  }
+
+  // executa uma ação pedida por plugin declarativo (ou pelo processo filho)
+  async executarAcao({ pluginId, caps, hosts, acao = {}, method = '', params = {} }) {
+    const tipo = acao.type || acao.tipo || method;
+    const tem = (cap) => !!caps?.has(cap);
+    const negar = (msg) => ({ ok: false, error: msg });
+    switch (tipo) {
+      case 'overlay.show':
+      case 'overlay:show': {
+        if (!tem('overlay:show')) return negar('sem permissão overlay:show');
+        const spec = acao.spec || {
+          titulo: acao.titulo || '',
+          texto: acao.texto || '',
+          cor: acao.cor || '',
+        };
+        const segundos = Number(acao.segundos ?? params.segundos ?? 6) || 6;
+        this.acoesCliente?.({ type: 'plugin-overlay', payload: { id: pluginId, spec, segundos } });
+        this.auditar({ tipo: 'acao', id: pluginId, acao: 'overlay.show', titulo: String(spec.titulo || '').slice(0, 80) });
+        return { ok: true };
+      }
+      case 'overlay.hide':
+      case 'overlay:hide':
+        if (!tem('overlay:show')) return negar('sem permissão overlay:show');
+        this.acoesCliente?.({ type: 'plugin-overlay-hide', payload: { id: pluginId } });
+        return { ok: true };
+      case 'chat.send':
+      case 'chat:send': {
+        if (!tem('chat:send')) return negar('sem permissão chat:send');
+        const texto = String(acao.texto ?? params.texto ?? '').slice(0, 400);
+        if (!texto) return negar('texto vazio');
+        // Resposta no chat: publica no chat do estúdio (operador e convidados veem). Responder direto na rede
+        // (YouTube/Twitch) exige integração de escrita, que ainda não existe nesta versão — o log avisa.
+        this.emit('chat-local', { pluginId, texto });
+        this.auditar({ tipo: 'acao', id: pluginId, acao: 'chat.send' });
+        this.log.log(`[plugin:${pluginId}] chat.send (estúdio): ${texto.slice(0, 120)}`);
+        return { ok: true, enviado: texto, destino: 'estudio' };
+      }
+      case 'panel.open':
+      case 'panel:open':
+        this.acoesCliente?.({ type: 'plugin-panel', payload: { id: pluginId } });
+        return { ok: true };
+      case 'http':
+      case 'http.request':
+      case 'http:request': {
+        if (!tem('network')) return negar('sem permissão de rede');
+        const url = String(acao.url ?? params.url ?? '');
+        if (!hostPermitido(url, hosts)) return negar(`endereço não permitido: ${url}`);
+        const metodo = String(acao.method ?? params.method ?? 'GET').toUpperCase();
+        try {
+          const r = await fetch(url, {
+            method: metodo,
+            headers: { 'content-type': 'application/json', ...(acao.headers || params.headers || {}) },
+            body: metodo === 'GET' || metodo === 'HEAD' ? undefined : JSON.stringify(acao.body ?? params.body ?? {}),
+            signal: AbortSignal.timeout(6000),
+          });
+          const texto = await r.text();
+          let json = null;
+          try {
+            json = JSON.parse(texto);
+          } catch {}
+          this.auditar({ tipo: 'acao', id: pluginId, acao: 'http', host: new URL(url).host, status: r.status });
+          return { ok: r.ok, result: { status: r.status, json, text: json ? undefined : texto.slice(0, 4000) } };
+        } catch (e) {
+          return negar(`falha na requisição: ${e.message}`);
+        }
+      }
+      case 'sound.play':
+      case 'sound:play':
+        this.acoesCliente?.({ type: 'plugin-sound', payload: { id: pluginId, sample: String(acao.id ?? params.id ?? '') } });
+        return { ok: true };
+      default:
+        return negar(`ação desconhecida: ${tipo}`);
+    }
+  }
+
+  // ---------- catálogo ----------
+  async catalogo({ forcar = false } = {}) {
+    const { indice, fonte, aviso } = await this.catalogoClient.obter({ forcar });
+    if (!indice) return { plugins: [], origem: this.catalogUrl, erro: aviso || 'catálogo indisponível', fonte: 'nenhuma' };
+    this.state.revoked = indice.revoked || {};
+    await this.salvar();
+    const instalados = new Set(Object.keys(this.state.plugins));
+    const plugins = (indice.plugins || []).map((p) => {
+      const v = (p.versions || []).find((x) => x.version === p.latest) || (p.versions || [])[0] || {};
+      return {
+        id: p.id,
+        nome: p.name,
+        versao: p.latest || v.version,
+        autor: p.author || '',
+        resumo: p.summary || p.description || '',
+        tier: p.tier || 'code',
+        licenca: p.license || '',
+        permissivas: (v.permissions || p.permissions || []).length,
+        instalado: instalados.has(p.id),
+        revogado: this.catalogoClient.revogado(indice, p.id, p.latest),
+        arquivo: v.file || '',
+        sha256: v.sha256 || '',
+        bytes: v.size || 0,
+      };
+    });
+    return { origem: this.catalogUrl, fonte, aviso, geradoEm: indice.generatedAt || null, plugins };
+  }
+
+  // Resolve o pacote do catálogo para instalar (o index.js baixa, confere o sha256 e chama instalar)
+  async catalogoPacote(id) {
+    const { indice, fonte, aviso } = await this.catalogoClient.obter();
+    if (!indice) throw new Error(aviso || 'catálogo indisponível');
+    const alvo = this.catalogoClient.resolver(indice, id);
+    if (!alvo) throw new Error('plugin não encontrado no catálogo');
+    if (this.catalogoClient.revogado(indice, id, alvo.versao.version)) throw new Error('esta versão foi revogada pelo catálogo');
+    return { ...alvo, fonte };
+  }
+
+  revogado(id, versao = '') {
+    const lista = this.state.revoked || {};
+    const arr = Array.isArray(lista) ? lista : Object.values(lista);
+    return arr.some((r) => (typeof r === 'string' ? r === id : r?.id === id && (!r.version || r.version === versao)));
+  }
+
+  info() {
+    return {
+      api: API_VERSION,
+      total: Object.keys(this.state.plugins).length,
+      ativos: this.listar().filter((p) => p.ativo).length,
+      capacidades: CAPABILITIES,
+      sensiveis: [...CAPACIDADES_SENSIVEIS],
+    };
+  }
+}

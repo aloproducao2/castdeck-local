@@ -5722,3 +5722,92 @@ body.rz-row * {
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
   transition: width .25s var(--ease);
 }
+
+/* ---------- Aba Plugins ---------- */
+.plg-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.plg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-2);
+}
+
+.plg-card.cat { border-style: dashed; }
+
+.plg-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.plg-head code {
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.plg-sub {
+  font-size: 12.5px;
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+}
+
+.plg-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+.plg-err { color: hsl(0 80% 70%); }
+
+.plg-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.plg-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  color: var(--text-2);
+}
+
+.plg-badge.ok { color: hsl(150 60% 62%); border-color: hsl(150 60% 62% / .5); }
+.plg-badge.err { color: hsl(0 80% 70%); border-color: hsl(0 80% 70% / .5); }
+.plg-badge.code { color: var(--accent-text); border-color: var(--accent); }
+
+.plg-log {
+  max-height: 50vh;
+  overflow: auto;
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.plg-iframe {
+  width: 100%;
+  height: min(60vh, 520px);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-1);
+}

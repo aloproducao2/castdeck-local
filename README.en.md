@@ -147,7 +147,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.8.25** — **less antivirus quarantine on Windows**: the local server now has an honest name and folder (`app/<version>/castdeck-server.exe`), the launcher no longer kills processes by image name, old server builds are cleaned up and a README explains the extracted files. The executable carries the CastDeck/flue.live identity, the code-signing pipeline is ready (PFX or Azure) and each release ships a false-positive report.
+Version **2.0.0** — **free plugins with a signed catalog**: extend the studio without any cloud. Declarative JSON plugins (chat commands, notices, media) and code plugins running in a separate process, with permissions you approve, audit logs and instant revocation. Two official plugins ship today: **Chat commands** and **Guest light** (switches a smart plug when someone joins the stage). The catalog is served at https://cast.flue.live/plugins/index.json with a signed index (Ed25519), and AI/agent authoring is first-class (AGENTS.md, authoring API and MCP server).
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

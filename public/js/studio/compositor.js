@@ -972,6 +972,9 @@ export class Compositor {
     // Cena segura por cima de tudo, inclusive DSK, GC e replay; o FTB continua por cima.
     if (this.safe) this.drawSafe();
 
+    // Aviso de plugin (chat-commands, luz…): acima de tudo menos FTB
+    if (this.pluginOverlay?.ate > now) this.drawPluginOverlay(now);
+
     // FTB por cima de tudo (no ar some até o letreiro, como no vMix/ATEM)
     const bl = this.blackLevel(now);
     if (bl > 0) {
@@ -985,6 +988,80 @@ export class Compositor {
   // altura da faixa de interface (a do próprio canvas, ou a faixa 16:9 ampliada no vertical)
   uh() {
     return this.vertical ? Math.round(((this.W * 9) / 16) * VERT_UI) : this.H;
+  }
+
+  // Aviso de plugin: caixa com título e texto no rodapé da área segura. Desenhado no canvas, então aparece na
+  // transmissão e na gravação (um iframe/dhtml não entraria no stream).
+  setPluginOverlay(spec = {}, segundos = 6) {
+    const s = Math.max(1, Math.min(60, Number(segundos) || 6));
+    this.pluginOverlay = {
+      titulo: String(spec.titulo || '').slice(0, 80),
+      texto: String(spec.texto || '').slice(0, 240),
+      cor: /^#[0-9a-f]{3,8}$/i.test(String(spec.cor || '')) ? String(spec.cor) : '#7c5cff',
+      ate: performance.now() + s * 1000,
+    };
+  }
+
+  clearPluginOverlay() {
+    this.pluginOverlay = null;
+  }
+
+  drawPluginOverlay(now) {
+    const o = this.pluginOverlay;
+    if (!o) return;
+    const { ctx, W, H } = this;
+    const rem = Math.max(0, o.ate - now) / 1000;
+    const alpha = Math.min(1, rem / 0.35); // fadinho no fim
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const margem = Math.round(Math.min(W, H) * 0.045);
+    const largura = Math.round(W * 0.62);
+    const pad = Math.round(H * 0.022);
+    ctx.font = `600 ${Math.round(H * 0.032)}px Inter, system-ui, sans-serif`;
+    const linhas = [];
+    let atual = '';
+    const maxTexto = largura - pad * 2;
+    for (const palavra of o.texto.split(/\s+/)) {
+      const tent = atual ? `${atual} ${palavra}` : palavra;
+      if (ctx.measureText(tent).width > maxTexto && atual) {
+        linhas.push(atual);
+        atual = palavra;
+      } else atual = tent;
+    }
+    if (atual) linhas.push(atual);
+    const alturaTitulo = o.titulo ? Math.round(H * 0.05) : 0;
+    const alturaLinha = Math.round(H * 0.042);
+    const altura = pad * 2 + alturaTitulo + linhas.length * alturaLinha;
+    const x = Math.round((W - largura) / 2);
+    const y = H - margem - altura;
+    ctx.fillStyle = 'rgba(8,10,18,.88)';
+    ctx.strokeStyle = o.cor;
+    ctx.lineWidth = Math.max(2, Math.round(H * 0.004));
+    const raio = Math.round(H * 0.018);
+    ctx.beginPath();
+    ctx.moveTo(x + raio, y);
+    ctx.arcTo(x + largura, y, x + largura, y + altura, raio);
+    ctx.arcTo(x + largura, y + altura, x, y + altura, raio);
+    ctx.arcTo(x, y + altura, x, y, raio);
+    ctx.arcTo(x, y, x + largura, y, raio);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    let cy = y + pad;
+    if (o.titulo) {
+      ctx.fillStyle = o.cor;
+      ctx.font = `700 ${Math.round(H * 0.03)}px Inter, system-ui, sans-serif`;
+      ctx.textBaseline = 'top';
+      ctx.fillText(this.fit(o.titulo, maxTexto), x + pad, cy);
+      cy += alturaTitulo;
+    }
+    ctx.fillStyle = '#f4f4fa';
+    ctx.font = `600 ${Math.round(H * 0.032)}px Inter, system-ui, sans-serif`;
+    for (const linha of linhas) {
+      ctx.fillText(linha, x + pad, cy);
+      cy += alturaLinha;
+    }
+    ctx.restore();
   }
 
   // Legenda ao vivo no vídeo, no estilo "roll-up" da TV: cada frase é quebrada em linhas UMA vez e as linhas novas

@@ -15,6 +15,8 @@ export const TARGET = `${IS_WIN ? 'win' : IS_MAC ? 'macos' : 'linux'}-${ARCH}`;
 export const NULL_DEVICE = IS_WIN ? 'NUL' : '/dev/null';
 
 export function dataDir() {
+  // CASTDECK_DATA permite isolar dados (testes automatizados, instâncias paralelas, suporte/diagnóstico).
+  if (process.env.CASTDECK_DATA) return path.resolve(process.env.CASTDECK_DATA);
   const home = os.homedir();
   if (IS_WIN) return path.join(process.env.LOCALAPPDATA || home, 'CastDeck');
   if (IS_MAC) return path.join(home, 'Library', 'Application Support', 'CastDeck');

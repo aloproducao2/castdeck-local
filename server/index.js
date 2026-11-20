@@ -9,9 +9,12 @@ import http from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import fsSync from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+
 import { WebSocketServer } from 'ws';
 import { Store } from './store.js';
 import { lanIps } from './net.js';
@@ -43,6 +46,8 @@ import { ReplayStore } from './replay.js';
 import { CaptionService } from './caption.js';
 import { Secrets } from './secrets.js';
 import { Connections } from './connections.js';
+import { PluginManager } from './plugins.js';
+import { Author, documentacao } from './plugin-author.js';
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import os from 'node:os';
@@ -128,6 +133,10 @@ async function main() {
   // entradas e saídas RTMP/SRT/WebRTC (MediaMTX embutido)
   const ingest = new Ingest({ deps, store, ffmpegInfo, dataDir: DATA, lanIps });
   const broadcasts = new BroadcastManager({ ffmpegInfo, recordingsDir: recDir, store, ingest });
+  // início/fim de live -> eventos de plugin
+  broadcasts.on?.('started', (b) => plugins.emitirEvento('live', { acao: 'iniciou', studioId: b?.studioId || b?.studio?.id || '' }).catch(() => {}));
+  broadcasts.on?.('ended', (b) => plugins.emitirEvento('live', { acao: 'encerrou', studioId: b?.studioId || b?.studio?.id || '' }).catch(() => {}));
+
   const multirec = new MultiRecorder({ recordingsDir: recDir, ffmpegPath: () => ffmpegInfo.path, encoders: () => ffmpegInfo.encoders, soc: () => ffmpegInfo.soc || null });
   const ndiOutput = new NdiOutputServer({ root: ROOT, ffmpegPath: ffmpegInfo.path, binDir: BIN });
   const pollHub = new PollHub();
@@ -660,6 +669,304 @@ async function main() {
       res.status(400).json({ error: e.message });
     }
   });
+
+  // ---------- Plugins (API 1) ----------
+  // Cada plugin roda fora do processo principal; aqui ficam o estado, os consentimentos, a auditoria e as
+  // ações que o app executa em nome dele. Ver docs/designs/PLUGINS-MARKETPLACE-PLANO.md.
+  const plugins = new PluginManager({
+    dataDir: DATA,
+    appVersion: APP_VERSION,
+    catalogUrl: process.env.CASTDECK_PLUGIN_CATALOG || 'https://cast.flue.live/plugins/index.json',
+    logger: console,
+    // ação que precisa chegar na interface do estúdio (overlay/aviso, painel, som)
+    acoesCliente: (msg) => {
+      let enviado = 0;
+      for (const sala of hub.rooms.values()) {
+        if (sala.host) {
+          hub.send(sala.host, { type: 'plugin', acao: msg.type, payload: msg.payload });
+          enviado++;
+        }
+      }
+      return enviado;
+    },
+  });
+  await plugins.carregar();
+  console.log('[plugins] api 1 · instalados:', Object.keys(plugins.state.plugins).length);
+
+  // chat das redes -> eventos de plugin (gatilhos declarativos e plugins de código)
+  // resposta de plugin aparece no chat do estúdio (quem opera e os convidados veem)
+  plugins.on('chat-local', ({ pluginId, texto }) => {
+    const msg = { type: 'chat', id: 'plugin-' + Date.now(), from: 'plugin', name: 'Plugin', role: 'host', text: String(texto).slice(0, 500), ts: Date.now(), pluginId };
+    for (const sala of hub.rooms.values()) for (const c of sala.clients.values()) hub.send(c, msg);
+  });
+
+  socialScraper.on('message', (m) => {
+    plugins
+      .emitirEvento('chat', {
+        usuario: m.chatname || m.name || '',
+        texto: m.chatmessage || m.text || '',
+        rede: m.type || m.source || '',
+        doacao: m.donation || null,
+        args: String(m.chatmessage || m.text || '').trim().split(/\s+/).slice(1),
+      })
+      .catch(() => {});
+  });
+
+  // ---------- Author (IA/agente): criar, validar e testar plugins sem a interface ----------
+  const author = new Author({ workspace: path.join(DATA, 'plugins-workspace'), appVersion: APP_VERSION, dataDir: DATA, log: (l) => console.log(l) });
+  api.get('/plugins/author/docs', (req, res) => {
+    res.set('Cache-Control', 'no-store').json(documentacao());
+  });
+  api.get('/plugins/author/templates', (req, res) => {
+    res.json({
+      declarativo: {
+        arquivos: { 'plugin.json': { id: 'com.voce.exemplo', name: 'Exemplo', version: '1.0.0', license: 'MIT', engines: { castdeck: '>=' + APP_VERSION, api: 1 }, tier: 'declarative', permissions: ['events:chat', 'chat:send', 'overlay:show'], rules: [{ on: 'chat.comando', comando: 'oi', cooldownSeg: 20, do: [{ type: 'chat.send', texto: 'Oi, {{usuario}}!' }] }] } },
+      },
+      codigo: {
+        arquivos: { 'plugin.json': { id: 'com.voce.exemplo', name: 'Exemplo', version: '1.0.0', license: 'MIT', engines: { castdeck: '>=' + APP_VERSION, api: 1 }, tier: 'code', entry: 'src/index.js', permissions: ['events:chat', 'overlay:show'] }, 'src/index.js': "export default function activate(castdeck) { castdeck.events.on('chat', (m) => castdeck.overlay.show({ titulo: 'Oi', texto: m.usuario }, 5)); }" },
+      },
+    });
+  });
+  api.get('/plugins/author', async (req, res) => {
+    const lista = [];
+    try {
+      for (const d of await fs.readdir(author.workspace)) {
+        try {
+          const m = JSON.parse(await fs.readFile(path.join(author.workspace, d, 'plugin.json'), 'utf8'));
+          lista.push({ id: m.id, nome: m.name, versao: m.version, tier: m.tier });
+        } catch {}
+      }
+    } catch {}
+    res.json({ workspace: author.workspace, plugins: lista });
+  });
+  api.post('/plugins/author/scaffold', async (req, res) => {
+    try {
+      res.json(await author.scaffold(req.body || {}));
+    } catch (e) {
+      res.status(400).json({ error: e.message, codigo: e.code || 'ERRO' });
+    }
+  });
+  api.post('/plugins/author/validate', async (req, res) => {
+    try {
+      res.json(await author.validar(req.body?.id));
+    } catch (e) {
+      res.status(400).json({ error: e.message, codigo: e.code || 'ERRO' });
+    }
+  });
+  api.post('/plugins/author/simulate', async (req, res) => {
+    try {
+      res.json(await author.simular(req.body?.id, { eventos: req.body?.eventos, segundos: req.body?.segundos }));
+    } catch (e) {
+      res.status(400).json({ error: e.message, codigo: e.code || 'ERRO' });
+    }
+  });
+  api.post('/plugins/author/install', async (req, res) => {
+    try {
+      const pasta = author.caminho(req.body?.id);
+      const r = await plugins.instalar({ pastaOrigem: pasta, instaladoPor: 'autor' });
+      res.json({ ok: true, ...r });
+    } catch (e) {
+      res.status(400).json({ error: e.message, codigo: e.code || 'ERRO' });
+    }
+  });
+  api.get('/plugins/author/files/:id', (req, res) => {
+    try {
+      const pasta = author.caminho(req.params.id);
+      const arquivos = [];
+      const andar = (d, base = '') => {
+        for (const e of fsSync.readdirSync(d, { withFileTypes: true })) {
+          const full = path.join(d, e.name);
+          const rel = base ? base + '/' + e.name : e.name;
+          if (e.isDirectory()) andar(full, rel);
+          else arquivos.push({ arquivo: rel, conteudo: fsSync.readFileSync(full, 'utf8') });
+        }
+      };
+      andar(pasta);
+      res.json({ id: req.params.id, arquivos });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+  api.put('/plugins/author/files/:id', (req, res) => {
+    try {
+      const pasta = author.caminho(req.params.id);
+      const arquivos = Array.isArray(req.body?.arquivos) ? req.body.arquivos : [];
+      let gravados = 0;
+      for (const a of arquivos) {
+        const rel = String(a.arquivo || a.nome || '');
+        if (!rel || rel.includes('..') || rel.startsWith('/')) return res.status(400).json({ error: 'caminho inválido: ' + rel });
+        const alvo = path.join(pasta, rel);
+        if (!alvo.startsWith(pasta)) return res.status(400).json({ error: 'caminho inválido: ' + rel });
+        fsSync.mkdirSync(path.dirname(alvo), { recursive: true });
+        fsSync.writeFileSync(alvo, String(a.conteudo ?? ''), 'utf8');
+        gravados++;
+      }
+      res.json({ ok: true, gravados });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  api.get('/plugins', (req, res) => {
+    res.set('Cache-Control', 'no-store').json({ ...plugins.info(), lista: plugins.listar() });
+  });
+  api.get('/plugins/catalog', async (req, res) => {
+    res.set('Cache-Control', 'no-store').json(await plugins.catalogo({ forcar: req.query.forcar === '1' }));
+  });
+
+  api.get('/plugins/audit', (req, res) => {
+    let linhas = [];
+    try {
+      linhas = fsSync.readFileSync(path.join(DATA, 'plugins', 'audit.log'), 'utf8').trim().split('\n').slice(-120);
+    } catch {}
+    res.json({ linhas });
+  });
+  // rota de teste (harness): injeta um evento como se viesse do chat/palco
+  if (process.env.CASTDECK_PLUGIN_TEST === '1') {
+    api.post('/plugins/_test/chat', (req, res) => {
+      const { usuario = 'teste', texto = '', rede = 'teste', doacao = null } = req.body || {};
+      plugins
+        .emitirEvento('chat', { usuario, texto, rede, doacao, args: String(texto).trim().split(/\s+/).slice(1) })
+        .then((exec) => res.json({ ok: true, executadas: exec }))
+        .catch((e) => res.status(500).json({ error: e.message }));
+    });
+  }
+  api.post('/plugins/event', (req, res) => {
+    const { tipo, ...resto } = req.body || {};
+    if (!['stage', 'scene', 'live', 'gravacao'].includes(tipo)) return res.status(400).json({ error: 'evento inválido' });
+    plugins.emitirEvento(tipo, resto).catch(() => {});
+    res.json({ ok: true });
+  });
+  api.post('/plugins/install', async (req, res) => {
+    try {
+      const { zipBase64, pasta } = req.body || {};
+      if (pasta) {
+        const alvo = path.isAbsolute(pasta) ? pasta : path.join(ROOT, pasta);
+        if (alvo.includes('..')) throw new Error('pasta inválida');
+        const r = await plugins.instalar({ pastaOrigem: alvo, instaladoPor: 'dev' });
+        return res.json({ ok: true, ...r });
+      }
+      if (!zipBase64) throw new Error('envie o arquivo .cdplug');
+      const buf = Buffer.from(String(zipBase64), 'base64');
+      if (buf.length > 20 * 1024 * 1024) throw new Error('arquivo maior que 20 MB');
+      const r = await plugins.instalar({ zipBuffer: buf });
+      res.json({ ok: true, ...r });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+  api.post('/plugins/catalog/install', async (req, res) => {
+    try {
+      const id = String(req.body?.id || '');
+      const alvo = await plugins.catalogoPacote(id);
+      const r = await fetch(alvo.url, { signal: AbortSignal.timeout(30000) });
+      if (!r.ok) throw new Error('download falhou (HTTP ' + r.status + ')');
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (alvo.sha256) {
+        const sha = crypto.createHash('sha256').update(buf).digest('hex');
+        if (sha !== alvo.sha256) throw new Error('o arquivo do catálogo não confere (sha256)');
+      }
+      const r2 = await plugins.instalar({ zipBuffer: buf, instaladoPor: 'catalogo' });
+      res.json({ ok: true, ...r2, fonte: alvo.fonte, versao: alvo.versao.version });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+  api.post('/plugins/:id/enable', async (req, res) => {
+    try {
+      const permissoes = Array.isArray(req.body?.permissoes) ? req.body.permissoes : [];
+      if (permissoes.length) await plugins.conceder(req.params.id, permissoes);
+      await plugins.ativar(req.params.id);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+  api.post('/plugins/:id/disable', async (req, res) => {
+    try {
+      await plugins.desativar(req.params.id);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+  api.post('/plugins/:id/restart', async (req, res) => {
+    try {
+      const rt = plugins.runtimes.get(req.params.id);
+      if (rt) await rt.reiniciar();
+      else await plugins.ativar(req.params.id);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+  api.post('/plugins/disable-all', async (req, res) => {
+    await plugins.desativarTodos();
+    res.json({ ok: true });
+  });
+  api.delete('/plugins/:id', async (req, res) => {
+    try {
+      await plugins.remover(req.params.id);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+  // settings do plugin (declarados no manifesto): lidos/gravados em data/plugins/<id>/settings.json
+  // plugin-settings-route
+  api.get('/plugins/:id/settings', (req, res) => {
+    const id = req.params.id;
+    const m = plugins.manifestoDe(id);
+    if (!m) return res.status(404).json({ error: 'plugin não encontrado' });
+    let salvo = {};
+    try {
+      salvo = JSON.parse(fsSync.readFileSync(path.join(DATA, 'plugins', id, 'settings.json'), 'utf8')) || {};
+    } catch {}
+    const chaves = new Set((m.settings || []).map((s) => s.key));
+    const settings = {};
+    for (const s of m.settings || []) settings[s.key] = salvo[s.key] ?? s.default ?? (s.type === 'checkbox' ? false : '');
+    for (const k of Object.keys(salvo)) if (!chaves.has(k)) settings[k] = salvo[k];
+    res.set('Cache-Control', 'no-store').json({ settings, campos: m.settings || [] });
+  });
+  api.post('/plugins/:id/settings', (req, res) => {
+    const id = req.params.id;
+    const m = plugins.manifestoDe(id);
+    if (!m) return res.status(404).json({ error: 'plugin não encontrado' });
+    const corpo = req.body || {};
+    const settings = {};
+    for (const campo of m.settings || []) {
+      if (!(campo.key in corpo)) continue;
+      const valor = corpo[campo.key];
+      if (campo.type === 'number') settings[campo.key] = Number(valor) || 0;
+      else if (campo.type === 'checkbox') settings[campo.key] = !!valor;
+      else settings[campo.key] = String(valor ?? '').slice(0, 2000);
+    }
+    const arquivo = path.join(DATA, 'plugins', id, 'settings.json');
+    try {
+      fsSync.mkdirSync(path.dirname(arquivo), { recursive: true });
+      fsSync.writeFileSync(arquivo, JSON.stringify(settings, null, 2), 'utf8');
+      plugins.auditar({ tipo: 'settings', id, chaves: Object.keys(settings) });
+      // plugin de código pega a configuração nova na próxima leitura (settings.get() é síncrono e lê o arquivo)
+      const rt = plugins.runtimes.get(id);
+      if (rt?.ativo) rt.enviarEvento('settings', settings);
+      res.json({ settings });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+  api.get('/plugins/:id/log', (req, res) => {
+    res.type('text/plain').send(plugins.lerLog(req.params.id));
+  });
+  // painel do plugin (iframe): serve só arquivos de dentro da pasta do plugin
+  api.use('/plugins/:id/ui', (req, res) => {
+    const base = path.join(DATA, 'plugins', req.params.id);
+    const rel = decodeURIComponent(req.path).replace(/^\/+/, '');
+    if (!rel || rel.includes('..')) return res.status(400).end();
+    const alvo = path.join(base, rel);
+    if (!alvo.startsWith(base) || !fsSync.existsSync(alvo)) return res.status(404).end();
+    res.sendFile(alvo);
+  });
+
   api.post('/social/feature', (req, res) => {
     socialScraper.featureMessage(req.body?.message || null);
     res.json({ ok: true, featured: socialScraper.currentFeatured });
@@ -1838,7 +2145,16 @@ async function main() {
   });
 }
 
-main().catch((e) => {
-  console.error('Falha ao iniciar:', e);
-  process.exit(1);
-});
+// Modo processo-de-plugin: o runtime sobe este mesmo executável com CASTDECK_PLUGIN_HOST apontando para a
+// pasta do plugin. Nesse modo o processo vira o host do plugin (sem servidor HTTP, sem portas, sem firewall).
+if (process.env.CASTDECK_PLUGIN_HOST) {
+  import('./plugin-host.js').catch((e) => {
+    console.error('[plugin-host] falhou:', e.message);
+    process.exit(1);
+  });
+} else {
+  main().catch((e) => {
+    console.error('Falha ao iniciar:', e);
+    process.exit(1);
+  });
+}

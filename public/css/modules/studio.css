@@ -5651,3 +5651,74 @@ body.rz-row * {
 .lb-adv[open] > summary::after { content: '▴'; }
 .lb-adv > summary small { margin-left: auto; font-weight: 500; font-size: 11.5px; color: var(--text-2); }
 .lb-adv-body { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+/* ---------- Ajustes → Aceleração de vídeo (SoC/encoder) ---------- */
+.st-hw {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-2);
+  font-size: 12.5px;
+}
+
+.st-hw-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.st-hw-row > span:first-child {
+  color: var(--text-2);
+  flex: none;
+}
+
+.st-hw-row > strong,
+.st-hw-row > code,
+.st-hw-row > span:last-child {
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.st-hw-row > code {
+  font-size: 11.5px;
+  color: var(--text-1);
+}
+
+.st-hw-row .ok { color: hsl(150 60% 62%); }
+.st-hw-row .warn { color: hsl(44 95% 66%); }
+
+.st-hw-note {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.st-hw-note.err { color: hsl(0 80% 70%); }
+
+.st-hw-acts {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.st-hw-acts .btn { flex: none; }
+
+.st-hw-prog {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-4);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.st-hw-prog > i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width .25s var(--ease);
+}

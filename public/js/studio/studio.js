@@ -27,6 +27,7 @@ import { createMessages } from './messages.js';
 import { createSports } from './sports.js';
 import { chooseRecordingsDir } from '../recdir.js';
 import { inspectFile, describeFormat } from '../media-support.js';
+import { mountHardwareSection } from './hwvideo-ui.js';
 import { editDestination, deleteDestination, toggleDestination, showKeyHelp, prepareDestination, destState, CONNECTABLE } from '../destinations.js';
 import { createOutputs } from './outputs.js';
 import { createProjectors } from './projector.js';
@@ -9114,8 +9115,11 @@ async function renderDevicesPanel() {
       <div class="st-more-txt"><strong>Diagnóstico</strong><span class="hint">Baixe versão, sistema, memória, FFmpeg, túnel e estado das salas para anexar no suporte.</span></div>
       <button class="btn sm" id="st-diag">Baixar .json</button>
     </div>
-    <p class="hint" style="margin:10px 0 0">💾 O estúdio é salvo sozinho (câmeras, mídias, palco, marca e GCs) e volta como estava na próxima vez.</p>`;
+    <p class="hint" style="margin:10px 0 0">💾 O estúdio é salvo sozinho (câmeras, mídias, palco, marca e GCs) e volta como estava na próxima vez.</p>
+    <h4>Aceleração de vídeo</h4>
+    <div id="st-hw" class="st-hw"><span class="hint">Verificando o processador e os encoders…</span></div>`;
   const save = $('#st-save', p);
+  mountHardwareSection(p);
   // "Aplicar" só acende quando algo mudou (trocar câmera/microfone reabre o aparelho: não fazer isso à toa)
   const dirty = () => {
     save.disabled = !(

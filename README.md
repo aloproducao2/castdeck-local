@@ -147,7 +147,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.8.24** — **media now loads in the playout on macOS/Safari**: the file picker opens again (it needs a clickable area, `hidden` inputs are ignored by WebKit), and clips in MKV, AVI, TS, FLV, WebM or OGG are converted locally to MP4 H.264+AAC (up to 1080p, 6 GB, cache cleaned after 24 h). Also fixes `crossOrigin` on blob URLs and the Pad folder picker.
+Version **1.8.25** — **less antivirus quarantine on Windows**: the local server now has an honest name and folder (`app/<version>/castdeck-server.exe`), the launcher no longer kills processes by image name, old server builds are cleaned up and a README explains the extracted files. The executable carries the CastDeck/flue.live identity, the code-signing pipeline is ready (PFX or Azure) and each release ships a false-positive report.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

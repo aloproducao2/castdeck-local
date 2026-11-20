@@ -147,7 +147,7 @@ incorporar o código em produto fechado. Componentes de terceiros mantêm suas l
 
 ## Status
 
-Versão **1.8.24** — **a mídia agora entra no playout no macOS/Safari**: o seletor de arquivos voltou a abrir (precisa de área clicável — o WebKit ignora input com `hidden`) e clipes em MKV, AVI, TS, FLV, WebM ou OGG são convertidos localmente para MP4 H.264+AAC (até 1080p, 6 GB, cache limpo em 24 h). Também corrige o `crossOrigin` em URLs blob e o seletor de pastas do Pad.
+Versão **1.8.25** — **menos quarentena do antivírus no Windows**: o servidor local agora tem nome e pasta honestos (`app/<versão>/castdeck-server.exe`), o lançador não mata mais processos por nome de imagem, builds antigas são limpas e um LEIA-ME explica os arquivos. O executável carrega a identidade CastDeck/flue.live, o pipeline de assinatura de código está pronto (PFX ou Azure) e cada versão traz um relatório de falso positivo.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Feito por **Miguel Kallemback / flue.live**, de brasileiros para o mundo. 🌎

@@ -14,6 +14,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
+import { bestEncoder } from './ffmpeg.js';
 
 // portas públicas (padrão do mercado: é o que drones/encoders já sugerem) e internas (só loopback, pouco usadas)
 export const RTMP_PORT = Number(process.env.CD_RTMP_PORT) || 1935;
@@ -136,11 +137,11 @@ export class Ingest {
     return { video: !!video && !WEB_VIDEO.includes(video), audio: !!audio && !WEB_AUDIO.includes(audio) };
   }
 
-  // encoder da conversão: o de hardware que o boot já detectou, senão x264 (≈1 núcleo por fonte 1080p)
+  // encoder da conversão: o de hardware que o boot já detectou para este SoC, senão x264
+  // (≈1 núcleo por fonte 1080p). Antes a lista fixa excluía vaapi/v4l2m2m/rkmpp, então em ARM caía sempre em x264.
   encoder() {
-    const ids = (this.ffmpegInfo.encoders || []).map((e) => e.id);
-    for (const id of ['h264_nvenc', 'h264_qsv', 'h264_amf', 'h264_videotoolbox']) if (ids.includes(id)) return { id, hw: true };
-    return { id: 'libx264', hw: false };
+    const escolhido = bestEncoder(this.ffmpegInfo.soc || null, this.ffmpegInfo);
+    return { id: escolhido.id, hw: !!escolhido.hw };
   }
 
   // ---------- fontes ----------

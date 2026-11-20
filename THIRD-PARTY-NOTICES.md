@@ -46,6 +46,20 @@ Apache-2.0, BSD, ISC, MPL e Zlib; os casos de copyleft estão destacados abaixo.
 - A licença comercial do CastDeck **não** cobre o FFmpeg.
 - Detalhe: [`licenses/components/FFmpeg.txt`](licenses/components/FFmpeg.txt).
 
+### FFmpeg-Rockchip — GPLv3 (aceleração em Linux ARM)
+
+- Baixado **sob demanda** pelo próprio app em máquinas Rockchip (RK3588/RK3568) e gravado em `data/bin`.
+- Origem: <https://github.com/nyanmisaka/ffmpeg-rockchip> (fork do FFmpeg com MPP/RGA), build estático
+  aarch64 distribuído por `MarcA711/Rockchip-FFmpeg-Builds` (release 7.1-1), espelhado por nós em
+  `https://cast.flue.live/downloads/runtime/ffmpeg-rockchip-arm64-7.1.1`
+  (SHA-256 `6485402228ae8cf80d7993d9cfa007873222728d0a1359720e0f694a62e75ab2`).
+- Licença: **GPLv3** (configuração `--enable-gpl --enable-version3 --enable-rkmpp --enable-rkrga`).
+  Vale a mesma obrigação de fonte correspondente acima; quando a aceleração é instalada, o app exibe
+  versão, licença e link da fonte.
+- Componentes das bibliotecas ligadas: Rockchip MPP e RGA (Apache-2.0, origem
+  <https://github.com/rockchip-linux/mpp> e `rk-mirrors`), embutidas de forma estática no binário.
+- A licença comercial do CastDeck **não** cobre esse FFmpeg.
+
 ### libsignal — GPLv3 (cadeia do Baileys)
 
 - `libsignal` está na árvore de produção do Baileys e é **GPL-3.0**.

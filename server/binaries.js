@@ -22,6 +22,19 @@ const YTDLP = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download';
 export const MTX_VERSION = 'v1.21.2';
 const MTX = `https://github.com/bluenviron/mediamtx/releases/download/${MTX_VERSION}`;
 
+// FFmpeg específico de SoC (Linux ARM): Rockchip usa a variante do FFmpeg-Rockchip, que tem os
+// encoders h264_rkmpp/hevc_rkmpp e os filtros RGA. O binário é espelhado no nosso servidor (não
+// dependemos da release de terceiro em runtime) e verificado por SHA-256 antes de instalar.
+export const ROCKCHIP_FFMPEG = {
+  name: 'ffmpeg-rockchip',
+  url: 'https://cast.flue.live/downloads/runtime/ffmpeg-rockchip-arm64-7.1.1',
+  sha256: '6485402228ae8cf80d7993d9cfa007873222728d0a1359720e0f694a62e75ab2',
+  bytes: 102456272,
+  version: '7.1.1 (FFmpeg-Rockchip)',
+  source: 'https://github.com/nyanmisaka/ffmpeg-rockchip',
+  licence: 'GPL-3.0 (build com --enable-gpl)',
+};
+
 // plat: 'win32' | 'darwin' | 'linux'; arch: 'x64' | 'arm64'
 export const exeSuffix = (plat) => (plat === 'win32' ? '.exe' : '');
 

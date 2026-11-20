@@ -19,6 +19,7 @@
 /dist/
 /build/tmp/
 /build/vendor/
+/build/tools/
 /crates/*/target/
 /src-tauri/server.bin
 *.zip

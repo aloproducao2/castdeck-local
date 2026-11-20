@@ -13,7 +13,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { videoEncoderArgs } from './ffmpeg.js';
+import { videoEncoderArgs, scaleFilterFor } from './ffmpeg.js';
 import { finalizeRecording } from './recordings.js';
 
 const MAX_OUTPUT_BUFFER = 24 * 1024 * 1024; // destino lento demais -> reinicia
@@ -196,7 +196,7 @@ class Output extends EventEmitter {
 }
 
 export class Broadcast extends EventEmitter {
-  constructor({ ffmpegPath, recordingsDir, studio, destinations, record, localUrl = null, presetId, encoder, inputMime, vertical, videoKbps, audioKbps }) {
+  constructor({ ffmpegPath, recordingsDir, studio, destinations, record, localUrl = null, presetId, encoder, inputMime, vertical, vi, soc = null, deoKbps, audioKbps }) {
     super();
     this.ffmpegPath = ffmpegPath;
     this.recordingsDir = recordingsDir;
@@ -215,6 +215,7 @@ export class Broadcast extends EventEmitter {
     }
     this.preset = { ...basePreset, videoKbps: customKbps, audioKbps: customAudioKbps };
     this.encoder = encoder || 'libx264';
+    this.soc = soc;
     this.inputMime = inputMime || 'video/webm';
     this.outputs = [];
     this.startedAt = Date.now();
@@ -364,11 +365,15 @@ export class Broadcast extends EventEmitter {
     const { width, height, fps, videoKbps, audioKbps } = this.preset;
     const finalAudioKbps = Math.max(128, Number(audioKbps) || 128);
     const vaapi = this.encoder === 'h264_vaapi';
+    // rkmpp precisa de nv12 (e usa RGA quando a placa tem /dev/rga); vaapi sobe para a GPU
+    const rkmpp = /_rkmpp$/.test(this.encoder);
+    const formato =
+      this.encoder === 'h264_rkmpp' ? scaleFilterFor(this.encoder, this.soc, { w: width, h: height }) : vaapi ? 'format=nv12,hwupload' : 'format=yuv420p';
     const vf = [
       `scale=${width}:${height}:force_original_aspect_ratio=decrease`,
       `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`,
       `fps=${fps}`,
-      vaapi ? 'format=nv12,hwupload' : 'format=yuv420p',
+      formato,
     ].join(',');
     const args = [
       '-hide_banner', '-loglevel', 'error', '-nostats', '-progress', 'pipe:2',
@@ -587,6 +592,7 @@ export class BroadcastManager {
             inputMime: msg.mime,
             vertical,
             videoKbps: msg.videoKbps,
+            soc: this.ffmpegInfo.soc || null,
           });
         } catch (e) {
           if (localUrl) this.syncLocalOutIngest();

@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { NAMES, exeSuffix, fetchBinary } from '../server/binaries.js';
 import { buildCaption, buildParakeet } from './build-caption.mjs';
+import { assinarArquivos } from './sign.mjs';
 import crypto from 'node:crypto';
 import os from 'node:os';
 
@@ -211,6 +212,13 @@ for (const key of list) {
   const cfg = {
     name: 'castdeck',
     version: pkgJson.version,
+    // VERSIONINFO do servidor embutido: sem isso o arquivo que o lançador grava em disco aparece como
+    // "Node.js JavaScript Runtime" (assinatura de dropper) para antivírus e para o usuário.
+    description: 'CastDeck Local — servidor',
+    author: 'flue.live — Miguel Kallemback',
+    copyright: 'Copyright © 2026 Miguel Kallemback / flue.live. AGPL-3.0.',
+    license: 'AGPL-3.0-only',
+    homepage: 'https://cast.flue.live',
     bin: '../dist/castdeck.cjs',
     pkg: { assets: ['../public/**/*', `./vendor/${key}/*`], targets: [t.pkg] },
   };
@@ -224,6 +232,24 @@ for (const key of list) {
   const cross = key !== host;
   const r = spawnSync('npx', cross ? [...pkgArgs, '--no-bytecode', '--public'] : pkgArgs, { stdio: 'inherit', shell: true });
   let ok = r.status === 0 && fs.existsSync(pkgOut);
+  // Nota: NÃO reescrever os recursos do servidor do pkg (rcedit/resedit). O binário do pkg tem o
+  // payload anexado DEPOIS da imagem PE; qualquer editor de recursos regrava o arquivo e descarta o
+  // payload (190 MB → 55 MB, app não sobe). A identidade do servidor fica a do Node e é a ASSINATURA
+  // (feita abaixo, no arquivo final antes de embutir) que dá o editor confiável ao Windows.
+  // Assinatura Authenticode (Windows): assina o SERVIDOR antes de embutir — assim o arquivo que o
+  // lançador grava em %LOCALAPPDATA% e executa continua assinado. Sem isso o antivírus trata o exe
+  // extraído como "dropper" e coloca em quarentena.
+  const assinarWin = (arquivo) => {
+    if (key !== 'win-x64' || host !== 'win-x64' || !fs.existsSync(arquivo)) return;
+    try {
+      assinarArquivos([arquivo]);
+    } catch (e) {
+      console.error(`  ✖ assinatura: ${e.message}`);
+      failed++;
+      ok = false;
+    }
+  };
+  if (ok && launcher) assinarWin(pkgOut);
   if (ok && launcher) {
     console.log('  lançador nativo (sem console, ícone, splash, bandeja)…');
     if (!buildLauncher(pkgOut, out, pkgJson.version)) {
@@ -232,6 +258,7 @@ for (const key of list) {
     }
   } else if (key === 'win-x64' && host === 'win-x64' && !CSC) console.warn('  csc.exe não encontrado: CastDeck.exe terá janela de console');
   ok = ok && fs.existsSync(out);
+  if (ok) assinarWin(out);
   if (ok && key.startsWith('macos-') && process.platform !== 'darwin' && fs.existsSync(LDID_BIN)) {
     const ls = spawnSync(LDID_BIN, ['-Cadhoc', '-S', out], { stdio: 'inherit' });
     if (ls.status === 0) console.log('  ✔ Assinatura Mach-O ad-hoc aplicada (ldid)');

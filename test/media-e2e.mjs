@@ -142,6 +142,9 @@ async function openPage(url) {
     if (r.result.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || 'eval error');
     return r.result.result.value;
   };
+  // página em segundo plano tem mídia despriorizada: foco + frente mantém o <video> carregando
+  await send('Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => {});
+  await send('Page.bringToFront').catch(() => {});
   await send('Page.navigate', { url });
   return { ev, send, errors, targetId, close: () => fetch(`${CDP}/json/close/${targetId}`).catch(() => {}) };
 }

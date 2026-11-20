@@ -664,3 +664,4 @@
 "model","Parakeet pt-BR ONNX","calneymgp/parakeet-tdt-0.6b-v3-ptBR-TAGARELA-onnx-int8","CC-BY-4.0","runtime-download","no","visible attribution + license"
 "font","Inter","web font","OFL-1.1","web-asset","yes","OFL notice"
 "ui","CastDeck logo/splash/name","brand assets","All rights reserved (not AGPL)","brand-asset","yes","TRADEMARK.md"
+"binary","ffmpeg-rockchip","7.1.1","GPL-3.0","runtime-optional","yes","source-offer + notice"

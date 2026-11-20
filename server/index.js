@@ -18,7 +18,9 @@ import { lanIps } from './net.js';
 import { getCertificate } from './certs.js';
 import { SignalingHub } from './signaling.js';
 import { BroadcastManager, PRESETS } from './broadcast.js';
-import { probeFfmpeg } from './ffmpeg.js';
+import { probeFfmpeg, resolveFfmpeg } from './ffmpeg.js';
+import { HardwareVideo } from './hwvideo.js';
+import { describeSoc } from './soc.js';
 import { Deps } from './deps.js';
 import { Tunnel } from './tunnel.js';
 import { Ingest } from './ingest.js';
@@ -87,17 +89,23 @@ async function main() {
   const tunnel = new Tunnel(deps, () => store.getSettings().tunnelProvider || 'cloudflare');
 
   const ffmpegInfo = { path: 'ffmpeg', available: false, version: null, encoders: [], installing: false };
+  // aceleração por SoC (Rockchip MPP): instala o FFmpeg certo em data/bin e expõe em /api/hw
+  const hwVideo = new HardwareVideo({ dataBin: BIN });
   const ytdlp = new Ytdlp({ deps, ffmpegInfo, dataDir: DATA, recordingsDir: recDir });
   async function detectFfmpeg() {
-    const candidates = [process.env.FFMPEG_PATH, deps.exists('ffmpeg') ? deps.localPath('ffmpeg') : null, 'ffmpeg'].filter(Boolean);
-    for (const c of candidates) {
-      const info = await probeFfmpeg(c);
-      if (info.available) {
-        Object.assign(ffmpegInfo, info, { installing: false });
-        if (!ffmpegInfo.encoders.some((e) => e.id === 'libx264')) ffmpegInfo.encoders.unshift({ id: 'libx264', label: 'CPU (x264)', hw: false });
-        console.log(`[boot] FFmpeg ${info.version} | encoders: ${ffmpegInfo.encoders.map((e) => e.id).join(', ')}`);
-        return true;
-      }
+    // o SoC decide a ordem dos candidatos (ex.: data/bin/ffmpeg-rockchip antes do genérico embutido)
+    const info = await resolveFfmpeg({
+      dataBin: BIN,
+      embedded: deps.exists('ffmpeg') ? deps.localPath('ffmpeg') : '',
+      probeFile: path.join(DATA, 'ffmpeg-probe.json'),
+    });
+    if (info.available) {
+      Object.assign(ffmpegInfo, info, { installing: false });
+      if (!ffmpegInfo.encoders.some((e) => e.id === 'libx264')) ffmpegInfo.encoders.unshift({ id: 'libx264', label: 'CPU (x264)', hw: false });
+      console.log(
+        `[boot] FFmpeg ${info.version} (${describeSoc(info.soc)}) | encoder: ${info.escolhido} | encoders: ${ffmpegInfo.encoders.map((e) => e.id).join(', ')}`,
+      );
+      return true;
     }
     return false;
   }
@@ -120,7 +128,7 @@ async function main() {
   // entradas e saídas RTMP/SRT/WebRTC (MediaMTX embutido)
   const ingest = new Ingest({ deps, store, ffmpegInfo, dataDir: DATA, lanIps });
   const broadcasts = new BroadcastManager({ ffmpegInfo, recordingsDir: recDir, store, ingest });
-  const multirec = new MultiRecorder({ recordingsDir: recDir, ffmpegPath: () => ffmpegInfo.path, encoders: () => ffmpegInfo.encoders });
+  const multirec = new MultiRecorder({ recordingsDir: recDir, ffmpegPath: () => ffmpegInfo.path, encoders: () => ffmpegInfo.encoders, soc: () => ffmpegInfo.soc || null });
   const ndiOutput = new NdiOutputServer({ root: ROOT, ffmpegPath: ffmpegInfo.path, binDir: BIN });
   const pollHub = new PollHub();
   const msgHub = new MsgHub();
@@ -868,12 +876,53 @@ async function main() {
     res.json({ ok: true });
   });
 
+  // ---------- aceleração de vídeo por SoC (Rockchip MPP e afins) ----------
+  api.get('/hw', async (req, res) => {
+    try {
+      res.json(await hwVideo.info(ffmpegInfo));
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+  api.post('/hw/rockchip', localOnly, async (req, res) => {
+    try {
+      if (!hwVideo.podeInstalarRockchip()) throw new Error('Esta máquina não é Linux ARM Rockchip.');
+      if (hwVideo.instalado()) {
+        await detectFfmpeg();
+        return res.json({ ok: true, ja: true });
+      }
+      // devolve na hora e instala em segundo plano: 98 MB demora e o navegador não deve esperar
+      res.status(202).json({ ok: true, iniciado: true });
+      hwVideo
+        .instalarRockchip((p) => {
+          hwVideo.state.progresso = p;
+        })
+        .then(async () => {
+          await detectFfmpeg();
+          console.log('[hwvideo] encoder ativo agora:', ffmpegInfo.escolhido || ffmpegInfo.encoders?.[0]?.id || 'libx264');
+        })
+        .catch((e) => console.warn('[hwvideo] falha ao instalar:', e.message));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+  api.delete('/hw/rockchip', localOnly, async (req, res) => {
+    try {
+      await hwVideo.removerRockchip();
+      await detectFfmpeg();
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   api.get('/system', (req, res) => {
     const ips = lanIps();
     res.json({
       version: APP_VERSION,
       updateTarget: UPDATE_TARGET,
       ffmpeg: { ...ffmpegInfo, download: deps.state.ffmpeg },
+      hw: { soc: hwVideo.soc, label: describeSoc(hwVideo.soc), encoder: ffmpegInfo.escolhido || null },
       ytdlp: { ...ytdlp.info(), download: deps.state['yt-dlp'] },
       presets: PRESETS,
       httpPort: HTTP_PORT,

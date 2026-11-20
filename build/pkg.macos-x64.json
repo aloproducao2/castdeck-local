@@ -1,6 +1,11 @@
 {
   "name": "castdeck",
-  "version": "1.8.24",
+  "version": "1.8.25",
+  "description": "CastDeck Local — servidor",
+  "author": "flue.live — Miguel Kallemback",
+  "copyright": "Copyright © 2026 Miguel Kallemback / flue.live. AGPL-3.0.",
+  "license": "AGPL-3.0-only",
+  "homepage": "https://cast.flue.live",
   "bin": "../dist/castdeck.cjs",
   "pkg": {
     "assets": [

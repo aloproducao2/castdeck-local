@@ -195,53 +195,78 @@ fn get_logs_dir() -> PathBuf {
     logs
 }
 
-fn kill_orphan_servers() {
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        let mut cmd = Command::new("taskkill");
-        // mata o servidor embutido de qualquer build (nome fixo ou versionado)
-        cmd.args(["/F", "/T", "/IM", "castdeck-server-embedded*.exe"]);
-        cmd.creation_flags(CREATE_NO_WINDOW);
-        let _ = cmd.status();
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = Command::new("pkill").args(["-9", "-f", "castdeck-server-embedded"]).status();
+// Caminho do registro do servidor desta instância (PID + executável).
+fn server_pid_file() -> PathBuf {
+    get_app_dir().join("app").join("server.pid")
+}
+
+fn write_server_pid(pid: u32, exe: &std::path::Path) {
+    let _ = std::fs::create_dir_all(get_app_dir().join("app"));
+    let _ = std::fs::write(server_pid_file(), format!("{}\n{}", pid, exe.display()));
+}
+
+fn clear_server_pid() {
+    let _ = std::fs::remove_file(server_pid_file());
+}
+
+/// Encerra SOMENTE o servidor que esta instalação registrou (e que ainda aponta para a nossa pasta).
+/// Encerra SOMENTE o servidor que esta instalação registrou (e que ainda aponta para a nossa pasta).
+/// Antes daqui saia um taskkill /IM castdeck-server-embedded*.exe, que alem de matar processos de
+/// outra instalação é exatamente o tipo de comportamento (matar processos em massa) que antivírus
+/// classificam como suspeito.
+///
+/// Arquivos de servidor de versões antigas (e o modelo antigo "castdeck-server-embedded-*.exe")
+/// acumulavam ~190 MB por versão em app/. Aqui a limpeza roda depois de encerrar o órfão: apagar as
+/// versões que não são a atual some do disco (e da memória do antivírus).
+fn cleanup_old_server_files() {
+    let app = get_app_dir().join("app");
+    let atual = env!("CARGO_PKG_VERSION");
+    let Ok(entradas) = std::fs::read_dir(&app) else {
+        return;
+    };
+    for e in entradas.flatten() {
+        let caminho = e.path();
+        let nome = e.file_name().to_string_lossy().to_lowercase();
+        // modelo antigo: castdeck-server-embedded-<versao>-<hash>.exe (+ .sig)
+        if nome.starts_with("castdeck-server-embedded") {
+            let _ = std::fs::remove_file(&caminho);
+            continue;
+        }
+        // pastas de outras versões (mantém a atual)
+        if caminho.is_dir() && nome != atual.to_lowercase() && nome.starts_with("1.") {
+            let _ = std::fs::remove_dir_all(&caminho);
+        }
     }
 }
 
-fn kill_other_castdeck_processes() {
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        let my_pid = std::process::id();
-        let filter = format!("PID ne {}", my_pid);
-        let mut cmd = Command::new("taskkill");
-        cmd.args(["/F", "/T", "/FI", &filter, "/IM", "CastDeck.exe"]);
-        cmd.creation_flags(CREATE_NO_WINDOW);
-        let _ = cmd.status();
-
-        let mut cmd2 = Command::new("taskkill");
-        cmd2.args(["/F", "/T", "/FI", &filter, "/IM", "castdeck-launcher.exe"]);
-        cmd2.creation_flags(CREATE_NO_WINDOW);
-        let _ = cmd2.status();
+fn kill_orphan_servers() {
+    let registro = server_pid_file();
+    let Ok(txt) = std::fs::read_to_string(&registro) else {
+        return;
+    };
+    let mut linhas = txt.lines();
+    let pid: u32 = linhas.next().unwrap_or("").trim().parse().unwrap_or(0);
+    let exe = linhas.next().unwrap_or("").trim().to_string();
+    let nosso = exe.to_lowercase().contains("castdeck") && exe.to_lowercase().contains("app");
+    if pid != 0 && nosso {
+        kill_pid(pid);
     }
-    #[cfg(not(windows))]
-    {
-        let lock_path = get_app_dir().join("launcher.pid");
-        if let Ok(raw) = std::fs::read_to_string(&lock_path) {
-            if let Ok(pid) = raw.trim().parse::<u32>() {
-                if pid != 0 && pid != std::process::id() {
-                    kill_pid(pid);
-                }
+    let _ = std::fs::remove_file(&registro);
+}
+
+/// Encerra o lançador anterior que ficou preso (só o PID registrado por ele).
+/// Não usa mais taskkill por nome de imagem: matar "todo CastDeck.exe" derrubava a instalação
+/// instalada quando o usuário abria o portátil, e é comportamento de malware aos olhos do AV.
+fn kill_other_castdeck_processes() {
+    let lock_path = get_app_dir().join("launcher.pid");
+    if let Ok(raw) = std::fs::read_to_string(&lock_path) {
+        if let Ok(pid) = raw.trim().parse::<u32>() {
+            if pid != 0 && pid != std::process::id() {
+                kill_pid(pid);
             }
         }
-        let _ = std::fs::remove_file(lock_path);
     }
-
+    let _ = std::fs::remove_file(lock_path);
     kill_orphan_servers();
 }
 
@@ -328,12 +353,15 @@ fn get_embedded_server_path() -> Option<PathBuf> {
     #[cfg(feature = "embedded-server")]
     {
         static SERVER_BYTES: &[u8] = include_bytes!("../server.bin");
-        let app_dir = get_app_dir().join("app");
+        // app/<versão>/castdeck-server.exe: nome fixo e pasta que diz o que é (antes era
+        // castdeck-server-embedded-<versão>-<hash>.exe na raiz de app/, nome que muda a cada build e
+        // parece "dropper" tanto para o usuário quanto para o antivírus).
+        let app_dir = get_app_dir().join("app").join(env!("CARGO_PKG_VERSION"));
         let _ = std::fs::create_dir_all(&app_dir);
         #[cfg(windows)]
-        let exe_base = "castdeck-server-embedded";
+        let exe_base = "castdeck-server";
         #[cfg(not(windows))]
-        let exe_base = "castdeck-server-embedded";
+        let exe_base = "castdeck-server";
 
         // Assinatura simples (tamanho + versão + amostra distribuída) para garantir regravação em builds novos
         let sig = {
@@ -353,10 +381,12 @@ fn get_embedded_server_path() -> Option<PathBuf> {
         // rodando e servindo a interface velha.
         let tag = sig.rsplit(':').next().unwrap_or("0").to_string();
         let tag8: String = tag.chars().rev().take(8).collect::<String>().chars().rev().collect();
+        // o hash continua no arquivo .sig (controle de atualização), não no nome
+        let _ = tag8;
         #[cfg(windows)]
-        let exe_name = format!("{}-{}-{}.exe", exe_base, env!("CARGO_PKG_VERSION"), tag8);
+        let exe_name = format!("{}.exe", exe_base);
         #[cfg(not(windows))]
-        let exe_name = format!("{}-{}-{}", exe_base, env!("CARGO_PKG_VERSION"), tag8);
+        let exe_name = exe_base.to_string();
         let target_exe = app_dir.join(&exe_name);
         let sig_file = app_dir.join(format!("{}.sig", exe_name));
 
@@ -381,6 +411,20 @@ fn get_embedded_server_path() -> Option<PathBuf> {
             let _ = std::fs::set_permissions(&target_exe, std::fs::Permissions::from_mode(0o755));
         }
         if target_exe.exists() {
+            let leia = app_dir.join("LEIA-ME.txt");
+            if !leia.exists() {
+                let _ = std::fs::write(
+                    &leia,
+                    "CastDeck Local - servidor local\r\n\
+\r\n\
+Este arquivo \"castdeck-server.exe\" e o servidor do proprio CastDeck (interface + streaming),\r\n\
+extraido do executavel que voce baixou em https://cast.flue.live. Ele NAO e instalado como servico\r\n\
+e some quando voce desinstala/remove a pasta de dados.\r\n\
+\r\n\
+Se o seu antivirus isolar este arquivo: adicione a pasta do CastDeck nas exclusoes.\r\n\
+SHA-256 dos binarios publicados: https://cast.flue.live/downloads.html\r\n",
+                );
+            }
             return Some(target_exe);
         }
     }
@@ -457,6 +501,7 @@ fn spawn_server(job: &Option<job::ProcessJob>) -> Option<Child> {
 
             if let Ok(child) = cmd.spawn() {
                 SERVER_PID.store(child.id(), Ordering::SeqCst);
+                write_server_pid(child.id(), &candidate);
                 #[cfg(windows)]
                 {
                     if let Some(j) = job {
@@ -762,6 +807,7 @@ fn handle_tray_events(
                 // podiam sobreviver e a janela parecia "reabrir" ao clicar na bandeja.
                 kill_pid(BROWSER_PID.swap(0, Ordering::SeqCst));
                 kill_pid(SERVER_PID.swap(0, Ordering::SeqCst));
+    clear_server_pid();
                 kill_orphan_servers();
                 return true;
             }
@@ -806,8 +852,9 @@ fn main() {
         }
     };
 
-    // Sem outro lançador na bandeja, qualquer castdeck-server-embedded rodando ficou órfão de execução anterior.
+    // Sem outro lançador na bandeja, qualquer servidor rodando ficou órfão de execução anterior.
     kill_orphan_servers();
+    cleanup_old_server_files();
 
     let job = Arc::new(job::ProcessJob::new());
     let _server_child = spawn_server(&job);

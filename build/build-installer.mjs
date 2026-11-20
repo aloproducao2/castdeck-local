@@ -63,6 +63,15 @@ if (r.status !== 0 || !fs.existsSync(outFile)) {
   console.error(`[installer] ISCC terminou com código ${r.status}; saída não encontrada.`);
   process.exit(1);
 }
+// Assinatura Authenticode do instalador (se houver certificado configurado): é o arquivo que o
+// usuário baixa e executa — assinado, o Windows mostra o editor em vez de "não reconhecido".
+try {
+  const { assinarArquivos } = await import('./sign.mjs');
+  assinarArquivos([outFile]);
+} catch (e) {
+  console.error(`[installer] assinatura falhou: ${e.message}`);
+  process.exit(1);
+}
 const st = fs.statSync(outFile);
 const hash = crypto.createHash('sha256').update(fs.readFileSync(outFile)).digest('hex').toUpperCase();
 console.log(`[installer] OK: ${outFile}`);

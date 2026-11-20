@@ -10,7 +10,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { videoEncoderArgs } from './ffmpeg.js';
+import { videoEncoderArgs, bestEncoder } from './ffmpeg.js';
 
 const MAX_SOURCES = 8;
 const MIN_FREE_BYTES = 1024 * 1024 * 1024;
@@ -21,10 +21,11 @@ const slug = (v) => text(v, 90).toLowerCase().replace(/[^a-z0-9._-]+/g, '-').rep
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
 
 export class MultiRecorder {
-  constructor({ recordingsDir, ffmpegPath = '', encoders = [], logger = console } = {}) {
+  constructor({ recordingsDir, ffmpegPath = '', encoders = [], soc = null, logger = console } = {}) {
     this.recordingsDir = recordingsDir;
     this.ffmpegPath = ffmpegPath;
     this.encoders = encoders;
+    this.soc = soc;
     this.convertQueue = [];
     this.converting = false;
     this.logger = logger;
@@ -300,18 +301,21 @@ export class MultiRecorder {
     source.mp4Status = 'converting';
     await this.queueManifest(session);
     const encoders = typeof this.encoders === 'function' ? this.encoders() : this.encoders || [];
-    const hw = (Array.isArray(encoders) ? encoders : []).find((e) => e?.hw)?.id;
+    const soc = typeof this.soc === 'function' ? this.soc() : this.soc;
+    const escolha = bestEncoder(soc || null, { encoders: Array.isArray(encoders) ? encoders : [] });
+    const hw = escolha.hw ? escolha.id : null;
     const tryEncode = (encoder) => new Promise((resolve) => {
       const tmp = source.mp4File + '.part';
       const vaapi = encoder === 'h264_vaapi';
+      const rkmpp = /_rkmpp$/.test(encoder);
       const args = [
         '-hide_banner', '-loglevel', 'error',
         ...(vaapi ? ['-vaapi_device', '/dev/dri/renderD128'] : []),
         '-i', source.finalFile,
         '-map', '0:v:0', '-map', '0:a?',
-        ...(vaapi ? ['-vf', 'format=nv12,hwupload'] : []),
+        ...(vaapi ? ['-vf', 'format=nv12,hwupload'] : rkmpp ? ['-vf', 'format=nv12'] : []),
         ...videoEncoderArgs(encoder, session.videoKbps || 4000, 30),
-        ...(vaapi ? [] : ['-pix_fmt', 'yuv420p']),
+        ...(vaapi || rkmpp ? [] : ['-pix_fmt', 'yuv420p']),
         '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2',
         '-movflags', '+faststart', '-f', 'mp4', '-y', tmp,
       ];

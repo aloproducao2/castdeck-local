@@ -1,0 +1,30 @@
+# Textos do pacote (pt-BR) — o winget exige nome curto e descrição do que o app faz.
+PackageIdentifier: fluelive.CastDeck
+PackageVersion: 1.8.24
+PackageLocale: pt-BR
+Publisher: flue.live — Miguel Kallemback
+PublisherUrl: https://cast.flue.live
+PublisherSupportUrl: https://cast.flue.live/documentacao.html
+Author: Miguel Kallemback
+PackageName: CastDeck Local
+PackageUrl: https://cast.flue.live/
+License: AGPL-3.0-only
+LicenseUrl: https://github.com/aloproducao2/castdeck-local/blob/main/LICENSE
+Copyright: Copyright (C) 2026 Miguel Kallemback / flue.live
+ShortDescription: Estúdio de transmissão ao vivo 100% local, com convidados, cenas e multistream.
+Description: |-
+  CastDeck Local é um estúdio de transmissão ao vivo que roda no seu próprio PC: chamadas de vídeo com
+  convidados, composição de cenas com sua marca, gráficos (GC), jornal, replay e multistream para várias
+  plataformas ao mesmo tempo (RTMP/SRT) via FFmpeg embutido. Não depende de servidor na nuvem: a mídia
+  não sai da sua máquina exceto para as plataformas que você configurar.
+Tags:
+  - streaming
+  - live
+  - obs
+  - rtmp
+  - studio
+  - broadcast
+  - video
+ReleaseNotesUrl: https://cast.flue.live/changelog.html
+ManifestType: defaultLocale
+ManifestVersion: 1.10.0

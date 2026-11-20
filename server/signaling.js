@@ -235,6 +235,8 @@ export class SignalingHub {
         return { op: 'replay-auto-take', on: !!cmd.on };
       case 'pad-play':
         return id ? { op: 'pad-play', id } : null;
+      case 'pad-seek':
+        return id ? { op: 'pad-seek', id, pct: Math.max(0, Math.min(1, Number(cmd.pct) || 0)) } : null;
       case 'pad-stop':
         return { op: 'pad-stop', id: id || undefined };
       case 'pad-vol':

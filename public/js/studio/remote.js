@@ -353,6 +353,12 @@ export function createRemote({ S, comp, mixer, getSig, studioId, getSwitcher, ge
         getMusic?.()?.playPad?.(c.id);
         setTimeout(sync, 40);
         return;
+      case 'pad-seek':
+        // controle por QR: clique/arraste na barra do celular busca no material (0..1)
+        if (c.id && Number.isFinite(c.pct)) getMusic?.()?.seekPadPct?.(c.id, c.pct);
+        else if (c.id && Number.isFinite(c.time)) getMusic?.()?.seekPad?.(c.id, c.time);
+        setTimeout(sync, 40);
+        return;
       case 'pad-stop':
         if (c.id) getMusic?.()?.stopPadSample?.(c.id);
         else getMusic?.()?.stopAllPads?.();

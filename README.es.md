@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **1.8.21** — el **Pad ahora tiene seek**: haz clic o arrastra en la barra de progreso de la tarjeta para ir a cualquier punto del vídeo o del audio (ideal como playout alternativo, y el vídeo sigue en el PGM). Al hacer clic en un pad detenido empieza exactamente en ese punto, y la barra «ahora sonando» de la ventana del Pad también busca. Incluye las banderas SVG del selector de idioma (1.8.20), la exclusión de estudios en masa y el filtro que ya no rellena el navegador.
+Versión **1.8.22** — el **control remoto por QR también tiene seek**: toca o arrastra la barra de la tarjeta (o la barra «ahora sonando») para ir a cualquier punto del vídeo o del audio — el móvil, la ventana del Pad y el panel del estudio quedan en el mismo punto. Incluye el seek del Pad (1.8.21), las banderas SVG del selector (1.8.20), la exclusión de estudios en masa y el filtro que ya no rellena el navegador.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

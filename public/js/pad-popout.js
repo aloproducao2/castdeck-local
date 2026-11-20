@@ -207,6 +207,10 @@ function startStandaloneSignaling(info) {
     if (!c || !standaloneFallback) return;
     switch (c.op) {
       case 'pad-play': standaloneFallback.playPad(c.id); break;
+      case 'pad-seek':
+        if (c.id && Number.isFinite(c.pct)) standaloneFallback.seekPadPct(c.id, c.pct);
+        else if (c.id && Number.isFinite(c.time)) standaloneFallback.seekPad(c.id, c.time);
+        break;
       case 'pad-replay': standaloneFallback.replayLastPad(); break;
       case 'pad-stop': if (c.id) standaloneFallback.stopPadSample(c.id); else standaloneFallback.stopAllPads(); break;
       case 'pad-vol': if (Number.isFinite(c.vol)) standaloneFallback.setPadVolume(c.vol); break;

@@ -28,6 +28,11 @@ let pendingVolTimer = 0;
 let ambVolLockUntil = 0;
 let lastAmbVolSentAt = 0;
 let pendingAmbVolTimer = 0;
+// seek: no máximo um comando a cada ~70 ms durante o arraste + um final; trava o estado antigo por 250 ms
+let seekQueued = null;
+let seekTimer = 0;
+let lastSeekSentAt = 0;
+let seekLockUntil = 0;
 
 function buzz(ms = 14) {
   try { navigator.vibrate?.(ms); } catch {}
@@ -38,11 +43,91 @@ function sendCmd(cmd) {
   sig.send({ type: 'remote-cmd', cmd });
 }
 
+// ---- seek pelo celular: manda `pad-seek` (pct do material) com throttle ----
+function sendPadSeek(id, pct) {
+  if (!id || !Number.isFinite(pct)) return;
+  seekQueued = { id, pct: Math.max(0, Math.min(1, pct)) };
+  const fire = () => {
+    seekTimer = 0;
+    if (!seekQueued) return;
+    const { id: sid, pct: sp } = seekQueued;
+    seekQueued = null;
+    lastSeekSentAt = performance.now();
+    seekLockUntil = lastSeekSentAt + 250;
+    try { navigator.vibrate?.(8); } catch {}
+    sig.send({ type: 'remote-cmd', cmd: { op: 'pad-seek', id: sid, pct: sp } });
+  };
+  const now = performance.now();
+  if (now - lastSeekSentAt >= 70) fire();
+  else if (!seekTimer) seekTimer = setTimeout(fire, 70 - (now - lastSeekSentAt));
+}
+
+function bindCardSeek(el, id) {
+  if (!el || !id) return;
+  const seekTo = (ev) => {
+    const r = el.getBoundingClientRect();
+    if (!(r.width > 0)) return;
+    const pct = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+    const fill = el.closest('.pad-card')?.querySelector('.pad-card-fill');
+    if (fill) fill.style.width = `${Math.round(pct * 100)}%`;
+    seekLockUntil = performance.now() + 250;
+    sendPadSeek(id, pct);
+  };
+  el.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    try { el.setPointerCapture(ev.pointerId); } catch {}
+    seekTo(ev);
+    const move = (e2) => { e2.preventDefault(); seekTo(e2); };
+    const up = () => {
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  });
+  el.addEventListener('click', (ev) => ev.stopPropagation());
+}
+
+// barra "agora tocando" do celular também busca no material no ar
+function bindNowBarSeek() {
+  const bar = $('.pad-now-bar');
+  if (!bar || bar.dataset.seekBound) return;
+  bar.dataset.seekBound = '1';
+  bar.classList.add('pad-now-bar-seek');
+  bar.title = 'Clique ou arraste para ir a um ponto do material que está tocando';
+  const seekTo = (ev) => {
+    const id = pad?.nowPlaying?.sampleId;
+    if (!id) return;
+    const r = bar.getBoundingClientRect();
+    if (!(r.width > 0)) return;
+    const pct = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+    bar.querySelector('i')?.style.setProperty('width', `${Math.round(pct * 100)}%`);
+    seekLockUntil = performance.now() + 250;
+    sendPadSeek(id, pct);
+  };
+  bar.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault();
+    try { bar.setPointerCapture(ev.pointerId); } catch {}
+    seekTo(ev);
+    const move = (e2) => { e2.preventDefault(); seekTo(e2); };
+    const up = () => {
+      bar.removeEventListener('pointermove', move);
+      bar.removeEventListener('pointerup', up);
+      bar.removeEventListener('pointercancel', up);
+    };
+    bar.addEventListener('pointermove', move);
+    bar.addEventListener('pointerup', up);
+    bar.addEventListener('pointercancel', up);
+  });
+}
+
 function showErr(msg) {
   $('#pr-err-msg').textContent = msg || 'Link inválido ou estúdio indisponível.';
   $('#pr-err').hidden = false;
 }
-
 function updateConnUi() {
   const dot = $('#pr-dot');
   const sub = $('#pr-sub');
@@ -109,6 +194,7 @@ function paintClocksAndBar() {
   const inlinePlay = $('#pr-player-play');
 
   const np = pad.nowPlaying;
+  const seekLocked = performance.now() < seekLockUntil; // durante o arraste/seek, não deixa o estado antigo puxar a barra
   if (np && pad.playingCount > 0) {
     const dur = Number(np.duration) || 0;
     const elapsed = dur > 0 ? Math.min(dur, (np.elapsed || 0) + dt) : (np.elapsed || 0) + dt;
@@ -122,7 +208,7 @@ function paintClocksAndBar() {
       rem.classList.toggle('ending', dur > 0 && remaining < 1.5);
     }
     if (durEl) durEl.textContent = fmtPadClock(dur);
-    if (bar) bar.style.width = `${Math.round(pct * 100)}%`;
+    if (bar && !seekLocked) bar.style.width = `${Math.round(pct * 100)}%`;
     nowBox?.classList.add('active');
   } else {
     if (nowName) nowName.textContent = pad.playingCount ? 'Tocando…' : (pad.lastSampleName ? `Pronto · ${pad.lastSampleName}` : 'Pronto para disparar');
@@ -239,7 +325,7 @@ function paintClocksAndBar() {
       durElCard.textContent = s?.duration ? fmtDur(s.duration) : 'MP3';
     }
     const fill = card.querySelector('.pad-card-fill');
-    if (fill) fill.style.width = `${Math.round(pctCard * 100)}%`;
+    if (fill && performance.now() >= seekLockUntil) fill.style.width = `${Math.round(pctCard * 100)}%`;
   });
 }
 
@@ -266,6 +352,7 @@ function cardHtml(s, gmap, groups) {
       <small class="pad-card-dur">${s.duration ? fmtDur(s.duration) : 'MP3'}</small>
     </button>
     <i class="pad-card-fill" style="width:0%"></i>
+    <span class="pad-card-seek" data-pad-seek="${esc(s.id)}" draggable="false" title="Clique ou arraste para ir a um ponto do material"></span>
   </div>`;
 }
 
@@ -365,6 +452,8 @@ function renderGrid() {
   main.querySelectorAll('[data-pad-hit]').forEach((b) => {
     b.onclick = () => sendCmd({ op: 'pad-play', id: b.dataset.padHit });
   });
+  // barra de seek: clique/arraste no card vai para o ponto do material (vídeo acompanha no PGM)
+  main.querySelectorAll('[data-pad-seek]').forEach((el) => bindCardSeek(el, el.dataset.padSeek));
   main.querySelectorAll('[data-pad-fav]').forEach((b) => {
     b.onclick = (e) => {
       e.stopPropagation();
@@ -556,6 +645,7 @@ function bindEvents() {
 }
 
 bindEvents();
+bindNowBarSeek();
 setInterval(() => {
   if ((pad?.playingCount > 0 || pad?.ambient?.playing) && hostOnline) paintClocksAndBar();
 }, 50);

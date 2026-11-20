@@ -1061,3 +1061,9 @@
   border-radius: 999px;
 }
 .pad-now-bar.pad-now-bar-seek:hover { background: hsl(0 0% 100% / .16); }
+
+/* Alvo de toque maior no celular (controle por QR) e trilho um pouco mais visível */
+.pad-rem-btn .pad-card-seek { height: 16px; }
+.pad-card-seek::before { background: hsl(0 0% 100% / .12); }
+.pad-card-seek:hover::before, .pad-card-seek:active::before { background: hsl(0 0% 100% / .24); }
+.pad-card-seek:active .pad-card-fill { filter: brightness(1.25); }

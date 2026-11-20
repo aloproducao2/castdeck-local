@@ -145,7 +145,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.8.21** — the **Pad now has seek**: click or drag on a card's progress bar to jump to any point of the video or audio (great as an alternative playout, and the video follows in the PGM). Clicking a stopped pad starts exactly at that point, and the "now playing" bar in the Pad window also seeks. Includes the SVG language flags (1.8.20), bulk studio deletion and the studio filter that no longer gets filled by the browser.
+Version **1.8.22** — the **QR phone remote now has seek too**: tap or drag the bar on a card (or the "now playing" bar) to jump to any point of the video or audio — the phone, the Pad window and the studio panel stay on the same position. Includes the Pad seek (1.8.21), the SVG language flags (1.8.20), bulk studio deletion and the studio filter that no longer gets filled by the browser.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

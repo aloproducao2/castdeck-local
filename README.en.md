@@ -145,7 +145,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.8.23** — **paste the live link and the comments come in by themselves**: YouTube, Twitch, Kick and TikTok (experimental) in the Networks tab, with filter chips that list only the networks you actually connected, plus **Connect account** (local OAuth, no server in the middle) to create the live and refresh the stream key without pasting it by hand, Kick sources that wait for the live to start, and fixes in the chat browser and the embedded server.
+Version **1.8.24** — **media now loads in the playout on macOS/Safari**: the file picker opens again (it needs a clickable area, `hidden` inputs are ignored by WebKit), and clips in MKV, AVI, TS, FLV, WebM or OGG are converted locally to MP4 H.264+AAC (up to 1080p, 6 GB, cache cleaned after 24 h). Also fixes `crossOrigin` on blob URLs and the Pad folder picker.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

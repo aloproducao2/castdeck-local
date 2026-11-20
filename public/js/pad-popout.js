@@ -1008,8 +1008,18 @@ function bindEvents() {
     if (e.target === e.currentTarget) $('#pad-qr-modal').hidden = true;
   });
 
-  $('#pad-win-bulk')?.addEventListener('click', () => openBulkModal(''));
-  $('#pad-win-folder-btn')?.addEventListener('click', () => $('#pad-win-folder')?.click());
+  // O Safari não suporta webkitdirectory: ao clicar em "pasta", avisa e abre o seletor de arquivos.
+function pickPadFolder(input, fallbackInput) {
+  if (!input) return;
+  if (!('webkitdirectory' in input)) {
+    fallbackInput?.click();
+    return;
+  }
+  try { input.value = ''; } catch { }
+  input.click();
+}
+$('#pad-win-bulk')?.addEventListener('click', () => openBulkModal(''));
+  $('#pad-win-folder-btn')?.addEventListener('click', () => pickPadFolder($('#pad-win-folder'), $('#pad-win-folder')));
   $('#pad-win-folder')?.addEventListener('change', (e) => {
     const destCat = currentSnap?.category !== 'all' && currentSnap?.category !== 'fav' ? currentSnap?.category : 'custom';
     ctrl?.addPadFiles(e.target.files, { category: destCat });
@@ -1059,8 +1069,8 @@ function bindEvents() {
   $('#pad-bulk-close')?.addEventListener('click', closeBulkModal);
   $('#pad-bulk-cancel')?.addEventListener('click', closeBulkModal);
   $('#pad-bulk-modal')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeBulkModal(); });
-  $('#pad-bulk-pick-files')?.addEventListener('click', () => $('#pad-bulk-files')?.click());
-  $('#pad-bulk-pick-folder')?.addEventListener('click', () => $('#pad-bulk-folder')?.click());
+  $('#pad-bulk-pick-files')?.addEventListener('click', () => { const i = $('#pad-bulk-files'); if (i) { try { i.value = ''; } catch { } i.click(); } });
+  $('#pad-bulk-pick-folder')?.addEventListener('click', () => pickPadFolder($('#pad-bulk-folder'), $('#pad-bulk-files')));
   $('#pad-bulk-files')?.addEventListener('change', (e) => {
     bulkFiles = [...bulkFiles, ...(e.target.files || [])];
     e.target.value = '';

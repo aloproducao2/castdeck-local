@@ -2035,7 +2035,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
           <button type="button" class="btn sm danger" id="pad-clear-yes">Confirmar</button>
           <button type="button" class="btn sm ghost" id="pad-clear-no">Cancelar</button>
         </div>
-        <input type="file" id="pad-file" accept="audio/*,video/webm,video/mp4,.mp3,.wav,.ogg,.m4a,.flac,.opus,.webm,.mp4" multiple hidden>
+        <input type="file" id="pad-file" class="file-input-offscreen" accept="audio/*,video/webm,video/mp4,.mp3,.wav,.ogg,.m4a,.flac,.opus,.webm,.mp4" multiple>
       `;
 
       panel.querySelectorAll('[data-music-view]').forEach((b) => {
@@ -2149,7 +2149,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
         <button class="btn primary" id="music-add">${icons.plus} Adicionar áudios</button>
         <span class="hint">Salvo neste dispositivo com a ordem escolhida.</span>
       </div>
-      <input type="file" id="music-file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.flac,.opus" multiple hidden>
+      <input type="file" id="music-file" class="file-input-offscreen" accept="audio/*,.mp3,.wav,.ogg,.m4a,.flac,.opus" multiple>
     `;
 
     panel.querySelectorAll('[data-music-view]').forEach((b) => {

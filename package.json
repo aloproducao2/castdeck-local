@@ -1,6 +1,6 @@
 {
   "name": "castdeck-local",
-  "version": "1.8.23",
+  "version": "1.8.24",
   "description": "EstÃºdio de transmissÃ£o ao vivo 100% local para Windows: chamadas de vÃ­deo com convidados, composiÃ§Ã£o de cena e multistream RTMP via FFmpeg.",
   "type": "module",
   "main": "server/index.js",
@@ -33,13 +33,14 @@
     "test:signaling": "node test/signaling-camera.test.mjs",
     "test:android-assets": "node test/android-assets.test.mjs",
     "test:whatsapp": "node test/whatsapp.test.mjs",
-    "test:unit": "node test/replay-engine.test.mjs && node test/net-lan.test.mjs && node test/updater.test.mjs && node test/signaling-camera.test.mjs && node test/security-local.test.mjs && node test/whatsapp.test.mjs",
+    "test:unit": "node test/replay-engine.test.mjs && node test/net-lan.test.mjs && node test/updater.test.mjs && node test/signaling-camera.test.mjs && node test/security-local.test.mjs && node test/whatsapp.test.mjs && node test/media-support-unit.mjs",
     "test:switcher": "node test/switcher-e2e.mjs",
     "test:onair": "node test/onair-e2e.mjs",
     "test:autovoz": "node test/autovoz-e2e.mjs",
     "test:ux": "node test/ux-e2e.mjs",
     "test:audio": "node test/run-audio-test.mjs",
-    "test:replay": "node test/replay-engine.test.mjs"
+    "test:replay": "node test/replay-engine.test.mjs",
+    "test:media": "node test/media-e2e.mjs"
   },
   "engines": {
     "node": ">=20"

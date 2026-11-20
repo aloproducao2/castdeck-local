@@ -794,7 +794,7 @@ export function createDsk({ S, comp, mixer, $, $$, esc, toast, modal, api, studi
                                 <button type="button" class="btn sm primary" id="dsk-img-add">＋ Imagens</button>
                               </span>
                             </div>
-                            <input type="file" id="dsk-img-file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+                            <input type="file" id="dsk-img-file" class="file-input-offscreen" accept="image/png,image/jpeg,image/webp,image/gif" multiple>
                             ${c.images.length
                               ? `<div class="dsk-gallery">${c.images.map((it, k) => `<div class="dsk-thumb ${k === c.imgIndex ? 'active' : ''}" data-img-k="${k}" role="button" tabindex="0" title="${esc(it.name)} — clique para colocar no ar">
                                   <img src="${esc(it.url)}" alt="" loading="lazy">

@@ -484,3 +484,17 @@ select.input { appearance: none; cursor: pointer; background-image: linear-gradi
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
   pointer-events: none;
 }
+
+/* Seletor de arquivos invisível, mas CLICÁVEL.
+ * O WebKit (Safari, inclusive no macOS) recusa abrir o seletor quando o <input type=file> está com
+ * display:none/hidden: o elemento precisa de área de layout para o clique virar diálogo do sistema.
+ * Antes, os inputs usavam o atributo `hidden` e "＋ Adicionar" não fazia nada no Mac. */
+.file-input-offscreen {
+  position: fixed;
+  left: -9999px;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}

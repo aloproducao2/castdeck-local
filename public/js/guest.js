@@ -172,7 +172,7 @@ function build() {
       <i class="pop-sep" id="g-cursor-sep"></i>
       <button class="pop-item toggle" id="g-cursor" role="menuitemcheckbox" title="Mostrar/ocultar o cursor do mouse ao compartilhar tela ou aba">${icons.cursor}<span><b>Mostrar o cursor</b><small>Ao compartilhar tela ou aba</small></span><i class="pop-check">${ICO.check}</i></button>
     </div>
-    <input type="file" id="g-file" accept="video/*,audio/*" hidden>
+    <input type="file" id="g-file" class="file-input-offscreen" accept="video/*,audio/*">
     <aside class="side">
       <nav class="tabs"><button class="tab active" id="tab-chat">${icons.chat}<span>Chat</span></button><button class="tab" id="tab-prod" hidden>${ICO.star}<span>Produção</span></button><button class="tab sheet-close" id="g-chat-close" style="flex:none;width:44px" title="Fechar">✕</button></nav>
       <div class="panel active" id="panel-chat">

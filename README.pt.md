@@ -147,7 +147,7 @@ incorporar o código em produto fechado. Componentes de terceiros mantêm suas l
 
 ## Status
 
-Versão **1.8.23** — **cole o link da live e os comentários entram sozinhos**: YouTube, Twitch, Kick e TikTok (experimental) na aba Redes, com chips de filtro que listam só as redes que você conectou, além de **Conectar conta** (OAuth local, sem servidor no meio) para criar a live e renovar a chave sem colar a chave na mão, fontes da Kick que esperam a live começar e correções no navegador do chat e no servidor embutido.
+Versão **1.8.24** — **a mídia agora entra no playout no macOS/Safari**: o seletor de arquivos voltou a abrir (precisa de área clicável — o WebKit ignora input com `hidden`) e clipes em MKV, AVI, TS, FLV, WebM ou OGG são convertidos localmente para MP4 H.264+AAC (até 1080p, 6 GB, cache limpo em 24 h). Também corrige o `crossOrigin` em URLs blob e o seletor de pastas do Pad.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Feito por **Miguel Kallemback / flue.live**, de brasileiros para o mundo. 🌎

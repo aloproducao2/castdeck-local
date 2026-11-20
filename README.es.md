@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **1.8.23** — **pega el enlace del directo y los comentarios entran solos**: YouTube, Twitch, Kick y TikTok (experimental) en la pestaña Redes, con chips de filtro que listan solo las redes que conectaste, además de **Conectar cuenta** (OAuth local, sin servidor en medio) para crear el directo y renovar la clave sin pegarla a mano, fuentes de Kick que esperan el inicio del directo y correcciones en el navegador del chat y en el servidor embebido.
+Versión **1.8.24** — **la media ahora carga en el playout en macOS/Safari**: el selector de archivos vuelve a abrir (necesita área clicable; WebKit ignora inputs con `hidden`) y los clips en MKV, AVI, TS, FLV, WebM u OGG se convierten localmente a MP4 H.264+AAC (hasta 1080p, 6 GB, caché limpia a las 24 h). También corrige `crossOrigin` en URLs blob y el selector de carpetas del Pad.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

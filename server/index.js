@@ -1506,19 +1506,48 @@ async function main() {
   app.use('/recordings', localOnly, (req, res, next) => express.static(recDir())(req, res, next));
 
   // ---------- Conversão de mídia local ----------
-  // O navegador não decodifica alguns áudios comuns em filmes (AC3/E-AC3/DTS) nem HEVC: converte para MP4 H.264 + AAC.
+  // O navegador não decodifica alguns contêineres/codecs comuns em clipes (MKV, AVI, TS, FLV, WebM no
+  // Safari e no Chromium, AC3/E-AC3/DTS, HEVC antigo): o servidor converte para MP4 H.264 + AAC.
+  //   ?mode=audio (padrão) -> só troca o áudio quando o vídeo já é H.264 (rápido)
+  //   ?mode=media           -> entrega o arquivo inteiro tocável (H.264 + AAC, ≤1080p)
   const MEDIA_CACHE = path.join(DATA, 'media-cache');
   app.use('/media-cache', localOnly, express.static(MEDIA_CACHE));
+  const MEDIA_CACHE_MAX_AGE = 24 * 3600 * 1000; // 1 dia
+  async function cleanMediaCache() {
+    try {
+      const entradas = await fs.readdir(MEDIA_CACHE);
+      const agora = Date.now();
+      for (const nome of entradas) {
+        const p = path.join(MEDIA_CACHE, nome);
+        try {
+          const st = await fs.stat(p);
+          if (agora - st.mtimeMs > MEDIA_CACHE_MAX_AGE) await fs.unlink(p);
+        } catch { }
+      }
+    } catch { }
+  }
+  setTimeout(cleanMediaCache, 20000).unref?.();
+
   app.post('/api/media/convert', localOnly, async (req, res) => {
     const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
     const src = path.join(MEDIA_CACHE, `${id}.src`);
     const out = path.join(MEDIA_CACHE, `${id}.mp4`);
+    const modo = String(req.query.mode || 'audio').toLowerCase() === 'media' ? 'media' : 'audio';
     try {
       await fs.mkdir(MEDIA_CACHE, { recursive: true });
       const ff = ffmpegInfo.path || 'ffmpeg';
       const { createWriteStream } = await import('node:fs');
       const { pipeline } = await import('node:stream/promises');
-      await pipeline(req, createWriteStream(src));
+      let recebido = 0;
+      const limite = 6 * 1024 * 1024 * 1024; // 6 GB
+      const contador = new (await import('node:stream')).Transform({
+        transform(chunk, _enc, cb) {
+          recebido += chunk.length;
+          if (recebido > limite) return cb(new Error('Arquivo maior que 6 GB — converta fora do CastDeck ou use um clipe menor.'));
+          cb(null, chunk);
+        },
+      });
+      await pipeline(req, contador, createWriteStream(src));
       const runFf = (args) =>
         new Promise((resolve) => {
           const p = spawn(ff, args, { windowsHide: true });
@@ -1532,20 +1561,31 @@ async function main() {
       const hasVideo = /Stream #\d+:\d+.*: Video:/.test(probe);
       const vcodec = (probe.match(/: Video: (\w+)/) || [])[1] || '';
       const acodec = (probe.match(/: Audio: (\w+)/) || [])[1] || '';
-      if (!hasAudio) {
+      if (!hasAudio && !hasVideo) {
+        await fs.unlink(src).catch(() => { });
+        return res.status(415).json({ error: 'O arquivo não tem vídeo nem áudio que o CastDeck consiga ler.' });
+      }
+      if (!hasAudio && modo === 'audio') {
         await fs.unlink(src).catch(() => { });
         return res.json({ silent: true });
       }
-      const args = ['-hide_banner', '-v', 'error', '-y', '-i', src, '-map', '0:v:0?', '-map', '0:a:0'];
+      const args = ['-hide_banner', '-v', 'error', '-y', '-i', src, '-map', '0:v:0?', '-map', '0:a:0?'];
       if (hasVideo) {
-        if (vcodec === 'h264') args.push('-c:v', 'copy');
-        else args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-pix_fmt', 'yuv420p');
+        // H.264 em MP4 já está bom; qualquer outro contêiner/codec é transcodificado
+        if (vcodec === 'h264' && modo === 'audio') args.push('-c:v', 'copy');
+        else
+          args.push(
+            '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-pix_fmt', 'yuv420p',
+            // não passa de 1080p (clipe 4K numa máquina fraca não toca); altura par para o H.264
+            '-vf', "scale='min(1920,iw)':-2",
+          );
       }
-      args.push('-c:a', 'aac', '-b:a', '192k', '-ac', '2', '-movflags', '+faststart', out);
+      if (hasAudio) args.push('-c:a', 'aac', '-b:a', modo === 'media' ? '160k' : '192k', '-ac', '2');
+      args.push('-movflags', '+faststart', out);
       const r = await runFf(args);
       await fs.unlink(src).catch(() => { });
       if (r.code !== 0) throw new Error(r.err.trim().split('\n').slice(-2).join(' ') || 'falha no FFmpeg');
-      res.json({ url: `/media-cache/${id}.mp4`, vcodec, acodec });
+      res.json({ url: `/media-cache/${id}.mp4`, vcodec, acodec, mode: modo });
     } catch (e) {
       await fs.unlink(src).catch(() => { });
       res.status(500).json({ error: e.message });

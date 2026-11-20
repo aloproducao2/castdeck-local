@@ -26,6 +26,7 @@ import { createRaffle } from './raffle.js';
 import { createMessages } from './messages.js';
 import { createSports } from './sports.js';
 import { chooseRecordingsDir } from '../recdir.js';
+import { inspectFile, describeFormat } from '../media-support.js';
 import { editDestination, deleteDestination, toggleDestination, showKeyHelp, prepareDestination, destState, CONNECTABLE } from '../destinations.js';
 import { createOutputs } from './outputs.js';
 import { createProjectors } from './projector.js';
@@ -465,7 +466,7 @@ async function buildStudio() {
       <i class="ctrl-sep"></i>
       <button class="ctrl" id="c-settings" title="Dispositivos: nome, câmera, microfone e gravações"><span class="ctrl-ico">${icons.settings}</span><span>Dispositivos</span></button>
       <button class="ctrl" id="c-leave"><span class="ctrl-ico">${icons.leave}</span><span>Sair</span></button>
-      <input type="file" id="media-file" accept="video/*,image/*,audio/*" multiple hidden>
+      <input type="file" id="media-file" class="file-input-offscreen" accept="video/*,image/*,audio/*" multiple>
     </footer>
 
     <aside class="side" id="side">
@@ -3658,12 +3659,12 @@ function bindUI() {
   };
   $('#c-media').onclick = () => {
     switchTab('media');
-    $('#media-file').click();
+    openFilePicker($('#media-file'));
   };
   $('#media-file').onchange = (e) => {
     const files = [...e.target.files];
     e.target.value = '';
-    files.forEach(addMediaFile);
+    addMediaEntries(files);
   };
   $('#c-invite').onclick = showInvite;
   $('#c-settings').onclick = showSettings;
@@ -4047,12 +4048,64 @@ function stopScreen() {
 }
 
 // opts.id/opts.silent: usados ao restaurar a sessão (mantém o mesmo id e não mostra avisos nem troca de aba)
+// Campos de arquivo fora da tela precisam existir com área clicável: no Safari (macOS) um input
+// com `hidden`/`display:none` NÃO abre o seletor — era isso que quebrava o "＋ Adicionar" no Mac.
+function openFilePicker(input) {
+  if (!input) return;
+  try { input.value = ''; } catch { }
+  input.click();
+}
+
+// Adiciona arquivos escolhidos/soltos: confere o contêiner e, quando o navegador não toca (MKV, AVI,
+// TS, FLV, OGG no Safari…), converte no servidor para MP4 H.264+AAC antes de entrar na mídia.
+async function addMediaEntries(files) {
+  const canVideo = (t) => document.createElement('video').canPlayType(t);
+  for (const file of files) {
+    if (!file) continue;
+    let info = null;
+    try {
+      info = await inspectFile(file, canVideo);
+    } catch { }
+    if (info && info.veredito === 'no' && info.kind !== 'image') {
+      await convertAndAddMedia(file, info);
+      continue;
+    }
+    const s = addMediaFile(file);
+    if (s && info) s.format = info;
+  }
+}
+
+// Converte o clipe no FFmpeg local (?mode=media) e entra na mídia como MP4 tocável.
+async function convertAndAddMedia(file, info) {
+  const nome = file.name;
+  const base = nome.replace(/\.[^.]+$/, '').slice(0, 40);
+  const modo = info.kind === 'audio' ? 'audio' : 'media';
+  toast(`Convertendo “${base}” (${info.label}) — isso pode levar alguns minutos…`);
+  try {
+    const r = await fetch(`/api/media/convert?mode=${modo}`, { method: 'POST', body: file });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `falha na conversão (HTTP ${r.status})`);
+    if (j.silent) return toast(`“${base}” não tem faixa de áudio para converter.`, 'err');
+    const resp = await fetch(j.url);
+    if (!resp.ok) throw new Error('não consegui baixar o arquivo convertido');
+    const blob = await resp.blob();
+    const convertido = new File([blob], `${base}.mp4`, { type: modo === 'audio' ? 'audio/mp4' : 'video/mp4' });
+    const s = addMediaFile(convertido, { converted: true, label: `${base} (convertido)` });
+    if (s) s.format = { container: 'mp4', label: 'MP4', kind: modo === 'audio' ? 'audio' : 'video', veredito: 'maybe' };
+    toast(`“${base}” convertido para MP4 e pronto para o playout.`, 'ok');
+    return s;
+  } catch (e) {
+    toast(`Não foi possível converter “${base}”: ${e.message}`, 'err');
+    return null;
+  }
+}
+
 function addMediaFile(file, opts = {}) {
   let id = opts.id;
   if (id) S.mediaCount = Math.max(S.mediaCount, Number(id.split(':')[1]) || 0);
   else id = `media:${++S.mediaCount}`;
-  const url = URL.createObjectURL(file);
-  const label = file.name.replace(/\.[^.]+$/, '').slice(0, 40);
+  const url = opts.url || URL.createObjectURL(file);
+  const label = (opts.label || file.name).replace(/\.[^.]+$/, '').slice(0, 40);
   if (file.type.startsWith('image/')) {
     const img = new Image();
     img.src = url;
@@ -4072,15 +4125,29 @@ function addMediaFile(file, opts = {}) {
   el.src = url;
   el.loop = false;
   el.playsInline = true;
-  el.crossOrigin = 'anonymous';
+  // `crossOrigin` em URL blob: atrapalha o carregamento no Safari (o arquivo é local, não precisa de CORS)
+  if (!/^blob:/i.test(url)) el.crossOrigin = 'anonymous';
   const isAudio = file.type.startsWith('audio/');
-  const s = { id, el, url, kind: 'media', label: (isAudio ? '♪ ' : '') + label, ownerId: 'host', camOff: isAudio, recordingName: opts.recordingName || '' };
+  const s = {
+    id, el, url,
+    kind: 'media',
+    label: (isAudio ? '♪ ' : '') + label,
+    ownerId: 'host',
+    camOff: isAudio,
+    recordingName: opts.recordingName || '',
+    converted: !!opts.converted,
+  };
   applySourceAdjust(s);
   S.sources.set(id, s);
   normalizeQueue();
   comp.upsertSource(id, { kind: 'media', label: s.label, el, url, camOff: isAudio, adjust: s.adjust || null });
   mixer.addElement(id, el, { ownerId: 'host', stageKey: id, monitor: true });
   el.preload = 'auto';
+  // arquivo que o navegador não decodifica: avisa em vez de ficar preto/sem som sem explicação
+  el.onerror = () => {
+    if (!S.sources.has(id)) return;
+    toast(`“${label}” não abriu no navegador (${describeFormat(s.format || {})}). Use "Converter" na lista de mídia.`, 'err');
+  };
   el.onplay = el.onpause = () => {
     renderTiles();
     if (tabOpen('media')) updateMediaRows();
@@ -4095,7 +4162,7 @@ function addMediaFile(file, opts = {}) {
   // só carrega: não entra no palco nem reproduz sozinho. O host usa "Palco" ou Tocar (ou a playlist)
   el.load();
   s.file = file;
-  el.addEventListener('play', () => { if (!s.checked) { s.checked = true; ensureMediaAudio(s, file); } });
+  el.addEventListener('play', () => { if (!s.checked) { s.checked = true; if (!s.converted) ensureMediaAudio(s, file); } });
   extras?.mediaAdded(s, file);
   if (opts.silent) return s;
   if (tabOpen('media')) renderMediaPanel();
@@ -4809,7 +4876,7 @@ function renderMediaPanel() {
     <p class="hint" style="margin:8px 0 0">A biblioteca acima é a fila. Para operar, abra o Playout.</p>`;
   // vídeos primeiro: é a seção que o operador mais usa ao vivo
   moveMediaSectionFirst(p);
-  $('#m-add', p).onclick = () => $('#media-file').click();
+  $('#m-add', p).onclick = () => openFilePicker($('#media-file'));
   $('#yt-toggle', p)?.addEventListener('click', ytToggle);
   $('#yt-go', p)?.addEventListener('click', () => ytStart());
   $('#yt-url', p)?.addEventListener('keydown', (e) => {
@@ -6768,7 +6835,7 @@ function tickDeck() {
          <button class="btn sm" id="dm-stage" title="Colocar/tirar do palco"></button>`
       : `<span class="hint deck-empty">Nenhum vídeo ou áudio</span><button class="btn sm" id="dm-add" title="Adicionar vídeos, áudios ou imagens">＋ Adicionar</button>`;
     if (!list.length) {
-      $('#dm-add', box).onclick = () => $('#media-file').click();
+      $('#dm-add', box).onclick = () => openFilePicker($('#media-file'));
       return;
     }
     const cur = () => S.sources.get(deckSel);

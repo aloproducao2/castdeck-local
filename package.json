@@ -1,6 +1,6 @@
 {
   "name": "castdeck-local",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "EstÃºdio de transmissÃ£o ao vivo 100% local para Windows: chamadas de vÃ­deo com convidados, composiÃ§Ã£o de cena e multistream RTMP via FFmpeg.",
   "type": "module",
   "main": "server/index.js",
@@ -44,12 +44,13 @@
     "test:hw": "node test/hw-accel-e2e.mjs",
     "test:binary": "node test/binary-meta.test.mjs",
     "sign:check": "node build/sign.mjs --check",
-    "test:plugins": "node test/plugins-unit.mjs && node test/plugins-e2e.mjs && node test/plugins-ui2.mjs && node test/plugins-catalog.mjs && node test/plugins-revoke.mjs && node test/plugins-author.mjs && node test/plugins-mcp.mjs && node test/plugins-melhorias.mjs",
+    "test:plugins": "node test/plugins-unit.mjs && node test/plugins-e2e.mjs && node test/plugins-ui2.mjs && node test/plugins-catalog.mjs && node test/plugins-revoke.mjs && node test/plugins-author.mjs && node test/plugins-mcp.mjs && node test/plugins-melhorias.mjs && node test/api-v1.mjs",
     "test:plugins:unit": "node test/plugins-unit.mjs",
     "test:plugins:e2e": "node test/plugins-e2e.mjs",
     "test:plugins:ui": "node test/plugins-ui2.mjs",
     "test:plugins:binary": "node test/plugins-bin.mjs && node test/plugins-bin-catalog.mjs && node test/plugins-bin-author.mjs",
-    "test:site": "node build/verify-publish.mjs && node test/site-plugins-ui.mjs"
+    "test:site": "node build/verify-publish.mjs && node test/site-plugins-ui.mjs",
+    "test:api": "node test/api-v1.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -5564,6 +5564,49 @@ function connectSignaling() {
     pushStudioState();
   });
   sig.on('plugin', (m) => plugins?.tratarAcao({ ...m, type: 'plugin' }));
+  // API v1: o app executa a ação pedida por integrações (Stream Deck, Home Assistant, agentes…)
+  sig.on('api', (m) => {
+    try {
+      const a = m?.acao || {};
+      switch (a.tipo) {
+        case 'overlay.show':
+          comp?.setPluginOverlay?.({ titulo: a.titulo || '', texto: a.texto || '', cor: a.cor || '' }, Number(a.segundos) || 6);
+          break;
+        case 'overlay.hide':
+          comp?.clearPluginOverlay?.();
+          break;
+        case 'scene.set':
+          if (a.layout) setLayout(String(a.layout));
+          break;
+        case 'stage.add':
+          if (a.fonte) setStage([...new Set([...(S.stage || []), String(a.fonte)])]);
+          break;
+        case 'stage.remove':
+          if (a.fonte) setStage((S.stage || []).filter((id) => id !== String(a.fonte)));
+          break;
+        case 'mixer.setVolume':
+          if (a.fonte) mixer?.setVolume?.(String(a.fonte), Math.max(0, Math.min(1, Number(a.volume) || 0)));
+          break;
+        case 'mixer.mute':
+          if (a.fonte) mixer?.setVolume?.(String(a.fonte), a.on === false ? 1 : 0);
+          break;
+        case 'media.play':
+          if (a.fonte) playMedia(String(a.fonte));
+          break;
+        case 'media.stop':
+          // para a mídia que estiver tocando (o playMedia troca a fonte em reprodução)
+          if (a.fonte && S.sources.get(String(a.fonte))?.el) {
+            const el = S.sources.get(String(a.fonte)).el;
+            try { el.pause(); } catch {}
+          }
+          break;
+        default:
+          console.warn('[api] ação não suportada:', a.tipo);
+      }
+    } catch (e) {
+      console.warn('[api]', e);
+    }
+  });
   sig.on('output-joined', (m) => outputs.add(m.id, m.src));
   sig.on('output-left', (m) => outputs.remove(m.id));
   sig.on('guest-joined', (m) => {

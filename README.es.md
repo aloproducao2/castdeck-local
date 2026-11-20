@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **2.0.1** — plugins con experiencia de producto: pestañas Instalados/Catálogo/Actividad, configuración automática, botón **Probar**, editor de reglas, instalación desde **carpeta local** y correcciones de navegación del sitio. Catálogo firmado en https://cast.flue.live/plugins/index.json con autoría por IA/agente (AGENTS.md + MCP).
+Versión **2.0.2** — **API v1** para controlar el estudio por código (overlay, chat, escena, escenario, mixer, medios) y **eventos en vivo por SSE**, con OpenAPI en /api/v1/openapi.json y docs en https://cast.flue.live/api.html. Los plugins mantienen pestañas, configuración automática, probar, editor de reglas y carpeta local.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

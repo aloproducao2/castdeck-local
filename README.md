@@ -147,7 +147,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Versão **2.0.1** — plugins com cara de produto: abas Instalados/Catálogo/Atividade, configuração automática, botão **Testar**, editor de regras, instalação de **pasta local** e correções de navegação do site. Catálogo assinado em https://cast.flue.live/plugins/index.json e autoria por IA/agente (AGENTS.md + MCP).
+Versão **2.0.2** — **API v1** para controlar o estúdio por código (overlay, chat, cena, palco, mixer, mídia) e **eventos ao vivo por SSE**, com OpenAPI em /api/v1/openapi.json e documentação em https://cast.flue.live/api.html. Plugins seguem com abas, configuração automática, testar, editor de regras e pasta local.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

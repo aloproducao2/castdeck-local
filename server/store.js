@@ -140,6 +140,8 @@ export class Store {
   }
   updateSettings(patch) {
     const s = this.data.settings;
+    // chave da API pública (v1) — gerada pelo próprio app na primeira vez
+    if (typeof patch.apiKey === 'string' && patch.apiKey.trim()) s.apiKey = patch.apiKey.trim().slice(0, 200);
     if (typeof patch.ndiEnabled === 'boolean') s.ndiEnabled = patch.ndiEnabled;
     if (typeof patch.autoTunnel === 'boolean') s.autoTunnel = patch.autoTunnel;
     if (['auto', 'localhostrun', 'cloudflare'].includes(patch.tunnelProvider)) s.tunnelProvider = patch.tunnelProvider;

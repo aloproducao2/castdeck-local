@@ -47,6 +47,7 @@ import { CaptionService } from './caption.js';
 import { Secrets } from './secrets.js';
 import { Connections } from './connections.js';
 import { PluginManager } from './plugins.js';
+import { criarApiV1 } from './api-v1.js';
 import { Author, documentacao } from './plugin-author.js';
 import dns from 'node:dns/promises';
 import net from 'node:net';
@@ -134,8 +135,18 @@ async function main() {
   const ingest = new Ingest({ deps, store, ffmpegInfo, dataDir: DATA, lanIps });
   const broadcasts = new BroadcastManager({ ffmpegInfo, recordingsDir: recDir, store, ingest });
   // início/fim de live -> eventos de plugin
-  broadcasts.on?.('started', (b) => plugins.emitirEvento('live', { acao: 'iniciou', studioId: b?.studioId || b?.studio?.id || '' }).catch(() => {}));
-  broadcasts.on?.('ended', (b) => plugins.emitirEvento('live', { acao: 'encerrou', studioId: b?.studioId || b?.studio?.id || '' }).catch(() => {}));
+  broadcasts.on?.('started', (b) => {
+    plugins.emitirEvento('live', { acao: 'iniciou', studioId: b?.studioId || b?.studio?.id || '' }).catch(() => {});
+    try {
+      apiV1.publicar({ tipo: 'live', acao: 'iniciou', estudio: b?.studioId || b?.studio?.id || '', em: new Date().toISOString() });
+    } catch {}
+  });
+  broadcasts.on?.('ended', (b) => {
+    plugins.emitirEvento('live', { acao: 'encerrou', studioId: b?.studioId || b?.studio?.id || '' }).catch(() => {});
+    try {
+      apiV1.publicar({ tipo: 'live', acao: 'encerrou', estudio: b?.studioId || b?.studio?.id || '', em: new Date().toISOString() });
+    } catch {}
+  });
 
   const multirec = new MultiRecorder({ recordingsDir: recDir, ffmpegPath: () => ffmpegInfo.path, encoders: () => ffmpegInfo.encoders, soc: () => ffmpegInfo.soc || null });
   const ndiOutput = new NdiOutputServer({ root: ROOT, ffmpegPath: ffmpegInfo.path, binDir: BIN });
@@ -692,15 +703,27 @@ async function main() {
   });
   await plugins.carregar();
   console.log('[plugins] api 1 · instalados:', Object.keys(plugins.state.plugins).length);
+  // toda ação auditada vira evento na API (integrações e agentes acompanham em tempo real)
+  plugins.on('audit', (e) => {
+    try {
+      apiV1.publicar({ tipo: 'plugin', ...e, em: new Date().toISOString() });
+    } catch {}
+  });
+
+  // ---------- API pública v1 (integrações locais e de rede) ----------
+  const apiV1 = criarApiV1({ store, hub, plugins, appVersion: APP_VERSION, dataDir: DATA, log: console.log });
 
   // chat das redes -> eventos de plugin (gatilhos declarativos e plugins de código)
-  // resposta de plugin aparece no chat do estúdio (quem opera e os convidados veem)
+  // resposta de plugin (ou da API v1) aparece no chat do estúdio
   plugins.on('chat-local', ({ pluginId, texto }) => {
     const msg = { type: 'chat', id: 'plugin-' + Date.now(), from: 'plugin', name: 'Plugin', role: 'host', text: String(texto).slice(0, 500), ts: Date.now(), pluginId };
     for (const sala of hub.rooms.values()) for (const c of sala.clients.values()) hub.send(c, msg);
   });
 
   socialScraper.on('message', (m) => {
+    try {
+      apiV1.publicar({ tipo: 'chat', usuario: m.chatname || m.name || '', texto: m.chatmessage || m.text || '', rede: m.type || m.source || '', em: new Date().toISOString() });
+    } catch {}
     plugins
       .emitirEvento('chat', {
         usuario: m.chatname || m.name || '',
@@ -835,6 +858,9 @@ async function main() {
     const { tipo, ...resto } = req.body || {};
     if (!['stage', 'scene', 'live', 'gravacao'].includes(tipo)) return res.status(400).json({ error: 'evento inválido' });
     plugins.emitirEvento(tipo, resto).catch(() => {});
+    try {
+      apiV1.publicar({ tipo, ...resto, em: new Date().toISOString() });
+    } catch {}
     res.json({ ok: true });
   });
   api.post('/plugins/install', async (req, res) => {
@@ -1893,6 +1919,7 @@ async function main() {
     }
   });
 
+  app.use('/api/v1', apiV1.router);
   app.use('/api', api);
   app.use('/recordings', localOnly, (req, res, next) => express.static(recDir())(req, res, next));
 

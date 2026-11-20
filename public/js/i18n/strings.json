@@ -32020,5 +32020,23 @@
     "{0} estudio eliminado",
     "{0} studio supprimé",
     "{0} Studio gelöscht"
+  ],
+  "Clique ou arraste para ir a um ponto do material": [
+    "Click or drag to jump to a point in the material",
+    "Haz clic o arrastra para ir a un punto del material",
+    "Cliquez ou faites glisser pour aller à un point du média",
+    "Klicken oder ziehen, um an eine Stelle des Materials zu springen"
+  ],
+  "Clique ou arraste para ir a um ponto do material (o vídeo acompanha no PGM)": [
+    "Click or drag to jump to a point (the video follows in the PGM)",
+    "Haz clic o arrastra para ir a un punto (el video sigue en el PGM)",
+    "Cliquez ou faites glisser pour aller à un point (la vidéo suit dans le PGM)",
+    "Klicken oder ziehen, um an eine Stelle zu springen (das Video folgt im PGM)"
+  ],
+  "Clique ou arraste para ir a um ponto do material (áudio)": [
+    "Click or drag to jump to a point (audio)",
+    "Haz clic o arrastra para ir a un punto (audio)",
+    "Cliquez ou faites glisser pour aller à un point (audio)",
+    "Klicken oder ziehen, um an eine Stelle zu springen (Audio)"
   ]
 }

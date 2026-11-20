@@ -1082,8 +1082,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
     emitPadState();
   }
 
-  function stopPadSample(sampleId) {
-    let stopped = false;
+  function stopPadSample(sampleId) {    let stopped = false;
     for (const p of [...activePadPlays.values()]) {
       if (p.sampleId === sampleId) {
         try { p.stop(); } catch {}
@@ -1100,9 +1099,47 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
     return stopped;
   }
 
-  async function playPad(id) {
+  // ---- seek (usar o Pad como playout alternativo: clicar/arrastar na barra vai para o ponto) ----
+  // Se o material estiver tocando, reposiciona; se estiver parado, começa dali (play a partir do clique).
+  function seekPad(id, seconds) {
+    const sample = padSamples.find((s) => s.id === id);
+    if (!sample) return false;
+    const t = Math.max(0, Number(seconds) || 0);
+    const plays = [...activePadPlays.values()].filter((p) => p.sampleId === id);
+    if (!plays.length) {
+      playPad(id, { offset: t });
+      return true;
+    }
+    for (const p of plays) {
+      try { p.seek?.(t); } catch {}
+    }
+    if (panel && viewMode === 'pad') paintPadProgress();
+    emitPadState();
+    return true;
+  }
+
+  function seekPadPct(id, pct) {
+    const sample = padSamples.find((s) => s.id === id);
+    const dur = Number(sample?.duration) || 0;
+    const p = Math.max(0, Math.min(1, Number(pct) || 0));
+    if (dur > 0) return seekPad(id, p * dur);
+    // duração ainda desconhecida: guarda para aplicar no loadedmetadata
+    const plays = [...activePadPlays.values()].filter((x) => x.sampleId === id);
+    if (plays.length) {
+      for (const pl of plays) {
+        const d = Number(pl.duration) || 0;
+        if (d > 0) try { pl.seek?.(p * d); } catch {}
+      }
+      emitPadState();
+      return true;
+    }
+    return false;
+  }
+
+  async function playPad(id, opts = {}) {
     const sample = padSamples.find((s) => s.id === id);
     if (!sample) return;
+    const startAt = Math.max(0, Number(opts?.offset) || 0);
     // Se um overlay de vídeo deste pad já está ativo ou travado no PGM, clicar de novo tira do ar (toggle).
     if (sample.kind === 'video' && [...activeVideoOverlays.values()].some((o) => o.sampleId === sample.id)) {
       stopPadSample(sample.id);
@@ -1149,6 +1186,14 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
         name: sample.name,
         startedAt: ovEntry.startedAt,
         duration: ovEntry.duration,
+        // posição/seek pelo próprio <video>: o overlay no PGM acompanha na hora (usado como playout)
+        position: () => Math.max(0, vid.currentTime || 0),
+        seek: (t) => {
+          try {
+            const lim = Number.isFinite(vid.duration) && vid.duration > 0 ? Math.max(0, vid.duration - 0.02) : t;
+            vid.currentTime = Math.max(0, Math.min(lim, t));
+          } catch {}
+        },
         setGain: (v) => { try { if (!mediaNode) vid.volume = clamp01(v); } catch {} },
         stop: cleanup,
       };
@@ -1192,6 +1237,18 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
           emitPadState();
         };
         await vid.play();
+        // seek inicial (clicar na barra de um padrão parado começa naquele ponto)
+        if (startAt > 0) {
+          await new Promise((res) => {
+            if (vid.readyState >= 1) return res();
+            vid.addEventListener('loadedmetadata', res, { once: true });
+            setTimeout(res, 2500);
+          });
+          try {
+            const lim = Number.isFinite(vid.duration) && vid.duration > 0 ? Math.max(0, vid.duration - 0.05) : startAt;
+            vid.currentTime = Math.min(startAt, lim);
+          } catch {}
+        }
         syncAmbientDucking();
         startPadTick();
         if (panel && viewMode === 'pad') paint();
@@ -1212,31 +1269,45 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
       }
       if (busInfo?.ctx && busInfo?.dest) {
         const buffer = await loadPadBuffer(sample, busInfo.ctx);
-        const srcNode = busInfo.ctx.createBufferSource();
-        srcNode.buffer = buffer;
-        srcNode.connect(busInfo.dest);
+        const ctx = busInfo.ctx;
+        const dur = buffer.duration || 0;
+        // Fonte reiniciável: o seek para este caminho (WebAudio) recria o nó no ponto pedido.
+        let node = null;
+        let base = 0; // offset (s) do trecho atual
+        let ctxStart = ctx.currentTime;
+        const startNodeAt = (t) => {
+          const lim = dur > 0 ? Math.max(0, dur - 0.01) : t;
+          base = Math.max(0, Math.min(lim, t));
+          try { if (node) { node.onended = null; node.stop(0); node.disconnect(); } } catch {}
+          node = ctx.createBufferSource();
+          node.buffer = buffer;
+          node.connect(busInfo.dest);
+          node.onended = () => {
+            if (!activePadPlays.has(playId)) return;
+            activePadPlays.delete(playId);
+            try { node?.disconnect(); } catch {}
+            syncAmbientDucking();
+            stopPadTickIfIdle();
+            if (panel && viewMode === 'pad') paint();
+            emitPadState();
+          };
+          ctxStart = ctx.currentTime;
+          node.start(0, base);
+        };
         const entry = {
           playId,
           sampleId: sample.id,
           name: sample.name,
           startedAt: performance.now(),
-          duration: buffer.duration || 0,
+          duration: dur,
+          position: () => Math.max(0, Math.min(dur, base + Math.max(0, ctx.currentTime - ctxStart))),
+          seek: (t) => startNodeAt(t),
           stop: () => {
-            try { srcNode.onended = null; srcNode.stop(0); } catch {}
-            try { srcNode.disconnect(); } catch {}
+            try { if (node) { node.onended = null; node.stop(0); node.disconnect(); } } catch {}
           },
         };
         activePadPlays.set(playId, entry);
-        srcNode.onended = () => {
-          if (!activePadPlays.has(playId)) return;
-          activePadPlays.delete(playId);
-          try { srcNode.disconnect(); } catch {}
-          syncAmbientDucking();
-          stopPadTickIfIdle();
-          if (panel && viewMode === 'pad') paint();
-          emitPadState();
-        };
-        srcNode.start(0);
+        startNodeAt(startAt);
       } else {
         const el = new Audio(sample.url);
         el.volume = padMuted ? 0 : padVolume;
@@ -1246,6 +1317,13 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
           name: sample.name,
           startedAt: performance.now(),
           duration: sample.duration || 0,
+          position: () => Math.max(0, el.currentTime || 0),
+          seek: (t) => {
+            try {
+              const lim = Number.isFinite(el.duration) && el.duration > 0 ? Math.max(0, el.duration - 0.02) : t;
+              el.currentTime = Math.max(0, Math.min(lim, t));
+            } catch {}
+          },
           setGain: (v) => { try { el.volume = clamp01(v); } catch {} },
           stop: () => {
             try { el.onended = null; el.pause(); el.currentTime = 0; } catch {}
@@ -1256,6 +1334,9 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
           if (Number.isFinite(el.duration) && el.duration > 0) {
             entry.duration = el.duration;
             sample.duration = el.duration;
+          }
+          if (startAt > 0) {
+            try { el.currentTime = Math.min(startAt, Math.max(0, (el.duration || startAt) - 0.05)); } catch {}
           }
         };
         el.onended = () => {
@@ -1603,7 +1684,8 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
     const activeBySample = new Map();
     let lastPlay = null;
     for (const p of activePadPlays.values()) {
-      const elapsed = Math.max(0, (now - p.startedAt) / 1000);
+      // posição real do elemento/nó quando disponível (um seek muda o currentTime; startedAt não acompanha)
+      const elapsed = p.position ? Math.max(0, p.position()) : Math.max(0, (now - p.startedAt) / 1000);
       const dur = p.duration || 0;
       const pct = dur > 0 ? Math.max(0, Math.min(1, elapsed / dur)) : 0;
       const remaining = dur > 0 ? Math.max(0, dur - elapsed) : 0;
@@ -1762,6 +1844,33 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
     });
   }
 
+  // Arrastar/clicar na barra de progresso de um padrão = seek (padrão parado começa naquele ponto).
+  function bindPadSeek(el, id) {
+    if (!el || !id) return;
+    const seekTo = (ev) => {
+      const r = el.getBoundingClientRect();
+      if (!(r.width > 0)) return;
+      const pct = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+      seekPadPct(id, pct);
+    };
+    el.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      try { el.setPointerCapture(ev.pointerId); } catch {}
+      seekTo(ev);
+      const move = (e2) => { e2.preventDefault(); seekTo(e2); };
+      const up = () => {
+        el.removeEventListener('pointermove', move);
+        el.removeEventListener('pointerup', up);
+        el.removeEventListener('pointercancel', up);
+      };
+      el.addEventListener('pointermove', move);
+      el.addEventListener('pointerup', up);
+      el.addEventListener('pointercancel', up);
+    });
+    el.addEventListener('click', (ev) => ev.stopPropagation());
+  }
+
   function renderPadGrid(root) {
     const grid = root.querySelector('#pad-mini-grid');
     if (!grid) return;
@@ -1787,7 +1896,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
             <button type="button" class="pad-mini-act ${s.fav ? 'on' : ''}" data-pad-fav="${esc(s.id)}" title="Favorito">★</button>
             <button type="button" class="pad-mini-act" data-pad-del="${esc(s.id)}" title="Remover">✕</button>
           </span>
-          <i class="pad-mini-fill" style="width:${st ? Math.round(st.pct * 100) : 0}%"></i>
+          <span class="pad-mini-seek" data-pad-seek="${esc(s.id)}" draggable="false" title="Clique ou arraste para ir a um ponto do material"><i class="pad-mini-fill" style="width:${st ? Math.round(st.pct * 100) : 0}%"></i></span>
         </div>`;
       })
       .join('');
@@ -1795,6 +1904,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
     grid.querySelectorAll('[data-pad-play]').forEach((b) => {
       b.onclick = () => playPad(b.dataset.padPlay);
     });
+    grid.querySelectorAll('[data-pad-seek]').forEach((el) => bindPadSeek(el, el.dataset.padSeek));
     grid.querySelectorAll('[data-pad-mode]').forEach((b) => {
       b.onclick = (e) => {
         e.stopPropagation();
@@ -2276,6 +2386,8 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
     replayLastPad,
     stopAllPads,
     stopPadSample,
+    seekPad,
+    seekPadPct,
     addPadFiles,
     updatePadMeta,
     removePadSample,
@@ -2320,7 +2432,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
 
   if (bridgeBc) {
     const BRIDGE_OPS = new Set([
-      'playPad', 'replayLastPad', 'stopAllPads', 'stopPadSample', 'setPadVolume', 'setPadMuted', 'setPadMonitor',
+      'playPad', 'replayLastPad', 'stopAllPads', 'stopPadSample', 'seekPad', 'seekPadPct', 'setPadVolume', 'setPadMuted', 'setPadMonitor',
       'setPadOverlap', 'setPadDucking', 'setPadGrouped', 'setPadCategory', 'setPadSearch',
       'togglePadGroupCollapse', 'addPadGroup', 'updatePadGroup', 'removePadGroup',
       'movePadGroup', 'movePadGroupBy', 'movePad', 'movePadBy', 'movePadToGroup', 'updatePadMeta',

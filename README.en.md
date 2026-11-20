@@ -145,7 +145,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.8.20** — the language selector now shows a real **country flag** on Windows (drawn as embedded SVG, since Windows has no flag emoji glyphs and used to render "BR"/"US" letters). Includes bulk studio deletion and the studio filter that no longer gets filled by the browser.
+Version **1.8.21** — the **Pad now has seek**: click or drag on a card's progress bar to jump to any point of the video or audio (great as an alternative playout, and the video follows in the PGM). Clicking a stopped pad starts exactly at that point, and the "now playing" bar in the Pad window also seeks. Includes the SVG language flags (1.8.20), bulk studio deletion and the studio filter that no longer gets filled by the browser.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

@@ -127,6 +127,9 @@ await host.ev(`document.querySelector('#panel-media .m-more').click()`); await s
 await host.ev(`(()=>{const v=(${VIS_MODAL})?.querySelector('#mm-vol');v.value=0.3;v.dispatchEvent(new Event('input'))})()`); await sleep(300);
 await host.ev(`(${VIS_MODAL})?.querySelector('[data-close]')?.click()`); await sleep(300);
 check('volume ajusta o mixer', await host.ev(`Math.abs(__castdeck.mixer.sources.get('media:1').volume-0.3)<0.01`));
+// o clipe de teste tem 4 s e estava em loop: desliga o loop e volta para o começo, senão a checagem de
+// "continua do mesmo ponto" mede a volta do loop (o app está certo, o teste é que ficava em cima da borda).
+await host.ev(`${MEDIA}.loop=false`); await host.ev(`${MEDIA}.currentTime=0.4`); await sleep(200);
 const mt0 = await host.ev(`__castdeck.S.sources.get("media:1").el.currentTime`);
 await host.ev(`document.querySelector('#panel-media .m-stage').click()`); await sleep(300);
 check('tirar do palco funciona', !(await host.ev(`__castdeck.S.stage.includes('media:1')`)));
@@ -134,7 +137,7 @@ const mt1 = await host.ev(`__castdeck.S.sources.get("media:1").el.currentTime`);
 check("tirar do palco pausa o video", await host.ev(`__castdeck.S.sources.get("media:1").el.paused`) && Math.abs((await host.ev(`__castdeck.S.sources.get("media:1").el.currentTime`)) - mt1) < 0.05);
 await host.ev(`document.querySelector('#panel-media .m-stage').click()`); await sleep(300);
 await sleep(700);
-check("pôr no palco continua do mesmo ponto", await host.ev(`!__castdeck.S.sources.get("media:1").el.paused`) && (await host.ev(`__castdeck.S.sources.get("media:1").el.currentTime`)) >= mt1 - 0.05 && mt1 >= mt0 - 0.05);
+check("pôr no palco continua do mesmo ponto", await host.ev(`!__castdeck.S.sources.get("media:1").el.paused`) && (await host.ev(`__castdeck.S.sources.get("media:1").el.currentTime`)) >= mt1 - 0.05 && mt1 >= mt0 - 0.05, `mt0=${mt0.toFixed(2)} mt1=${mt1.toFixed(2)} agora=${(await host.ev(`__castdeck.S.sources.get("media:1").el.currentTime`)).toFixed(2)} paused=${await host.ev(`__castdeck.S.sources.get("media:1").el.paused`)}`);
 check('pôr no palco funciona', await host.ev(`__castdeck.S.stage.includes('media:1')`));
 // ---------- REDES (chat social) + BANNERS ----------
 await host.ev(`document.querySelector('.tab[data-tab=social]').click()`); await sleep(300);

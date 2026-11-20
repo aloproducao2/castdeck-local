@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **1.8.20** — el selector de idioma ahora muestra la **bandera del país** de verdad en Windows (dibujada como SVG embebido, porque Windows no tiene glifos de bandera emoji y mostraba las letras «BR»/«US»). Incluye la exclusión de estudios en masa y el filtro que ya no rellena el navegador.
+Versión **1.8.21** — el **Pad ahora tiene seek**: haz clic o arrastra en la barra de progreso de la tarjeta para ir a cualquier punto del vídeo o del audio (ideal como playout alternativo, y el vídeo sigue en el PGM). Al hacer clic en un pad detenido empieza exactamente en ese punto, y la barra «ahora sonando» de la ventana del Pad también busca. Incluye las banderas SVG del selector de idioma (1.8.20), la exclusión de estudios en masa y el filtro que ya no rellena el navegador.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

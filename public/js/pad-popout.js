@@ -63,6 +63,8 @@ function ensureBridgeController() {
   bridgeCtrl = {
     restorePad: async () => bridgeBc?.postMessage({ type: 'hello', targetStudioId: studioId }),
     playPad: (id) => sendCmd('playPad', id),
+    seekPad: (id, seconds) => sendCmd('seekPad', id, seconds),
+    seekPadPct: (id, pct) => sendCmd('seekPadPct', id, pct),
     replayLastPad: () => sendCmd('replayLastPad'),
     stopAllPads: () => sendCmd('stopAllPads'),
     stopPadSample: (id) => sendCmd('stopPadSample', id),
@@ -466,6 +468,7 @@ function renderCardHtml(s, hotkey, snap, gmap) {
       <small class="pad-card-dur">${st && st.duration > 0 ? `${fmtPadClock(st.elapsed)} / -${fmtPadClock(st.remaining)}` : s.duration ? fmtDur(s.duration) : s.kind === 'video' ? 'VID' : 'MP3'}</small>
     </button>
     <i class="pad-card-fill" style="width:${st ? Math.round(st.pct * 100) : 0}%"></i>
+    <span class="pad-card-seek" data-pad-seek="${esc(s.id)}" draggable="false" title="Clique ou arraste para ir a um ponto do material (${s.kind === 'video' ? 'o vídeo acompanha no PGM' : 'áudio'})"></span>
   </article>`;
 }
 
@@ -563,10 +566,41 @@ function renderGrid(snap) {
   paintClocksAndToolbar(snap);
 }
 
+function bindCardSeek(el, id) {
+  if (!el || !id) return;
+  const seekTo = (ev) => {
+    const r = el.getBoundingClientRect();
+    if (!(r.width > 0)) return;
+    const pct = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+    if (ctrl?.seekPadPct) ctrl.seekPadPct(id, pct);
+    // feedback imediato da linha enquanto arrasta (o estado real volta pelo snapshot)
+    const fill = el.parentElement?.querySelector('.pad-card-fill');
+    if (fill) fill.style.width = `${Math.round(pct * 100)}%`;
+  };
+  el.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    try { el.setPointerCapture(ev.pointerId); } catch {}
+    seekTo(ev);
+    const move = (e2) => { e2.preventDefault(); seekTo(e2); };
+    const up = () => {
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  });
+  el.addEventListener('click', (ev) => ev.stopPropagation());
+}
+
 function bindGridHandlers(container, grouped) {
   container.querySelectorAll('[data-pad-hit]').forEach((btn) => {
     btn.onclick = () => ctrl?.playPad(btn.dataset.padHit);
   });
+  // barra de seek do card: clique/arraste vai para o ponto (padrão parado começa dali)
+  container.querySelectorAll('[data-pad-seek]').forEach((el) => bindCardSeek(el, el.dataset.padSeek));
   container.querySelectorAll('[data-pad-fav]').forEach((btn) => {
     btn.onclick = (e) => {
       e.stopPropagation();
@@ -1153,9 +1187,40 @@ function bindEvents() {
   bindPinButton();
 }
 
+// Barra "agora tocando": clique/arraste busca no material que está no ar (útil como playout).
+function bindNowBarSeek() {
+  const bar = q('.pad-now-bar');
+  if (!bar || bar.dataset.seekBound) return;
+  bar.dataset.seekBound = '1';
+  bar.classList.add('pad-now-bar-seek');
+  bar.title = 'Clique ou arraste para ir a um ponto do material que está tocando';
+  const seekTo = (ev) => {
+    const id = currentSnap?.nowPlaying?.sampleId;
+    if (!id || !ctrl?.seekPadPct) return;
+    const r = bar.getBoundingClientRect();
+    if (!(r.width > 0)) return;
+    ctrl.seekPadPct(id, Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)));
+  };
+  bar.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault();
+    try { bar.setPointerCapture(ev.pointerId); } catch {}
+    seekTo(ev);
+    const move = (e2) => { e2.preventDefault(); seekTo(e2); };
+    const up = () => {
+      bar.removeEventListener('pointermove', move);
+      bar.removeEventListener('pointerup', up);
+      bar.removeEventListener('pointercancel', up);
+    };
+    bar.addEventListener('pointermove', move);
+    bar.addEventListener('pointerup', up);
+    bar.addEventListener('pointercancel', up);
+  });
+}
+
 function attach() {
   const { music, linked, studioName } = resolveController();
   updateConnUi(linked, studioName);
+  bindNowBarSeek();
   if (ctrl === music && unsubscribe) return;
   unsubscribe?.();
   ctrl = music;

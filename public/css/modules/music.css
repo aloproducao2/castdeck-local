@@ -1007,3 +1007,57 @@
 
 
 
+
+/* ===== Seek no Pad: clique/arraste na linha de progresso vai para o ponto do material =====
+   Serve para usar o Pad como playout alternativo (vídeos entram no PGM acompanhando o ponto). */
+.pad-card-seek,
+.pad-mini-seek {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 13px;
+  z-index: 4;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+  border-radius: 0 0 12px 12px;
+}
+.pad-card-seek::before,
+.pad-mini-seek::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 6px;
+  background: hsl(0 0% 100% / .07);
+  pointer-events: none;
+}
+.pad-card-seek:hover::before,
+.pad-mini-seek:hover::before {
+  background: hsl(0 0% 100% / .16);
+}
+.pad-card-seek .pad-card-fill,
+.pad-mini-seek .pad-mini-fill {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  pointer-events: none;
+  border-radius: 0 2px 0 0;
+}
+.pad-mini-seek .pad-mini-fill { height: 3px; }
+
+/* Barra "agora tocando" clicável (seek do material no ar) */
+.pad-now-bar.pad-now-bar-seek { overflow: visible; cursor: pointer; touch-action: none; }
+.pad-now-bar.pad-now-bar-seek::after {
+  content: '';
+  position: absolute;
+  inset: -6px 0;
+  border-radius: 999px;
+}
+.pad-now-bar.pad-now-bar-seek:hover { background: hsl(0 0% 100% / .16); }

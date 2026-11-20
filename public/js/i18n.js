@@ -20,7 +20,28 @@
   const LANGS = { pt: 'Português (BR)', en: 'English', es: 'Español', fr: 'Français', de: 'Deutsch' };
   const LOCALES = { pt: 'pt-BR', en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE' };
   const IDX = { en: 0, es: 1, fr: 2, de: 3 };
-  const SHORT = { pt: '🇧🇷 PT', en: '🇺🇸 EN', es: '🇪🇸 ES', fr: '🇫🇷 FR', de: '🇩🇪 DE' };
+  const SHORT = { pt: 'PT', en: 'EN', es: 'ES', fr: 'FR', de: 'DE' };
+  // Bandeiras em SVG embutido (data URI): o Windows não tem glifos de bandeira emoji (🇧🇷 aparece como
+  // "BR"), então o seletor desenha a bandeira como imagem de fundo — funciona em qualquer PC.
+  const FLAGS = {
+    pt: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 16"><rect width="24" height="16" fill="#009b3a"/><path d="M12 2.2 21.6 8 12 13.8 2.4 8Z" fill="#fedf00"/><circle cx="12" cy="8" r="3.1" fill="#002776"/><path d="M8.9 7.4c2.1 1 4.4 1.4 6.3 1.1" fill="none" stroke="#fff" stroke-width="1"/></svg>',
+    en: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 16"><rect width="24" height="16" fill="#fff"/><g fill="#b22234"><rect width="24" height="1.23"/><rect y="2.46" width="24" height="1.23"/><rect y="4.92" width="24" height="1.23"/><rect y="7.38" width="24" height="1.23"/><rect y="9.85" width="24" height="1.23"/><rect y="12.31" width="24" height="1.23"/><rect y="14.77" width="24" height="1.23"/></g><rect width="10" height="8.62" fill="#3c3b6e"/><g fill="#fff"><circle cx="1.9" cy="1.7" r=".5"/><circle cx="4.5" cy="1.7" r=".5"/><circle cx="7.1" cy="1.7" r=".5"/><circle cx="3.2" cy="3.4" r=".5"/><circle cx="5.8" cy="3.4" r=".5"/><circle cx="8.4" cy="3.4" r=".5"/><circle cx="1.9" cy="5.1" r=".5"/><circle cx="4.5" cy="5.1" r=".5"/><circle cx="7.1" cy="5.1" r=".5"/><circle cx="3.2" cy="6.8" r=".5"/><circle cx="5.8" cy="6.8" r=".5"/><circle cx="8.4" cy="6.8" r=".5"/></g></svg>',
+    es: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 16"><rect width="24" height="16" fill="#aa151b"/><rect y="4" width="24" height="8" fill="#f1bf00"/></svg>',
+    fr: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 16"><rect width="24" height="16" fill="#fff"/><rect width="8" height="16" fill="#002395"/><rect x="16" width="8" height="16" fill="#ed2939"/></svg>',
+    de: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 16"><rect width="24" height="16" fill="#000"/><rect y="5.34" width="24" height="5.33" fill="#dd0000"/><rect y="10.67" width="24" height="5.33" fill="#ffce00"/></svg>',
+  };
+  // Aspas simples dentro do url(): o atributo style usa aspas duplas no HTML.
+  const flagUrl = (l) => (FLAGS[l] ? `url('data:image/svg+xml,${encodeURIComponent(FLAGS[l])}')` : '');
+  // CSS injetado uma vez por página: espaço à esquerda para a bandeira não encostar no texto.
+  const FLAG_CSS =
+    'select[data-cd-lang]{background-repeat:no-repeat!important;background-position:7px 50%!important;background-size:17px 11px!important;padding-left:27px!important}';
+  function ensureFlagCSS() {
+    if (document.getElementById('cd-lang-flags-css')) return;
+    const st = document.createElement('style');
+    st.id = 'cd-lang-flags-css';
+    st.textContent = FLAG_CSS;
+    document.head.appendChild(st);
+  }
   const KEY = 'castdeck.lang';
   const ATTRS = ['placeholder', 'title', 'aria-label', 'alt', 'data-tip', 'data-label'];
   const META = 'meta[name="description"],meta[property="og:title"],meta[property="og:description"],meta[name="twitter:title"],meta[name="twitter:description"]';
@@ -326,11 +347,18 @@
     const o = opts || {};
     const cls = o.className || '';
     const id = o.id ? ` id="${o.id}"` : '';
-    return `<select class="cd-lang ${cls}"${id} data-cd-lang translate="no" aria-label="Idioma / Language / Langue / Sprache" title="Idioma · Language · Langue · Sprache">${Object.keys(LANGS)
+    ensureFlagCSS();
+    return `<select class="cd-lang ${cls}"${id} data-cd-lang translate="no" style="background-image:${flagUrl(lang)}" aria-label="Idioma / Language / Langue / Sprache" title="Idioma · Language / Langue / Sprache">${Object.keys(LANGS)
       .map((k) => `<option value="${k}"${k === lang ? ' selected' : ''}>${o.short ? SHORT[k] : LANGS[k]}</option>`)
       .join('')}</select>`;
   }
-  function syncSelectors() { document.querySelectorAll('select[data-cd-lang]').forEach((s) => { if (s.value !== lang) s.value = lang; }); }
+  function syncSelectors() {
+    document.querySelectorAll('select[data-cd-lang]').forEach((s) => {
+      if (s.value !== lang) s.value = lang;
+      const u = flagUrl(lang);
+      if (u) s.style.backgroundImage = u;
+    });
+  }
   document.addEventListener('change', (e) => {
     const s = e.target;
     if (s && s.matches && s.matches('select[data-cd-lang]')) set(s.value);

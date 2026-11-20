@@ -145,7 +145,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.8.19** — the studio filter no longer gets filled by the browser (that stray "admin"): it starts empty, only searches while you type, and the ✕ now clears both the text and the list. Bulk studio deletion (from 1.8.18) is included.
+Version **1.8.20** — the language selector now shows a real **country flag** on Windows (drawn as embedded SVG, since Windows has no flag emoji glyphs and used to render "BR"/"US" letters). Includes bulk studio deletion and the studio filter that no longer gets filled by the browser.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

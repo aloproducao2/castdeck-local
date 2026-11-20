@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **1.8.19** — el filtro de estudios ya no se rellena solo con el autocompletado del navegador (aquel «admin» perdido): empieza vacío, solo busca mientras escribes y la ✕ limpia el texto y la lista de una vez. Incluye la exclusión de estudios en masa (1.8.18).
+Versión **1.8.20** — el selector de idioma ahora muestra la **bandera del país** de verdad en Windows (dibujada como SVG embebido, porque Windows no tiene glifos de bandera emoji y mostraba las letras «BR»/«US»). Incluye la exclusión de estudios en masa y el filtro que ya no rellena el navegador.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

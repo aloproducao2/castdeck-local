@@ -839,11 +839,19 @@ async function main() {
   });
   api.post('/plugins/install', async (req, res) => {
     try {
-      const { zipBase64, pasta } = req.body || {};
+      const { zipBase64, pasta, arquivos } = req.body || {};
+      // pasta local escolhida no navegador (<input webkitdirectory>): lista de arquivos com caminho relativo
+      if (Array.isArray(arquivos)) {
+        const r = await plugins.instalarArquivos(arquivos, { instaladoPor: 'pasta-local' });
+        return res.json({ ok: true, ...r });
+      }
       if (pasta) {
-        const alvo = path.isAbsolute(pasta) ? pasta : path.join(ROOT, pasta);
+        // caminho local de verdade (funciona no app empacotado): absoluto, ou relativo ao diretório atual
+        let alvo = String(pasta);
+        if (!path.isAbsolute(alvo)) alvo = path.resolve(process.cwd(), alvo);
         if (alvo.includes('..')) throw new Error('pasta inválida');
-        const r = await plugins.instalar({ pastaOrigem: alvo, instaladoPor: 'dev' });
+        if (!fsSync.existsSync(alvo)) throw new Error('pasta local não encontrada: ' + alvo);
+        const r = await plugins.instalar({ pastaOrigem: alvo, instaladoPor: 'pasta-local' });
         return res.json({ ok: true, ...r });
       }
       if (!zipBase64) throw new Error('envie o arquivo .cdplug');
@@ -886,6 +894,33 @@ async function main() {
     try {
       await plugins.desativar(req.params.id);
       res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+  api.post('/plugins/:id/test', async (req, res) => {
+    try {
+      const r = await plugins.testar(req.params.id, {
+        tipo: req.body?.tipo === 'stage' ? 'stage' : 'chat',
+        usuario: String(req.body?.usuario || 'teste'),
+        texto: String(req.body?.texto || '!oi'),
+        fonteNome: String(req.body?.fonteNome || 'Teste'),
+      });
+      res.json(r);
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+  api.get('/plugins/:id/rules', (req, res) => {
+    try {
+      res.json(plugins.regrasDe(req.params.id));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+  api.post('/plugins/:id/rules', async (req, res) => {
+    try {
+      res.json(await plugins.salvarRegras(req.params.id, req.body?.regras));
     } catch (e) {
       res.status(400).json({ error: e.message });
     }

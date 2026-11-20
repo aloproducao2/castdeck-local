@@ -147,7 +147,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **2.0.0** — **free plugins with a signed catalog**: extend the studio without any cloud. Declarative JSON plugins (chat commands, notices, media) and code plugins running in a separate process, with permissions you approve, audit logs and instant revocation. Two official plugins ship today: **Chat commands** and **Guest light** (switches a smart plug when someone joins the stage). The catalog is served at https://cast.flue.live/plugins/index.json with a signed index (Ed25519), and AI/agent authoring is first-class (AGENTS.md, authoring API and MCP server).
+Version **2.0.1** — production-grade plugins: Installed/Catalog/Activity tabs, auto-generated settings, **Test** button, rule editor, **local folder** install, and site navigation fixes. Signed catalog at https://cast.flue.live/plugins/index.json with AI/agent authoring (AGENTS.md + MCP).
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **2.0.0** — **plugins gratuitos con catálogo firmado**: amplía el estudio sin depender de la nube. Plugins declarativos en JSON (comandos de chat, avisos, medios) y plugins con código en un proceso separado, con permisos aprobados por ti, auditoría y revocación inmediata. Incluye dos oficiales: **Comandos de chat** y **Luz del invitado** (enciende una toma inteligente al entrar alguien al escenario). El catálogo se sirve en https://cast.flue.live/plugins/index.json con índice firmado (Ed25519), y la autoría por IA/agente es de primera clase (AGENTS.md, API de autoría y servidor MCP).
+Versión **2.0.1** — plugins con experiencia de producto: pestañas Instalados/Catálogo/Actividad, configuración automática, botón **Probar**, editor de reglas, instalación desde **carpeta local** y correcciones de navegación del sitio. Catálogo firmado en https://cast.flue.live/plugins/index.json con autoría por IA/agente (AGENTS.md + MCP).
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

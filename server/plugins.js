@@ -118,6 +118,8 @@ export class PluginManager extends EventEmitter {
         concedidas: st.grants || [],
         painel: (m.panels || [])[0] || null,
         overlay: (m.overlays || [])[0] || null,
+        settings: m.settings || [],
+        regras: m.tier === 'declarative' ? (m.rules || []).length : 0,
         pronto: rt?.ativo || m.tier === 'declarative',
       });
     }
@@ -195,6 +197,67 @@ export class PluginManager extends EventEmitter {
     this.auditar({ tipo: 'instalar', id, versao: manifesto.version, hash: origemHash, por: instaladoPor });
     this.log.log(`[plugins] ${id} ${manifesto.version} instalado`);
     return { id, versao: manifesto.version, manifesto, atualizado: jaTem };
+  }
+
+  // Instala a partir de uma lista de arquivos enviada pelo navegador (pasta local escolhida com
+  // <input webkitdirectory>): [{ nome: 'plugin.json', conteudoBase64 }]. Mesmo caminho de validação do .cdplug.
+  async instalarArquivos(arquivos, { instaladoPor = 'pasta-local' } = {}) {
+    if (!Array.isArray(arquivos) || !arquivos.length) throw new Error('nenhum arquivo enviado');
+    const entradas = [];
+    let total = 0;
+    for (const a of arquivos) {
+      const nome = String(a.nome || a.name || '')
+        .replace(/\\/g, '/')
+        .replace(/^\.?\//, '');
+      if (!nome || nome.includes('..') || nome.startsWith('/')) throw new Error('caminho inválido: ' + nome);
+      const dados = Buffer.from(String(a.conteudoBase64 || a.base64 || ''), 'base64');
+      total += dados.length;
+      if (total > 20 * 1024 * 1024) throw new Error('pasta maior que 20 MB');
+      entradas.push({ name: nome, data: dados });
+    }
+    const checagem = validarPacote(entradas, { castdeckVersion: this.appVersion });
+    if (!checagem.ok) throw new Error(checagem.erros.join('; '));
+    const manifesto = JSON.parse(entradas.find((e) => /(^|\/)plugin\.json$/.test(e.name)).data.toString('utf8'));
+    const v = validarManifesto(manifesto, { castdeckVersion: this.appVersion });
+    if (!v.ok) throw new Error(v.erros.join('; '));
+    if (this.revogado(manifesto.id, manifesto.version)) throw new Error('esta versão foi revogada pelo catálogo');
+
+    const destino = this.pasta(manifesto.id);
+    const jaTem = !!this.state.plugins[manifesto.id];
+    const tmp = destino + '.novo';
+    await fsp.rm(tmp, { recursive: true, force: true });
+    await fsp.mkdir(tmp, { recursive: true });
+    for (const e of entradas) {
+      const alvo = path.join(tmp, e.name);
+      if (!alvo.startsWith(tmp)) continue;
+      await fsp.mkdir(path.dirname(alvo), { recursive: true });
+      await fsp.writeFile(alvo, e.data);
+    }
+    if (jaTem) {
+      for (const sub of ['settings.json', 'data']) {
+        const antigo = path.join(destino, sub);
+        const novo = path.join(tmp, sub);
+        if (fs.existsSync(antigo) && !fs.existsSync(novo)) await fsp.cp(antigo, novo, { recursive: true }).catch(() => {});
+      }
+    }
+    if (this.runtimes.has(manifesto.id)) this.pararPlugin(manifesto.id);
+    await fsp.rm(destino, { recursive: true, force: true });
+    await fsp.rename(tmp, destino);
+    const hash = crypto.createHash('sha256').update(JSON.stringify(entradas.map((e) => [e.name, e.data.length]))).digest('hex');
+    await fsp.writeFile(path.join(destino, 'package.hash'), hash, 'utf8').catch(() => {});
+    this.state.plugins[manifesto.id] = {
+      ...(this.state.plugins[manifesto.id] || {}),
+      version: manifesto.version,
+      enabled: this.state.plugins[manifesto.id]?.enabled ?? false,
+      installedAt: new Date().toISOString(),
+      instaladoPor,
+      originHash: hash,
+      lastError: null,
+    };
+    await this.salvar();
+    this.auditar({ tipo: 'instalar', id: manifesto.id, versao: manifesto.version, por: instaladoPor });
+    this.log.log(`[plugins] ${manifesto.id} ${manifesto.version} instalado (${instaladoPor})`);
+    return { id: manifesto.id, versao: manifesto.version, manifesto, atualizado: jaTem };
   }
 
   async lerPasta(origem) {
@@ -460,6 +523,129 @@ export class PluginManager extends EventEmitter {
     if (!alvo) throw new Error('plugin não encontrado no catálogo');
     if (this.catalogoClient.revogado(indice, id, alvo.versao.version)) throw new Error('esta versão foi revogada pelo catálogo');
     return { ...alvo, fonte };
+  }
+
+  // Test-drive: dispara um evento sintético NESTE plugin (executa de verdade para o usuário ver) e devolve
+  // o que aconteceu. Serve para o botão "Testar" da aba Plugins.
+  async testar(id, { tipo = 'chat', usuario = 'teste', texto = '!oi', fonteNome = 'Teste' } = {}) {
+    if (!this.state.plugins[id]) throw new Error('plugin não encontrado');
+    const m = this.manifestoDe(id);
+    if (!m) throw new Error('manifesto não encontrado');
+    const efetivas = this.efetivas(id);
+    const executadas = [];
+    const evento =
+      tipo === 'stage'
+        ? { tipo: 'stage', acao: 'entrou', fonte: 'teste', fonteNome }
+        : { tipo: 'chat', usuario, texto, rede: 'teste', args: String(texto).trim().split(/\s+/).slice(1) };
+    if (m.tier === 'declarative') {
+      const motor = new MotorDeclarativo({
+        agora: () => Date.now(),
+        log: () => {},
+        executarAcao: async ({ acao }) => {
+          const r = await this.executarAcao({ pluginId: id, caps: efetivas.caps, hosts: efetivas.hosts, acao });
+          executadas.push({ acao: acao.type || acao.tipo, ok: r?.ok !== false, detalhe: acao.titulo || acao.texto || '' });
+          return r;
+        },
+      });
+      motor.registrar({ ...m, rules: (m.rules || []).map((r) => ({ ...r, cooldownSeg: 0 })) });
+      await motor.emitir(evento);
+    } else {
+      const rt = this.runtimes.get(id);
+      if (!rt?.ativo) throw new Error('o plugin não está rodando; ative para testar');
+      // envia o evento e espera um instante para capturar as ações pedidas pelo plugin
+      const capturadas = [];
+      const onAction = (ctx) => {
+        capturadas.push({ acao: ctx.method, ok: true });
+        return { ok: true };
+      };
+      const original = rt.onAction;
+      rt.onAction = async (ctx) => {
+        const r = await this.executarAcao({ pluginId: id, caps: efetivas.caps, hosts: efetivas.hosts, method: ctx.method, params: ctx.params });
+        capturadas.push({ acao: ctx.method, ok: r?.ok !== false });
+        return r;
+      };
+      try {
+        rt.enviarEvento(tipo === 'stage' ? 'stage' : 'chat', evento);
+        await new Promise((r) => setTimeout(r, 1200));
+      } finally {
+        rt.onAction = original;
+      }
+      executadas.push(...capturadas);
+    }
+    this.auditar({ tipo: 'teste', id, acoes: executadas.length });
+    return { ok: executadas.length > 0, acoes: executadas, evento: tipo, dica: executadas.length ? undefined : 'o plugin não reagiu a este evento; confira as regras/configuração' };
+  }
+
+  // Editor de regras dos plugins declarativos (a UI mostra formulário; aqui valida e grava)
+  regrasDe(id) {
+    const m = this.manifestoDe(id);
+    if (!m) throw new Error('plugin não encontrado');
+    if (m.tier !== 'declarative') throw new Error('este plugin não usa regras declarativas');
+    return { regras: m.rules || [], permissoes: m.permissions || [] };
+  }
+
+  async salvarRegras(id, regras) {
+    const pasta = this.pasta(id);
+    const arquivo = path.join(pasta, 'plugin.json');
+    const m = JSON.parse(fs.readFileSync(arquivo, 'utf8'));
+    if (m.tier !== 'declarative') throw new Error('este plugin não usa regras declarativas');
+    if (!Array.isArray(regras)) throw new Error('regras inválidas');
+    const eventoValidos = new Set([
+      'chat', 'chat.comando', 'chat.regex', 'chat.contem', 'doacao', 'stage.entrou', 'stage.saiu', 'scene.mudou', 'live.iniciou', 'live.encerrou', 'gravacao.salva',
+    ]);
+    const acaoValidas = new Set(['overlay.show', 'overlay.hide', 'chat.send', 'media.play', 'sound.play', 'panel.open', 'http.request']);
+    const limpas = [];
+    for (const [i, r] of regras.entries()) {
+      if (!r || typeof r !== 'object') throw new Error('regra ' + (i + 1) + ' inválida');
+      const on = String(r.on || '').trim();
+      if (!eventoValidos.has(on)) throw new Error('regra ' + (i + 1) + ': evento inválido (' + on + ')');
+      const doList = Array.isArray(r.do) ? r.do : [];
+      if (!doList.length) throw new Error('regra ' + (i + 1) + ': adicione ao menos uma ação');
+      const acoes = [];
+      for (const a of doList) {
+        const type = String(a.type || '').trim();
+        if (!acaoValidas.has(type)) throw new Error('regra ' + (i + 1) + ': ação inválida (' + type + ')');
+        const limpa = { type };
+        if (type === 'chat.send') {
+          limpa.texto = String(a.texto || '').slice(0, 400);
+          if (!limpa.texto) throw new Error('regra ' + (i + 1) + ': texto da resposta vazio');
+        } else if (type === 'overlay.show') {
+          limpa.titulo = String(a.titulo || '').slice(0, 80);
+          limpa.texto = String(a.texto || '').slice(0, 240);
+          if (/^#[0-9a-f]{3,8}$/i.test(String(a.cor || ''))) limpa.cor = String(a.cor);
+          limpa.segundos = Math.max(1, Math.min(60, Number(a.segundos) || 6));
+        } else if (type === 'media.play') {
+          limpa.id = String(a.id || '').slice(0, 120);
+        } else if (type === 'sound.play') {
+          limpa.id = String(a.id || '').slice(0, 120);
+        } else if (type === 'http.request') {
+          limpa.url = String(a.url || '').slice(0, 500);
+          limpa.method = /^post$/i.test(String(a.method || '')) ? 'POST' : 'GET';
+        }
+        acoes.push(limpa);
+      }
+      const regra = { on, do: acoes };
+      if (r.comando) regra.comando = String(r.comando).replace(/^!/, '').slice(0, 40);
+      if (r.padrao) regra.padrao = String(r.padrao).slice(0, 200);
+      if (r.texto) regra.texto = String(r.texto).slice(0, 120);
+      if (on === 'chat.regex' && !regra.padrao) throw new Error('regra ' + (i + 1) + ': regex vazia');
+      if (on === 'chat.comando' && !regra.comando) throw new Error('regra ' + (i + 1) + ': comando vazio');
+      if (on === 'chat.contem' && !regra.texto) throw new Error('regra ' + (i + 1) + ': texto do gatilho vazio');
+      const cd = Number(r.cooldownSeg);
+      if (Number.isFinite(cd) && cd >= 0) regra.cooldownSeg = Math.min(3600, Math.round(cd));
+      limpas.push(regra);
+    }
+    const atualizado = { ...m, rules: limpas, version: m.version };
+    const v = validarManifesto(atualizado, { castdeckVersion: this.appVersion });
+    if (!v.ok) throw new Error(v.erros.join('; '));
+    fs.writeFileSync(arquivo, JSON.stringify(atualizado, null, 2) + '\n', 'utf8');
+    this.auditar({ tipo: 'regras', id, total: limpas.length });
+    // recarrega o plugin declarativo para valer na hora
+    if (this.state.plugins[id]?.enabled) {
+      this.declarativos.registrar(atualizado);
+    }
+    this.emit('mudou');
+    return { ok: true, regras: limpas };
   }
 
   revogado(id, versao = '') {

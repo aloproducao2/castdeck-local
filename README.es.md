@@ -152,3 +152,5 @@ Versión **1.8.25** — **menos cuarentena del antivirus en Windows**: el servid
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎
+
+> **Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).** Ver [SIGNING.md](SIGNING.md).

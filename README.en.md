@@ -143,6 +143,8 @@ code in closed products. Third-party components keep their own licenses; see
 - [`SOURCE-OFFER.md`](SOURCE-OFFER.md) — corresponding source
 - [`COMMERCIAL-LICENSE.md`](COMMERCIAL-LICENSE.md) — commercial license
 
+> **Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).** See [SIGNING.md](SIGNING.md).
+
 ## Status
 
 Version **1.8.25** — **less antivirus quarantine on Windows**: the local server now has an honest name and folder (`app/<version>/castdeck-server.exe`), the launcher no longer kills processes by image name, old server builds are cleaned up and a README explains the extracted files. The executable carries the CastDeck/flue.live identity, the code-signing pipeline is ready (PFX or Azure) and each release ships a false-positive report.

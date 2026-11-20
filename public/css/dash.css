@@ -462,3 +462,8 @@
 }
 .dash .db-search-x[hidden] { display: none; }
 .dash .db-search-x:hover { background: hsl(0 0% 100% / .16); color: var(--text-0); }
+
+/* O filtro nasce `readonly` (para o navegador não tratar como campo de login/autofill):
+   mantém o cursor de texto e o visual normal, sem parecer desabilitado. */
+.dash .db-studio-search { cursor: text; }
+.dash .db-studio-search[readonly] { cursor: text; opacity: 1; }

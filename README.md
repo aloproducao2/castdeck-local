@@ -147,7 +147,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **1.8.18** — bulk deletion of studios (a "Select" button on the home screen lets you mark several studios and delete them at once, with a confirmation listing the names) and a fixed studio filter (the field starts empty, ignores browser autofill and now has a clear button).
+Version **1.8.19** — the studio filter no longer gets filled by the browser (that stray "admin"): it starts empty, only searches while you type, and the ✕ now clears both the text and the list. Bulk studio deletion (from 1.8.18) is included.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

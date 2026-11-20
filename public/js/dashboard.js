@@ -270,7 +270,11 @@ function syncLang() {
 function safeRender() {
   const act = document.activeElement;
   const inp = act && (act.id === 'ns-name' || act.id === 'studio-search') ? act : $('#ns-name');
-  const keep = inp ? { id: inp.id, v: inp.value, f: document.activeElement === inp, s: inp.selectionStart } : null;
+  // no filtro o estado (`studioQuery`) é a fonte da verdade: se o valor do DOM divergir dele (autofill,
+  // botão ✕, limpar filtro), o redesenho não pode "devolver" o texto antigo.
+  const keep = inp
+    ? { id: inp.id, v: inp.id === 'studio-search' ? studioQuery : inp.value, f: document.activeElement === inp, s: inp.selectionStart }
+    : null;
   const y = scrollY;
   render();
   if (keep) {
@@ -287,9 +291,10 @@ function safeRender() {
 let studiosShown = 8; // "Mostrar mais" aumenta
 let stepsExpanded = false;
 let studioQuery = '';
-// A busca só filtra depois de interação real do usuário. Sem isso o navegador às vezes preenche o campo
-// sozinho (autofill do último usuário, ex.: "admin") e a lista abria já filtrada e vazia.
+// A busca só filtra depois de digitação/cola real. Sem isso o navegador preenche o campo sozinho (autofill
+// tratando o campo como "login", ex.: "admin") e a lista abre já filtrada e vazia.
 let filterTouched = false;
+let typedAt = 0; // instante da última tecla/cola no campo de busca
 // seleção em massa de estúdios
 let studioSelectMode = false;
 const studioSelected = new Set();
@@ -348,7 +353,7 @@ function studiosPanel(tun, last, steps) {
         <h2>Seus estúdios <span class="db-count">${D.studios.length}</span></h2>
         <div class="db-studio-tools">
           ${D.studios.length >= 4 ? `<span class="db-search-wrap ${studioQuery ? 'has-query' : ''}">
-            <input class="input db-studio-search" id="studio-search" type="search" placeholder="Filtrar estúdios…" value="${esc(studioQuery)}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" name="cd-filtro-estudios" aria-label="Filtrar estúdios">
+            <input class="input db-studio-search" id="studio-search" type="text" role="searchbox" placeholder="Filtrar estúdios…" value="${esc(studioQuery)}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="search" data-lpignore="true" data-1p-ignore data-form-type="other" aria-label="Filtrar estúdios"${filterTouched ? '' : ' readonly'}>
             <button type="button" class="db-search-x" id="studio-search-x" title="Limpar filtro" aria-label="Limpar filtro" ${studioQuery ? '' : 'hidden'}>✕</button>
           </span>` : ''}
           ${D.studios.length >= 2 ? `<button class="btn sm ${studioSelectMode ? 'primary' : 'ghost'}" id="studios-select" type="button" aria-pressed="${studioSelectMode}" title="Selecionar estúdios para excluir em massa">${studioSelectMode ? 'Concluir' : 'Selecionar'}</button>` : ''}
@@ -701,19 +706,38 @@ function render() {
   if (stTog) stTog.onclick = () => { stepsExpanded = !stepsExpanded; safeRender(); };
   const stSrch = $('#studio-search');
   if (stSrch) {
-    // Só filtra depois de interação real (tecla, colar ou toque). Sem isso, um autofill do navegador
-    // ("admin", último usuário salvo) disparava `input` e a lista já abria filtrada.
-    const markTouched = () => { filterTouched = true; };
-    stSrch.addEventListener('keydown', markTouched);
-    stSrch.addEventListener('paste', markTouched);
-    stSrch.addEventListener('pointerdown', markTouched);
-    stSrch.addEventListener('compositionstart', markTouched);
+    // O navegador insiste em tratar este campo como "login" e preenche com o último usuário salvo
+    // (ex.: "admin") — inclusive ao clicar no campo. Por isso: (1) o campo nasce `readonly`, então não é
+    // alvo de autofill; (2) só aceitamos `input` que veio de tecla/cola real (janela de 2,5 s), e qualquer
+    // outro é descartado e o campo volta ao valor de verdade.
+    const markTyped = () => {
+      filterTouched = true;
+      typedAt = Date.now();
+      if (stSrch.hasAttribute('readonly')) stSrch.removeAttribute('readonly');
+    };
+    stSrch.addEventListener('keydown', markTyped);
+    stSrch.addEventListener('paste', markTyped);
+    stSrch.addEventListener('compositionstart', markTyped);
+    stSrch.addEventListener('pointerdown', () => {
+      // clique só libera a edição; NÃO conta como digitação (autofill acontece no clique)
+      if (stSrch.hasAttribute('readonly')) stSrch.removeAttribute('readonly');
+      if (!typedAt && stSrch.value !== studioQuery) stSrch.value = studioQuery;
+    });
+    stSrch.addEventListener('focus', () => {
+      if (!typedAt && stSrch.value !== studioQuery) stSrch.value = studioQuery;
+    });
     stSrch.oninput = (e) => {
-      if (!filterTouched) { e.target.value = studioQuery; return; }
+      const fromTyping = typedAt && Date.now() - typedAt < 2500;
+      if (!fromTyping) {
+        // veio de autofill (inclusive o disparado ao clicar): descarta e restaura o valor real
+        e.target.value = studioQuery;
+        return;
+      }
       studioQuery = e.target.value;
       safeRender();
     };
-    if (!filterTouched && stSrch.value !== studioQuery) stSrch.value = studioQuery;
+    // valor que o navegador tenha colocado antes de qualquer interação
+    if (!typedAt && stSrch.value !== studioQuery) stSrch.value = studioQuery;
   }
   const stClr = $('#studio-search-x');
   if (stClr)

@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **1.8.18** — exclusión de estudios en masa (un botón «Seleccionar» en la pantalla inicial permite marcar varios estudios y eliminarlos de una vez, con una confirmación que lista los nombres) y filtro de estudios corregido (el campo empieza vacío, ignora el autocompletado del navegador y ahora tiene botón para limpiar).
+Versión **1.8.19** — el filtro de estudios ya no se rellena solo con el autocompletado del navegador (aquel «admin» perdido): empieza vacío, solo busca mientras escribes y la ✕ limpia el texto y la lista de una vez. Incluye la exclusión de estudios en masa (1.8.18).
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

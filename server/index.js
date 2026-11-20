@@ -39,6 +39,8 @@ import { MultiRecorder } from './multirec.js';
 import { SocialScraper } from './social-scraper.js';
 import { ReplayStore } from './replay.js';
 import { CaptionService } from './caption.js';
+import { Secrets } from './secrets.js';
+import { Connections } from './connections.js';
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import os from 'node:os';
@@ -126,6 +128,13 @@ async function main() {
   const ndiSource = new NdiSourceServer({ root: ROOT, ffmpegPath: ffmpegInfo.path, ingest, binDir: BIN });
   const whatsapp = new WhatsAppService({ dataDir: DATA });
   await whatsapp.init();
+  // Conexões OAuth (tudo local): cofre cifrado em data/secrets.enc + adaptadores das plataformas.
+  // Nenhum token sai do PC; a única conversa externa é com a própria plataforma ao autorizar/criar a live.
+  const secrets = new Secrets(DATA);
+  const connections = new Connections({ secrets, store, openBrowser });
+  // autorizações em andamento (device flow/loopback) e o último erro por plataforma, para a UI consultar
+  const pendingConnections = new Map();
+  const pendingError = new Map();
   // nome da plataforma no releases.json do site (verificação/instalação de atualizações)
   const UPDATE_TARGET = TARGET.replace(/^win-/, 'windows-') + (process.env.APPIMAGE ? '-appimage' : '');
   const updater = new Updater({ dataDir: DATA, target: UPDATE_TARGET, version: APP_VERSION, packaged });
@@ -1029,7 +1038,20 @@ async function main() {
   // usados pelo CastDeck.exe (janela nativa/splash/bandeja)
   // exe: nome do executável extraído pelo lançador (castdeck-server-<versão>-<hash>.exe). O lançador compara com o
   // próprio build para não reaproveitar um servidor antigo que ficou aberto (senão a versão nova abre com o código velho)
-  api.get('/health', (req, res) => res.json({ ok: true, app: 'castdeck', product: 'castdeck-local', live: broadcasts.list?.().length || 0, exe: path.basename(process.execPath), version: APP_VERSION, platform: process.platform }));
+  // `build` = identidade exata da build (o launcher passa CASTDECK_BUILD_ID): permite ao app novo
+  // reconhecer um servidor órfão de outra build mesmo com a mesma versão (antes ele reaproveitava o antigo).
+  api.get('/health', (req, res) =>
+    res.json({
+      ok: true,
+      app: 'castdeck',
+      product: 'castdeck-local',
+      live: broadcasts.list?.().length || 0,
+      exe: path.basename(process.execPath),
+      version: APP_VERSION,
+      build: process.env.CASTDECK_BUILD_ID || '',
+      platform: process.platform,
+    }),
+  );
   // WhatsApp local (Baileys/WhatsApp Web, experimental): só neste PC; a live não depende dele.
   api.get('/whatsapp/status', (req, res) => res.set('Cache-Control', 'no-store').json(whatsapp.info()));
   api.get('/whatsapp/media/:id', async (req, res) => {
@@ -1140,6 +1162,76 @@ async function main() {
     res.json(maskKey(store.upsertDestination(body)));
   });
   api.delete('/destinations/:id', (req, res) => res.json({ ok: store.deleteDestination(req.params.id) }));
+
+  // ---------- Conexões OAuth (tudo local) ----------
+  // "Conectar conta" por plataforma: autoriza uma vez, cria/renova a live e preenche URL+chave sozinho.
+  api.get('/connections', (req, res) => res.json({ providers: connections.providerInfo() }));
+  api.post('/connections/:p/client', (req, res) => {
+    try {
+      res.json({ ok: true, client: connections.setClient(req.params.p, req.body || {}) });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+  api.post('/connections/:p/authorize', async (req, res) => {
+    try {
+      const { device, done } = await connections.connect(req.params.p, { openBrowser: true });
+      pendingConnections.set(req.params.p, done);
+      done
+        .then(() => {
+          pendingConnections.delete(req.params.p);
+          pendingError.delete(req.params.p);
+        })
+        .catch((e) => {
+          pendingConnections.delete(req.params.p);
+          pendingError.set(req.params.p, e.message || String(e));
+          console.warn(`[connections] ${req.params.p}: ${e.message || e}`);
+        });
+      res.json({ ok: true, waiting: true, device: device || null });
+    } catch (e) {
+      res.status(400).json({ error: e.message || 'Falha ao iniciar a conexão.' });
+    }
+  });
+  api.get('/connections/:p/authorize', (req, res) => {
+    res.json({ error: pendingError.get(req.params.p) || '' });
+  });
+  api.delete('/connections/:p', async (req, res) => {
+    try {
+      res.json({ ok: await connections.disconnect(req.params.p) });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+  // Cria/renova a live do destino conectado (chamado no "Entrar ao vivo" e pelo botão "Renovar").
+  api.post('/destinations/:id/prepare', async (req, res) => {
+    const dest = store.getDestination(req.params.id);
+    if (!dest) return res.status(404).json({ error: 'Destino não encontrado.' });
+    try {
+      const out = await connections.prepareLive(dest, {
+        title: String(req.body?.title || '').slice(0, 120),
+        studioName: store.getStudio(String(req.body?.studioId || ''))?.name || '',
+      });
+      if (!out) return res.status(400).json({ error: 'Este destino não usa conta conectada (chave manual).' });
+      const saved = store.upsertDestination({
+        ...dest,
+        id: dest.id,
+        url: out.url || dest.url,
+        key: out.key || dest.key,
+        ephemeral: !!out.ephemeral,
+        liveRef: out.liveRef || dest.liveRef || '',
+        connectionId: dest.platform,
+        keyUpdatedAt: Date.now(),
+      });
+      let chat = null;
+      if (out.chat) {
+        const src = connections.chatSourceFor(dest.platform, out.chat);
+        if (src) chat = src;
+      }
+      res.json({ ok: true, destination: maskKey(saved), chat });
+    } catch (e) {
+      res.status(400).json({ error: e.message || 'Não foi possível criar a live agora.' });
+    }
+  });
 
   api.get('/recordings', async (req, res) => {
     try {

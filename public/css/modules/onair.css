@@ -2136,3 +2136,66 @@ body:has(.studio) #toasts { bottom: 112px; }
 
 
 
+
+/* ===== Destinos: cards com estado, "Conectar conta" e cenários ===== */
+.dest-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: color-mix(in srgb, var(--bg-1) 82%, transparent);
+}
+.dest-card-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dest-card-top .meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.dest-card-top .meta strong { font-size: 12.5px; }
+.dest-card-top .meta span { font-size: 11px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dest-card-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.dest-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.dest-chip.ok { color: hsl(150 70% 62%); border-color: hsl(150 60% 40% / .5); background: hsl(150 60% 40% / .12); }
+.dest-chip.warn { color: hsl(44 95% 66%); border-color: hsl(44 90% 50% / .45); background: hsl(44 90% 50% / .12); }
+
+/* Conectar conta dentro do modal do destino */
+.d-conn { margin: 8px 0 4px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: var(--radius-s); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.d-conn-row { display: flex; align-items: center; gap: 8px; }
+.d-conn-row .d-conn-txt { flex: 1; font-size: 12px; }
+.d-conn-badge { font-size: 13px; color: var(--text-2); }
+.d-conn-badge.ok { color: hsl(150 70% 60%); }
+.d-manual { margin: 6px 0; border-top: 1px dashed var(--line); padding-top: 6px; }
+.d-manual summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--text-2); padding: 4px 0; }
+.d-manual[open] summary { color: var(--text-0); }
+
+/* Cenários do "Transmitir" */
+.gl-scen { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.gl-scen-btn {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-2) 80%, transparent);
+  color: var(--text-1);
+  font: 600 11.5px Inter, system-ui, sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.gl-scen-btn:hover { border-color: var(--accent); color: var(--text-0); }
+.gl-scen-btn:active { transform: scale(.97); }
+
+/* Conexões (modal "Conectar conta") */
+.conn-wait, .conn-done, .conn-ready { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 8px 0 4px; text-align: center; }
+.conn-code { font: 800 22px ui-monospace, Consolas, monospace; letter-spacing: .16em; padding: 10px 16px; border-radius: 10px; border: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--text-0); cursor: pointer; }
+.conn-ok { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; font-size: 22px; color: #fff; background: hsl(150 60% 40%); }
+
+/* Ações por destino no popover de saúde */
+.oa-acts { display: inline-flex; gap: 4px; margin-left: auto; }
+.oa-acts .btn { padding: 2px 8px; font-size: 10.5px; }

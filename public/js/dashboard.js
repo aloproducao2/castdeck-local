@@ -5,7 +5,7 @@
 // (só a ativa aparece) para os ids continuarem estáveis para os testes e os atalhos de "Primeiros passos".
 import { $, $$, esc, icons, toast, confirmDialog, promptDialog, api, copyText, fmtBytes, PLATFORMS, fmtBadge } from './ui.js';
 import { chooseRecordingsDir, resetRecordingsDir } from './recdir.js';
-import { editDestination, deleteDestination, toggleDestination, showKeyHelp } from './destinations.js';
+import { editDestination, deleteDestination, toggleDestination, showKeyHelp, destCardHtml, bindDestCards, prepareDestination } from './destinations.js';
 import { updateBanner, updateRow, bindUpdates, startUpdates } from './updates.js';
 import { playRecording, revealRecording, recTitle } from './recplayer.js';
 import { makeQR } from './studio/qr.js';
@@ -449,18 +449,9 @@ function destPanel() {
     <div class="section-head"><h2>Onde transmitir <span class="db-count">${D.destinations.length}</span></h2>
       <div class="db-head-acts"><button class="btn sm" id="key-help">❓ <span>Onde pego a chave?</span></button><button class="btn sm primary" id="add-dest">${icons.plus}<span>Novo destino</span></button></div></div>
     <p class="hint db-lead">YouTube, Facebook, Twitch ou qualquer servidor RTMP. Os ligados aqui já vêm marcados quando você clica em Transmitir no estúdio.</p>
-    <div class="list">${
+    <div class="db-dest-grid">${
       D.destinations.length
-        ? D.destinations
-            .map(
-              (d) => `<div class="list-item card">
-              <span class="plat ${d.platform}">${PLATFORMS[d.platform]?.short || '⚡'}</span>
-              <div class="meta"><strong>${esc(d.name)} ${fmtBadge(d)}</strong><span>${esc(d.url)} · chave ${d.hasKey ? esc(d.key) : 'não definida'}</span></div>
-              <label class="switch" title="Ativado por padrão ao transmitir"><input type="checkbox" data-toggle="${d.id}" ${d.enabled ? 'checked' : ''}><span></span></label>
-              <button class="btn sm db-ico" data-editd="${d.id}" title="Editar" aria-label="Editar">${icons.edit}</button>
-              <button class="btn sm db-ico danger" data-deld="${d.id}" title="Excluir" aria-label="Excluir">${icons.trash}</button></div>`,
-            )
-            .join('')
+        ? D.destinations.map((d) => destCardHtml(d)).join('')
         : '<div class="empty">Nenhum destino ainda. Adicione YouTube, Facebook, Twitch ou qualquer servidor RTMP.<br><span class="hint">Opcional: se for só gravar, pode pular.</span></div>'
     }</div>
   </section>`;
@@ -687,14 +678,23 @@ function render() {
   );
   $('#add-dest').onclick = () => editDest();
   $('#key-help').onclick = () => showKeyHelp();
-  $$('[data-editd]').forEach((b) => (b.onclick = () => editDest(D.destinations.find((d) => d.id === b.dataset.editd))));
-  $$('[data-deld]').forEach(
-    (b) =>
-      (b.onclick = async () => {
-        if (await deleteDestination(D.destinations.find((d) => d.id === b.dataset.deld))) load();
-      }),
-  );
-  $$('[data-toggle]').forEach((c) => (c.onchange = () => toggleDestination(D.destinations.find((d) => d.id === c.dataset.toggle), c.checked)));
+  // cards de destino (mesmo desenho do estúdio): editar, colar chave, renovar a live conectada e remover
+  bindDestCards(document, {
+    list: () => D.destinations,
+    onEdit: (d) => editDest(d),
+    onDelete: async (d) => {
+      if (await deleteDestination(d)) load();
+    },
+    onPrepare: async (d) => {
+      try {
+        await prepareDestination(d, {});
+        toast('Live renovada no destino', 'ok');
+        load();
+      } catch (e) {
+        toast(e.message, 'err');
+      }
+    },
+  });
   $$('[data-delrec]').forEach(
     (b) => (b.onclick = () => deleteRecording(D.recordings.find((r) => r.name === b.dataset.delrec))),
   );

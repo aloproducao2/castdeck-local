@@ -35,19 +35,19 @@ fn studio_url() -> String {
 }
 
 fn check_health_on(port: u16) -> bool {
+    health_body_on(port).map_or(false, |b| b.contains("\"app\":\"castdeck\"") && b.contains("\"exe\":"))
+}
+
+// Corpo do /api/health (para saber a VERSÃO do servidor que está naquela porta).
+fn health_body_on(port: u16) -> Option<String> {
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    let Ok(mut stream) = TcpStream::connect_timeout(&addr, Duration::from_millis(300)) else {
-        return false;
-    };
-    let _ = stream.set_read_timeout(Some(Duration::from_millis(350)));
-    let _ = stream.set_write_timeout(Some(Duration::from_millis(350)));
-    if stream
+    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(300)).ok()?;
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(400)));
+    let _ = stream.set_write_timeout(Some(Duration::from_millis(400)));
+    stream
         .write_all(b"GET /api/health HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
-        .is_err()
-    {
-        return false;
-    }
-    let mut buf = [0u8; 1024];
+        .ok()?;
+    let mut buf = [0u8; 2048];
     let mut total = 0;
     while total < buf.len() {
         match stream.read(&mut buf[total..]) {
@@ -56,8 +56,47 @@ fn check_health_on(port: u16) -> bool {
             Err(_) => break,
         }
     }
-    let resp = String::from_utf8_lossy(&buf[..total]);
-    resp.contains("\"app\":\"castdeck\"") && resp.contains("\"exe\":")
+    Some(String::from_utf8_lossy(&buf[..total]).to_string())
+}
+
+// A versão da build que este launcher carrega (a mesma do servidor embutido).
+fn launcher_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
+fn health_version_on(port: u16) -> Option<String> {
+    health_field_on(port, "version")
+}
+
+fn health_field_on(port: u16, field: &str) -> Option<String> {
+    let body = health_body_on(port)?;
+    let key = format!("\"{}\":\"", field);
+    let i = body.find(&key)? + key.len();
+    let rest = &body[i..];
+    let end = rest.find('"')?;
+    Some(rest[..end].to_string())
+}
+
+// O servidor naquela porta é DESTA build? Servidor SEM identidade de build é de uma build anterior
+// (todas as novas mandam `build` no /api/health) — e aí não pode ser reaproveitado: ele serve a
+// interface antiga e o app pareceria "não atualizado".
+fn server_is_ours(port: u16) -> bool {
+    match health_field_on(port, "build") {
+        Some(b) if !b.is_empty() => b == build_id(),
+        _ => false,
+    }
+}
+
+fn select_free_port() -> u16 {
+    const CANDIDATES: [u16; 7] = [3000, 3480, 3001, 3002, 3003, 3004, 3005];
+    for p in CANDIDATES {
+        if !is_port_busy_anywhere(p) {
+            ACTIVE_PORT.store(p, Ordering::SeqCst);
+            return p;
+        }
+    }
+    ACTIVE_PORT.store(DEFAULT_PORT, Ordering::SeqCst);
+    DEFAULT_PORT
 }
 
 fn check_health() -> bool {
@@ -78,12 +117,14 @@ fn is_port_busy_anywhere(port: u16) -> bool {
 
 fn select_server_port() -> u16 {
     const CANDIDATES: [u16; 7] = [3000, 3480, 3001, 3002, 3003, 3004, 3005];
+    // 1) só reaproveita um servidor da MESMA versão (build desta exe)
     for p in CANDIDATES {
-        if check_health_on(p) {
+        if server_is_ours(p) {
             ACTIVE_PORT.store(p, Ordering::SeqCst);
             return p;
         }
     }
+    // 2) qualquer outra porta livre
     for p in CANDIDATES {
         if !is_port_busy_anywhere(p) {
             ACTIVE_PORT.store(p, Ordering::SeqCst);
@@ -160,7 +201,8 @@ fn kill_orphan_servers() {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         let mut cmd = Command::new("taskkill");
-        cmd.args(["/F", "/T", "/IM", "castdeck-server-embedded.exe"]);
+        // mata o servidor embutido de qualquer build (nome fixo ou versionado)
+        cmd.args(["/F", "/T", "/IM", "castdeck-server-embedded*.exe"]);
         cmd.creation_flags(CREATE_NO_WINDOW);
         let _ = cmd.status();
     }
@@ -254,6 +296,34 @@ fn ensure_studio_window_visible() -> bool {
     found
 }
 
+// Identidade desta build (versão + tamanho + hash dos bytes do servidor embutido).
+// Vai como CASTDECK_BUILD_ID para o servidor e aparece no /api/health: assim o app novo reconhece um
+// servidor órfão de OUTRA build mesmo quando a versão é a mesma (antes ele reaproveitava o antigo e a
+// interface parecia não atualizada).
+fn build_id() -> &'static str {
+    static BUILD_ID: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    BUILD_ID.get_or_init(|| {
+        #[cfg(feature = "embedded-server")]
+        {
+            static SERVER_BYTES: &[u8] = include_bytes!("../server.bin");
+            let n = SERVER_BYTES.len();
+            let mut h: u64 = 0xcbf29ce484222325;
+            let step = (n / 1024).max(1);
+            let mut i = 0;
+            while i < n {
+                h ^= SERVER_BYTES[i] as u64;
+                h = h.wrapping_mul(0x100000001b3);
+                i += step;
+            }
+            format!("{}:{}:{:x}", env!("CARGO_PKG_VERSION"), n, h)
+        }
+        #[cfg(not(feature = "embedded-server"))]
+        {
+            format!("{}:0:0", env!("CARGO_PKG_VERSION"))
+        }
+    })
+}
+
 fn get_embedded_server_path() -> Option<PathBuf> {
     #[cfg(feature = "embedded-server")]
     {
@@ -261,11 +331,9 @@ fn get_embedded_server_path() -> Option<PathBuf> {
         let app_dir = get_app_dir().join("app");
         let _ = std::fs::create_dir_all(&app_dir);
         #[cfg(windows)]
-        let exe_name = "castdeck-server-embedded.exe";
+        let exe_base = "castdeck-server-embedded";
         #[cfg(not(windows))]
-        let exe_name = "castdeck-server-embedded";
-        let target_exe = app_dir.join(exe_name);
-        let sig_file = app_dir.join("castdeck-server-embedded.sig");
+        let exe_base = "castdeck-server-embedded";
 
         // Assinatura simples (tamanho + versão + amostra distribuída) para garantir regravação em builds novos
         let sig = {
@@ -280,6 +348,17 @@ fn get_embedded_server_path() -> Option<PathBuf> {
             }
             format!("{}:{}:{}", env!("CARGO_PKG_VERSION"), n, h)
         };
+        // Nome do arquivo com versão + hash: duas builds diferentes (instalada e portátil) NÃO disputam o
+        // mesmo arquivo — antes uma sobrescrevia a outra/ficava travada (EBUSY) e o servidor antigo continuava
+        // rodando e servindo a interface velha.
+        let tag = sig.rsplit(':').next().unwrap_or("0").to_string();
+        let tag8: String = tag.chars().rev().take(8).collect::<String>().chars().rev().collect();
+        #[cfg(windows)]
+        let exe_name = format!("{}-{}-{}.exe", exe_base, env!("CARGO_PKG_VERSION"), tag8);
+        #[cfg(not(windows))]
+        let exe_name = format!("{}-{}-{}", exe_base, env!("CARGO_PKG_VERSION"), tag8);
+        let target_exe = app_dir.join(&exe_name);
+        let sig_file = app_dir.join(format!("{}.sig", exe_name));
 
         let same_size = std::fs::metadata(&target_exe).map_or(false, |m| m.len() == SERVER_BYTES.len() as u64);
         let same_sig = std::fs::read_to_string(&sig_file).map_or(false, |s| s.trim() == sig);
@@ -309,10 +388,31 @@ fn get_embedded_server_path() -> Option<PathBuf> {
 }
 
 fn spawn_server(job: &Option<job::ProcessJob>) -> Option<Child> {
-    let port = select_server_port();
-    if check_health_on(port) {
-        println!("CastDeck Server já está ativo na porta {}.", port);
+    let mut port = select_server_port();
+    if check_health_on(port) && server_is_ours(port) {
+        println!("CastDeck Server {} já está ativo na porta {}.", launcher_version(), port);
         return None;
+    }
+    if check_health_on(port) {
+        // Servidor de OUTRA build (instalação antiga/órfã) segurando a porta: ela serviria a interface
+        // antiga e o app pareceria desatualizado. Encerra e sobe o desta exe.
+        println!(
+            "Servidor de outra versão na porta {} ({:?}); encerrando para usar a {}.",
+            port,
+            health_version_on(port),
+            launcher_version()
+        );
+        kill_orphan_servers();
+        for _ in 0..25 {
+            std::thread::sleep(Duration::from_millis(100));
+            if !check_health_on(port) {
+                break;
+            }
+        }
+        if check_health_on(port) || is_port_busy_anywhere(port) {
+            port = select_free_port();
+        }
+        ACTIVE_PORT.store(port, Ordering::SeqCst);
     }
 
     let current_exe = std::env::current_exe().unwrap_or_default();
@@ -341,6 +441,9 @@ fn spawn_server(job: &Option<job::ProcessJob>) -> Option<Child> {
             cmd.env("NO_OPEN", "1");
             cmd.env("CASTDECK_LAUNCHER", "1");
             cmd.env("PORT", port.to_string());
+            // identidade desta build: o servidor devolve no /api/health e o launcher usa para não
+            // reaproveitar servidor órfão de outra build
+            cmd.env("CASTDECK_BUILD_ID", build_id());
             if let Ok(exe) = std::env::current_exe() {
                 cmd.env("CASTDECK_EXE", exe);
             }

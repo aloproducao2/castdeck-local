@@ -257,7 +257,15 @@ export class Store {
       url: String(input.url || '').trim().slice(0, 500),
       key: String(input.key || '').trim().slice(0, 500),
       enabled: input.enabled !== false,
+      // conexão OAuth que criou/renova esta chave (quando o usuário usou "Conectar conta")
+      connectionId: input.connectionId === undefined ? undefined : String(input.connectionId || '').slice(0, 40),
+      // chave vale só para UMA live (Instagram/TikTok) — a UI avisa e o prepare renova
+      ephemeral: !!input.ephemeral,
+      // referência da live na plataforma (para encerrar depois)
+      liveRef: String(input.liveRef || '').slice(0, 200),
+      keyUpdatedAt: Number(input.keyUpdatedAt) || 0,
     };
+    for (const k of Object.keys(clean)) if (clean[k] === undefined) delete clean[k];
     if (input.id) {
       const d = this.getDestination(input.id);
       if (!d) return null;

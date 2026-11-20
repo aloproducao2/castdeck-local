@@ -26,7 +26,7 @@ import { createRaffle } from './raffle.js';
 import { createMessages } from './messages.js';
 import { createSports } from './sports.js';
 import { chooseRecordingsDir } from '../recdir.js';
-import { editDestination, deleteDestination, toggleDestination, showKeyHelp } from '../destinations.js';
+import { editDestination, deleteDestination, toggleDestination, showKeyHelp, prepareDestination, destState, CONNECTABLE } from '../destinations.js';
 import { createOutputs } from './outputs.js';
 import { createProjectors } from './projector.js';
 import { createSwitcher } from './switcher.js';
@@ -110,7 +110,15 @@ let renderFps = 0;
 let renderFrames = 0;
 let renderWindowStart = 0;
 let vview, vStream, vBroadcaster; // saída vertical 9:16 (simultânea à horizontal)
-const onAir = createOnAir({ S }); // botões REC/LIVE, saúde dos destinos e contagem 3-2-1
+const onAir = createOnAir({
+  S,
+  // chips de saúde: Reconectar/Parar UM destino, sem derrubar os outros
+  onDestAction: (action, id) => {
+    if (!broadcaster || !id) return;
+    if (action === 'reconnect') broadcaster.reconnectDest?.(id);
+    else if (action === 'stop') broadcaster.stopDest?.(id);
+  },
+}); // botões REC/LIVE, saúde dos destinos e contagem 3-2-1
 let extras; // câmeras extras, sessão automática e limpeza
 let ingest; // drones e câmeras por RTMP/SRT (MediaMTX embutido no servidor)
 let outputs; // sinais separados para OBS/vMix (páginas /out)
@@ -7529,11 +7537,15 @@ function renderOutputPanel() {
     <div class="dest-status dm-list">${S.destinations.length
       ? S.destinations
         .map(
-          (d) => `<div class="dest-row dm-row" data-id="${d.id}"><span class="plat ${d.platform}" style="width:30px;height:30px;font-size:11px;flex:none">${PLATFORMS[d.platform]?.short || '⚡'}</span>
-                <div class="meta"><strong>${esc(d.name)} ${fmtBadge(d)}</strong><span>${esc(d.url)}${d.hasKey ? '' : ' · <b style="color:var(--warn)">sem chave</b>'}</span></div>
+          (d) => {
+            const st = destState(d);
+            return `<div class="dest-row dm-row" data-id="${d.id}"><span class="plat ${d.platform}" style="width:30px;height:30px;font-size:11px;flex:none">${PLATFORMS[d.platform]?.short || '⚡'}</span>
+                <div class="meta"><strong>${esc(d.name)} ${fmtBadge(d)} <span class="dest-chip ${st.cls}">${st.cls === 'ok' ? '●' : '!'} ${esc(st.label)}</span></strong><span>${esc(d.url)}${d.hasKey || d.connectionId ? '' : ' · <b style="color:var(--warn)">sem chave</b>'}</span></div>
                 <label class="switch" title="Marcado por padrão ao transmitir"><input type="checkbox" data-dtog ${d.enabled ? 'checked' : ''}><span></span></label>
+                ${d.connectionId ? `<button class="btn ghost sm" data-dprep title="Criar/renovar a live agora">${'Renovar'}</button>` : ''}
                 <button class="btn ghost sm icon" data-dedit title="Editar (nome, servidor e chave)" aria-label="Editar destino">${icons.edit}</button>
-                <button class="btn ghost sm icon" data-ddel title="Remover destino" aria-label="Remover destino">${icons.trash}</button></div>`,
+                <button class="btn ghost sm icon" data-ddel title="Remover destino" aria-label="Remover destino">${icons.trash}</button></div>`;
+          },
         )
         .join('')
       : '<div class="empty">Nenhum destino ainda. Adicione YouTube, Facebook, Twitch, Instagram, TikTok ou qualquer servidor RTMP.</div>'
@@ -7558,6 +7570,21 @@ function renderOutputPanel() {
   $$('[data-dedit]', p).forEach((b) => (b.onclick = async () => (await editDestination(destOf(b))) && refreshDestinations()));
   $$('[data-ddel]', p).forEach((b) => (b.onclick = async () => (await deleteDestination(destOf(b))) && refreshDestinations()));
   $$('[data-dtog]', p).forEach((c) => (c.onchange = () => toggleDestination(destOf(c), c.checked)));
+  $$('[data-dprep]', p).forEach(
+    (b) =>
+      (b.onclick = async () => {
+        const d = destOf(b);
+        if (!d) return;
+        try {
+          await prepareDestination(d, { title: `CastDeck · ${S.studio?.name || 'Live'}`, studioId });
+          toast('Live renovada no destino', 'ok');
+          await refreshDestinations();
+          renderOutputPanel();
+        } catch (e) {
+          toast(e.message, 'err');
+        }
+      }),
+  );
 }
 
 // recarrega os destinos e atualiza tudo que os mostra (painel Transmissão e painel Vertical)
@@ -8064,10 +8091,13 @@ async function openGoLive() {
   const hDests = S.destinations.filter((d) => destFormat(d) === 'h');
   const vDests = S.destinations.filter((d) => destFormat(d) === 'v');
   const vSel = new Set(S.brand.vdest || vDests.filter((d) => d.enabled).map((d) => d.id));
-  const destRow = (d, name, checked) => `<label class="list-item card check gl-dest">
+  const destRow = (d, name, checked) => {
+    const st = destState(d);
+    return `<label class="list-item card check gl-dest">
       <input type="checkbox" name="${name}" value="${d.id}" ${checked ? 'checked' : ''}>
       <span class="plat ${d.platform}">${PLATFORMS[d.platform]?.short || '⚡'}</span>
-      <span class="meta"><strong>${esc(d.name)} ${fmtBadge(d)}</strong><span>${esc(d.url)}${d.hasKey ? '' : ' · sem chave'}</span></span></label>`;
+      <span class="meta"><strong>${esc(d.name)} ${fmtBadge(d)} <span class="dest-chip ${st.cls}">${st.cls === 'ok' ? '●' : '!'} ${esc(st.label)}</span></strong><span>${esc(d.url)}${d.hasKey || d.connectionId ? '' : ' · sem chave'}</span></span></label>`;
+  };
   const noDest = (f) => `<div class="empty gl-empty">${f === 'v' ? 'Nenhum destino vertical (9:16) cadastrado ainda.' : 'Nenhum destino horizontal (16:9) cadastrado ainda.'}</div>`;
   const addBtn = (f) => `<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm ghost gl-add" type="button" data-gl-add="${f}">${f === 'v' ? '＋ Novo destino vertical' : '＋ Novo destino horizontal'}</button><button class="btn sm ghost gl-add" type="button" data-gl-help="${f}">❓ <span>Onde pego a chave?</span></button></div>`;
 
@@ -8076,6 +8106,13 @@ async function openGoLive() {
   const result = await modal(
     `
     <h3>Transmitir ao vivo</h3>
+    <div class="gl-scen" id="gl-scen" role="group" aria-label="Cenários de transmissão">
+      <button type="button" class="gl-scen-btn" data-gl-scen="yt">YouTube + chat</button>
+      <button type="button" class="gl-scen-btn" data-gl-scen="multi">Multistream 3 redes</button>
+      <button type="button" class="gl-scen-btn" data-gl-scen="vertical">Vertical TikTok + Pad</button>
+      <button type="button" class="gl-scen-btn" data-gl-scen="record">Só gravar</button>
+      <button type="button" class="gl-scen-btn" data-gl-scen="last">Retomar última</button>
+    </div>
     <p class="sub">${S.system.platform === 'android' ? 'Escolha o formato e os destinos. A codificação usa o hardware do aparelho.' : 'Escolha o formato e os destinos. Todo o processamento acontece neste PC via FFmpeg.'}</p>
     <div class="rec-choice" role="radiogroup" aria-label="O que transmitir">
       <label class="rc-opt"><input type="radio" name="glv" value="h" ${vChecked ? '' : 'checked'}><span class="rc-ico h"></span><span class="rc-txt"><strong>Só horizontal</strong><span>16:9 · YouTube, Facebook, Twitch…</span></span></label>
@@ -8131,6 +8168,58 @@ async function openGoLive() {
         $$('input[name=dest], input[name=vdest-gl]', m).forEach((i) => (i.onchange = sync));
         const rc = $('#gl-rec', m);
         if (rc) rc.onchange = sync;
+        // ---- cenários: 1 clique monta formato + destinos + gravação ----
+        const liveProfileKey = `castdeck.liveProfile.${studioId}`;
+        const readProfile = () => {
+          try {
+            return JSON.parse(localStorage.getItem(liveProfileKey) || 'null');
+          } catch {
+            return null;
+          }
+        };
+        const checkOnly = (ids, hv) => {
+          m.querySelectorAll('input[name=glv]').forEach((r) => (r.checked = r.value === (hv ? 'hv' : 'h')));
+          const want = new Set(ids || []);
+          m.querySelectorAll('input[name=dest], input[name=vdest-gl]').forEach((i) => (i.checked = want.has(i.value)));
+          sync();
+        };
+        $$('[data-gl-scen]', m).forEach((b) => {
+          b.onclick = () => {
+            const kind = b.dataset.glScen;
+            const hD = S.destinations.filter((d) => destFormat(d) === 'h');
+            const vD = S.destinations.filter((d) => destFormat(d) === 'v');
+            if (kind === 'yt') {
+              const yt = hD.filter((d) => d.platform === 'youtube');
+              checkOnly((yt.length ? yt : hD).map((d) => d.id), false);
+              if (rc) {
+                rc.checked = isAlreadyRecording || !!S.brand.liveRec;
+                sync();
+              }
+            } else if (kind === 'multi') {
+              checkOnly(hD.slice(0, 3).map((d) => d.id), false);
+            } else if (kind === 'vertical') {
+              checkOnly(vD.map((d) => d.id), true);
+            } else if (kind === 'record') {
+              checkOnly([], false);
+              if (rc) {
+                rc.checked = true;
+                sync();
+              }
+            } else if (kind === 'last') {
+              const prof = readProfile();
+              if (!prof) return toast('Ainda não há uma transmissão anterior neste estúdio.', 'err');
+              checkOnly(prof.destIds || [], !!prof.hv);
+              if (prof.preset) {
+                const sel = $('#gl-preset', m);
+                if (sel) sel.value = prof.preset;
+              }
+              if (rc) {
+                rc.checked = !!prof.record || isAlreadyRecording;
+                sync();
+              }
+            }
+          };
+        });
         sync();
         $$('[data-gl-add]', m).forEach(
           (b) =>
@@ -8196,10 +8285,39 @@ async function openGoLive() {
   }
 }
 
+// Antes de entrar ao vivo: renova a live dos destinos conectados (OAuth) e liga o chat daquela live.
+// Só os destinos com "Conectar conta" passam por aqui; os de chave manual seguem como sempre.
+async function prepareConnectedDestinations(destinationIds = []) {
+  const prepared = [];
+  for (const id of destinationIds) {
+    const d = (S.destinations || []).find((x) => x.id === id);
+    if (!d?.connectionId) continue;
+    try {
+      const r = await prepareDestination(d, { title: `CastDeck · ${S.studio?.name || 'Live'}`, studioId });
+      if (r?.destination) {
+        Object.assign(d, r.destination);
+        prepared.push({ dest: d, chat: r.chat || null });
+      }
+    } catch (e) {
+      throw new Error(`${d.name}: ${e.message}`);
+    }
+  }
+  // chat pareado (YouTube/Twitch): entra sozinho na aba Redes
+  for (const p of prepared) {
+    if (!p.chat?.target) continue;
+    try {
+      await social?.addSource?.(p.chat.type, p.chat.target);
+    } catch {}
+  }
+  if (prepared.length) await refreshDestinations().catch(() => {});
+  return prepared;
+}
+
 async function startLive({ destinationIds, record, vertical }) {
   const btn = $('#btn-live');
   btn.disabled = true;
   try {
+    await prepareConnectedDestinations(destinationIds);
     if (broadcaster?.active) {
       broadcaster.startDestinations(destinationIds);
       if (record && !S.recording) {
@@ -8224,6 +8342,13 @@ async function startLive({ destinationIds, record, vertical }) {
       }
     }
     S.streaming = { startedAt: Date.now(), destinationIds, vertical: !!vertical };
+    // guarda o perfil para o cenário "Retomar última" (destinos + preset + formato + gravação)
+    try {
+      localStorage.setItem(
+        `castdeck.liveProfile.${studioId}`,
+        JSON.stringify({ destIds: destinationIds, hv: !!vertical, preset: S.preset, record: !!record || !!S.recording, at: Date.now() }),
+      );
+    } catch {}
     syncLiveCompat();
     toast('Você está AO VIVO!', 'ok');
     pushStudioState();

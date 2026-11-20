@@ -59,6 +59,11 @@ class Output extends EventEmitter {
     this.error = null;
     this.restarts = 0;
     this.bytes = 0;
+    this.kbps = 0; // taxa medida na saída (para o chip de saúde)
+    this.drops = 0; // vezes que o destino não acompanhou e precisou reiniciar
+    this.liveSince = 0;
+    this._sampleAt = 0;
+    this._sampleBytes = 0;
     this.stopped = false;
     this.proc = null;
     this.startedAt = 0;
@@ -133,13 +138,26 @@ class Output extends EventEmitter {
     if (!p || !p.stdin.writable) return;
     if (p.stdin.writableLength > MAX_OUTPUT_BUFFER) {
       this.error = 'Destino não está acompanhando (rede lenta). Reiniciando…';
+      this.drops++;
       p.kill('SIGKILL');
       return;
     }
     p.stdin.write(chunk);
     this.bytes += chunk.length;
+    // amostra a taxa a cada ~2 s para o chip mostrar os Mbps reais de cada destino
+    const now = Date.now();
+    if (!this._sampleAt) {
+      this._sampleAt = now;
+      this._sampleBytes = this.bytes;
+    } else if (now - this._sampleAt >= 2000) {
+      const delta = this.bytes - this._sampleBytes;
+      this.kbps = Math.round((delta * 8) / 1000 / ((now - this._sampleAt) / 1000));
+      this._sampleAt = now;
+      this._sampleBytes = this.bytes;
+    }
     if ((this.state === 'connecting' || this.state === 'reconnecting') && Date.now() - this.startedAt > 2500) {
       this.state = 'live';
+      this.liveSince = Date.now();
       this.emit('change');
     }
   }
@@ -159,7 +177,21 @@ class Output extends EventEmitter {
   }
 
   status() {
-    return { id: this.id, name: this.name, kind: this.kind, state: this.state, error: this.error, restarts: this.restarts, bytes: this.bytes, file: this.file ? path.basename(this.file) : undefined };
+    return {
+      id: this.id,
+      name: this.name,
+      kind: this.kind,
+      state: this.state,
+      error: this.error,
+      restarts: this.restarts,
+      bytes: this.bytes,
+      file: this.file ? path.basename(this.file) : undefined,
+      // métricas do chip de saúde por destino: kbps, quedas e tempo no ar
+      kbps: this.kbps || 0,
+      drops: this.drops || 0,
+      uptime: this.state === 'live' ? Math.max(0, Math.round((Date.now() - (this.liveSince || Date.now())) / 1000)) : 0,
+      target: this.url ? redact(this.url) : undefined,
+    };
   }
 }
 
@@ -299,6 +331,33 @@ export class Broadcast extends EventEmitter {
     if (!this.outputs.some((o) => !o.stopped)) {
       this.stop();
     }
+  }
+
+  // Reconecta UM destino (chip de saúde → "Reconectar"): derruba o processo dele e sobe de novo,
+  // sem mexer nos outros — o encoder principal continua entregando para todos.
+  reconnectDestination(id) {
+    const out = this.outputs.find((o) => o.id === id && o.kind === 'rtmp');
+    if (!out) return false;
+    out.restarts = 0;
+    out.stopped = false;
+    try {
+      out.proc?.kill('SIGKILL');
+    } catch {}
+    out.proc = null;
+    out.start();
+    this.emit('status');
+    return true;
+  }
+
+  // Para UM destino sem encerrar a transmissão inteira.
+  stopDestination(id) {
+    const out = this.outputs.find((o) => o.id === id && o.kind === 'rtmp' && !o.stopped);
+    if (!out) return false;
+    out.end();
+    this.outputs = this.outputs.filter((o) => o !== out);
+    this.emit('status');
+    if (!this.outputs.some((o) => !o.stopped)) this.stop();
+    return true;
   }
 
   start() {
@@ -567,6 +626,18 @@ export class BroadcastManager {
         bc?.addDestinations(destinations);
       } else if (msg.type === 'stop-destinations') {
         bc?.stopDestinations();
+      } else if (msg.type === 'reconnect-dest') {
+        // chip de saúde: reconecta UM destino sem derrubar os outros
+        if (bc && msg.id) {
+          bc.reconnectDestination(String(msg.id));
+          send(bc.status());
+        }
+      } else if (msg.type === 'stop-dest') {
+        // chip de saúde: para UM destino sem encerrar a transmissão
+        if (bc && msg.id) {
+          bc.stopDestination(String(msg.id));
+          send(bc.status());
+        }
       } else if (msg.type === 'stop') {
         bc?.stop();
       }

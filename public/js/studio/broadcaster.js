@@ -163,6 +163,20 @@ export class Broadcaster extends EventTarget {
     }
   }
 
+  // Reconecta UM destino (chip de saúde) sem mexer nos outros nem na transmissão.
+  reconnectDest(id) {
+    if (this.ws?.readyState === 1) {
+      this.ws.send(JSON.stringify({ type: 'reconnect-dest', id }));
+    }
+  }
+
+  // Para UM destino; a transmissão segue nos demais.
+  stopDest(id) {
+    if (this.ws?.readyState === 1) {
+      this.ws.send(JSON.stringify({ type: 'stop-dest', id }));
+    }
+  }
+
   stopDestinations() {
     if (this.ws?.readyState === 1) {
       this.ws.send(JSON.stringify({ type: 'stop-destinations' }));

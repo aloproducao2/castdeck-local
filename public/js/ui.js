@@ -239,13 +239,13 @@ export const fmtTime = (ms) => {
 export const initials = (name) => String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
 
 export const PLATFORMS = {
-  youtube: { label: 'YouTube', short: 'YT', url: 'rtmp://a.rtmp.youtube.com/live2' },
-  facebook: { label: 'Facebook', short: 'FB', url: 'rtmps://live-api-s.facebook.com:443/rtmp/' },
-  twitch: { label: 'Twitch', short: 'TW', url: 'rtmp://live.twitch.tv/app' },
-  kick: { label: 'Kick', short: 'K', url: 'rtmps://fa723fc1b171.global-contribute.live-video.net:443/app' },
+  youtube: { label: 'YouTube', short: 'YT', url: 'rtmp://a.rtmp.youtube.com/live2', preset: '1080p30' },
+  facebook: { label: 'Facebook', short: 'FB', url: 'rtmps://live-api-s.facebook.com:443/rtmp/', preset: '720p30' },
+  twitch: { label: 'Twitch', short: 'TW', url: 'rtmp://live.twitch.tv/app', preset: '720p60' },
+  kick: { label: 'Kick', short: 'K', url: 'rtmps://fa723fc1b171.global-contribute.live-video.net:443/app', preset: '720p60' },
   linkedin: { label: 'LinkedIn', short: 'in', url: '' },
-  instagram: { label: 'Instagram', short: 'IG', url: 'rtmps://edgetee-upload-gru2-1.xx.fbcdn.net:443/rtmp/', vertical: true },
-  tiktok: { label: 'TikTok', short: 'TT', url: '', vertical: true },
+  instagram: { label: 'Instagram', short: 'IG', url: 'rtmps://edgetee-upload-gru2-1.xx.fbcdn.net:443/rtmp/', vertical: true, preset: 'v720p30', ephemeral: true },
+  tiktok: { label: 'TikTok', short: 'TT', url: '', vertical: true, preset: 'v720p30', ephemeral: true },
   x: { label: 'X', short: 'X', url: '' },
   custom: { label: 'RTMP personalizado', short: '⚡', url: 'rtmp://' },
 };

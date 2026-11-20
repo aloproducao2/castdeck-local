@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **1.8.22** — el **control remoto por QR también tiene seek**: toca o arrastra la barra de la tarjeta (o la barra «ahora sonando») para ir a cualquier punto del vídeo o del audio — el móvil, la ventana del Pad y el panel del estudio quedan en el mismo punto. Incluye el seek del Pad (1.8.21), las banderas SVG del selector (1.8.20), la exclusión de estudios en masa y el filtro que ya no rellena el navegador.
+Versión **1.8.23** — **pega el enlace del directo y los comentarios entran solos**: YouTube, Twitch, Kick y TikTok (experimental) en la pestaña Redes, con chips de filtro que listan solo las redes que conectaste, además de **Conectar cuenta** (OAuth local, sin servidor en medio) para crear el directo y renovar la clave sin pegarla a mano, fuentes de Kick que esperan el inicio del directo y correcciones en el navegador del chat y en el servidor embebido.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

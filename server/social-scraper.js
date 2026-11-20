@@ -9,8 +9,251 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import WebSocket from 'ws';
 import { findBrowser } from './dsk.js';
+import { detectChatLink, UNSUPPORTED_HINT } from './chat-links.js';
 
 const IS_WIN = process.platform === 'win32';
+
+// ── leitura de chat por DOM (Kick e TikTok): cola o link da live e as mensagens entram sozinhas ──
+// Os seletores são deliberadamente frouxos: cada plataforma muda de classe; o script tenta o seletor
+// específico e, se não achar nada, cai para "cada filho do container é uma mensagem".
+export const DOM_CHAT_PRESETS = {
+  kick: {
+    // a página do canal (e não /chatroom, que responde JSON) é a que renderiza o chat quando a live está no ar
+    url: (t) => `https://kick.com/${t}`,
+    container: '#chatroom-messages, [data-chat-messages], .chatroom-messages, [class*="chatroom-messages"], [class*="chat-messages"]',
+    row: '[data-chat-entry], .chat-entry, [class*="chat-entry"]',
+    author: '[data-chat-entry-username], .chat-entry-username, [class*="username"], [class*="author"]',
+    text: '[data-chat-entry-message], .chat-entry-content, [class*="content"], [class*="message"]',
+  },
+  tiktok: {
+    url: (t) => `https://www.tiktok.com/@${t}/live`,
+    container: '[data-e2e="chat-list"], [data-e2e="chat-container"], .chat-list, [class*="ChatList"], [class*="chat-list"]',
+    row: '[data-e2e="chat-message"], [class*="ChatMessage"], [class*="chat-message"]',
+    author: '[data-e2e="chat-message-username"], [class*="username"], [class*="author"], [class*="nickname"]',
+    text: '[data-e2e="chat-message-text"], [class*="content"], [class*="text"], [class*="comment"]',
+  },
+};
+
+// Fonte pronta para ir ao navegador: nunca devolver campos internos (Timer etc. quebravam o JSON da API).
+export function safeSource(s) {
+  if (!s) return null;
+  return {
+    id: s.id,
+    type: s.type,
+    target: s.target,
+    label: s.label,
+    status: s.status,
+    error: s.error || null,
+    count: s.count || 0,
+    experimental: !!s.experimental,
+  };
+}
+
+export function browserArgs(headless, profileDir) {
+  const dir = String(profileDir || '').trim();
+  // Nunca deixar `--user-data-dir=null` (o Edge abre um diálogo de erro e o chat não conecta).
+  if (!dir || dir === 'null' || dir === 'undefined') throw new Error('Pasta de dados do navegador inválida para o chat.');
+  return [
+    headless,
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--mute-audio',
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-background-networking',
+    '--disable-extensions',
+    '--disable-default-apps',
+    '--disable-crash-reporter',
+    '--disable-features=Translate,OptimizationHints,MediaRouter',
+    `--user-data-dir=${dir}`,
+    '--remote-debugging-port=0',
+    '--window-size=500,700',
+    'about:blank',
+  ];
+}
+
+// Canal ao vivo hoje? (Kick: a página do chat só existe quando a live está no ar)
+async function kickIsLive(slug) {
+  try {
+    const r = await fetch(`https://kick.com/api/v2/channels/${encodeURIComponent(slug)}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+        Accept: 'application/json',
+      },
+    });
+    if (!r.ok) return null; // não deu para saber: tenta abrir a página mesmo assim
+    const j = await r.json();
+    return !!j?.livestream;
+  } catch {
+    return null;
+  }
+}
+
+export function buildDomChatScript(preset, platform) {
+  return `(() => {
+  if (window.__cd_dom_injected) return;
+  window.__cd_dom_injected = true;
+  const CFG = ${JSON.stringify({ ...preset, platform })};
+  const seen = new WeakSet();
+  let container = null;
+  let observer = null;
+  let emitted = 0;
+
+  const send = (data) => {
+    let tries = 0;
+    const go = () => {
+      if (typeof window.__castdeck_social_message === 'function') window.__castdeck_social_message(JSON.stringify(data));
+      else if (tries++ < 30) setTimeout(go, 100);
+    };
+    go();
+  };
+  const status = (s, detail = '') => {
+    let tries = 0;
+    const go = () => {
+      if (typeof window.__castdeck_social_status === 'function') window.__castdeck_social_status(JSON.stringify({ status: s, detail }));
+      else if (tries++ < 30) setTimeout(go, 100);
+    };
+    go();
+  };
+  const q = (root, sel) => { try { return sel ? root.querySelector(sel) : null; } catch { return null; } };
+  const txt = (el) => (el ? String(el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim() : '');
+  const OFFLINE_RE = /off-?line|não está ao vivo|nao esta ao vivo|not live|isn'?t live|live ended|直播已结束|terminou/i;
+
+  function bySelector() {
+    try { return CFG.container ? document.querySelector(CFG.container) : null; } catch { return null; }
+  }
+
+  // Sem classes confiáveis: procura a lista de chat — bloco com 5+ filhos de texto curto, de preferência
+  // rolável e com muitos itens (é o formato de qualquer chat ao vivo).
+  function byHeuristic() {
+    let best = null;
+    let bestScore = 0;
+    const nodes = document.querySelectorAll('div,ul,ol,section,main');
+    for (const el of nodes) {
+      const kids = el.children;
+      if (!kids || kids.length < 5) continue;
+      let score = 0;
+      for (const k of kids) {
+        const t = (k.innerText || '').trim();
+        if (t && t.length < 220) score++;
+      }
+      if (score < 5) continue;
+      let scrollable = false;
+      try {
+        const st = getComputedStyle(el);
+        scrollable = st.overflowY === 'auto' || st.overflowY === 'scroll' || el.scrollHeight > el.clientHeight + 20;
+      } catch {}
+      // o chat costuma ser uma coluna estreita à direita (ou um painel no rodapé): evita pegar grade de cards
+      let pos = 0;
+      try {
+        const r = el.getBoundingClientRect();
+        if (r.width && r.width < window.innerWidth * 0.5 && r.left > window.innerWidth * 0.4) pos = 15;
+      } catch {}
+      const s = score + (scrollable ? 12 : 0) + (kids.length > 20 ? 6 : 0) + pos;
+      if (s > bestScore) { bestScore = s; best = el; }
+    }
+    return best;
+  }
+
+  function rows() {
+    if (!container) return [];
+    const bySel = CFG.row ? Array.from(container.querySelectorAll(CFG.row)) : [];
+    return bySel.length ? bySel : Array.from(container.children || []);
+  }
+
+  function pick(row) {
+    const authorEl = q(row, CFG.author);
+    const textEl = q(row, CFG.text);
+    let author = txt(authorEl);
+    let text = txt(textEl);
+    if (!text) {
+      const full = txt(row);
+      if (!full) return null;
+      const nl = String(row.innerText || '').split(/\\n+/).map((s) => s.trim()).filter(Boolean);
+      if (nl.length >= 2) {
+        author = author || nl[0];
+        text = nl.slice(1).join(' ');
+      } else {
+        text = full;
+      }
+      if (!author) {
+        const spans = Array.from(row.querySelectorAll('span,b,strong,a')).map((s) => txt(s)).filter(Boolean);
+        if (spans.length >= 2) {
+          author = spans[0].length <= 40 ? spans[0] : '';
+          text = spans.reduce((a, b) => (b.length > a.length ? b : a), '');
+        }
+      }
+    }
+    if (!text) return null;
+    if (author && text.toLowerCase().startsWith(author.toLowerCase())) text = text.slice(author.length).trim();
+    if (!text || text.length > 800) return null;
+    if (/^(seja o primeiro|be the first|welcome to the chat)/i.test(text)) return null;
+    return { author, text };
+  }
+
+  function one(row) {
+    if (!row || seen.has(row)) return;
+    seen.add(row);
+    const m = pick(row);
+    if (!m) return;
+    emitted++;
+    send({
+      id: CFG.platform + ':' + Date.now() + ':' + emitted,
+      chatname: m.author || CFG.platform,
+      chatmessage: m.text,
+      type: CFG.platform,
+      timestamp: Date.now(),
+    });
+  }
+
+  function scan() {
+    for (const r of rows()) one(r);
+    if (container && container.children.length) status('connected');
+  }
+
+  function attach() {
+    const found = bySelector() || byHeuristic();
+    if (!found) return false;
+    container = found;
+    observer?.disconnect();
+    observer = new MutationObserver(() => scan());
+    observer.observe(container, { childList: true, subtree: true });
+    for (const r of rows()) seen.add(r);
+    status('connected');
+    return true;
+  }
+
+  let tries = 0;
+  const boot = setInterval(() => {
+    tries++;
+    if (attach()) {
+      clearInterval(boot);
+      scan();
+      return;
+    }
+    const offline = OFFLINE_RE.test(String(document.body && document.body.innerText || ''));
+    if (offline && tries >= 6) {
+      clearInterval(boot);
+      status('error', 'offline');
+      return;
+    }
+    if (tries >= 30) {
+      clearInterval(boot);
+      const body = String(document.body && document.body.innerText || '');
+      if (/log in|entrar|登录|verify|verifique/i.test(body)) status('error', 'login');
+      else if (OFFLINE_RE.test(body)) status('error', 'offline');
+      else status('error', 'nao-encontrado');
+    }
+  }, 500);
+
+  setInterval(() => {
+    if (!container || !document.contains(container)) attach();
+    else scan();
+  }, 4000);
+})();`;
+}
 
 function killTree(p) {
   if (!p || p.exitCode !== null) return;
@@ -626,7 +869,97 @@ export class SocialHub extends EventEmitter {
       status: s.status,
       error: s.error || null,
       count: s.count || 0,
+      experimental: !!s.experimental,
     }));
+  }
+
+  // Chat por DOM (Kick/TikTok): o usuário cola o link da live e as mensagens entram sozinhas.
+  // Abre a página do chat num navegador headless — sem login, sem extensão, sem conta.
+  async addDomSource(det) {
+    const type = det.type || det.kind;
+    const preset = DOM_CHAT_PRESETS[type];
+    if (!preset) throw new Error('Esta rede não tem leitor por link.');
+    const target = String(det.target || '').trim();
+    if (!target) throw new Error('Informe o canal/usuário da live.');
+    const id = `${type}:${target}`;
+    if (this.sources.has(id)) return safeSource(this.sources.get(id));
+    const source = {
+      id,
+      type,
+      target,
+      label: det.label || `${type} (${target})`,
+      status: 'connecting',
+      error: null,
+      count: 0,
+      experimental: !!det.experimental,
+      chatUrl: det.chatUrl || preset.url(target),
+    };
+    this.sources.set(id, source);
+    this.broadcast({ type: 'sources', sources: this.listSources() });
+    try {
+      // Kick: se o canal não está ao vivo não existe chat na página — avisa e tenta sozinho quando começar
+      // (no harness com fixture pulamos a checagem: a página de teste não é um canal real)
+      const usingFixture = process.env.CASTDECK_CHAT_FIXTURE_URL && process.env.CASTDECK_CHAT_FIXTURE_PLATFORM === type;
+      if (type === 'kick' && !usingFixture) {
+        const live = await kickIsLive(target);
+        if (live === false) {
+          this.markOffline(source);
+          return safeSource(source);
+        }
+      }
+      await this.openDomSource(source);
+    } catch (e) {
+      source.status = 'error';
+      source.error = e.message || 'Falha ao abrir a página do chat.';
+      this.broadcast({ type: 'sources', sources: this.listSources() });
+      throw e;
+    }
+    return safeSource(source);
+  }
+
+  // Abre a página do chat no navegador headless e injeta o leitor de DOM.
+  async openDomSource(source) {
+    const preset = DOM_CHAT_PRESETS[source.type];
+    await this.ensureBrowser();
+    // harness: permite apontar para uma página de teste com o DOM da plataforma
+    const fixture = process.env.CASTDECK_CHAT_FIXTURE_URL;
+    const url = fixture && process.env.CASTDECK_CHAT_FIXTURE_PLATFORM === source.type ? fixture : source.chatUrl || preset.url(source.target);
+    const { targetId } = await this.sendCdp('Target.createTarget', { url: 'about:blank', newWindow: true });
+    source.targetId = targetId;
+    const { sessionId } = await this.sendCdp('Target.attachToTarget', { targetId, flatten: true });
+    source.sessionId = sessionId;
+    await this.sendCdp('Page.enable', {}, sessionId);
+    await this.sendCdp('Runtime.enable', {}, sessionId);
+    await this.sendCdp(
+      'Network.setUserAgentOverride',
+      { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36' },
+      sessionId,
+    );
+    await this.sendCdp('Runtime.addBinding', { name: '__castdeck_social_message' }, sessionId);
+    await this.sendCdp('Runtime.addBinding', { name: '__castdeck_social_status' }, sessionId);
+    await this.sendCdp('Page.addScriptToEvaluateOnNewDocument', { source: buildDomChatScript(preset, source.type) }, sessionId);
+    await this.sendCdp('Page.navigate', { url }, sessionId);
+    source.status = 'connecting';
+    source.error = null;
+    this.broadcast({ type: 'sources', sources: this.listSources() });
+    console.log(`[social-hub] chat ${source.type} por link: ${url}`);
+  }
+
+  // Canal fora do ar (ou chat que não carregou por estar offline): deixa em espera e tenta sozinho em 60 s.
+  markOffline(source) {
+    source.status = 'idle';
+    source.error = 'O canal está offline. Abro o chat sozinho quando a live começar (ou clique em ↻).';
+    clearInterval(source._retryTimer);
+    source._retryTimer = setInterval(async () => {
+      if (!this.sources.has(source.id)) return clearInterval(source._retryTimer);
+      try {
+        if (source.type === 'kick' && (await kickIsLive(source.target)) === false) return;
+        clearInterval(source._retryTimer);
+        source._retryTimer = null;
+        await this.openDomSource(source);
+      } catch {}
+    }, 60000);
+    this.broadcast({ type: 'sources', sources: this.listSources() });
   }
 
   // Compatibilidade com a rota antiga /api/social/youtube
@@ -661,66 +994,70 @@ export class SocialHub extends EventEmitter {
 
   async ensureBrowser() {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
-    const exe = findBrowser();
-    if (!exe) throw new Error('Nenhum navegador Chromium (Edge/Chrome/Brave) encontrado para capturar o chat.');
+    // Duas fontes conectando ao mesmo tempo NÃO podem abrir dois navegadores (isso derrubava um
+    // deles no meio e dava "navegador fechou inesperadamente"): quem chega depois espera o mesmo start.
+    if (this._ensurePromise) return this._ensurePromise;
+    this._ensurePromise = (async () => {
+      const exe = findBrowser();
+      if (!exe) throw new Error('Nenhum navegador Chromium (Edge/Chrome/Brave) encontrado para capturar o chat.');
+      this.profileDir = mkdtempSync(path.join(os.tmpdir(), 'cd-soc-'));
+      let lastErr = null;
+      // 1ª tentativa com o headless novo; 2ª com o antigo (alguns Edge/Chrome só aceitam um dos dois)
+      for (const headless of ['--headless=new', '--headless']) {
+        try {
+          const wsUrl = await this.spawnBrowser(exe, headless);
+          const ws = new WebSocket(wsUrl);
+          await new Promise((resolve, reject) => {
+            ws.on('open', resolve);
+            ws.on('error', reject);
+            setTimeout(() => reject(new Error('O navegador não abriu a sessão de depuração.')), 10000);
+          });
+          this.attachBrowser(ws);
+          return;
+        } catch (e) {
+          lastErr = e;
+          await this.killBrowserProc();
+        }
+      }
+      throw lastErr || new Error('Não foi possível abrir o navegador do chat.');
+    })().finally(() => {
+      this._ensurePromise = null;
+    });
+    return this._ensurePromise;
+  }
 
-    this.profileDir = mkdtempSync(path.join(os.tmpdir(), 'cd-soc-'));
-
-    const args = [
-      '--headless=new',
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--mute-audio',
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--disable-background-networking',
-      '--disable-extensions',
-      '--disable-default-apps',
-      '--disable-features=Translate,OptimizationHints,MediaRouter',
-      `--user-data-dir=${this.profileDir}`,
-      '--remote-debugging-port=0',
-      '--window-size=500,700',
-      'about:blank',
-    ];
-
+  // Sobe o navegador headless e espera a linha "DevTools listening on ws://…". Em caso de falha devolve a
+  // mensagem com as últimas linhas do stderr (é o que aparece no aviso da aba Redes).
+  async spawnBrowser(exe, headless) {
+    // A pasta de perfil é do START, não do processo: se o processo morrer e a gente tentar de novo, a pasta
+    // continua valendo. (Sem isso a 2ª tentativa usava `--user-data-dir=null` e o Edge abria um diálogo
+    // "não foi possível criar o diretório de dados".)
+    if (!this.profileDir) this.profileDir = mkdtempSync(path.join(os.tmpdir(), 'cd-soc-'));
+    const args = browserArgs(headless, this.profileDir);
     const proc = spawn(exe, args, { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
     this.proc = proc;
-
     proc.on('exit', () => {
-      if (this.proc === proc) {
-        this.proc = null;
-        for (const s of this.sources.values()) {
-          if (s.type === 'youtube' && s.status === 'connected') {
-            s.status = 'idle';
-          }
-        }
-        this.broadcast({ type: 'sources', sources: this.listSources() });
+      if (this.proc !== proc) return;
+      this.proc = null;
+      for (const s of this.sources.values()) {
+        if ((s.type === 'youtube' || s.type === 'kick' || s.type === 'tiktok') && s.status === 'connected') s.status = 'idle';
       }
-      if (this.profileDir) {
-        const dir = this.profileDir;
-        this.profileDir = null;
-        setTimeout(() => {
-          try { rmSync(dir, { recursive: true, force: true, maxRetries: 3 }); } catch {}
-        }, 1000);
-      }
+      this.broadcast({ type: 'sources', sources: this.listSources() });
     });
-
-    const wsUrl = await new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       let buf = '';
       let done = false;
       const fail = (e) => {
         if (done) return;
         done = true;
-        reject(e);
+        const tail = buf.trim().split(/\r?\n/).filter(Boolean).slice(-3).join(' | ');
+        reject(tail ? new Error(`${e.message} — ${tail}`) : e);
       };
-      const t = setTimeout(() => fail(new Error('O navegador não respondeu ao iniciar o chat.')), 10000);
-
+      const t = setTimeout(() => fail(new Error('O navegador não respondeu ao iniciar o chat.')), 12000);
       proc.stderr.on('error', () => {});
       proc.stderr.on('data', (chunk) => {
         if (done) return;
-        buf += chunk.toString();
+        buf = (buf + chunk.toString()).slice(-4000);
         const m = /DevTools listening on (ws:\/\/\S+)/.exec(buf);
         if (m) {
           done = true;
@@ -731,18 +1068,19 @@ export class SocialHub extends EventEmitter {
       proc.on('error', (e) => (clearTimeout(t), fail(e)));
       proc.on('exit', (code) => {
         clearTimeout(t);
-        if (!done) fail(new Error(`Navegador encerrou prematuramente (código ${code})`));
+        if (!done) fail(new Error(`O navegador fechou inesperadamente (código ${code})`));
       });
     });
+  }
 
-    const ws = new WebSocket(wsUrl);
+  async killBrowserProc() {
+    const proc = this.proc;
+    this.proc = null;
+    if (proc) killTree(proc);
+  }
+
+  attachBrowser(ws) {
     this.ws = ws;
-
-    await new Promise((resolve, reject) => {
-      ws.on('open', resolve);
-      ws.on('error', reject);
-    });
-
     ws.on('message', (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
@@ -756,7 +1094,9 @@ export class SocialHub extends EventEmitter {
         if (msg.method === 'Runtime.bindingCalled' && msg.params?.name === '__castdeck_social_message') {
           try {
             const data = JSON.parse(msg.params.payload);
-            const source = Array.from(this.sources.values()).find((s) => s.sessionId === msg.sessionId) || Array.from(this.sources.values()).find((s) => s.type === 'youtube');
+            const source =
+              Array.from(this.sources.values()).find((s) => s.sessionId === msg.sessionId) ||
+              Array.from(this.sources.values()).find((s) => s.type === 'youtube');
             if (source) {
               source.count = (source.count || 0) + 1;
               data.sourceId = source.id;
@@ -768,16 +1108,44 @@ export class SocialHub extends EventEmitter {
         } else if (msg.method === 'Runtime.bindingCalled' && msg.params?.name === '__castdeck_social_status') {
           try {
             const info = JSON.parse(msg.params.payload);
-            const source = Array.from(this.sources.values()).find((s) => s.sessionId === msg.sessionId) || Array.from(this.sources.values()).find((s) => s.type === 'youtube');
+            const source =
+              Array.from(this.sources.values()).find((s) => s.sessionId === msg.sessionId) ||
+              Array.from(this.sources.values()).find((s) => s.type === 'youtube');
             if (source) {
               clearTimeout(source._fallbackTimer);
-              source.status = info.status === 'error' ? 'error' : 'connected';
-              source.error = info.status === 'error' ? (info.detail || 'Erro ao carregar o chat ao vivo.') : null;
-              this.broadcast({ type: 'sources', sources: this.listSources() });
+              if (info.status === 'error' && info.detail === 'offline') {
+                this.markOffline(source);
+              } else {
+                source.status = info.status === 'error' ? 'error' : 'connected';
+                source.error =
+                  info.status === 'error'
+                    ? info.detail === 'login'
+                      ? 'O TikTok pediu login para mostrar o chat. Use o Social Stream Ninja nesta rede.'
+                      : info.detail === 'nao-encontrado'
+                        ? 'Chat não encontrado na página da live. Confira o link (o canal precisa estar ao vivo).'
+                        : info.detail || 'Erro ao carregar o chat ao vivo.'
+                    : null;
+                this.broadcast({ type: 'sources', sources: this.listSources() });
+              }
             }
           } catch {}
         }
       } catch {}
+    });
+    ws.on('close', () => {
+      if (this.ws === ws) this.ws = null;
+      // o navegador caiu: avisa as fontes que dependem dele (a UI mostra ↻ para reconectar)
+      let changed = false;
+      for (const s of this.sources.values()) {
+        if (s.type === 'youtube' || s.type === 'kick' || s.type === 'tiktok') {
+          if (s.status === 'connected' || s.status === 'connecting') {
+            s.status = 'idle';
+            s.error = 'O navegador do chat fechou. Clique em ↻ para reconectar.';
+            changed = true;
+          }
+        }
+      }
+      if (changed) this.broadcast({ type: 'sources', sources: this.listSources() });
     });
   }
 
@@ -786,11 +1154,38 @@ export class SocialHub extends EventEmitter {
     type = String(type || '').toLowerCase();
     target = String(target || '').trim();
 
+    // "Cole o link da live": descobre a rede pelo endereço e escolhe o leitor certo.
+    if (type === 'link' || type === '' || type === 'auto') {
+      const det = detectChatLink(target);
+      if (!det.ok) throw new Error(UNSUPPORTED_HINT[det.reason] || UNSUPPORTED_HINT.unknown);
+      if (det.kind === 'ssn') throw new Error('Link do Social Stream Ninja: use a opção “Social Stream Ninja” na tela de conectar.');
+      if (det.kind === 'kick' || det.kind === 'tiktok') return this.addDomSource(det);
+      if (det.kind === 'youtube') {
+        const vid = det.videoId || (await resolveYoutubeChannelLive(target));
+        if (!vid) throw new Error('Link do YouTube inválido ou nenhuma transmissão ao vivo ativa encontrada.');
+        return this.addSource({ type: 'youtube', target: vid });
+      }
+      if (det.kind === 'twitch') return this.addSource({ type: 'twitch', target: det.target });
+      throw new Error(UNSUPPORTED_HINT.unknown);
+    }
+
+    if (type === 'kick' || type === 'tiktok') {
+      const preset = DOM_CHAT_PRESETS[type];
+      return this.addDomSource({
+        kind: type,
+        type,
+        target,
+        label: `${type === 'kick' ? 'Kick' : 'TikTok'} (@${target})`,
+        chatUrl: preset.url(target),
+        experimental: type === 'tiktok',
+      });
+    }
+
     if (type === 'youtube') {
       const vid = extractYoutubeVideoId(target) || (await resolveYoutubeChannelLive(target));
       if (!vid) throw new Error('Link do YouTube inválido ou nenhuma transmissão ao vivo ativa encontrada.');
       const id = `yt:${vid}`;
-      if (this.sources.has(id)) return this.sources.get(id);
+      if (this.sources.has(id)) return safeSource(this.sources.get(id));
 
       const source = {
         id,
@@ -829,7 +1224,7 @@ export class SocialHub extends EventEmitter {
           }
         }, 6000);
         console.log(`[social-hub] canal YouTube conectado: v=${vid}`);
-        return source;
+        return safeSource(source);
       } catch (e) {
         clearTimeout(source._fallbackTimer);
         source.status = 'error';
@@ -842,7 +1237,7 @@ export class SocialHub extends EventEmitter {
       const channel = cleanTwitchChannel(target);
       if (!channel) throw new Error('Nome do canal da Twitch inválido.');
       const id = `tw:${channel}`;
-      if (this.sources.has(id)) return this.sources.get(id);
+      if (this.sources.has(id)) return safeSource(this.sources.get(id));
 
       const client = new TwitchChatClient(channel, id);
       const source = {
@@ -872,7 +1267,7 @@ export class SocialHub extends EventEmitter {
       });
 
       client.connect();
-      return source;
+      return safeSource(source);
     } else {
       throw new Error(`Plataforma não suportada: ${type}`);
     }
@@ -882,6 +1277,7 @@ export class SocialHub extends EventEmitter {
     const s = this.sources.get(id);
     if (!s) return false;
     clearTimeout(s._fallbackTimer);
+    clearInterval(s._retryTimer);
     this.sources.delete(id);
 
     if (s.type === 'youtube') {
@@ -891,6 +1287,13 @@ export class SocialHub extends EventEmitter {
       // Se não sobrou nenhum YouTube, fecha o navegador para liberar memória
       const hasYt = Array.from(this.sources.values()).some((x) => x.type === 'youtube');
       if (!hasYt) this.closeBrowser();
+    } else if (s.type === 'kick' || s.type === 'tiktok') {
+      // chat por link: fecha a aba da plataforma e o navegador se não houver mais ninguém usando
+      if (s.targetId && this.ws && this.ws.readyState === WebSocket.OPEN) {
+        try { await this.sendCdp('Target.closeTarget', { targetId: s.targetId }); } catch {}
+      }
+      const stillBrowser = Array.from(this.sources.values()).some((x) => x.type === 'youtube' || x.type === 'kick' || x.type === 'tiktok');
+      if (!stillBrowser) this.closeBrowser();
     } else if (s.type === 'twitch') {
       s.client?.close();
     }
@@ -927,6 +1330,14 @@ export class SocialHub extends EventEmitter {
     if (this.proc) {
       killTree(this.proc);
       this.proc = null;
+    }
+    // a pasta de perfil só é apagada quando o navegador realmente é encerrado (não entre tentativas)
+    if (this.profileDir) {
+      const dir = this.profileDir;
+      this.profileDir = null;
+      setTimeout(() => {
+        try { rmSync(dir, { recursive: true, force: true, maxRetries: 3 }); } catch {}
+      }, 1500);
     }
   }
 

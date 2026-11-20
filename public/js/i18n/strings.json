@@ -32038,5 +32038,335 @@
     "Haz clic o arrastra para ir a un punto (audio)",
     "Cliquez ou faites glisser pour aller à un point (audio)",
     "Klicken oder ziehen, um an eine Stelle zu springen (Audio)"
+  ],
+  "Conectar conta": [
+    "Connect account",
+    "Conectar cuenta",
+    "Connecter le compte",
+    "Konto verbinden"
+  ],
+  "Conta conectada": [
+    "Account connected",
+    "Cuenta conectada",
+    "Compte connecté",
+    "Konto verbunden"
+  ],
+  "Conta desconectada": [
+    "Account disconnected",
+    "Cuenta desconectada",
+    "Compte déconnecté",
+    "Konto getrennt"
+  ],
+  "Trocar conta": [
+    "Switch account",
+    "Cambiar de cuenta",
+    "Changer de compte",
+    "Konto wechseln"
+  ],
+  "Usar esta conta": [
+    "Use this account",
+    "Usar esta cuenta",
+    "Utiliser ce compte",
+    "Dieses Konto verwenden"
+  ],
+  "Código copiado": [
+    "Code copied",
+    "Código copiado",
+    "Code copié",
+    "Code kopiert"
+  ],
+  "Abra o site e digite este código:": [
+    "Open the site and type this code:",
+    "Abre el sitio y escribe este código:",
+    "Ouvrez le site et saisissez ce code :",
+    "Öffne die Seite und gib diesen Code ein:"
+  ],
+  "Abrir a página da plataforma": [
+    "Open the platform page",
+    "Abrir la página de la plataforma",
+    "Ouvrir la page de la plateforme",
+    "Plattformseite öffnen"
+  ],
+  "Estamos esperando você confirmar… esta janela fecha sozinha.": [
+    "Waiting for your confirmation… this window closes by itself.",
+    "Esperando tu confirmación… esta ventana se cierra sola.",
+    "Nous attendons votre confirmation… cette fenêtre se ferme seule.",
+    "Wir warten auf deine Bestätigung… dieses Fenster schließt sich selbst."
+  ],
+  "O navegador abriu a página de autorização. Entre com a conta que vai transmitir.": [
+    "The browser opened the authorization page. Sign in with the account that will go live.",
+    "El navegador abrió la página de autorización. Inicia sesión con la cuenta que transmitirá.",
+    "Le navigateur a ouvert la page d’autorisation. Connectez-vous avec le compte qui diffusera.",
+    "Der Browser hat die Autorisierungsseite geöffnet. Melde dich mit dem Konto an, das senden wird."
+  ],
+  "Se a janela não abriu, use “Abrir de novo”. Depois é só voltar: o CastDeck continua aqui.": [
+    "If the window did not open, use “Open again”. Then just come back: CastDeck is still here.",
+    "Si la ventana no se abrió, usa «Abrir de nuevo». Luego vuelve: CastDeck sigue aquí.",
+    "Si la fenêtre ne s’est pas ouverte, utilisez « Ouvrir à nouveau ». Revenez ensuite : CastDeck est toujours là.",
+    "Wenn das Fenster nicht geöffnet wurde, nutze „Erneut öffnen“. Komm danach zurück: CastDeck bleibt hier."
+  ],
+  "Abrir de novo": [
+    "Open again",
+    "Abrir de nuevo",
+    "Ouvrir à nouveau",
+    "Erneut öffnen"
+  ],
+  "O CastDeck cria a live e renova a chave sozinho antes de cada transmissão.": [
+    "CastDeck creates the live and renews the key by itself before each broadcast.",
+    "CastDeck crea la transmisión y renueva la clave sola antes de cada emisión.",
+    "CastDeck crée le direct et renouvelle la clé tout seul avant chaque diffusion.",
+    "CastDeck erstellt den Livestream und erneuert den Schlüssel vor jeder Sendung selbst."
+  ],
+  "Primeira vez: crie o app do CastDeck (só uma vez) e cole os dados abaixo.": [
+    "First time: create the CastDeck app (once) and paste the data below.",
+    "Primera vez: crea la app de CastDeck (una sola vez) y pega los datos abajo.",
+    "Première fois : créez l’app CastDeck (une seule fois) et collez les données ci-dessous.",
+    "Erstes Mal: erstelle die CastDeck-App (einmalig) und füge die Daten unten ein."
+  ],
+  "Salvar e conectar": [
+    "Save and connect",
+    "Guardar y conectar",
+    "Enregistrer et connecter",
+    "Speichern und verbinden"
+  ],
+  "Trocar os dados do app": [
+    "Change app data",
+    "Cambiar los datos de la app",
+    "Modifier les données de l’app",
+    "App-Daten ändern"
+  ],
+  "Você autoriza no site da plataforma e volta: o CastDeck não vê sua senha.": [
+    "You authorize on the platform site and come back: CastDeck never sees your password.",
+    "Autorizas en el sitio de la plataforma y vuelves: CastDeck no ve tu contraseña.",
+    "Vous autorisez sur le site de la plateforme puis revenez : CastDeck ne voit pas votre mot de passe.",
+    "Du autorisierst auf der Plattformseite und kommst zurück: CastDeck sieht dein Passwort nie."
+  ],
+  "Conecte a conta (1 clique) e não precisa copiar chave.": [
+    "Connect the account (1 click) and you never copy a key.",
+    "Conecta la cuenta (1 clic) y no necesitas copiar la clave.",
+    "Connectez le compte (1 clic) et plus besoin de copier une clé.",
+    "Verbinde das Konto (1 Klick) und du musst keinen Schlüssel kopieren."
+  ],
+  "Conta conectada: a live e a chave são criadas sozinhas.": [
+    "Account connected: the live and the key are created automatically.",
+    "Cuenta conectada: la transmisión y la clave se crean solas.",
+    "Compte connecté : le direct et la clé sont créés automatiquement.",
+    "Konto verbunden: Livestream und Schlüssel werden automatisch erstellt."
+  ],
+  "A chave manual abaixo é ignorada enquanto a conta estiver conectada.": [
+    "The manual key below is ignored while the account is connected.",
+    "La clave manual de abajo se ignora mientras la cuenta esté conectada.",
+    "La clé manuelle ci-dessous est ignorée tant que le compte est connecté.",
+    "Der manuelle Schlüssel unten wird ignoriert, solange das Konto verbunden ist."
+  ],
+  "Usar chave manual": [
+    "Use a manual key",
+    "Usar clave manual",
+    "Utiliser une clé manuelle",
+    "Manuellen Schlüssel verwenden"
+  ],
+  "Falta a chave": [
+    "Missing key",
+    "Falta la clave",
+    "Clé manquante",
+    "Schlüssel fehlt"
+  ],
+  "Chave salva": [
+    "Key saved",
+    "Clave guardada",
+    "Clé enregistrée",
+    "Schlüssel gespeichert"
+  ],
+  "Chave desta live": [
+    "Key for this live",
+    "Clave de este directo",
+    "Clé de ce direct",
+    "Schlüssel für diesen Stream"
+  ],
+  "chat ligado": [
+    "chat linked",
+    "chat conectado",
+    "chat lié",
+    "Chat verbunden"
+  ],
+  "chat via SSN": [
+    "chat via SSN",
+    "chat vía SSN",
+    "chat via SSN",
+    "Chat über SSN"
+  ],
+  "Colar chave": [
+    "Paste key",
+    "Pegar clave",
+    "Coller la clé",
+    "Schlüssel einfügen"
+  ],
+  "Renovar agora": [
+    "Renew now",
+    "Renovar ahora",
+    "Renouveler maintenant",
+    "Jetzt erneuern"
+  ],
+  "Renovar": [
+    "Renew",
+    "Renovar",
+    "Renouveler",
+    "Erneuern"
+  ],
+  "Nome, servidor, chave e conta": [
+    "Name, server, key and account",
+    "Nombre, servidor, clave y cuenta",
+    "Nom, serveur, clé et compte",
+    "Name, Server, Schlüssel und Konto"
+  ],
+  "Criar/renovar a live agora": [
+    "Create/renew the live now",
+    "Crear/renovar el directo ahora",
+    "Créer/renouveler le direct maintenant",
+    "Live jetzt erstellen/erneuern"
+  ],
+  "Live renovada no destino": [
+    "Live renewed on the destination",
+    "Directo renovado en el destino",
+    "Direct renouvelé sur la destination",
+    "Live am Ziel erneuert"
+  ],
+  "Cole a chave de transmissão": [
+    "Paste the stream key",
+    "Pega la clave de transmisión",
+    "Collez la clé de diffusion",
+    "Füge den Streamschlüssel ein"
+  ],
+  "A chave fica salva só neste aparelho. Se conectar a conta, o CastDeck cria a live e renova a chave sozinho.": [
+    "The key is saved only on this device. If you connect the account, CastDeck creates the live and renews the key by itself.",
+    "La clave se guarda solo en este aparato. Si conectas la cuenta, CastDeck crea el directo y renueva la clave solo.",
+    "La clé n’est enregistrée que sur cet appareil. Si vous connectez le compte, CastDeck crée le direct et renouvelle la clé tout seul.",
+    "Der Schlüssel wird nur auf diesem Gerät gespeichert. Wenn du das Konto verbindest, erstellt CastDeck den Stream und erneuert den Schlüssel selbst."
+  ],
+  "Reconectar só este destino": [
+    "Reconnect only this destination",
+    "Reconectar solo este destino",
+    "Reconnecter uniquement cette destination",
+    "Nur dieses Ziel neu verbinden"
+  ],
+  "Parar só este destino": [
+    "Stop only this destination",
+    "Parar solo este destino",
+    "Arrêter uniquement cette destination",
+    "Nur dieses Ziel stoppen"
+  ],
+  "Ainda não há uma transmissão anterior neste estúdio.": [
+    "There is no previous broadcast in this studio yet.",
+    "Todavía no hay una emisión anterior en este estudio.",
+    "Il n’y a pas encore de diffusion précédente dans ce studio.",
+    "In diesem Studio gibt es noch keine frühere Sendung."
+  ],
+  "YouTube + chat": [
+    "YouTube + chat",
+    "YouTube + chat",
+    "YouTube + chat",
+    "YouTube + Chat"
+  ],
+  "Multistream 3 redes": [
+    "Multistream 3 networks",
+    "Multistream 3 redes",
+    "Multistream 3 réseaux",
+    "Multistream 3 Netzwerke"
+  ],
+  "Vertical TikTok + Pad": [
+    "Vertical TikTok + Pad",
+    "Vertical TikTok + Pad",
+    "Vertical TikTok + Pad",
+    "Vertikal TikTok + Pad"
+  ],
+  "Só gravar": [
+    "Record only",
+    "Solo grabar",
+    "Enregistrer seulement",
+    "Nur aufnehmen"
+  ],
+  "Retomar última": [
+    "Resume last",
+    "Retomar última",
+    "Reprendre la dernière",
+    "Letzte fortsetzen"
+  ],
+  "Canal principal": [
+    "Main channel",
+    "Canal principal",
+    "Chaîne principale",
+    "Hauptkanal"
+  ],
+  "Cole o link da live (YouTube, Twitch, Kick, TikTok)…": [
+    "Paste the live link (YouTube, Twitch, Kick, TikTok)…",
+    "Pega el enlace del directo (YouTube, Twitch, Kick, TikTok)…",
+    "Collez le lien du direct (YouTube, Twitch, Kick, TikTok)…",
+    "Füge den Livestream-Link ein (YouTube, Twitch, Kick, TikTok)…"
+  ],
+  "Cole o link da live: YouTube, Twitch, Kick e TikTok (experimental) puxam os comentários sozinhos. Facebook, Instagram, X e LinkedIn precisam do Social Stream Ninja.": [
+    "Paste the live link: YouTube, Twitch, Kick and TikTok (experimental) pull the comments by themselves. Facebook, Instagram, X and LinkedIn need Social Stream Ninja.",
+    "Pega el enlace del directo: YouTube, Twitch, Kick y TikTok (experimental) traen los comentarios solos. Facebook, Instagram, X y LinkedIn necesitan Social Stream Ninja.",
+    "Collez le lien du direct : YouTube, Twitch, Kick et TikTok (expérimental) récupèrent les commentaires seuls. Facebook, Instagram, X et LinkedIn nécessitent Social Stream Ninja.",
+    "Füge den Livestream-Link ein: YouTube, Twitch, Kick und TikTok (experimentell) holen die Kommentare selbst. Facebook, Instagram, X und LinkedIn brauchen Social Stream Ninja."
+  ],
+  "Experimental: a plataforma pode pedir login para mostrar o chat": [
+    "Experimental: the platform may require login to show the chat",
+    "Experimental: la plataforma puede pedir inicio de sesión para mostrar el chat",
+    "Expérimental : la plateforme peut demander une connexion pour afficher le chat",
+    "Experimentell: die Plattform kann eine Anmeldung verlangen, um den Chat zu zeigen"
+  ],
+  "experimental": [
+    "experimental",
+    "experimental",
+    "expérimental",
+    "experimentell"
+  ],
+  "Experimental": [
+    "Experimental",
+    "Experimental",
+    "Expérimental",
+    "Experimentell"
+  ],
+  "Esta rede não abre o chat por link: use o Social Stream Ninja (extensão) para puxar os comentários.": [
+    "This network does not open the chat by link: use Social Stream Ninja (extension) to pull the comments.",
+    "Esta red no abre el chat por enlace: usa Social Stream Ninja (extensión) para traer los comentarios.",
+    "Ce réseau n’ouvre pas le chat par lien : utilisez Social Stream Ninja (extension) pour récupérer les commentaires.",
+    "Dieses Netzwerk öffnet den Chat nicht per Link: nutze Social Stream Ninja (Erweiterung), um die Kommentare zu holen."
+  ],
+  "Social Stream Ninja: ligue \"Send chat messages to API server\" para receber o chat.": [
+    "Social Stream Ninja: turn on \"Send chat messages to API server\" to receive the chat.",
+    "Social Stream Ninja: activa \"Send chat messages to API server\" para recibir el chat.",
+    "Social Stream Ninja : activez « Send chat messages to API server » pour recevoir le chat.",
+    "Social Stream Ninja: aktiviere „Send chat messages to API server“, um den Chat zu erhalten."
+  ],
+  "Rede detectada: os comentários da live entram sozinhos assim que você conectar.": [
+    "Network detected: the live comments start coming in as soon as you connect.",
+    "Red detectada: los comentarios del directo entran solos en cuanto conectes.",
+    "Réseau détecté : les commentaires du direct arrivent dès que vous connectez.",
+    "Netzwerk erkannt: die Live-Kommentare kommen, sobald du verbindest."
+  ],
+  "Cole o link da live": [
+    "Paste the live link",
+    "Pega el enlace del directo",
+    "Collez le lien du direct",
+    "Füge den Livestream-Link ein"
+  ],
+  "Cole o link da live (YouTube, Twitch, Kick ou TikTok) e os comentários entram em tempo real para você destacar na tela.": [
+    "Paste the live link (YouTube, Twitch, Kick or TikTok) and the comments come in real time so you can put them on screen.",
+    "Pega el enlace del directo (YouTube, Twitch, Kick o TikTok) y los comentarios entran en tiempo real para destacarlos en pantalla.",
+    "Collez le lien du direct (YouTube, Twitch, Kick ou TikTok) et les commentaires arrivent en temps réel pour les afficher à l’écran.",
+    "Füge den Livestream-Link ein (YouTube, Twitch, Kick oder TikTok) und die Kommentare kommen in Echtzeit, um sie auf den Bildschirm zu bringen."
+  ],
+  "+ Colar link da live": [
+    "+ Paste live link",
+    "+ Pegar enlace del directo",
+    "+ Coller le lien du direct",
+    "+ Livestream-Link einfügen"
+  ],
+  "Cole o link da live (YouTube, Twitch, Kick, TikTok)": [
+    "Paste the live link (YouTube, Twitch, Kick, TikTok)",
+    "Pega el enlace del directo (YouTube, Twitch, Kick, TikTok)",
+    "Collez le lien du direct (YouTube, Twitch, Kick, TikTok)",
+    "Füge den Livestream-Link ein (YouTube, Twitch, Kick, TikTok)"
   ]
 }

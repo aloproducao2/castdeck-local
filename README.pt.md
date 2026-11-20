@@ -147,7 +147,7 @@ incorporar o código em produto fechado. Componentes de terceiros mantêm suas l
 
 ## Status
 
-Versão **1.8.0** — câmera USB/UVC e áudio UAC no Android (detecção automática, resolução/FPS e roteamento no mixer), mesa de áudio na barra superior, Miniatura da Cena ao vivo e correções de cache/Android 14+.
+Versão **1.8.23** — **cole o link da live e os comentários entram sozinhos**: YouTube, Twitch, Kick e TikTok (experimental) na aba Redes, com chips de filtro que listam só as redes que você conectou, além de **Conectar conta** (OAuth local, sem servidor no meio) para criar a live e renovar a chave sem colar a chave na mão, fontes da Kick que esperam a live começar e correções no navegador do chat e no servidor embutido.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Feito por **Miguel Kallemback / flue.live**, de brasileiros para o mundo. 🌎

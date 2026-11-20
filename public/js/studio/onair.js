@@ -5,6 +5,8 @@
 // Saiu do studio.js (que já tem 66 imports, segundo o rea) para não engordar mais o módulo central.
 import { $, esc, icons, fmtTime } from '../ui.js';
 
+const T = (s) => window.CDi18n?.t(s) ?? s;
+
 const STATE = {
   connecting: ['warn', 'Conectando'],
   reconnecting: ['warn', 'Reconectando'],
@@ -22,7 +24,7 @@ const speedOf = (st) => {
   return Number.isFinite(n) ? n : null;
 };
 
-export function createOnAir({ S }) {
+export function createOnAir({ S, onDestAction = null }) {
   let popOpen = false;
   let popHtml = '';
 
@@ -65,8 +67,14 @@ export function createOnAir({ S }) {
           .map((o) => {
             const [cls, lab] = STATE[o.state] || ['', o.state];
             const ico = o.kind === 'record' ? '⏺' : '📡';
-            const sub = o.kind === 'record' ? o.file || '' : o.error || (o.restarts ? `${o.restarts} reconexão(ões)` : '');
-            return `<div class="oa-row"><span class="oa-ico">${ico}</span><span class="oa-name"><b translate="no">${esc(o.name)}</b>${sub ? `<small title="${esc(sub)}">${esc(sub)}</small>` : ''}</span><span class="pill ${cls}">${lab}</span></div>`;
+            const mbps = o.kind === 'rtmp' && o.kbps ? ` · ${(o.kbps / 1000).toFixed(1)} Mbps` : '';
+            const drops = o.kind === 'rtmp' && o.drops ? ` · ${o.drops} queda(s)` : '';
+            const sub = o.kind === 'record' ? o.file || '' : o.error || (o.restarts ? `${o.restarts} reconexão(ões)` : '') || `${mbps}${drops}`.replace(/^ · /, '');
+            const acts =
+              o.kind === 'rtmp'
+                ? `<span class="oa-acts"><button class="btn sm ghost" data-oa-reconnect="${esc(o.id)}" title="${T('Reconectar só este destino')}">${T('Reconectar')}</button><button class="btn sm ghost" data-oa-stop="${esc(o.id)}" title="${T('Parar só este destino')}">${T('Parar')}</button></span>`
+                : '';
+            return `<div class="oa-row"><span class="oa-ico">${ico}</span><span class="oa-name"><b translate="no">${esc(o.name)}</b>${sub ? `<small title="${esc(sub)}">${esc(sub)}</small>` : ''}</span><span class="pill ${cls}">${lab}</span>${acts}</div>`;
           })
           .join('')
       : '<div class="hint">Nenhuma saída ativa.</div>';
@@ -102,6 +110,13 @@ export function createOnAir({ S }) {
       document.body.appendChild(pop);
       pop.addEventListener('click', (e) => {
         if (e.target.closest('[data-oa-close]')) togglePop(false);
+        const rec = e.target.closest('[data-oa-reconnect]');
+        if (rec) {
+          onDestAction?.('reconnect', rec.dataset.oaReconnect);
+          return;
+        }
+        const stp = e.target.closest('[data-oa-stop]');
+        if (stp) onDestAction?.('stop', stp.dataset.oaStop);
       });
       document.addEventListener('pointerdown', (e) => {
         if (popOpen && !pop.contains(e.target) && !e.target.closest('#oa-health')) togglePop(false);

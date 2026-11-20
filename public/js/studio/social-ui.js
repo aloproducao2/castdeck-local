@@ -6,6 +6,8 @@ import { SSNClient, normalizeMessage, cleanSession, normalizeServer, SSN_DEFAULT
 import { platformOf } from './overlays.js';
 import { api, confirmDialog } from '../ui.js';
 
+const T = (s) => window.CDi18n?.t(s) ?? s;
+
 const KEY = 'castdeck.social';
 const DEFAULTS = {
   session: '',
@@ -63,13 +65,13 @@ function detectSocialTarget(raw) {
     if (m) return { type: 'ssn', target: cleanSession(m[1]) };
     return { type: 'ssn', target: s };
   }
-  if (/youtube\.com|youtu\.be/i.test(s)) {
-    return { type: 'youtube', target: s };
+  // Qualquer link de live vai como "link": o servidor descobre a rede (YouTube, Twitch, Kick, TikTok)
+  // e escolhe o leitor certo — ou explica por que aquela rede precisa do Social Stream Ninja.
+  if (/^https?:\/\//i.test(s) || /(^|\.)(youtube|youtu|twitch|kick|tiktok|facebook|instagram|x|twitter|linkedin)\./i.test(s)) {
+    return { type: 'link', target: s };
   }
-  if (/twitch\.tv\//i.test(s)) {
-    const m = s.match(/twitch\.tv\/([a-zA-Z0-9_]{3,25})/i);
-    return { type: 'twitch', target: m ? m[1] : s };
-  }
+  // sessão do Social Stream Ninja colada sozinha (só letras/números): ex. "abc123def"
+  if (/^[A-Za-z0-9_-]{4,64}$/.test(s)) return { type: 'ssn', target: cleanSession(s) };
   return null;
 }
 
@@ -447,8 +449,8 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
       return queue.some((x) => x.id === m.id);
     }
     if (st.filterTab === 'donations' && !m.donation) return false;
-    if (st.filterTab === 'youtube' && m.type !== 'youtube') return false;
-    if (st.filterTab === 'twitch' && m.type !== 'twitch') return false;
+    // filtro por rede: vale para qualquer rede conectada (YouTube, Twitch, Kick, TikTok, SSN…)
+    if (!['all', 'queue', 'donations'].includes(st.filterTab) && m.type !== st.filterTab) return false;
     const q = (st.searchQuery || '').toLowerCase().trim();
     if (q) {
       const hitName = m.name?.toLowerCase().includes(q);
@@ -766,17 +768,30 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
             const isYt = s.type === 'youtube';
             const isTw = s.type === 'twitch';
             const isSsn = s.type === 'ssn';
+            const isKick = s.type === 'kick';
+            const isTik = s.type === 'tiktok';
             const isLive = s.status === 'connected';
-            const tagCls = isYt ? 'youtube' : isTw ? 'twitch' : isSsn ? 'ssn' : '';
-            const tagTxt = isYt ? '🔴 YouTube' : isTw ? '🟣 Twitch' : isSsn ? '🥷 Social Ninja' : '🌐';
+            const tagCls = isYt ? 'youtube' : isTw ? 'twitch' : isSsn ? 'ssn' : isKick ? 'kick' : isTik ? 'tiktok' : '';
+            const tagTxt = isYt
+              ? '🔴 YouTube'
+              : isTw
+                ? '🟣 Twitch'
+                : isSsn
+                  ? '🥷 Social Ninja'
+                  : isKick
+                    ? '🟢 Kick'
+                    : isTik
+                      ? '⚫ TikTok'
+                      : '🌐';
             const pillCls = isLive ? 'ok' : s.status === 'connecting' ? 'warn' : 'err';
             const pillTxt = isLive ? 'Ao vivo' : s.status === 'connecting' ? 'Conectando…' : 'Erro';
+            const exp = s.experimental ? ` <i class="src-exp" title="${esc(T('Experimental: a plataforma pode pedir login para mostrar o chat'))}">${esc(T('experimental'))}</i>` : '';
             return `
               <div class="soc-src-item" data-src-item="${esc(s.id)}">
                 <div class="soc-src-main">
                   <span class="src-tag ${tagCls}">${tagTxt}</span>
                   <div class="soc-src-info">
-                    <strong title="${esc(s.label || s.target)}">${esc(s.label || s.target)}</strong>
+                    <strong title="${esc(s.label || s.target)}">${esc(s.label || s.target)}${exp}</strong>
                     ${s.error ? `<small class="soc-src-err" title="${esc(s.error)}">${esc(s.error)}</small>` : ''}
                   </div>
                   <span class="pill sm ${pillCls}">${pillTxt}</span>
@@ -800,6 +815,8 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
       }
     }
     updateSummaryBadges();
+    // as redes mudaram (entrou/saiu fonte): os chips de filtro acompanham
+    updateFilterCounts();
   }
 
   function updateSummaryBadges() {
@@ -906,25 +923,60 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
     }
   }
 
+  // ---------- chips de filtro DINÂMICOS: só as redes que estão conectadas ----------
+  const NET_META = {
+    youtube: { icon: '🔴', label: 'YouTube' },
+    twitch: { icon: '🟣', label: 'Twitch' },
+    kick: { icon: '🟢', label: 'Kick' },
+    tiktok: { icon: '⚫', label: 'TikTok' },
+    ssn: { icon: '🥷', label: 'Social Ninja' },
+  };
+  const netMeta = (type) => NET_META[type] || { icon: '🌐', label: String(type || 'Rede') };
+
+  // Redes presentes hoje: as fontes conectadas (API) + as que já mandaram mensagem.
+  function activeNetworks() {
+    const set = new Set();
+    for (const s of getAllSources()) if (s.type && s.type !== 'link') set.add(s.type);
+    for (const m of msgs) if (m.type) set.add(m.type);
+    return [...set];
+  }
+
+  function renderFilterBar() {
+    const bar = $('#soc-filter-bar', panel);
+    if (!bar) return;
+    const nets = activeNetworks();
+    // filtro salvo pode apontar para uma rede que saiu: volta para "Todas"
+    if (st.filterTab && !['all', 'queue', 'donations'].includes(st.filterTab) && !nets.includes(st.filterTab)) st.filterTab = 'all';
+    const donCount = msgs.filter((m) => !!m.donation).length;
+    const chips = [
+      `<button class="soc-chip ${st.filterTab === 'all' ? 'active' : ''}" data-tab="all">Todas (${msgs.length})</button>`,
+      `<button class="soc-chip purple ${st.filterTab === 'queue' ? 'active' : ''}" data-tab="queue">📋 Fila (${queue.length})</button>`,
+      `<button class="soc-chip gold ${st.filterTab === 'donations' ? 'active' : ''}" data-tab="donations">⭐ Super Chats (${donCount})</button>`,
+      ...nets.map((n) => {
+        const meta = netMeta(n);
+        const count = msgs.filter((m) => m.type === n).length;
+        return `<button class="soc-chip net ${st.filterTab === n ? 'active' : ''}" data-tab="${esc(n)}" title="${esc(meta.label)}">${meta.icon} ${esc(meta.label)} (${count})</button>`;
+      }),
+    ];
+    const html = chips.join('');
+    if (bar._h !== html) {
+      bar.innerHTML = html;
+      bar._h = html;
+      // só liga os cliques quando o HTML muda (evita listeners duplicados)
+      bar.querySelectorAll('[data-tab]').forEach((b) => {
+        b.onclick = () => {
+          st.filterTab = b.dataset.tab;
+          save();
+          renderFilterBar();
+          refreshList();
+        };
+      });
+    }
+  }
+
   function updateFilterCounts() {
     if (!panel) return;
-    const total = msgs.length;
-    const qCount = queue.length;
-    const donCount = msgs.filter((m) => !!m.donation).length;
-    const ytCount = msgs.filter((m) => m.type === 'youtube').length;
-    const twCount = msgs.filter((m) => m.type === 'twitch').length;
-
-    const btnAll = $('[data-tab="all"]', panel);
-    const btnQ = $('[data-tab="queue"]', panel);
-    const btnDon = $('[data-tab="donations"]', panel);
-    const btnYt = $('[data-tab="youtube"]', panel);
-    const btnTw = $('[data-tab="twitch"]', panel);
-
-    if (btnAll) btnAll.textContent = `Todas (${total})`;
-    if (btnQ) btnQ.textContent = `📋 Fila (${qCount})`;
-    if (btnDon) btnDon.textContent = `⭐ Super Chats (${donCount})`;
-    if (btnYt) btnYt.textContent = `🔴 YouTube (${ytCount})`;
-    if (btnTw) btnTw.textContent = `🟣 Twitch (${twCount})`;
+    renderFilterBar();
   }
 
   // ---------- Janela Flutuante (Pop-out) ----------
@@ -1049,8 +1101,8 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
             <div class="soc-empty-box" style="padding:28px 16px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;background:var(--bg-2);border-radius:12px;border:1px dashed var(--line);margin:12px 0">
               <span style="font-size:28px;line-height:1">💬</span>
               <strong style="font-size:14px;color:var(--text-0)">Aguardando comentários das redes</strong>
-              <p class="hint" style="font-size:12px;margin:0;max-width:280px;line-height:1.4">Conecte sua live do YouTube, Twitch ou Social Stream Ninja para receber comentários em tempo real e destacar na tela.</p>
-              <button class="btn sm primary" id="soc-empty-btn-conn" style="margin-top:4px">+ Conectar YouTube, Twitch ou Ninja</button>
+              <p class="hint" style="font-size:12px;margin:0;max-width:280px;line-height:1.4">${T('Cole o link da live (YouTube, Twitch, Kick ou TikTok) e os comentários entram em tempo real para você destacar na tela.')}</p>
+              <button class="btn sm primary" id="soc-empty-btn-conn" style="margin-top:4px">${T('+ Colar link da live')}</button>
             </div>
           `);
           const bConn = $('#soc-empty-btn-conn', emptyBox);
@@ -1182,8 +1234,8 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
           <span id="soc-src-badge">${allCount ? `${allCount} ativa(s)` : '+ Conectar rede'}</span>
         </button>
         <div class="soc-top-actions">
-          <button class="btn sm ${allCount ? 'ghost' : 'primary'}" id="soc-btn-connect" title="Conectar transmissão do YouTube, Twitch ou Social Stream Ninja">
-            <span>${allCount ? '+ Rede' : '+ Conectar'}</span>
+          <button class="btn sm ${allCount ? 'ghost' : 'primary'}" id="soc-btn-connect" title="${T('Cole o link da live (YouTube, Twitch, Kick, TikTok)')}">
+            <span>${allCount ? T('+ Rede') : T('+ Conectar')}</span>
           </button>
           <button class="btn sm ghost icon" id="soc-btn-options" title="Opções de velocidade, anti-flood, carrossel e limpeza">
             <span>⚙️</span>
@@ -1215,15 +1267,10 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
         <div id="soc-active-sources" class="soc-sources-list"></div>
         <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">
           <div class="soc-new-row">
-            <select class="input sm" id="soc-new-type">
-              <option value="youtube">🔴 YouTube</option>
-              <option value="twitch">🟣 Twitch</option>
-              <option value="ssn">🥷 Social Ninja</option>
-            </select>
-            <input class="input sm" id="soc-new-target" placeholder="Link da live do YouTube (ou @canal/live)…">
+            <input class="input sm" id="soc-new-target" placeholder="Cole o link da live (YouTube, Twitch, Kick, TikTok)…">
             <button class="btn sm primary" id="soc-new-add">+ Conectar</button>
           </div>
-          <span class="hint" id="soc-new-hint" style="font-size:11px">Conecte YouTube, Twitch ou Social Stream Ninja simultaneamente sem gastar cota de API.</span>
+          <span class="hint" id="soc-new-hint" style="font-size:11px">Cole o link da live: YouTube, Twitch, Kick e TikTok (experimental) puxam os comentários sozinhos. Facebook, Instagram, X e LinkedIn precisam do Social Stream Ninja.</span>
         </div>
       </div>
 
@@ -1296,12 +1343,10 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
         </button>
       </div>
 
-      <div class="soc-filter-bar">
+      <div class="soc-filter-bar" id="soc-filter-bar">
         <button class="soc-chip ${st.filterTab === 'all' ? 'active' : ''}" data-tab="all">Todas</button>
-        <button class="soc-chip purple ${st.filterTab === 'queue' ? 'active' : ''}" data-tab="queue">📋 Fila (${queue.length})</button>
+        <button class="soc-chip purple ${st.filterTab === 'queue' ? 'active' : ''}" data-tab="queue">📋 Fila</button>
         <button class="soc-chip gold ${st.filterTab === 'donations' ? 'active' : ''}" data-tab="donations">⭐ Super Chats</button>
-        <button class="soc-chip ${st.filterTab === 'youtube' ? 'active' : ''}" data-tab="youtube">🔴 YouTube</button>
-        <button class="soc-chip ${st.filterTab === 'twitch' ? 'active' : ''}" data-tab="twitch">🟣 Twitch</button>
       </div>
 
       <!-- LISTA DE MENSAGENS (Elemento Dominante) -->
@@ -1354,34 +1399,50 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
     // Fechar destaque no banner
     $('#soc-cur-hide', p).onclick = hide;
 
-    // Conectar nova rede (com autodetecção de link e suporte a Enter)
-    const newTypeSel = $('#soc-new-type', p);
+    // Conectar nova rede: UM campo só — cola o link e a rede é detectada (Enter também conecta)
     const newTargetInp = $('#soc-new-target', p);
     const newHintEl = $('#soc-new-hint', p);
-    const syncNewTargetHint = () => {
-      const v = newTypeSel?.value;
-      if (newTargetInp) {
-        newTargetInp.placeholder = v === 'twitch'
-          ? 'Nome do canal da Twitch ou URL…'
-          : v === 'ssn'
-            ? 'Sessão do Social Stream Ninja ou URL (?session=)…'
-            : 'Link da live do YouTube (ou @canal/live)…';
-      }
-      if (newHintEl) {
-        newHintEl.textContent = v === 'ssn'
-          ? 'No Social Stream Ninja, ligue "Send chat messages to API server" para receber o chat e destacar do dock.'
-          : 'Conecte YouTube, Twitch ou Social Stream Ninja simultaneamente sem gastar cota de API.';
-      }
+    const HINT_DEFAULT = T(
+      'Cole o link da live: YouTube, Twitch, Kick e TikTok (experimental) puxam os comentários sozinhos. Facebook, Instagram, X e LinkedIn precisam do Social Stream Ninja.',
+    );
+    // palpite só para a dica na tela (a decisão final é do servidor)
+    const guessNetwork = (raw) => {
+      const s = String(raw || '').trim();
+      if (!s) return '';
+      if (/youtube\.com|youtu\.be/i.test(s)) return 'YouTube';
+      if (/twitch\.tv/i.test(s)) return 'Twitch';
+      if (/kick\.com/i.test(s)) return 'Kick';
+      if (/tiktok\.com/i.test(s)) return 'TikTok';
+      if (/facebook\.com|fb\.watch/i.test(s)) return 'facebook';
+      if (/instagram\.com/i.test(s)) return 'instagram';
+      if (/(^|\/\/)(x|twitter)\.com/i.test(s)) return 'x';
+      if (/linkedin\.com/i.test(s)) return 'linkedin';
+      if (/socialstream\.ninja|[?&]session=/i.test(s)) return 'ssn';
+      return '';
     };
-    if (newTypeSel) newTypeSel.onchange = syncNewTargetHint;
+    const syncNewTargetHint = () => {
+      if (!newHintEl) return;
+      const net = guessNetwork(newTargetInp?.value);
+      if (!net) {
+        newHintEl.textContent = HINT_DEFAULT;
+        newHintEl.className = 'hint';
+        return;
+      }
+      if (net === 'facebook' || net === 'instagram' || net === 'x' || net === 'linkedin') {
+        newHintEl.textContent = T('Esta rede não abre o chat por link: use o Social Stream Ninja (extensão) para puxar os comentários.');
+        newHintEl.className = 'hint soc-hint-warn';
+        return;
+      }
+      if (net === 'ssn') {
+        newHintEl.textContent = T('Social Stream Ninja: ligue "Send chat messages to API server" para receber o chat.');
+        newHintEl.className = 'hint soc-hint-ok';
+        return;
+      }
+      newHintEl.textContent = T('Rede detectada: os comentários da live entram sozinhos assim que você conectar.');
+      newHintEl.className = 'hint soc-hint-ok';
+    };
     if (newTargetInp) {
-      newTargetInp.oninput = () => {
-        const det = detectSocialTarget(newTargetInp.value);
-        if (det && newTypeSel && newTypeSel.value !== det.type) {
-          newTypeSel.value = det.type;
-          syncNewTargetHint();
-        }
-      };
+      newTargetInp.oninput = syncNewTargetHint;
       newTargetInp.onkeydown = (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
@@ -1389,12 +1450,16 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
         }
       };
     }
+    syncNewTargetHint();
     $('#soc-new-add', p).onclick = async () => {
-      const type = $('#soc-new-type', p).value;
-      const target = $('#soc-new-target', p).value.trim();
-      const ok = await addSource(type, target);
+      const target = ($('#soc-new-target', p)?.value || '').trim();
+      if (!target) return toast(T('Cole o link da live'), 'err');
+      // o servidor decide a fonte pelo link; o campo é um só
+      const det = detectSocialTarget(target) || { type: 'link', target };
+      const ok = await addSource(det.type, det.target);
       if (ok) {
         $('#soc-new-target', p).value = '';
+        syncNewTargetHint();
         toggleConnect(false);
         refreshList();
       }
@@ -1508,16 +1573,8 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
       }, { passive: true });
     }
 
-    // Filtro de Abas
-    $$('.soc-chip[data-tab]', p).forEach((b) => {
-      b.onclick = () => {
-        $$('.soc-chip[data-tab]', p).forEach((x) => x.classList.remove('active'));
-        b.classList.add('active');
-        st.filterTab = b.dataset.tab;
-        save();
-        refreshList();
-      };
-    });
+    // Filtro de Abas: os chips de rede são dinâmicos (renderFilterBar) e já ligam o próprio clique.
+    updateFilterCounts(); // monta os chips das redes já conectadas
 
     // Busca
     $('#soc-search', p).oninput = (e) => {
@@ -1607,6 +1664,7 @@ export function createSocial({ getComp, toast, h, esc, $, $$, onVote }) {
     clearAllMessages,
     deleteMessagesForSource,
     openPopout,
+    addSource,
     isFeatured: (id) => featuredId === id,
     stop: () => {
       for (const s of ssnSources) {

@@ -1,6 +1,6 @@
 {
   "name": "castdeck-local",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "EstÃºdio de transmissÃ£o ao vivo 100% local para Windows: chamadas de vÃ­deo com convidados, composiÃ§Ã£o de cena e multistream RTMP via FFmpeg.",
   "type": "module",
   "main": "server/index.js",
@@ -33,7 +33,7 @@
     "test:signaling": "node test/signaling-camera.test.mjs",
     "test:android-assets": "node test/android-assets.test.mjs",
     "test:whatsapp": "node test/whatsapp.test.mjs",
-    "test:unit": "node test/replay-engine.test.mjs && node test/net-lan.test.mjs && node test/updater.test.mjs && node test/signaling-camera.test.mjs && node test/security-local.test.mjs && node test/whatsapp.test.mjs && node test/media-support-unit.mjs && node test/soc-unit.mjs",
+    "test:unit": "node test/replay-engine.test.mjs && node test/net-lan.test.mjs && node test/updater.test.mjs && node test/signaling-camera.test.mjs && node test/security-local.test.mjs && node test/whatsapp.test.mjs && node test/media-support-unit.mjs && node test/soc-unit.mjs && node test/overlay-fit.mjs",
     "test:switcher": "node test/switcher-e2e.mjs",
     "test:onair": "node test/onair-e2e.mjs",
     "test:autovoz": "node test/autovoz-e2e.mjs",
@@ -49,8 +49,13 @@
     "test:plugins:e2e": "node test/plugins-e2e.mjs",
     "test:plugins:ui": "node test/plugins-ui2.mjs",
     "test:plugins:binary": "node test/plugins-bin.mjs && node test/plugins-bin-catalog.mjs && node test/plugins-bin-author.mjs",
-    "test:site": "node build/verify-publish.mjs && node test/site-plugins-ui.mjs",
-    "test:api": "node test/api-v1.mjs"
+    "test:site": "node build/verify-publish.mjs && node test/site-logo.mjs && node test/site-nav-igual.mjs && node test/site-nav-live.mjs && node test/site-nav-subpagina.mjs && node test/site-plugins-ui.mjs",
+    "test:api": "node test/api-v1.mjs",
+    "test:site:nav": "node test/site-nav.mjs",
+    "test:site:nav-live": "node test/site-nav-live.mjs && node test/site-nav-subpagina.mjs",
+    "test:site:nav-igual": "node test/site-nav-igual.mjs",
+    "test:overlay": "node test/overlay-fit.mjs",
+    "test:vertical": "node test/overlay-fit.mjs && node test/vertical-pad.mjs"
   },
   "engines": {
     "node": ">=20"

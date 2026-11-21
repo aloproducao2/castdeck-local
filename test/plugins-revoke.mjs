@@ -20,9 +20,11 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const chave = fs.readFileSync(path.join(process.cwd(), 'deploy', 'plugins-sign-key.pem'), 'utf8');
 const pasta = path.join(process.cwd(), 'landpage', 'plugins');
-const pkg = fs.readFileSync(path.join(pasta, 'packages', 'castdeck.chat-commands-1.0.0.cdplug'));
+const versaoPacote = JSON.parse(fs.readFileSync(path.join(pasta, 'index.json'), 'utf8')).plugins.find((x) => x.id === 'castdeck.chat-commands').latest;
+const pkg = fs.readFileSync(path.join(pasta, 'packages', `castdeck.chat-commands-${versaoPacote}.cdplug`));
 const indice = JSON.parse(fs.readFileSync(path.join(pasta, 'index.json'), 'utf8'));
-indice.revoked = [{ id: 'castdeck.chat-commands', version: '1.0.0', motivo: 'teste de revogação' }];
+const alvoRev = indice.plugins.find((x) => x.id === 'castdeck.chat-commands');
+indice.revoked = [{ id: 'castdeck.chat-commands', version: alvoRev.latest, motivo: 'teste de revogação' }];
 const texto = JSON.stringify(indice, null, 2) + '\n';
 const sig = assinarIndice(texto, chave);
 
@@ -35,7 +37,7 @@ const catalogo = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' });
     return res.end(texto);
   }
-  if (req.url.startsWith('/packages/castdeck.chat-commands-1.0.0.cdplug')) {
+  if (req.url.startsWith('/packages/castdeck.chat-commands-' + versaoPacote + '.cdplug')) {
     res.writeHead(200, { 'content-type': 'application/octet-stream' });
     return res.end(pkg);
   }

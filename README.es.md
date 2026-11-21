@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **2.0.3** — plugins listos: oficiales 1.1.0 (**Comandos de chat** con aviso en pantalla y **Luz del invitado** con !luz), panel con **Acerca de**, aviso de configuración pendiente, **Probar** con elección de evento, onboarding en un clic y acciones de medios en las reglas. La API v1 y el catálogo firmado siguen.
+Versión **2.0.4** — vídeo vertical con el **Pad**: los vídeos del Pad también van a la salida **9:16** (opción **9:16** por vídeo, activada por defecto), y los overlays se **centran sin distorsión** en ambas salidas.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

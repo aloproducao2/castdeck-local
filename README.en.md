@@ -147,7 +147,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **2.0.3** — plugins ready to use: official 1.1.0 (**Chat commands** with on-screen notices and **Guest light** with !luz), panel with **About**, setup warnings, **Test** with event choice, one-click onboarding and media actions in rules. API v1 and the signed catalog remain.
+Version **2.0.4** — vertical video with the **Pad**: Pad videos also go to the **9:16** output (per-video **9:16** option, on by default), and overlays are **centered without distortion** in both outputs.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

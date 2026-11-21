@@ -872,6 +872,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
         url: p.url,
         kind: p.kind === 'video' || PAD_VIDEO_EXT.test(p.url || p.file || '') ? 'video' : 'audio',
         overlayMode: PAD_OVERLAY_MODES.includes(m.overlayMode || p.overlayMode) ? (m.overlayMode || p.overlayMode) : 'once',
+        vSend: m.vSend !== false && p.vSend !== false,
         builtin: true,
         duration: Number(m.duration || p.duration || 0),
         addedAt: 0,
@@ -889,6 +890,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
         url: c.url,
         kind: c.kind === 'video' ? 'video' : 'audio',
         overlayMode: PAD_OVERLAY_MODES.includes(m.overlayMode || c.overlayMode) ? (m.overlayMode || c.overlayMode) : 'once',
+        vSend: m.vSend !== false && c.vSend !== false,
         builtin: false,
         duration: Number(m.duration || c.duration || 0),
         addedAt: c.addedAt || 0,
@@ -935,6 +937,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
             url: URL.createObjectURL(rec.file),
             kind: rec.kind === 'video' || isPadVideo(rec.file) ? 'video' : 'audio',
             overlayMode: PAD_OVERLAY_MODES.includes(rec.overlayMode) ? rec.overlayMode : 'once',
+            vSend: rec.vSend !== false,
             duration: Number(rec.duration) || 0,
             addedAt: rec.addedAt || 0,
           });
@@ -1170,6 +1173,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
         name: sample.name,
         el: vid,
         mode,
+        vertical: sample.vSend !== false,
         held: false,
         startedAt: performance.now(),
         duration: sample.duration || 0,
@@ -1440,6 +1444,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
     if (typeof patch.category === 'string') sample.category = validGroupId(patch.category);
     if (typeof patch.fav === 'boolean') sample.fav = patch.fav;
     if (PAD_OVERLAY_MODES.includes(patch.overlayMode)) sample.overlayMode = patch.overlayMode;
+    if (typeof patch.vSend === 'boolean') sample.vSend = patch.vSend;
     persistPad();
     if (panel && viewMode === 'pad') render(panel);
     emitPadState();
@@ -1893,6 +1898,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
           </button>
           <span class="pad-mini-actions">
             ${isVid ? `<button type="button" class="pad-mini-act pad-mode-act" data-pad-mode="${esc(s.id)}" title="${esc(PAD_OVERLAY_TITLE[mode])}">${PAD_OVERLAY_LABEL[mode]}</button>` : ''}
+            ${isVid ? `<button type="button" class="pad-mini-act pad-v-act ${s.vSend !== false ? 'on' : ''}" data-pad-vsend="${esc(s.id)}" title="${s.vSend !== false ? 'Mandando para o vertical (clique para parar)' : 'Não vai para o vertical (clique para mandar)'}">9:16</button>` : ''}
             <button type="button" class="pad-mini-act ${s.fav ? 'on' : ''}" data-pad-fav="${esc(s.id)}" title="Favorito">★</button>
             <button type="button" class="pad-mini-act" data-pad-del="${esc(s.id)}" title="Remover">✕</button>
           </span>
@@ -1913,6 +1919,13 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
         const cur = PAD_OVERLAY_MODES.indexOf(item.overlayMode || 'once');
         const next = PAD_OVERLAY_MODES[(cur + 1) % PAD_OVERLAY_MODES.length];
         updatePadMeta(item.id, { overlayMode: next });
+      };
+    });
+    grid.querySelectorAll('[data-pad-vsend]').forEach((b) => {
+      b.onclick = (e) => {
+        e.stopPropagation();
+        const item = padSamples.find((x) => x.id === b.dataset.padVsSend);
+        if (item) updatePadMeta(item.id, { vSend: item.vSend === false });
       };
     });
     grid.querySelectorAll('[data-pad-fav]').forEach((b) => {

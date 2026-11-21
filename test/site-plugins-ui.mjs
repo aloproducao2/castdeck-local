@@ -17,6 +17,8 @@ const ok = (n, c, i = '') => {
   console.log((c ? 'OK   ' : 'FALHA') + ' ' + n + (c ? '' : ' :: ' + String(i).slice(0, 400)));
 };
 
+const versaoPublicada = (await (await fetch('https://cast.flue.live/latest.json?t=' + Date.now())).json()).latest;
+
 const edge = spawn('C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', [`--remote-debugging-port=${CDP}`, `--user-data-dir=${perfil}`, '--no-first-run', '--headless=new', '--window-size=1440,1500', 'about:blank'], { stdio: 'ignore', windowsHide: true });
 try {
   let alvo = null;
@@ -58,8 +60,10 @@ try {
   ok('fonte do texto é Inter', /Inter/i.test(fontes.body) && fontes.inter, JSON.stringify(fontes));
 
   const btn = await ev(`(() => { const b = document.querySelector('#plugins-download'); return b ? { href: b.getAttribute('href'), texto: b.textContent.trim(), download: b.hasAttribute('download') } : null; })()`);
-  ok('botão de download inteligente (como a home)', !!btn && /(dl|downloads)\/2\.0\.0\/CastDeck-2\.0\.0-windows-x64\.exe$/.test(btn.href) && btn.download, JSON.stringify(btn));
-  ok('botão mostra plataforma e versão', /Baixar para Windows/i.test(btn.texto) && /v2\.0\.0/.test(btn.texto), btn.texto);
+  const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const padraoDownload = new RegExp('(dl|downloads)/' + escapeRe(versaoPublicada) + '/CastDeck-' + escapeRe(versaoPublicada) + '-windows-x64\\.exe$');
+  ok('botão de download inteligente (como a home)', !!btn && padraoDownload.test(btn.href) && btn.download, JSON.stringify(btn));
+  ok('botão mostra plataforma e versão', /Baixar para Windows/i.test(btn.texto) && btn.texto.includes('v' + versaoPublicada), btn.texto);
 
   const prompts = await ev(`(() => {
     const cards = [...document.querySelectorAll('.prompt-card')];

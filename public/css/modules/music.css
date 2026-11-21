@@ -1067,3 +1067,7 @@
 .pad-card-seek::before { background: hsl(0 0% 100% / .12); }
 .pad-card-seek:hover::before, .pad-card-seek:active::before { background: hsl(0 0% 100% / .24); }
 .pad-card-seek:active .pad-card-fill { filter: brightness(1.25); }
+
+/* "9:16": manda o vídeo do Pad para a saída vertical (ligado por padrão) */
+.pad-mini-act.pad-v-act { font-weight: 700; letter-spacing: -.02em; font-size: 10px; }
+.pad-mini-act.pad-v-act.on { color: #3ddc97; background: rgba(61,220,151,.14); }

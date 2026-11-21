@@ -6,6 +6,7 @@
 import { hexToRgb, rgb, mix, luminance, roundRectPath } from './gfx.js';
 import { drawBanner as drawBannerFx, drawSocial } from './overlays.js';
 import { WidgetLayer } from './widgets-draw.js';
+import { ajustarOverlay } from './overlay-fit.js';
 export const LAYOUTS = [
   { id: 'solo', label: 'Solo', icon: '<rect x="2" y="2" width="44" height="24" rx="2"/>' },
   { id: 'grid', label: 'Grade', icon: '<rect x="2" y="2" width="21" height="11" rx="2"/><rect x="25" y="2" width="21" height="11" rx="2"/><rect x="2" y="15" width="21" height="11" rx="2"/><rect x="25" y="15" width="21" height="11" rx="2"/>' },
@@ -859,11 +860,9 @@ export class Compositor {
     for (const ov of padOvs) {
       const vel = ov?.el;
       if (!vel || vel.readyState < 2 || !(vel.videoWidth > 0 && vel.videoHeight > 0)) continue;
-      const sc = Math.min(W / vel.videoWidth, H / vel.videoHeight);
-      const dw = vel.videoWidth * sc;
-      const dh = vel.videoHeight * sc;
+      const r = ajustarOverlay(vel.videoWidth, vel.videoHeight, W, H);
       try {
-        ctx.drawImage(vel, (W - dw) / 2, (H - dh) / 2, dw, dh);
+        ctx.drawImage(vel, r.x, r.y, r.w, r.h);
       } catch {}
     }
 
@@ -873,7 +872,9 @@ export class Compositor {
     for (const src of ovs) {
       if (typeof src !== 'string' || !src) continue;
       const ov = this.image(src);
-      if (ov) ctx.drawImage(ov, 0, 0, W, H);
+      if (!ov) continue;
+      const r = ajustarOverlay(ov.naturalWidth || ov.width, ov.naturalHeight || ov.height, W, H);
+      ctx.drawImage(ov, r.x, r.y, r.w, r.h);
     }
 
     // logo (posição e tamanho configuráveis)
@@ -1757,6 +1758,8 @@ export class VerticalView {
     v.dsk = m.dsk; // DSKs marcados "também no vertical" (com posição/corte próprios, ver dsk.js)
     v.cc = m.cc; // legenda ao vivo: mesma camada no retorno, no vertical e na prévia
     v.stage = m.stage;
+    // vídeos disparados no Pad também vão para o vertical (salvo itens marcados para não ir)
+    v.getPadOverlays = typeof m.getPadOverlays === 'function' ? () => m.getPadOverlays().filter((o) => o && o.vertical !== false) : null;
     v.ticker = m.ticker ? { ...m.ticker, offset: this.tickOffset } : null;
     v.render();
     if (v.ticker) this.tickOffset = v.ticker.offset;

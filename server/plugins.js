@@ -120,6 +120,25 @@ export class PluginManager extends EventEmitter {
         overlay: (m.overlays || [])[0] || null,
         settings: m.settings || [],
         regras: m.tier === 'declarative' ? (m.rules || []).length : 0,
+        listaRegras: (m.rules || []).map((r) => ({
+          rotulo:
+            r.on === 'chat.comando'
+              ? '!' + (r.comando || '?')
+              : r.on === 'chat.regex'
+                ? '/' + (r.padrao || '?') + '/'
+                : r.on === 'chat.contem'
+                  ? '"' + (r.texto || '?') + '"'
+                  : r.on,
+        })),
+        configPendente: (() => {
+          const obrigatorios = (m.settings || []).filter((c) => c.required).map((c) => c.key);
+          if (!obrigatorios.length) return false;
+          let salvo = {};
+          try {
+            salvo = JSON.parse(fs.readFileSync(path.join(this.pasta(id), 'settings.json'), 'utf8')) || {};
+          } catch {}
+          return obrigatorios.some((k) => !salvo[k]);
+        })(),
         pronto: rt?.ativo || m.tier === 'declarative',
       });
     }
@@ -477,6 +496,18 @@ export class PluginManager extends EventEmitter {
         } catch (e) {
           return negar(`falha na requisição: ${e.message}`);
         }
+      }
+      case 'media.play':
+      case 'media:play':
+      case 'media.stop':
+      case 'media:stop': {
+        if (!tem('control:playout')) return negar('sem permissão control:playout');
+        const idFonte = String(acao.id ?? acao.fonte ?? params.id ?? params.fonte ?? '');
+        if (!idFonte) return negar('informe a mídia (id da fonte, ex.: media:3)');
+        const tocar = !String(tipo).includes('stop');
+        this.acoesCliente?.({ type: 'plugin-media', payload: { id: pluginId, fonte: idFonte, play: tocar } });
+        this.auditar({ tipo: 'acao', id: pluginId, acao: tocar ? 'media.play' : 'media.stop', fonte: idFonte });
+        return { ok: true };
       }
       case 'sound.play':
       case 'sound:play':

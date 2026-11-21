@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **2.0.2** — **API v1** para controlar el estudio por código (overlay, chat, escena, escenario, mixer, medios) y **eventos en vivo por SSE**, con OpenAPI en /api/v1/openapi.json y docs en https://cast.flue.live/api.html. Los plugins mantienen pestañas, configuración automática, probar, editor de reglas y carpeta local.
+Versión **2.0.3** — plugins listos: oficiales 1.1.0 (**Comandos de chat** con aviso en pantalla y **Luz del invitado** con !luz), panel con **Acerca de**, aviso de configuración pendiente, **Probar** con elección de evento, onboarding en un clic y acciones de medios en las reglas. La API v1 y el catálogo firmado siguen.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

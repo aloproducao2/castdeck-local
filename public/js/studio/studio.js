@@ -530,7 +530,12 @@ async function buildStudio() {
   });
 
   comp = new Compositor($('#program-canvas'));
-  plugins = createPlugins({ S, $, toast, modal, confirmDialog, comp });
+  plugins = createPlugins({
+    S, $, toast, modal, confirmDialog, comp,
+    // ações de plugin que precisam do estúdio (tocar mídia) e a lista de mídias para o editor de regras
+    onMedia: (id) => { try { playMedia(id); } catch (e) { console.warn('[plugin] mídia', e); } },
+    medias: () => (typeof mediaList === 'function' ? mediaList().map((m) => ({ id: m.id, nome: m.name || m.file || m.id })) : []),
+  });
   comp.safeDefaults = safeCopy();
   window.CDi18n?.onChange?.(() => { comp.safeDefaults = safeCopy(); });
   // efeitos de câmera (fundo virtual, enquadramento automático): motores só carregam quando usados

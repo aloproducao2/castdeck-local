@@ -5788,3 +5788,17 @@ button.plg-badge.upd:hover { background: hsl(45 95% 65% / .12); }
 .plg-iframe { width: 100%; height: min(60vh, 520px); border: 1px solid var(--line); border-radius: 10px; background: var(--bg-1); }
 .btn.danger { color: hsl(0 80% 72%); border-color: hsl(0 80% 72% / .4); }
 .btn.danger:hover { background: hsl(0 80% 72% / .12); }
+
+/* ---------- Extras do painel de plugins (detalhe, teste, onboarding) ---------- */
+.plg-warn { color: hsl(35 90% 66%); font-weight: 600; }
+.plg-chip.rule { color: #cfcce6; border-color: rgba(124,92,255,.35); background: rgba(124,92,255,.08); font-family: ui-monospace, monospace; }
+.plg-resultado { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+.plg-resultado li { color: var(--text-1); }
+.plg-perms { margin: 6px 0 10px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.plg-perms code { background: rgba(255,255,255,.07); padding: 1px 5px; border-radius: 5px; font-size: 10.5px; }
+.plg-sobre th { text-align: left; width: 130px; color: var(--text-2); font-weight: 600; padding: 4px 8px 4px 0; font-size: 11.5px; }
+.plg-sobre td { padding: 4px 0; font-size: 12px; color: var(--text-1); }
+.plg-onboarding { border: 1px dashed var(--line-strong); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.plg-onboarding h3 { margin: 0; font-size: 14px; }
+.plg-passos { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; color: var(--text-2); font-size: 12.5px; }
+.plg-passos b { color: var(--text-1); }

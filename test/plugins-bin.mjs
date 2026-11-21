@@ -75,7 +75,7 @@ try {
   await api('/plugins/castdeck.luz/settings', { method: 'POST', body: { urlLigar: `http://127.0.0.1:${luzPorta}/on`, aviso: false } });
   const atv = await api('/plugins/castdeck.luz/enable', {
     method: 'POST',
-    body: { permissoes: ['events:stage', 'overlay:show', 'storage:own', 'network:http://127.0.0.1', 'network:http://localhost'] },
+    body: { permissoes: ['events:stage', 'events:chat', 'overlay:show', 'storage:own', 'network:http://127.0.0.1', 'network:http://localhost'] },
   });
   ok('ativa plugin de código no binário (processo separado)', atv.status === 200, atv.texto);
 

@@ -8,6 +8,8 @@ function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
+const configPendente = (p) => !!p?.configPendente;
+
 const api = async (rota, opt = {}) => {
   const r = await fetch('/api' + rota, {
     headers: { 'content-type': 'application/json', ...(opt.headers || {}) },
@@ -39,14 +41,14 @@ const EVENTOS = [
 const ACOES = [
   ['overlay.show', T('Mostrar aviso na tela')],
   ['chat.send', T('Responder no chat do estúdio')],
-  ['sound.play', T('Tocar um som do Pad')],
+  ['media.play', T('Tocar uma mídia do estúdio')],
   ['overlay.hide', T('Esconder o aviso')],
 ];
 
 let seq = 0;
 const novoId = (p) => `${p}-${++seq}`;
 
-export function createPlugins({ S, $, toast, modal, confirmDialog, comp }) {
+export function createPlugins({ S, $, toast, modal, confirmDialog, comp, onMedia, medias }) {
   let lista = [];
   let catalogo = null;
   let carregado = false;
@@ -198,20 +200,67 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
     }
   }
 
-  async function testar(p) {
+  // Test-drive: escolhe o evento, roda de verdade e mostra o que o plugin fez.
+  async function testar(p, tipoEscolhido) {
+    const tipo = tipoEscolhido || 'chat';
+    const texto = tipo === 'chat' ? '!oi' : '';
     try {
-      const r = await api(`/plugins/${encodeURIComponent(p.id)}/test`, { method: 'POST', body: { tipo: 'chat', texto: '!oi', usuario: 'teste' } });
-      const acoes = (r.acoes || []).map((a) => `• ${a.acao}${a.detalhe ? ` — ${a.detalhe}` : ''}`).join('\n');
+      const r = await api(`/plugins/${encodeURIComponent(p.id)}/test`, { method: 'POST', body: { tipo, texto, usuario: 'teste', fonteNome: 'Teste' } });
+      const acoes = (r.acoes || []).map((a) => ({ nome: a.acao, ok: a.ok !== false, detalhe: a.detalhe || '' }));
       if (r.ok) {
-        toast(T('Plugin respondeu: ') + (r.acoes || []).map((a) => a.acao).join(', '), 'ok');
+        toast(T('Plugin respondeu: ') + acoes.map((a) => a.nome).join(', '), 'ok');
         if (comp) comp.setPluginOverlay?.({ titulo: p.nome, texto: T('Teste do plugin funcionando'), cor: '#3ddc97' }, 4);
       } else {
         toast(T('Nada aconteceu: ') + (r.dica || ''), 'err');
       }
-      janela(T('Teste') + ' — ' + p.nome, `<pre class="plg-log">${esc(acoes || T('(nenhuma ação)'))}</pre>`);
+      const linhas = acoes.length
+        ? acoes.map((a) => `<li><b>${esc(a.nome)}</b>${a.detalhe ? ' — ' + esc(a.detalhe) : ''} ${a.ok ? '' : '⚠'}</li>`).join('')
+        : `<li class="hint">${esc(r.dica || T('(nenhuma ação)'))}</li>`;
+      janela(
+        T('Testar') + ' — ' + p.nome,
+        `<p class="hint">${T('O evento abaixo foi disparado de verdade: o plugin executou (ou tentou) estas ações.')}</p>
+         <ul class="plg-resultado">${linhas}</ul>
+         <div class="plg-row" style="margin-top:6px">
+           <button class="btn sm" data-testar="chat" type="button">${T('Testar com mensagem no chat')}</button>
+           <button class="btn sm" data-testar="stage" type="button">${T('Testar com entrada no palco')}</button>
+         </div>`,
+        { wide: true },
+      );
+      document.querySelectorAll('[data-testar]').forEach((b) => {
+        b.onclick = () => {
+          document.querySelectorAll('.modal-back').forEach((m) => m.remove());
+          testar(p, b.dataset.testar);
+        };
+      });
     } catch (e) {
       toast(T('Falha no teste: ') + e.message, 'err');
     }
+  }
+
+  // Sobre o plugin: tudo o que a pessoa precisa para entender e confiar
+  function abrirSobre(p) {
+    const perms = (p.permissoes || [])
+      .map((perm, i) => `<li><b>${esc(p.permissoesTexto?.[i] || perm)}</b> <code>${esc(perm)}</code></li>`)
+      .join('');
+    const config = (p.settings || []).length ? `<p>${T('Campos de configuração')}: ${p.settings.map((c) => esc(c.label || c.key)).join(', ')}</p>` : '';
+    janela(
+      T('Sobre') + ' — ' + p.nome,
+      `<p>${esc(p.descricao || '')}</p>
+       <table class="tbl plg-sobre"><tbody>
+         <tr><th>${T('Versão')}</th><td>v${esc(p.versao)}</td></tr>
+         <tr><th>${T('Autor')}</th><td>${esc(p.autor || '—')}</td></tr>
+         <tr><th>${T('Licença')}</th><td>${esc(p.licenca || '—')}</td></tr>
+         <tr><th>${T('Tipo')}</th><td>${p.tier === 'code' ? T('com código (processo separado)') : T('declarativo (só regras)')}</td></tr>
+         <tr><th>${T('Status')}</th><td>${p.ativo ? T('ativo') : T('desligado')}${p.quarentena ? ' · ' + T('quarentena') : ''}</td></tr>
+         <tr><th>${T('Instalado em')}</th><td>${p.instaladoEm ? new Date(p.instaladoEm).toLocaleString('pt-BR') : '—'}</td></tr>
+         <tr><th>${T('Regras')}</th><td>${p.tier === 'declarative' ? p.regras : '—'}</td></tr>
+       </tbody></table>
+       <h4>${T('O que este plugin pode fazer')}</h4>
+       <ul class="plg-perms">${perms || '<li class="hint">' + T('Nenhuma permissão.') + '</li>'}</ul>
+       ${config}
+       <p class="hint">${T('Plugins rodam em processo separado; ações sensíveis ficam no log de auditoria.')}</p>`,
+      { wide: true },
+    );
   }
 
   // ---------- configuração automática (a partir do manifesto) ----------
@@ -277,7 +326,10 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
       try {
         if (d.method === 'settings.get') responder((await api(`/plugins/${encodeURIComponent(p.id)}/settings`)).settings || {});
         else if (d.method === 'settings.save') responder((await api(`/plugins/${encodeURIComponent(p.id)}/settings`, { method: 'POST', body: d.params || {} })).settings || {});
-        else if (d.method === 'log') responder(await fetch(`/api/plugins/${encodeURIComponent(p.id)}/log`).then((x) => x.text()));
+        else if (d.method === 'test') {
+          const resultado = await api('/plugins/' + encodeURIComponent(p.id) + '/test', { method: 'POST', body: { tipo: 'chat', texto: '!luz', usuario: 'teste' } });
+          responder(resultado);
+        } else if (d.method === "log") responder(await fetch(`/api/plugins/${encodeURIComponent(p.id)}/log`).then((x) => x.text()));
         else responder(null, T('método não suportado: ') + d.method);
       } catch (e) {
         responder(null, e.message);
@@ -337,7 +389,15 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
           <label class="plg-field"><span>${T('Texto')}</span><input data-regra="${i}" data-acao="${j}" data-campo="texto" value="${esc(a.texto || '')}" placeholder="{{usuario}} chegou"></label></div>
           <div class="plg-row"><label class="plg-field"><span>${T('Cor')}</span><input type="color" data-regra="${i}" data-acao="${j}" data-campo="cor" value="${esc(a.cor || '#7c5cff')}"></label>
           <label class="plg-field small"><span>${T('Segundos')}</span><input type="number" min="1" max="60" data-regra="${i}" data-acao="${j}" data-campo="segundos" value="${esc(a.segundos || 6)}"></label></div>`;
-      if (a.type === 'sound.play' || a.type === 'media.play') return `<label class="plg-field"><span>${T('Identificador (som/mídia)')}</span><input data-regra="${i}" data-acao="${j}" data-campo="id" value="${esc(a.id || '')}"></label>`;
+      if (a.type === 'media.play') {
+        const lista = (typeof medias === 'function' && medias()) || [];
+        if (lista.length)
+          return `<label class="plg-field"><span>${T('Mídia')}</span><select data-regra="${i}" data-acao="${j}" data-campo="id">${lista
+            .map((m) => `<option value="${esc(m.id)}" ${a.id === m.id ? 'selected' : ''}>${esc(m.nome || m.id)}</option>`)
+            .join('')}</select></label>`;
+        return `<label class="plg-field"><span>${T('Mídia (id da fonte)')}</span><input data-regra="${i}" data-acao="${j}" data-campo="id" placeholder="media:1" value="${esc(a.id || '')}"></label>`;
+      }
+      if (a.type === 'sound.play') return `<label class="plg-field"><span>${T('Identificador do som')}</span><input data-regra="${i}" data-acao="${j}" data-campo="id" value="${esc(a.id || '')}"></label>`;
       return '';
     };
     const bloco = (r, i) => `<div class="plg-regra">
@@ -466,6 +526,7 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
     if ((p.settings || []).length || p.painel?.entry) acoes.push(`<button class="btn sm" data-plg-config>${T('Configurar')}</button>`);
     if (p.tier === 'declarative') acoes.push(`<button class="btn sm" data-plg-rules>${T('Regras')}</button>`);
     if (p.ativo && p.tier === 'code') acoes.push(`<button class="btn sm ghost" data-plg-restart title="${T('Reiniciar o processo')}">↻</button>`);
+    acoes.push(`<button class="btn sm ghost" data-plg-about title="${T('Sobre o plugin')}">ℹ</button>`);
     acoes.push(`<button class="btn sm ghost" data-plg-log>${T('Log')}</button>`);
     acoes.push(`<button class="btn sm ghost danger" data-plg-del>${T('Remover')}</button>`);
     return `<div class="plg-card" data-id="${esc(p.id)}">
@@ -476,7 +537,8 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
         ${nova ? `<button class="plg-badge upd" data-plg-upd="${esc(p.id)}" title="${T('Atualizar para v') + nova}">↑ v${esc(nova)}</button>` : ''}
       </div>
       <div class="plg-sub">${esc(p.descricao || '')}</div>
-      <div class="plg-meta">${p.autor ? `<span>${esc(p.autor)}</span>` : ''}${p.tier === 'declarative' ? `<span>${p.regras} ${T('regra(s)')}</span>` : ''}<span>${(p.permissoes || []).length} ${T('permissões')}</span>${p.erro ? `<span class="plg-err">${esc(p.erro)}</span>` : ''}</div>
+      <div class="plg-meta">${p.autor ? `<span>${esc(p.autor)}</span>` : ''}${p.tier === 'declarative' ? `<span>${p.regras} ${T('regra(s)')}</span>` : ''}<span>${(p.permissoes || []).length} ${T('permissões')}</span>${p.erro ? `<span class="plg-err">${esc(p.erro)}</span>` : ''}${configPendente(p) ? `<span class="plg-warn">${T('falta configurar')}</span>` : ''}</div>
+      ${p.tier === 'declarative' && (p.listaRegras || []).length ? `<div class="plg-chips">${p.listaRegras.slice(0, 4).map((r) => `<span class="plg-chip rule">${esc(r.rotulo)}</span>`).join('')}${p.listaRegras.length > 4 ? `<span class="plg-chip rule">+${p.listaRegras.length - 4}</span>` : ''}</div>` : ''}
       <div class="plg-chips">${(p.permissoes || []).map((perm) => chip(perm, p)).join('')}</div>
       <div class="plg-acts">${acoes.join('')}</div>
     </div>`;
@@ -488,8 +550,19 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
 
   function renderInstalados() {
     if (!lista.length)
-      return `<div class="plg-empty"><b>${T('Nenhum plugin instalado')}</b><p>${T('Os plugins oficiais são gratuitos. Abra o catálogo ou instale um arquivo .cdplug.')}</p>
-        <button class="btn primary" data-go-catalogo>${T('Explorar catálogo')}</button></div>`;
+      return `<div class="plg-onboarding">
+        <h3>${T('Comece com um plugin pronto (é grátis)')}</h3>
+        <ol class="plg-passos">
+          <li><b>${T('Instale')}</b> — ${T('um dos oficiais em um clique')}</li>
+          <li><b>${T('Ative')}</b> — ${T('e aprove as permissões que aparecem em português')}</li>
+          <li><b>${T('Teste')}</b> — ${T('veja o aviso na tela sem precisar de live')}</li>
+        </ol>
+        <div class="plg-acts">
+          <button class="btn primary" data-instalar-oficial="castdeck.chat-commands">＋ ${T('Instalar Comandos de chat')}</button>
+          <button class="btn" data-instalar-oficial="castdeck.luz">＋ ${T('Instalar Luz do convidado')}</button>
+          <button class="btn ghost" data-go-catalogo>${T('Ver catálogo')}</button>
+        </div>
+      </div>`;
     return lista.map(card).join('');
   }
 
@@ -612,6 +685,21 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
           el.setSelectionRange(pos, pos);
         }
       };
+    p.querySelectorAll('[data-instalar-oficial]').forEach((b) => {
+      b.onclick = async () => {
+        b.disabled = true;
+        b.textContent = T('Instalando…');
+        try {
+          await api('/plugins/catalog/install', { method: 'POST', body: { id: b.dataset.instalarOficial } });
+          toast(T('Plugin instalado do catálogo'), 'ok');
+          aba = 'instalados';
+          await atualizar();
+        } catch (e) {
+          toast(T('Falha: ') + e.message, 'err');
+          b.disabled = false;
+        }
+      };
+    });
     const goCat = p.querySelector('[data-go-catalogo]');
     if (goCat) goCat.onclick = async () => {
       aba = 'catalogo';
@@ -643,6 +731,7 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
         await atualizar();
       });
       ligar('[data-plg-test]', () => testar(item));
+      ligar('[data-plg-about]', () => abrirSobre(item));
       ligar('[data-plg-config]', () => configurar(item));
       ligar('[data-plg-rules]', () => abrirRegras(item).catch((e) => toast(e.message, 'err')));
       ligar('[data-plg-restart]', async () => {
@@ -710,6 +799,14 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
     if (msg.acao === 'plugin-overlay-hide') {
       comp?.clearPluginOverlay?.();
       return true;
+    }
+    if (msg.acao === 'plugin-media') {
+      const fonte = msg.payload?.fonte || '';
+      if (msg.payload?.play && onMedia) onMedia(fonte);
+      return true;
+    }
+    if (msg.acao === 'plugin-sound') {
+      return true; // som do Pad roda na janela do Pad; aviso fica no log do plugin
     }
     if (msg.acao === 'plugin-panel') {
       const p = lista.find((x) => x.id === msg.payload?.id);

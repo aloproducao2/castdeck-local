@@ -145,7 +145,7 @@ try {
 
   const ativar2 = await api('/plugins/castdeck.luz/enable', {
     method: 'POST',
-    body: { permissoes: ['events:stage', 'overlay:show', 'storage:own', 'network:http://127.0.0.1', 'network:http://localhost'] },
+    body: { permissoes: ['events:stage', 'events:chat', 'overlay:show', 'storage:own', 'network:http://127.0.0.1', 'network:http://localhost'] },
   });
   ok('ativa luz (processo separado)', ativar2.status === 200, ativar2.texto);
 

@@ -134,7 +134,7 @@ try {
   ok('auditoria registra a ação de overlay', linhas.some((l) => l.includes('overlay.show')), linhas.slice(-3));
 
   // ---------- plugin de código: luz ----------
-  const inst2 = await api('/plugins/install', { method: 'POST', body: { pasta: 'plugins/castdeck.luz' } });
+  const inst2 = await api('/plugins/install', { method: 'POST', body: { pasta: 'test/fixtures/castdeck.luz' } });
   ok('instala luz da pasta', inst2.status === 200 && inst2.json?.id === 'castdeck.luz', inst2.texto);
 
   const cfg = await api('/plugins/castdeck.luz/settings', {
@@ -180,6 +180,53 @@ try {
     method: 'POST',
     body: { urlLigar: `http://127.0.0.1:${luzPorta}/on`, urlDesligar: `http://127.0.0.1:${luzPorta}/off` },
   });
+
+  // ---------- plugin oficial de código: Cronômetro no ar (painel + overlay persistente) ----------
+  const instTimer = await api('/plugins/install', { method: 'POST', body: { pasta: 'plugins/castdeck.timer' } });
+  ok('instala o cronômetro da pasta oficial', instTimer.status === 200 && instTimer.json?.id === 'castdeck.timer', instTimer.texto);
+
+  const ativarTimer = await api('/plugins/castdeck.timer/enable', {
+    method: 'POST',
+    body: { permissoes: ['events:chat', 'overlay:show', 'chat:send', 'storage:own'] },
+  });
+  ok('ativa o cronômetro (processo separado)', ativarTimer.status === 200, ativarTimer.texto);
+
+  let listaTimer = await api('/plugins');
+  const timerInfo = listaTimer.json?.lista?.find((p) => p.id === 'castdeck.timer');
+  ok('cronômetro aparece rodando', timerInfo?.rodando === true, JSON.stringify(timerInfo));
+  ok('card mostra eventos e tags do plugin', (timerInfo?.eventos || []).includes('chat') && (timerInfo?.tags || []).includes('tempo'), JSON.stringify({ eventos: timerInfo?.eventos, tags: timerInfo?.tags }));
+  ok('permissões vêm com risco explicado', (timerInfo?.permissoesDetalhe || []).every((p) => p.risco && p.texto && p.porque), JSON.stringify(timerInfo?.permissoesDetalhe));
+
+  // diagnóstico do plugin
+  const doctor = await api('/plugins/castdeck.timer/doctor');
+  ok('diagnóstico responde com checklist', doctor.status === 200 && Array.isArray(doctor.json?.checks) && doctor.json.checks.length >= 5, doctor.texto);
+  ok('diagnóstico fica tudo certo', doctor.json?.ok === true, JSON.stringify(doctor.json?.checks?.filter((c) => !c.ok)));
+
+  // botão do painel: iniciar 1 minuto -> overlay persistente com o tempo
+  const antesPainel = msgs.length;
+  const painel = await api('/plugins/castdeck.timer/panel', { method: 'POST', body: { nome: 'iniciar', dados: { minutos: 1 } } });
+  ok('ação do painel chega no plugin', painel.status === 200 && painel.json?.ok === true, painel.texto);
+  for (let i = 0; i < 20 && !msgs.slice(antesPainel).some((m) => m.type === 'plugin' && m.acao === 'plugin-overlay'); i++) await esperar(200);
+  const overlayTimer = msgs.slice(antesPainel).find((m) => m.type === 'plugin' && m.acao === 'plugin-overlay');
+  ok('cronômetro desenha o aviso no estúdio', !!overlayTimer, JSON.stringify(msgs.slice(antesPainel).slice(-3)));
+  ok('aviso do cronômetro é persistente', overlayTimer?.payload?.spec?.persistente === true, JSON.stringify(overlayTimer?.payload?.spec));
+  ok('aviso mostra o tempo (1:00)', /1:00/.test(String(overlayTimer?.payload?.spec?.texto || '')), String(overlayTimer?.payload?.spec?.texto));
+
+  const cfgTimer = await api('/plugins/castdeck.timer/settings');
+  ok('estado do cronômetro fica salvo para o painel', cfgTimer.json?.settings?.estado?.rodando === true, cfgTimer.texto.slice(0, 240));
+
+  // comando de chat do cronômetro (o plugin de código recebe o evento e age na hora)
+  const chatTimer = await api('/plugins/_test/chat', { method: 'POST', body: { usuario: 'bia', texto: '!timer 2' } });
+  ok('comando !timer 2 chega no plugin', chatTimer.status === 200, chatTimer.texto);
+  for (let i = 0; i < 25 && !msgs.some((m) => m.type === 'chat' && /Cronômetro de 2:00/.test(String(m.text || ''))); i++) await esperar(200);
+  const chatLocal = msgs.find((m) => m.type === 'chat' && /Cronômetro de 2:00/.test(String(m.text || '')));
+  ok('resposta do cronômetro aparece no chat do estúdio', !!chatLocal, JSON.stringify(msgs.filter((m) => m.type === 'chat').slice(-3)));
+
+  const pararTimer = await api('/plugins/castdeck.timer/panel', { method: 'POST', body: { nome: 'parar' } });
+  ok('painel consegue parar o cronômetro', pararTimer.status === 200 && pararTimer.json?.ok === true, pararTimer.texto);
+
+  const desativaTimer = await api('/plugins/castdeck.timer/disable', { method: 'POST', body: {} });
+  ok('desliga o cronômetro', desativaTimer.status === 200, desativaTimer.texto);
 
   // ---------- plugin malicioso é recusado ----------
   const malicioso = path.join(os.tmpdir(), 'cd-malicioso-' + crypto.randomBytes(3).toString('hex'));

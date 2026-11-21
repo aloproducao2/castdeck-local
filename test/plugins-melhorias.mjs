@@ -65,7 +65,7 @@ try {
   ok('instala plugin de pasta local (arquivos)', instPasta.status === 200 && instPasta.json?.id === 'castdeck.chat-commands', instPasta.texto);
 
   // ---------- 2) instalar por caminho absoluto no disco ----------
-  const instCaminho = await api('/plugins/install', { method: 'POST', body: { pasta: path.resolve('plugins/castdeck.luz') } });
+  const instCaminho = await api('/plugins/install', { method: 'POST', body: { pasta: path.resolve('test/fixtures/castdeck.luz') } });
   ok('instala plugin por caminho absoluto', instCaminho.status === 200 && instCaminho.json?.id === 'castdeck.luz', instCaminho.texto);
   const instRuim = await api('/plugins/install', { method: 'POST', body: { pasta: 'plugins/nao-existe' } });
   ok('caminho inexistente dá erro claro', instRuim.status === 400 && /não encontrada/i.test(instRuim.texto), instRuim.texto);

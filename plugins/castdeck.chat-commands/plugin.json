@@ -1,0 +1,70 @@
+{
+  "$schema": "https://cast.flue.live/plugins/schema/plugin-v1.json",
+  "id": "castdeck.chat-commands",
+  "name": "Comandos de chat",
+  "description": "Responde comandos do chat (!discord, !redes, !aviso, !ajuda) com aviso na tela e resposta no chat do estúdio.",
+  "version": "1.1.0",
+  "author": { "name": "flue.live — Miguel Kallemback", "url": "https://cast.flue.live" },
+  "license": "AGPL-3.0-only",
+  "homepage": "https://cast.flue.live/plugins",
+  "engines": { "castdeck": ">=2.0.0", "api": 1 },
+  "tier": "declarative",
+  "permissions": ["events:chat", "chat:send", "overlay:show"],
+  "i18n": ["pt-BR", "en", "es"],
+  "settings": [
+    { "key": "prefixo", "label": "Prefixo dos comandos", "type": "text", "default": "!" },
+    { "key": "cooldownSeg", "label": "Intervalo por pessoa (segundos)", "type": "number", "default": 30 }
+  ],
+  "rules": [
+    {
+      "on": "chat.comando",
+      "comando": "discord",
+      "cooldownSeg": 30,
+      "do": [
+        { "type": "overlay.show", "titulo": "Discord", "texto": "Entre: discord.gg/exemplo", "cor": "#5865f2", "segundos": 8 },
+        { "type": "chat.send", "texto": "Entre no nosso Discord: discord.gg/exemplo" }
+      ]
+    },
+    {
+      "on": "chat.comando",
+      "comando": "redes",
+      "cooldownSeg": 45,
+      "do": [
+        { "type": "overlay.show", "titulo": "Estamos ao vivo em", "texto": "YouTube · Twitch · Kick", "cor": "#7c5cff", "segundos": 8 },
+        { "type": "chat.send", "texto": "Estamos no YouTube, Twitch e Kick — valeu pelo apoio!" }
+      ]
+    },
+    {
+      "on": "chat.comando",
+      "comando": "ajuda",
+      "cooldownSeg": 60,
+      "do": [
+        { "type": "overlay.show", "titulo": "Comandos da live", "texto": "!discord · !redes · !aviso <texto> · !ajuda", "cor": "#3ddc97", "segundos": 10 }
+      ]
+    },
+    {
+      "on": "chat.comando",
+      "comando": "aviso",
+      "cooldownSeg": 20,
+      "do": [
+        { "type": "overlay.show", "titulo": "Aviso", "texto": "{{arg1}}", "cor": "#ffcc00", "segundos": 6 }
+      ]
+    },
+    {
+      "on": "chat.comando",
+      "comando": "comandos",
+      "cooldownSeg": 60,
+      "do": [{ "type": "overlay.show", "titulo": "Comandos da live", "texto": "!discord · !redes · !aviso <texto> · !ajuda", "cor": "#3ddc97", "segundos": 10 }]
+    },
+    {
+      "on": "chat.regex",
+      "padrao": "^!(oi|ola|olá)\\b",
+      "flags": "i",
+      "cooldownSeg": 45,
+      "do": [
+        { "type": "chat.send", "texto": "Oi, {{usuario}}! Bem-vindo(a) à live." },
+        { "type": "overlay.show", "titulo": "Oi, {{usuario}}!", "texto": "Bem-vindo(a) à live", "cor": "#7c5cff", "segundos": 5 }
+      ]
+    }
+  ]
+}

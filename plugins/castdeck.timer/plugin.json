@@ -1,0 +1,24 @@
+{
+  "$schema": "https://cast.flue.live/plugins/schema/plugin-v1.json",
+  "id": "castdeck.timer",
+  "name": "Cronômetro no ar",
+  "description": "Contagem regressiva na tela para intervalo, volta do BRB ou tempo de prova: comece pelo painel ou pelo chat (!timer 5) e o público vê o tempo diminuindo, sem precisar de outro programa.",
+  "version": "1.0.0",
+  "author": { "name": "flue.live — Miguel Kallemback", "url": "https://cast.flue.live" },
+  "license": "AGPL-3.0-only",
+  "homepage": "https://cast.flue.live/plugins",
+  "engines": { "castdeck": ">=2.0.0", "api": 1 },
+  "tier": "code",
+  "entry": "src/index.js",
+  "permissions": ["events:chat", "overlay:show", "chat:send", "storage:own"],
+  "events": ["chat"],
+  "tags": ["utilidades", "tempo", "intervalo", "overlay"],
+  "settings": [
+    { "key": "titulo", "label": "Título que aparece na tela", "type": "text", "default": "Voltamos em" },
+    { "key": "cor", "label": "Cor do cronômetro (#hex)", "type": "text", "default": "#7c5cff" },
+    { "key": "avisarChat", "label": "Avisar no chat quando terminar", "type": "checkbox", "default": true },
+    { "key": "textoFim", "label": "Texto da tela ao terminar", "type": "text", "default": "Voltamos!" }
+  ],
+  "panels": [{ "id": "controle", "title": "Cronômetro", "entry": "ui/panel.html" }],
+  "i18n": ["pt-BR", "en", "es"]
+}

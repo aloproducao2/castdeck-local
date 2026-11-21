@@ -1,0 +1,30 @@
+{
+  "$schema": "https://cast.flue.live/plugins/schema/plugin-v1.json",
+  "id": "castdeck.luz",
+  "name": "Luz do convidado",
+  "description": "Acende uma luz (tomada inteligente, Home Assistant ou ESPHome) quando alguém entra no palco, apaga quando sai e aceita o comando !luz no chat.",
+  "version": "1.1.0",
+  "author": { "name": "flue.live — Miguel Kallemback", "url": "https://cast.flue.live" },
+  "license": "AGPL-3.0-only",
+  "homepage": "https://cast.flue.live/plugins",
+  "engines": { "castdeck": ">=2.0.0", "api": 1 },
+  "tier": "code",
+  "entry": "src/index.js",
+  "permissions": [
+    "events:stage",
+    "events:chat",
+    "overlay:show",
+    "storage:own",
+    "network:http://127.0.0.1",
+    "network:http://localhost"
+  ],
+  "settings": [
+    { "key": "urlLigar", "label": "Endereço para LIGAR (ex.: http://192.168.0.50/cm?cmnd=Power%20On)", "type": "text", "required": true },
+    { "key": "urlDesligar", "label": "Endereço para DESLIGAR", "type": "text" },
+    { "key": "token", "label": "Token (opcional)", "type": "secret" },
+    { "key": "aviso", "label": "Mostrar aviso na tela", "type": "checkbox", "default": true },
+    { "key": "segundos", "label": "Duração do aviso (s)", "type": "number", "default": 6 }
+  ],
+  "panels": [{ "id": "config", "title": "Configuração", "entry": "ui/panel.html" }],
+  "i18n": ["pt-BR", "en", "es"]
+}

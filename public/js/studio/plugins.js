@@ -131,15 +131,24 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
     await api(`/plugins/${encodeURIComponent(p.id)}/disable`, { method: 'POST', body: {} });
   }
 
+  // Consentimento: mostra cada permissão com o risco e o "por quê", agrupada por risco.
   async function pedirPermissoes(p) {
-    const sensiveis = p.sensiveis || [];
-    const texto = sensiveis.map((perm) => `• ${p.permissoesTexto?.[(p.permissoes || []).indexOf(perm)] || perm}`).join('\n');
-    const ok = await confirmDialog(
-      `${T('Ativar')} “${p.nome}”${p.autor ? ` ${T('de')} ${p.autor}` : ''}?\n\n` + (sensiveis.length ? `${T('Este plugin quer:')}\n${texto}\n\n` : '') + T('Plugins rodam isolados, mas podem agir no seu estúdio. Ative apenas o que você confia.'),
-      { ok: T('Ativar plugin') },
-    );
+    const detalhe = (p.permissoesDetalhe || []).filter((x) => (p.sensiveis || []).includes(x.id));
+    const riscoDe = (r) => `<span class="plg-risco ${r}">${T(r === 'alto' ? 'risco alto' : r === 'medio' ? 'risco médio' : 'risco baixo')}</span>`;
+    const linhas = detalhe
+      .sort((a, b) => ({ alto: 0, medio: 1, baixo: 2 })[a.risco] - ({ alto: 0, medio: 1, baixo: 2 })[b.risco])
+      .map((perm) => `<li class="plg-perm-item">${riscoDe(perm.risco)}<div><b>${esc(perm.texto)}</b><div class="hint">${esc(perm.porque || '')}</div></div></li>`)
+      .join('');
+    const corpo = `<p class="hint">${T('Plugins rodam isolados, mas podem agir no seu estúdio. Ative apenas o que você confia.')}</p>
+      ${linhas ? `<ul class="plg-perms plg-consent">${linhas}</ul>` : `<p class="hint">${T('Este plugin não pede permissão sensível.')}</p>`}
+      <p class="hint">${T('Você pode revogar tudo desligando o plugin. As ações sensíveis ficam na aba Atividade.')}</p>`;
+    const ok = await janela(`${T('Ativar')} “${p.nome}”${p.autor ? ` ${T('de')} ${p.autor}` : ''}?`, corpo, {
+      ok: T('Ativar plugin'),
+      cancel: T('Agora não'),
+      wide: true,
+    });
     if (!ok) return false;
-    await ativar(p, sensiveis);
+    await ativar(p, p.sensiveis || []);
     return true;
   }
 
@@ -239,10 +248,15 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
 
   // Sobre o plugin: tudo o que a pessoa precisa para entender e confiar
   function abrirSobre(p) {
-    const perms = (p.permissoes || [])
-      .map((perm, i) => `<li><b>${esc(p.permissoesTexto?.[i] || perm)}</b> <code>${esc(perm)}</code></li>`)
+    const detalhe = p.permissoesDetalhe || (p.permissoes || []).map((perm, i) => ({ id: perm, texto: p.permissoesTexto?.[i] || perm, risco: 'baixo', porque: '' }));
+    const perms = detalhe
+      .map((perm) => `<li class="plg-perm-item"><span class="plg-risco ${esc(perm.risco || 'baixo')}">${T(perm.risco === 'alto' ? 'risco alto' : perm.risco === 'medio' ? 'risco médio' : 'risco baixo')}</span><div><b>${esc(perm.texto)}</b> <code>${esc(perm.id)}</code>${perm.porque ? `<div class="hint">${esc(perm.porque)}</div>` : ''}</div></li>`)
       .join('');
+    const eventos = (p.eventos || []).map((e) => `<span class="plg-chip">${esc(T(e === 'chat' ? 'chat' : e === 'stage' ? 'palco' : e === 'live' ? 'transmissão' : e === 'gravacao' ? 'gravação' : e))}</span>`).join('');
     const config = (p.settings || []).length ? `<p>${T('Campos de configuração')}: ${p.settings.map((c) => esc(c.label || c.key)).join(', ')}</p>` : '';
+    const faz = p.tier === 'declarative' && (p.listaRegras || []).length
+      ? `<p class="hint">${T('Quando acontecer:')} ${p.listaRegras.map((r) => `<span class="plg-chip rule">${esc(r.rotulo)}</span>`).join(' ')}</p>`
+      : '';
     janela(
       T('Sobre') + ' — ' + p.nome,
       `<p>${esc(p.descricao || '')}</p>
@@ -254,13 +268,32 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
          <tr><th>${T('Status')}</th><td>${p.ativo ? T('ativo') : T('desligado')}${p.quarentena ? ' · ' + T('quarentena') : ''}</td></tr>
          <tr><th>${T('Instalado em')}</th><td>${p.instaladoEm ? new Date(p.instaladoEm).toLocaleString('pt-BR') : '—'}</td></tr>
          <tr><th>${T('Regras')}</th><td>${p.tier === 'declarative' ? p.regras : '—'}</td></tr>
+         <tr><th>${T('Eventos que escuta')}</th><td>${eventos || '—'}</td></tr>
        </tbody></table>
+       ${faz}
        <h4>${T('O que este plugin pode fazer')}</h4>
-       <ul class="plg-perms">${perms || '<li class="hint">' + T('Nenhuma permissão.') + '</li>'}</ul>
+       <ul class="plg-perms plg-perms-detalhe">${perms || '<li class="hint">' + T('Nenhuma permissão.') + '</li>'}</ul>
        ${config}
-       <p class="hint">${T('Plugins rodam em processo separado; ações sensíveis ficam no log de auditoria.')}</p>`,
+       <p class="hint">${T('Plugins rodam em processo separado; ações sensíveis ficam no log de auditoria.')}</p>
+       <div class="plg-row" style="margin-top:6px">
+         ${p.ativo ? `<button class="btn sm" data-sobre-doctor type="button">🩺 ${T('Diagnóstico')}</button>` : ''}
+         ${p.ativo ? `<button class="btn sm" data-sobre-test type="button">${T('Testar')}</button>` : ''}
+         <button class="btn sm ghost" data-sobre-log type="button">${T('Log')}</button>
+       </div>`,
       { wide: true },
     );
+    document.querySelectorAll('[data-sobre-doctor]').forEach((b) => (b.onclick = () => {
+      document.querySelectorAll('.modal-back').forEach((m) => m.remove());
+      abrirDiagnostico(p);
+    }));
+    document.querySelectorAll('[data-sobre-test]').forEach((b) => (b.onclick = () => {
+      document.querySelectorAll('.modal-back').forEach((m) => m.remove());
+      testar(p);
+    }));
+    document.querySelectorAll('[data-sobre-log]').forEach((b) => (b.onclick = () => {
+      document.querySelectorAll('.modal-back').forEach((m) => m.remove());
+      abrirLog(p);
+    }));
   }
 
   // ---------- configuração automática (a partir do manifesto) ----------
@@ -326,8 +359,13 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
       try {
         if (d.method === 'settings.get') responder((await api(`/plugins/${encodeURIComponent(p.id)}/settings`)).settings || {});
         else if (d.method === 'settings.save') responder((await api(`/plugins/${encodeURIComponent(p.id)}/settings`, { method: 'POST', body: d.params || {} })).settings || {});
-        else if (d.method === 'test') {
-          const resultado = await api('/plugins/' + encodeURIComponent(p.id) + '/test', { method: 'POST', body: { tipo: 'chat', texto: '!luz', usuario: 'teste' } });
+        else if (d.method === 'painel' || d.method === 'acao') {
+          // botão do painel do plugin → evento "panel" no processo do plugin
+          responder(await api(`/plugins/${encodeURIComponent(p.id)}/panel`, { method: 'POST', body: { nome: d.params?.nome, dados: d.params?.dados || {} } }));
+        } else if (d.method === 'doctor') {
+          responder(await api(`/plugins/${encodeURIComponent(p.id)}/doctor`));
+        } else if (d.method === 'test') {
+          const resultado = await api('/plugins/' + encodeURIComponent(p.id) + '/test', { method: 'POST', body: { tipo: 'chat', texto: d.params?.texto || '!oi', usuario: 'teste' } });
           responder(resultado);
         } else if (d.method === "log") responder(await fetch(`/api/plugins/${encodeURIComponent(p.id)}/log`).then((x) => x.text()));
         else responder(null, T('método não suportado: ') + d.method);
@@ -345,12 +383,97 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
     }, 1500);
   }
 
+  // Log com atualização automática (como o "logs" do OBS): acompanhar sem fechar e reabrir.
   function abrirLog(p) {
-    fetch(`/api/plugins/${encodeURIComponent(p.id)}/log`)
-      .then((r) => r.text())
-      .then((texto) => janela(T('Log do plugin') + ' — ' + p.nome, `<pre class="plg-log">${esc(texto || T('(sem linhas ainda)'))}</pre>`))
-      .catch((e) => toast(e.message, 'err'));
+    const corpo = `<div class="plg-logbar"><label class="plg-check"><input type="checkbox" id="plg-log-auto" checked> ${T('Atualizar sozinho')}</label><button class="btn sm ghost" id="plg-log-refresh" type="button">↻ ${T('Atualizar agora')}</button></div><pre class="plg-log" id="plg-log-pre">${T('Carregando…')}</pre>`;
+    janela(T('Log do plugin') + ' — ' + p.nome, corpo, { wide: true });
+    const pre = document.getElementById('plg-log-pre');
+    if (!pre) return;
+    let parar = false;
+    const carregar = async () => {
+      try {
+        const texto = await fetch(`/api/plugins/${encodeURIComponent(p.id)}/log`).then((r) => r.text());
+        pre.textContent = texto || T('(sem linhas ainda)');
+        pre.scrollTop = pre.scrollHeight;
+      } catch (e) {
+        pre.textContent = T('Falha ao ler o log: ') + e.message;
+      }
+    };
+    const botao = document.getElementById('plg-log-refresh');
+    if (botao) botao.onclick = carregar;
+    const auto = document.getElementById('plg-log-auto');
+    carregar();
+    const relogio = setInterval(() => {
+      if (parar || !document.body.contains(pre)) {
+        parar = true;
+        clearInterval(relogio);
+        return;
+      }
+      if (auto?.checked) carregar();
+    }, 2000);
   }
+
+  // Diagnóstico: o mesmo checklist que o servidor monta, com dica em cada linha.
+  async function abrirDiagnostico(p) {
+    let r;
+    try {
+      r = await api(`/plugins/${encodeURIComponent(p.id)}/doctor`);
+    } catch (e) {
+      return toast(T('Falha no diagnóstico: ') + e.message, 'err');
+    }
+    const linhas = (r.checks || [])
+      .map(
+        (c) => `<li class="plg-diag-row ${c.ok ? 'ok' : 'bad'}"><span class="plg-diag-ico">${c.ok ? '✓' : '!'}</span>
+          <div><b>${esc(c.nome)}</b> <span class="hint">${esc(c.detalhe || '')}</span>${c.ok || !c.dica ? '' : `<div class="plg-diag-dica">${esc(c.dica)}</div>`}</div></li>`,
+      )
+      .join('');
+    const ok = await janela(
+      T('Diagnóstico') + ' — ' + p.nome,
+      `<p class="hint">${r.ok ? T('Tudo certo com este plugin.') : T('Encontramos pontos para ajustar:')}</p>
+       <ul class="plg-diag">${linhas}</ul>`,
+      { ok: T('Reiniciar plugin'), cancel: T('Fechar') },
+    );
+    if (ok) {
+      try {
+        await api(`/plugins/${encodeURIComponent(p.id)}/restart`, { method: 'POST', body: {} });
+        toast(T('Plugin reiniciado'), 'ok');
+        await atualizar();
+      } catch (e) {
+        toast(T('Falha ao reiniciar: ') + e.message, 'err');
+      }
+    }
+  }
+
+  // "Como funcionam os plugins": explicação curta e visual, para ninguém precisar ler documentação.
+  function abrirGuia() {
+    return janela(
+      T('Como funcionam os plugins'),
+      `<div class="plg-guia">
+        <p class="hint">${T('Um plugin é um complemento que adiciona um recurso ao estúdio. Ele não vira parte do app: roda separado e só faz o que você aprovar.')}</p>
+        <ol class="plg-guia-passos">
+          <li><b>${T('1. Instale')}</b><span>${T('Pelo catálogo (oficiais, assinados) ou por um arquivo .cdplug / pasta local.')}</span></li>
+          <li><b>${T('2. Ative')}</b><span>${T('Aparece um pedido de permissões em português, com o risco de cada uma. Sem aprovar, ele não age.')}</span></li>
+          <li><b>${T('3. Configure')}</b><span>${T('O formulário é gerado pelo próprio plugin; quem tem painel abre uma janela só dele (ex.: o cronômetro).')}</span></li>
+          <li><b>${T('4. Teste e acompanhe')}</b><span>${T('O botão Testar dispara o evento de verdade, o Log mostra o que ele fez e a Atividade registra tudo.')}</span></li>
+        </ol>
+        <h4>${T('Dois tipos de plugin')}</h4>
+        <table class="tbl plg-sobre"><tbody>
+          <tr><th>${T('Declarativo')}</th><td>${T('Só regras (quando alguém escrever !oi, mostre este aviso). Você edita pelo editor de regras, sem programar.')}</td></tr>
+          <tr><th>${T('Com código')}</th><td>${T('Um pequeno programa que roda em processo separado, com a API do CastDeck (aviso, chat, mídia, rede autorizada).')}</td></tr>
+        </tbody></table>
+        <h4>${T('O que garante a segurança')}</h4>
+        <ul class="plg-perms">
+          <li><b>${T('Permissões explícitas')}</b> — ${T('ler o chat, desenhar no vídeo, acessar um endereço… nada além do aprovado.')}</li>
+          <li><b>${T('Processo separado')}</b> — ${T('um erro ou travamento no plugin não derruba o estúdio; abriu 3 vezes, entra em quarentena.')}</li>
+          <li><b>${T('Catálogo assinado')}</b> — ${T('os oficiais vêm com assinatura digital e lista de revogação conferida pelo app.')}</li>
+          <li><b>${T('Trilha de auditoria')}</b> — ${T('toda ação sensível fica registrada em Atividade.')}</li>
+        </ul>
+        <p class="hint">${T('Quer criar o seu? A documentação e os guias (inclusive para agentes de IA) estão em cast.flue.live/plugins.')}</p>
+      </div>`,
+      { wide: true, ok: T('Entendi') },
+    );
+  }
+
 
   // ---------- editor de regras (declarativo) ----------
   async function abrirRegras(p) {
@@ -526,6 +649,7 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
     if ((p.settings || []).length || p.painel?.entry) acoes.push(`<button class="btn sm" data-plg-config>${T('Configurar')}</button>`);
     if (p.tier === 'declarative') acoes.push(`<button class="btn sm" data-plg-rules>${T('Regras')}</button>`);
     if (p.ativo && p.tier === 'code') acoes.push(`<button class="btn sm ghost" data-plg-restart title="${T('Reiniciar o processo')}">↻</button>`);
+    acoes.push(`<button class="btn sm ghost" data-plg-doctor title="${T('Diagnóstico do plugin')}">${T('Diagnóstico')}</button>`);
     acoes.push(`<button class="btn sm ghost" data-plg-about title="${T('Sobre o plugin')}">ℹ</button>`);
     acoes.push(`<button class="btn sm ghost" data-plg-log>${T('Log')}</button>`);
     acoes.push(`<button class="btn sm ghost danger" data-plg-del>${T('Remover')}</button>`);
@@ -558,9 +682,10 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
           <li><b>${T('Teste')}</b> — ${T('veja o aviso na tela sem precisar de live')}</li>
         </ol>
         <div class="plg-acts">
-          <button class="btn primary" data-instalar-oficial="castdeck.chat-commands">＋ ${T('Instalar Comandos de chat')}</button>
-          <button class="btn" data-instalar-oficial="castdeck.luz">＋ ${T('Instalar Luz do convidado')}</button>
+          <button class="btn primary" data-instalar-oficial="castdeck.timer">＋ ${T('Instalar Cronômetro no ar')}</button>
+          <button class="btn" data-instalar-oficial="castdeck.chat-commands">＋ ${T('Instalar Comandos de chat')}</button>
           <button class="btn ghost" data-go-catalogo>${T('Ver catálogo')}</button>
+          <button class="btn ghost" data-guia>${T('Como funcionam?')}</button>
         </div>
       </div>`;
     return lista.map(card).join('');
@@ -583,9 +708,11 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
           <div class="plg-head"><span class="plg-ico">${c.tier === 'code' ? '⚙️' : '📄'}</span>
             <div class="plg-tit"><strong>${esc(c.nome)}</strong> <code>v${esc(c.versao || '')}</code></div>
             ${c.revogado ? `<span class="plg-badge err">${T('revogado')}</span>` : ''}
+            ${c.oficial || c.verified ? `<span class="plg-badge ok">${T('oficial')}</span>` : ''}
             ${c.tier === 'code' ? `<span class="plg-badge code">${T('código')}</span>` : `<span class="plg-badge">${T('declarativo')}</span>`}</div>
           <div class="plg-sub">${esc(c.resumo || '')}</div>
-          <div class="plg-meta">${c.autor ? `<span>${esc(c.autor)}</span>` : ''}${c.licenca ? `<span>${esc(c.licenca)}</span>` : ''}${c.bytes ? `<span>${(c.bytes / 1024).toFixed(1)} KB</span>` : ''}<span>${c.permissivas || 0} ${T('permissões')}</span></div>
+          <div class="plg-meta">${c.autor ? `<span>${esc(c.autor)}</span>` : ''}${c.licenca ? `<span>${esc(c.licenca)}</span>` : ''}${c.bytes ? `<span>${(c.bytes / 1024).toFixed(1)} KB</span>` : ''}<span>${c.permissivas || 0} ${T('permissões')}</span>${c.risco ? `<span class="plg-risco ${esc(c.risco)}">${T(c.risco === 'alto' ? 'risco alto' : c.risco === 'medio' ? 'risco médio' : 'risco baixo')}</span>` : ''}</div>
+          ${(c.tags || []).length ? `<div class="plg-chips">${c.tags.slice(0, 6).map((t) => `<span class="plg-chip">${esc(t)}</span>`).join('')}</div>` : ''}
           <div class="plg-acts">${acao}</div>
         </div>`;
       })
@@ -620,6 +747,7 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
         <div class="plg-top">
           <div class="plg-tabs">${abaBotao('instalados', T('Instalados'), lista.length)}${abaBotao('catalogo', T('Catálogo'), cat)}${abaBotao('atividade', T('Atividade'))}</div>
           <div class="plg-top-acts">
+            <button class="btn sm ghost" id="plg-guide" title="${T('Entenda em 30 segundos como os plugins funcionam')}">? ${T('Como funcionam')}</button>
             <button class="btn sm primary" id="plg-add">＋ ${T("Instalar arquivo")}</button>
             <button class="btn sm" id="plg-add-dir" title="${T("Carregar um plugin local a partir de uma pasta (com plugin.json dentro)")}">📁 ${T("Pasta local…")}</button>
             <button class="btn sm" id="plg-refresh">↻ ${T('Atualizar')}</button>
@@ -662,6 +790,8 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
       if (aba === 'catalogo') await atualizarCatalogo();
       else await atualizar();
     };
+    const guiaBtn = $('#plg-guide', p);
+    if (guiaBtn) guiaBtn.onclick = () => abrirGuia();
     $('#plg-all-off', p).onclick = async () => {
       if (!(await confirmDialog(T('Desligar todos os plugins agora?'), { ok: T('Desligar todos'), danger: true }))) return;
       await api('/plugins/disable-all', { method: 'POST', body: {} }).catch((e) => toast(e.message, 'err'));
@@ -706,6 +836,8 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
       if (!catalogo) await atualizarCatalogo();
       else render();
     };
+    const guiaLink = p.querySelector('[data-guia]');
+    if (guiaLink) guiaLink.onclick = () => abrirGuia();
 
     for (const box of p.querySelectorAll('.plg-card[data-id]')) {
       const item = lista.find((x) => x.id === box.dataset.id);
@@ -732,6 +864,7 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
       });
       ligar('[data-plg-test]', () => testar(item));
       ligar('[data-plg-about]', () => abrirSobre(item));
+      ligar('[data-plg-doctor]', () => abrirDiagnostico(item));
       ligar('[data-plg-config]', () => configurar(item));
       ligar('[data-plg-rules]', () => abrirRegras(item).catch((e) => toast(e.message, 'err')));
       ligar('[data-plg-restart]', async () => {

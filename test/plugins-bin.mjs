@@ -69,7 +69,7 @@ try {
 
   const inst = await api('/plugins/install', {
     method: 'POST',
-    body: { zipBase64: fs.readFileSync('D:/CastDeck-Plugins/packages/castdeck.luz-1.0.0.cdplug').toString('base64') },
+    body: { zipBase64: fs.readFileSync('test/fixtures/castdeck.luz-1.0.0.cdplug').toString('base64') },
   });
   ok('instala .cdplug no binário empacotado', inst.status === 200, inst.texto);
   await api('/plugins/castdeck.luz/settings', { method: 'POST', body: { urlLigar: `http://127.0.0.1:${luzPorta}/on`, aviso: false } });
@@ -84,6 +84,25 @@ try {
   ok('plugin de código chamou HTTP a partir do binário', recebidos.some((u) => u === '/on'), JSON.stringify(recebidos) + ' | ' + log.slice(-400));
   const lst = await api('/plugins');
   ok('plugin aparece rodando', lst.json?.lista?.find((p) => p.id === 'castdeck.luz')?.rodando === true, JSON.stringify(lst.json?.lista));
+  // ---------- plugin oficial novo: cronômetro (pasta oficial + painel) ----------
+  const instTimer = await api('/plugins/install', { method: 'POST', body: { pasta: 'plugins/castdeck.timer' } });
+  ok('cronômetro instala da pasta oficial', instTimer.status === 200 && instTimer.json?.id === 'castdeck.timer', instTimer.texto);
+  const atvTimer = await api('/plugins/castdeck.timer/enable', {
+    method: "POST",
+    body: { permissoes: ['events:chat', 'overlay:show', 'chat:send', 'storage:own'] },
+  });
+  ok('cronômetro ativa no app empacotado', atvTimer.status === 200, atvTimer.texto);
+  await esperar(800);
+  const drTimer = await api('/plugins/castdeck.timer/doctor');
+  ok('diagnóstico do cronômetro no binário', drTimer.status === 200 && drTimer.json?.ok === true, drTimer.texto.slice(0, 240));
+  const painelTimer = await api('/plugins/castdeck.timer/panel', { method: 'POST', body: { nome: 'iniciar', dados: { minutos: 1 } } });
+  ok('painel do cronômetro responde no binário', painelTimer.status === 200 && painelTimer.json?.ok === true, painelTimer.texto);
+  await esperar(700);
+  const cfgTimer = await api('/plugins/castdeck.timer/settings');
+  ok('cronômetro guarda o estado (rodando)', cfgTimer.json?.settings?.estado?.rodando === true, cfgTimer.texto.slice(0, 240));
+  const pararTimer = await api('/plugins/castdeck.timer/panel', { method: 'POST', body: { nome: 'parar' } });
+  ok('painel para o cronômetro', pararTimer.status === 200, pararTimer.texto);
+
 } catch (e) {
   falhas++;
   console.log('FALHA exceção:', e.message);

@@ -16,6 +16,7 @@ import {
   CAPABILITIES,
   CAPACIDADES_SENSIVEIS,
   descreverPermissoes,
+  descreverPermissoesDetalhado,
   hostPermitido,
   normalizarPermissoes,
   validarManifesto,
@@ -114,6 +115,13 @@ export class PluginManager extends EventEmitter {
         permissivas: (m.permissions || []).length,
         permissoes: m.permissions || [],
         permissoesTexto: descreverPermissoes(m.permissions),
+        permissoesDetalhe: descreverPermissoesDetalhado(m.permissions),
+        eventos: Array.isArray(m.events)
+          ? m.events.slice(0, 12)
+          : m.tier === 'declarative'
+            ? [...new Set((m.rules || []).map((r) => String(r.on || '').split('.')[0]).filter(Boolean))]
+            : [],
+        tags: Array.isArray(m.tags) ? m.tags.slice(0, 8).map((t) => String(t).slice(0, 24)) : [],
         sensiveis: (m.permissions || []).filter((p) => CAPACIDADES_SENSIVEIS.has(p) || String(p).startsWith('network:')),
         concedidas: st.grants || [],
         painel: (m.panels || [])[0] || null,
@@ -441,11 +449,12 @@ export class PluginManager extends EventEmitter {
       case 'overlay.show':
       case 'overlay:show': {
         if (!tem('overlay:show')) return negar('sem permissão overlay:show');
-        const spec = acao.spec || {
-          titulo: acao.titulo || '',
-          texto: acao.texto || '',
-          cor: acao.cor || '',
-        };
+        const spec = acao.spec ||
+          params.spec || {
+            titulo: acao.titulo || '',
+            texto: acao.texto || '',
+            cor: acao.cor || '',
+          };
         const segundos = Number(acao.segundos ?? params.segundos ?? 6) || 6;
         this.acoesCliente?.({ type: 'plugin-overlay', payload: { id: pluginId, spec, segundos } });
         this.auditar({ tipo: 'acao', id: pluginId, acao: 'overlay.show', titulo: String(spec.titulo || '').slice(0, 80) });
@@ -527,6 +536,9 @@ export class PluginManager extends EventEmitter {
     const instalados = new Set(Object.keys(this.state.plugins));
     const plugins = (indice.plugins || []).map((p) => {
       const v = (p.versions || []).find((x) => x.version === p.latest) || (p.versions || [])[0] || {};
+      const perms = v.permissions || p.permissions || [];
+      const detalhe = descreverPermissoesDetalhado(perms);
+      const risco = detalhe.some((d) => d.risco === 'alto') ? 'alto' : detalhe.some((d) => d.risco === 'medio') ? 'medio' : 'baixo';
       return {
         id: p.id,
         nome: p.name,
@@ -535,7 +547,12 @@ export class PluginManager extends EventEmitter {
         resumo: p.summary || p.description || '',
         tier: p.tier || 'code',
         licenca: p.license || '',
-        permissivas: (v.permissions || p.permissions || []).length,
+        permissivas: perms.length,
+        permissoes: perms,
+        permissoesDetalhe: detalhe,
+        risco,
+        tags: Array.isArray(p.tags) ? p.tags : Array.isArray(p.keywords) ? p.keywords : [],
+        oficial: p.official !== false && /^castdeck\./.test(p.id || ''),
         instalado: instalados.has(p.id),
         revogado: this.catalogoClient.revogado(indice, p.id, p.latest),
         arquivo: v.file || '',
@@ -597,7 +614,10 @@ export class PluginManager extends EventEmitter {
       };
       try {
         rt.enviarEvento(tipo === 'stage' ? 'stage' : 'chat', evento);
-        await new Promise((r) => setTimeout(r, 1200));
+        // espera a primeira ação do plugin (até 3 s) e mais um instante para as demais
+        const inicio = Date.now();
+        while (Date.now() - inicio < 3000 && capturadas.length === 0) await new Promise((r) => setTimeout(r, 120));
+        await new Promise((r) => setTimeout(r, 400));
       } finally {
         rt.onAction = original;
       }
@@ -605,6 +625,69 @@ export class PluginManager extends EventEmitter {
     }
     this.auditar({ tipo: 'teste', id, acoes: executadas.length });
     return { ok: executadas.length > 0, acoes: executadas, evento: tipo, dica: executadas.length ? undefined : 'o plugin não reagiu a este evento; confira as regras/configuração' };
+  }
+
+  // Diagnóstico: checklist para a pessoa saber exatamente o que está errado e o que fazer.
+  // Mesma ideia do "problemas do plugin" do OBS, mas com dicas em português.
+  diagnosticar(id) {
+    const m = this.manifestoDe(id);
+    const st = this.state.plugins[id];
+    if (!m || !st) return { ok: false, erro: 'plugin não instalado', checks: [] };
+    const rt = this.runtimes.get(id);
+    const checks = [];
+    const add = (nome, ok, detalhe, dica) => checks.push({ nome, ok: !!ok, detalhe: detalhe || '', dica: dica || '' });
+
+    add('manifesto', true, `${m.id} v${m.version} · ${m.tier === 'code' ? 'com código' : 'declarativo'}`);
+    const compativel = vence(this.appVersion, m.engines?.castdeck || '*');
+    add('compatível com este CastDeck', compativel, `app ${this.appVersion} · plugin pede ${m.engines?.castdeck || '*'}`, 'atualize o app ou o plugin');
+
+    const perms = m.permissions || [];
+    const concedidas = st.grants || [];
+    const faltando = perms.filter((p) => !concedidas.includes(p));
+    add('permissões aprovadas', faltando.length === 0, faltando.length ? `falta aprovar: ${faltando.join(', ')}` : `${perms.length} aprovada(s)`, 'clique em Ativar e aprove o pedido');
+
+    const obrigatorios = (m.settings || []).filter((c) => c.required).map((c) => c.key);
+    let salvo = {};
+    try {
+      salvo = JSON.parse(fs.readFileSync(path.join(this.pasta(id), 'settings.json'), 'utf8')) || {};
+    } catch {}
+    add(
+      'configuração',
+      !obrigatorios.some((k) => !salvo[k]),
+      obrigatorios.length ? obrigatorios.map((k) => `${k}: ${salvo[k] ? 'ok' : 'vazio'}`).join(' · ') : 'nenhum campo obrigatório',
+      'abra Configurar e preencha os campos em falta',
+    );
+
+    if (m.tier === 'code') {
+      add('processo do plugin', !!rt?.ativo, rt?.ativo ? 'rodando em processo separado' : st.enabled ? 'não iniciou' : 'desligado', st.enabled ? 'veja o Log e clique em Reiniciar' : 'clique em Ativar');
+      add('sem quarentena', !rt?.quarentena, rt?.quarentena ? String(rt.ultimoErro || 'falhas repetidas') : 'ok', 'corrija o erro mostrado no log e reinicie');
+    } else {
+      add('motor de regras', (m.rules || []).length > 0, `${(m.rules || []).length} regra(s)`, 'crie uma regra no editor de regras');
+    }
+    add('canal com o estúdio', !!this.acoesCliente, this.acoesCliente ? 'ok' : 'sem canal', 'reabra a janela do estúdio');
+    add('último erro', !st.lastError, st.lastError ? String(st.lastError) : 'nenhum', 'veja o Log do plugin');
+
+    return {
+      ok: checks.every((c) => c.ok),
+      id,
+      nome: m.name,
+      tier: m.tier,
+      versao: m.version,
+      checks,
+      eventos: Array.isArray(m.events) ? m.events : m.tier === 'declarative' ? [...new Set((m.rules || []).map((r) => String(r.on || '').split('.')[0]))] : [],
+    };
+  }
+
+  // Ação disparada por um botão do painel do plugin (ex.: iniciar o cronômetro, testar a luz).
+  // O plugin recebe como evento "panel" na API: castdeck.events.on('panel', ({ nome, dados }) => ...).
+  painelAcao(id, nome, dados = {}) {
+    if (!this.state.plugins[id]) throw new Error('plugin não encontrado');
+    const rt = this.runtimes.get(id);
+    if (!rt?.ativo) throw new Error('o plugin não está ativo; ative para usar o painel');
+    const ok = rt.enviarEvento('panel', { nome: String(nome || 'acao').slice(0, 60), dados: dados && typeof dados === 'object' ? dados : {} });
+    if (!ok) throw new Error('não foi possível falar com o plugin');
+    this.auditar({ tipo: 'painel', id, acao: String(nome || 'acao').slice(0, 60) });
+    return { ok: true };
   }
 
   // Editor de regras dos plugins declarativos (a UI mostra formulário; aqui valida e grava)

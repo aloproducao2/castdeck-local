@@ -68,20 +68,40 @@ export default function activate(castdeck) {
 }
 ```
 
-API disponível: `castdeck.events.on`, `castdeck.overlay.show/hide`, `castdeck.chat.send`,
+API disponível: `castdeck.events.on` (`chat`, `panel`), `castdeck.overlay.show/hide`, `castdeck.chat.send`,
 `castdeck.http.get/post` (só nos `network:` declarados), `castdeck.settings.get/save`, `castdeck.sound.play`,
 `castdeck.panel.open`, `castdeck.log`.
 
-**Painel próprio (opcional):** `ui/panel.html` dentro de um iframe isolado; fale com o app por
-`postMessage({ type: 'castdeck-plugin', id, method: 'settings.get' | 'settings.save', params })` e receba
-`{ type: 'castdeck-plugin-resposta', id, result, error }`.
+**Aviso persistente (relógio, contador, tema que fica na tela):** `castdeck.overlay.show({ titulo, texto, cor,
+persistente: true })` deixa a caixa sem prazo; chame de novo com outro texto para atualizar (o cronômetro oficial
+faz isso a cada segundo) e `castdeck.overlay.hide()` quando terminar.
+
+**Botões no painel:** o painel chama `pedir('painel', { nome: 'iniciar', dados: { minutos: 5 } })` e o plugin
+recebe:
+
+```js
+castdeck.events.on('panel', async ({ nome, dados }) => {
+  if (nome === 'iniciar') await start(dados.minutos);
+});
+```
+
+Métodos do painel: `settings.get`, `settings.save`, `painel` (ação para o plugin), `doctor` (checklist),
+`test` (test-drive) e `log`.
+
+**Diagnóstico:** além do botão no app, `GET /api/plugins/<id>/doctor` devolve `{ ok, checks: [{ nome, ok,
+detalhe, dica }] }` — o mesmo checklist aparece na janela “Diagnóstico” e serve para agentes entenderem o que
+está faltando sem abrir o estúdio.
+
+**Metadados úteis no manifesto:** `events: ["chat", "stage"]` (o que o plugin escuta, mostrado no “Sobre”),
+`tags: ["tempo", "overlay"]` (aparecem no catálogo) e `category`.
 
 ## 4. Testar
 
 1. Ajustes → **Plugins** → *Instalar do arquivo* (empacote a pasta em `.cdplug`/`.zip`) ou
    `POST /api/plugins/install` com `{ "pasta": "plugins/meu-plugin" }` em desenvolvimento.
-2. Ative e **aprove as permissões** (aparecem em português).
+2. Ative e **aprove as permissões** (aparecem em português, com risco).
 3. Dispare um evento (mande a mensagem no chat conectado, ou entre no palco) e veja o **Log** do plugin.
+4. Abra **Sobre** (permissões/eventos) e **Diagnóstico** (checklist com dicas) antes de pedir ajuda.
 
 ## 5. Regras de segurança (o app recusa se violar)
 

@@ -937,8 +937,23 @@ async function main() {
       res.status(400).json({ error: e.message });
     }
   });
-  api.get('/plugins/:id/rules', (req, res) => {
+  // Diagnóstico do plugin: checklist com dicas (usado pelo botão "Diagnóstico" do painel)
+  api.get('/plugins/:id/doctor', (req, res) => {
     try {
+      res.json(plugins.diagnosticar(req.params.id));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+  // Ações do painel do plugin (botões do painel do próprio plugin): chegam ao processo como evento "panel"
+  api.post('/plugins/:id/panel', (req, res) => {
+    try {
+      res.json(plugins.painelAcao(req.params.id, req.body?.nome, req.body?.dados));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+  api.get('/plugins/:id/rules', (req, res) => {    try {
       res.json(plugins.regrasDe(req.params.id));
     } catch (e) {
       res.status(400).json({ error: e.message });

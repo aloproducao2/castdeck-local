@@ -147,7 +147,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **2.0.4** — vertical video with the **Pad**: Pad videos also go to the **9:16** output (per-video **9:16** option, on by default), and overlays are **centered without distortion** in both outputs.
+Version **2.0.5** — clear, useful plugins: **How they work** guide, consent with **per-permission risk**, fuller **About**, **Diagnostics** with hints, live log and the new official **On-air timer** (panel + !timer 5, persistent on-screen overlay). Panel actions control the plugin and the catalog shows tags/risk.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

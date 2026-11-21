@@ -92,7 +92,7 @@ try {
   })()`);
   const onb = await ev(`(() => { const p = document.querySelector('#panel-plugins'); return { onboarding: !!p.querySelector('.plg-onboarding'), botoes: [...p.querySelectorAll('[data-instalar-oficial]')].map((b) => b.dataset.instalarOficial), passos: p.querySelectorAll('.plg-passos li').length }; })()`);
   ok('onboarding no estado vazio', onb.onboarding && onb.passos === 3, JSON.stringify(onb));
-  ok('botões de instalar oficiais no onboarding', (onb.botoes || []).includes('castdeck.chat-commands') && onb.botoes.includes('castdeck.luz'), JSON.stringify(onb.botoes));
+  ok('botões de instalar oficiais no onboarding', (onb.botoes || []).includes('castdeck.chat-commands') && onb.botoes.includes('castdeck.timer'), JSON.stringify(onb.botoes));
 
   // ---- 2) painel com 2 plugins: resumo de regras, config pendente, Sobre, Testar ----
   await ev(`(async () => {
@@ -102,11 +102,16 @@ try {
       if (u.endsWith('/plugins')) {
         return new Response(JSON.stringify({ api: 1, lista: [
           { id: 'castdeck.chat-commands', nome: 'Comandos de chat', versao: '1.1.0', autor: 'flue.live', tier: 'declarative', descricao: 'Responde comandos', ativo: true, rodando: false, permissoes: ['events:chat','chat:send','overlay:show'], permissoesTexto: ['ler o chat','responder no chat do estúdio','desenhar aviso no programa'], regras: 2, listaRegras: [{ rotulo: '!discord' }, { rotulo: 'oi' }], settings: [], painel: null, configPendente: false, instaladoEm: new Date().toISOString(), licenca: 'AGPL-3.0-only' },
-          { id: 'castdeck.luz', nome: 'Luz do convidado', versao: '1.1.0', autor: 'flue.live', tier: 'code', descricao: 'Acende a luz', ativo: false, rodando: false, permissoes: ['events:stage','overlay:show','network:http://127.0.0.1'], permissoesTexto: ['saber quem está no palco','desenhar aviso','acessar 127.0.0.1'], regras: 0, listaRegras: [], settings: [{ key: 'urlLigar', label: 'Endereço', type: 'text', required: true }], painel: null, configPendente: true, instaladoEm: new Date().toISOString(), licenca: 'AGPL-3.0-only' },
+          { id: 'castdeck.timer', nome: 'Cronômetro no ar', versao: '1.0.0', autor: 'flue.live', tier: 'code', descricao: 'Contagem regressiva na tela', ativo: false, rodando: false, eventos: ['chat'], tags: ['tempo','overlay'], permissoes: ['events:chat','overlay:show','chat:send'], permissoesTexto: ['ler o chat','desenhar aviso','responder no chat'], permissoesDetalhe: [{ id: 'events:chat', texto: 'ler o chat', risco: 'baixo', porque: 'lê o que o público escreve' }, { id: 'overlay:show', texto: 'desenhar aviso', risco: 'medio', porque: 'desenha no vídeo' }, { id: 'chat:send', texto: 'responder no chat', risco: 'medio', porque: 'escreve no chat do estúdio' }], sensiveis: ['events:chat','overlay:show','chat:send'], regras: 0, listaRegras: [], settings: [{ key: 'titulo', label: 'Título', type: 'text', required: true }], painel: { id: 'controle', title: 'Cronômetro', entry: 'ui/panel.html' }, configPendente: true, instaladoEm: new Date().toISOString(), licenca: 'AGPL-3.0-only' },
         ] }), { status: 200, headers: { 'content-type': 'application/json' } });
       }
       if (u.endsWith('/catalog')) return new Response(JSON.stringify({ origem: 'mem', plugins: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
       if (u.includes('/test')) return new Response(JSON.stringify({ ok: true, acoes: [{ acao: 'overlay.show', ok: true, detalhe: 'Oi' }, { acao: 'chat.send', ok: true }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (u.includes('/doctor')) return new Response(JSON.stringify({ ok: false, checks: [
+        { nome: 'manifesto', ok: true, detalhe: 'castdeck.timer v1.0.0', dica: '' },
+        { nome: 'permissões aprovadas', ok: true, detalhe: '3 aprovada(s)', dica: '' },
+        { nome: 'configuração', ok: false, detalhe: 'titulo: vazio', dica: 'abra Configurar' },
+      ] }), { status: 200, headers: { 'content-type': 'application/json' } });
       if (u.endsWith('/rules')) return new Response(JSON.stringify({ regras: [{ on: 'chat.comando', comando: 'oi', cooldownSeg: 20, do: [{ type: 'media.play', id: 'media:1' }] }] }), { status: 200, headers: { 'content-type': 'application/json' } });
       return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
     };
@@ -117,7 +122,7 @@ try {
   const cards = await ev(`(() => {
     const p = document.querySelector('#panel-plugins');
     const cc = p.querySelector('.plg-card[data-id="castdeck.chat-commands"]');
-    const luz = p.querySelector('.plg-card[data-id="castdeck.luz"]');
+    const luz = p.querySelector('.plg-card[data-id="castdeck.timer"]');
     return {
       cards: p.querySelectorAll('.plg-card[data-id]').length,
       regras: cc ? [...cc.querySelectorAll('.plg-chip.rule')].map((x) => x.textContent.trim()) : [],
@@ -171,6 +176,38 @@ try {
     return { abriu: !!m, temMedia: opcoes.some((o) => o.includes('media:1')), temPlay: opcoes.some((o) => o.includes('media.play')) };
   })()`);
   ok('editor oferece mídia do estúdio', mediaSel.abriu && mediaSel.temPlay && mediaSel.temMedia, JSON.stringify(mediaSel));
+
+  // guia "Como funcionam"
+  const guia = await ev(`(async () => {
+    document.querySelectorAll('.modal-back').forEach((m) => m.remove());
+    document.querySelector('#plg-guide').click();
+    await new Promise((r) => setTimeout(r, 400));
+    const m = [...document.querySelectorAll('.modal-back')].pop();
+    return { abriu: !!m, passos: m ? m.querySelectorAll('.plg-guia-passos li').length : 0, riscos: m ? m.querySelectorAll('.plg-risco').length : 0, texto: m ? m.innerText.slice(0, 200) : '' };
+  })()`);
+  ok('guia "Como funcionam" abre com 4 passos', guia.abriu && guia.passos === 4, JSON.stringify(guia).slice(0, 320));
+
+  // consentimento pelo card (painel de permissões com risco)
+  const consent = await ev(`(async () => {
+    document.querySelectorAll('.modal-back').forEach((m) => m.remove());
+    const card = document.querySelector('.plg-card[data-id="castdeck.timer"]');
+    card.querySelector('[data-plg-on]').click();
+    await new Promise((r) => setTimeout(r, 500));
+    const m = [...document.querySelectorAll('.modal-back')].pop();
+    return { abriu: !!m, linhas: m ? m.querySelectorAll('.plg-consent li').length : 0, riscos: m ? [...m.querySelectorAll('.plg-risco')].map((x) => x.textContent.trim()) : [] };
+  })()`);
+  ok('consentimento lista permissões com risco', consent.abriu && consent.linhas >= 2 && consent.riscos.length >= 2, JSON.stringify(consent).slice(0, 320));
+
+  // diagnóstico: mostra checklist e dicas
+  const diag = await ev(`(async () => {
+    document.querySelectorAll('.modal-back').forEach((m) => m.remove());
+    const card = document.querySelector('.plg-card[data-id="castdeck.chat-commands"]');
+    card.querySelector('[data-plg-doctor]').click();
+    await new Promise((r) => setTimeout(r, 700));
+    const m = [...document.querySelectorAll('.modal-back')].pop();
+    return { abriu: !!m, linhas: m ? m.querySelectorAll('.plg-diag-row').length : 0, ok: m ? m.querySelectorAll('.plg-diag-row.ok').length : 0, dica: m ? m.querySelectorAll('.plg-diag-dica').length : 0 };
+  })()`);
+  ok('diagnóstico mostra checklist', diag.abriu && diag.linhas >= 2, JSON.stringify(diag));
 
   ok('sem erros de console', erros.length === 0, JSON.stringify(erros.slice(0, 3)));
   ws.close();

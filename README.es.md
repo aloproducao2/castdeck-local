@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **2.0.4** — vídeo vertical con el **Pad**: los vídeos del Pad también van a la salida **9:16** (opción **9:16** por vídeo, activada por defecto), y los overlays se **centran sin distorsión** en ambas salidas.
+Versión **2.0.5** — plugins claros y útiles: guía **Cómo funcionan**, consentimiento con **riesgo por permiso**, **Acerca de** completo, **Diagnóstico** con consejos, log en vivo y el nuevo oficial **Cronómetro en vivo** (panel + !timer 5, aviso persistente en pantalla). Acciones de panel controlan el plugin y el catálogo muestra etiquetas/riesgo.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

@@ -995,11 +995,13 @@ export class Compositor {
   // transmissão e na gravação (um iframe/dhtml não entraria no stream).
   setPluginOverlay(spec = {}, segundos = 6) {
     const s = Math.max(1, Math.min(60, Number(segundos) || 6));
+    const persistente = !!spec.persistente; // fica na tela até o plugin mandar esconder (ex.: cronômetro)
     this.pluginOverlay = {
       titulo: String(spec.titulo || '').slice(0, 80),
       texto: String(spec.texto || '').slice(0, 240),
       cor: /^#[0-9a-f]{3,8}$/i.test(String(spec.cor || '')) ? String(spec.cor) : '#7c5cff',
-      ate: performance.now() + s * 1000,
+      persistente,
+      ate: persistente ? Number.POSITIVE_INFINITY : performance.now() + s * 1000,
     };
   }
 

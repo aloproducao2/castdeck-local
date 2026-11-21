@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cronômetro no ar</title>
+  <style>
+    :root { color-scheme: dark; --bg:#12141c; --bg2:#1a1d27; --line:#2a2f3d; --text:#eef0f6; --mut:#9aa1b2; --acc:#7c5cff; --ok:#3ddc97; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 14px; font: 13px/1.5 Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    h1 { font-size: 14px; margin: 0 0 4px; }
+    .sub { color: var(--mut); font-size: 11.5px; margin: 0 0 12px; }
+    .tempo { font: 800 40px/1 Outfit, Inter, system-ui, sans-serif; letter-spacing: -.02em; text-align: center; margin: 10px 0 2px; font-variant-numeric: tabular-nums; }
+    .estado { text-align: center; color: var(--mut); font-size: 11.5px; margin-bottom: 12px; }
+    .estado.rodando { color: var(--ok); }
+    .presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
+    .presets button, .controles button { padding: 9px 8px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg2); color: var(--text); font-weight: 600; cursor: pointer; }
+    .presets button:hover, .controles button:hover { border-color: rgba(124,92,255,.6); }
+    .controles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .controles button.primary { background: var(--acc); border-color: transparent; }
+    .controles button.parar { background: rgba(255,90,90,.12); border-color: rgba(255,90,90,.35); color: #ff9b9b; }
+    .linha { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+    .linha input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg2); color: var(--text); }
+    .hint { color: var(--mut); font-size: 11.5px; margin-top: 10px; }
+    .ok { color: var(--ok); } .err { color: #ff8f8f; }
+    code { color: #c9c2ff; }
+  </style>
+</head>
+<body>
+  <h1>Cronômetro no ar</h1>
+  <p class="sub">Aparece na tela (e na gravação) com o tempo diminuindo. Aceita <code>!timer 5</code> no chat.</p>
+
+  <div class="tempo" id="tempo">0:00</div>
+  <div class="estado" id="estado">parado</div>
+
+  <div class="presets" aria-label="Durações rápidas">
+    <button type="button" data-min="1">1 min</button>
+    <button type="button" data-min="3">3 min</button>
+    <button type="button" data-min="5">5 min</button>
+    <button type="button" data-min="10">10 min</button>
+  </div>
+
+  <div class="linha">
+    <input id="personalizado" type="text" placeholder="outro tempo: 7, 2:30, 90s" aria-label="Outro tempo">
+    <button type="button" id="ir" style="padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg2);color:var(--text);font-weight:600;cursor:pointer">Iniciar</button>
+  </div>
+
+  <div class="controles" style="margin-top:8px">
+    <button type="button" id="pausar">Pausar</button>
+    <button type="button" id="continuar">Continuar</button>
+    <button type="button" id="parar" class="parar">Parar e limpar</button>
+    <button type="button" id="mostrar">Mostrar na tela</button>
+  </div>
+
+  <p class="hint" id="status">Configure o título e a cor em <b>Configurar</b>. O cronômetro continua mesmo se você fechar esta janela.</p>
+
+  <script>
+    // O painel roda isolado (sem acesso à API). Fala com o app por postMessage (ponte do CastDeck).
+    const $ = (s) => document.querySelector(s);
+    const pedidos = new Map();
+    let seq = 0;
+    window.addEventListener('message', (e) => {
+      const d = e.data || {};
+      if (d.type !== 'castdeck-plugin-resposta') return;
+      const p = pedidos.get(d.id);
+      if (!p) return;
+      pedidos.delete(d.id);
+      if (d.error) p.reject(new Error(d.error));
+      else p.resolve(d.result);
+    });
+    function pedir(method, params = {}) {
+      if (window.parent === window) return Promise.reject(new Error('painel fora do CastDeck'));
+      const id = ++seq;
+      return new Promise((resolve, reject) => {
+        pedidos.set(id, { resolve, reject });
+        window.parent.postMessage({ type: 'castdeck-plugin', id, method, params }, '*');
+        setTimeout(() => {
+          if (pedidos.has(id)) { pedidos.delete(id); reject(new Error('tempo esgotado')); }
+        }, 8000);
+      });
+    }
+
+    const mmss = (s) => {
+      const t = Math.max(0, Math.round(Number(s) || 0));
+      return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+    };
+
+    const acao = (nome, dados = {}) => pedir('painel', { nome, dados });
+
+    let ultimoEstado = null;
+    async function atualizar() {
+      try {
+        const s = (await pedir('settings.get')) || {};
+        const e = s.estado || {};
+        const restante = Number(e.restante) || 0;
+        const rodando = !!e.rodando;
+        $('#tempo').textContent = mmss(restante);
+        $('#estado').textContent = rodando ? 'rodando' : restante > 0 ? 'pausado' : 'parado';
+        $('#estado').className = 'estado' + (rodando ? ' rodando' : '');
+        ultimoEstado = e;
+      } catch (erro) {
+        $('#status').textContent = 'Sem conexão com o plugin: ' + erro.message;
+        $('#status').className = 'hint err';
+      }
+    }
+
+    const executar = async (nome, dados = {}) => {
+      $('#status').textContent = 'Enviando…';
+      $('#status').className = 'hint';
+      try {
+        const r = await acao(nome, dados);
+        if (r && r.ok === false) throw new Error(r.erro || 'não foi possível');
+        $('#status').textContent = nome === 'iniciar' ? 'Cronômetro iniciado — aparece na tela agora.' : 'Feito.';
+        $('#status').className = 'hint ok';
+        setTimeout(atualizar, 250);
+      } catch (erro) {
+        $('#status').textContent = 'Falha: ' + erro.message;
+        $('#status').className = 'hint err';
+      }
+    };
+
+    document.querySelectorAll('[data-min]').forEach((b) => {
+      b.onclick = () => executar('iniciar', { minutos: Number(b.dataset.min) });
+    });
+    $('#ir').onclick = () => {
+      const bruto = $('#personalizado').value.trim().toLowerCase();
+      let minutos = 0;
+      const hm = bruto.match(/^(\d+):(\d{1,2})$/);
+      const seg = bruto.match(/^(\d+(?:\.\d+)?)s$/);
+      if (hm) minutos = Number(hm[1]) + Number(hm[2]) / 60;
+      else if (seg) minutos = Number(seg[1]) / 60;
+      else minutos = Number(bruto) || 0;
+      if (!minutos) {
+        $('#status').textContent = 'Digite os minutos (ex.: 7) ou 2:30 / 90s.';
+        $('#status').className = 'hint err';
+        return;
+      }
+      executar('iniciar', { minutos });
+    };
+    $('#pausar').onclick = () => executar('pausar');
+    $('#continuar').onclick = () => executar('continuar');
+    $('#parar').onclick = () => executar('parar');
+    $('#mostrar').onclick = () => executar('estado');
+
+    atualizar();
+    setInterval(atualizar, 1000);
+  </script>
+</body>
+</html>

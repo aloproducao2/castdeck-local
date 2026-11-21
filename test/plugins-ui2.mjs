@@ -72,13 +72,13 @@ try {
     window.__plg = { pedido: null };
     const lista = [
       { id: 'castdeck.chat-commands', nome: 'Comandos de chat', versao: '1.0.0', autor: 'flue.live', tier: 'declarative', descricao: 'Responde comandos', ativo: true, rodando: false, sensiveis: ['events:chat','chat:send','overlay:show'], permissoes: ['events:chat','chat:send','overlay:show'], permissoesTexto: ['ler o chat','responder no chat do estúdio','desenhar aviso no programa'], regras: 2, settings: [], painel: null, erro: null },
-      { id: 'castdeck.luz', nome: 'Luz do convidado', versao: '1.0.0', autor: 'flue.live', tier: 'code', descricao: 'Acende a luz', ativo: false, rodando: false, sensiveis: ['events:stage','network:http://127.0.0.1'], permissoes: ['events:stage','overlay:show','network:http://127.0.0.1'], permissoesTexto: ['saber quem está no palco','desenhar aviso','acessar 127.0.0.1'], regras: 0, settings: [{ key: 'urlLigar', label: 'Endereço para ligar', type: 'text' }], painel: null, erro: null },
+      { id: 'castdeck.timer', nome: 'Cronômetro no ar', versao: '1.0.0', autor: 'flue.live', tier: 'code', descricao: 'Contagem regressiva na tela', ativo: false, rodando: false, eventos: ['chat'], tags: ['tempo'], sensiveis: ['events:chat','overlay:show','chat:send'], permissoes: ['events:chat','overlay:show','chat:send'], permissoesTexto: ['ler o chat','desenhar aviso','responder no chat'], permissoesDetalhe: [{ id: 'events:chat', texto: 'ler o chat', risco: 'baixo', porque: 'lê o que o público escreve' }, { id: 'overlay:show', texto: 'desenhar aviso', risco: 'medio', porque: 'desenha no vídeo' }, { id: 'chat:send', texto: 'responder no chat', risco: 'medio', porque: 'escreve no chat do estúdio' }], regras: 0, settings: [{ key: 'titulo', label: 'Título', type: 'text' }], painel: null, erro: null },
     ];
     const respostas = {
       '/api/plugins': { api: 1, lista },
       '/api/plugins/catalog': { origem: 'mem', plugins: [{ id: 'castdeck.agenda', nome: 'Agenda', versao: '1.0.0', resumo: 'Próximo evento', instalado: false, tier: 'declarative' }] },
       '/api/plugins/audit': { linhas: [JSON.stringify({ em: new Date().toISOString(), tipo: 'acao', id: 'castdeck.chat-commands', acao: 'overlay.show' })] },
-      '/api/plugins/castdeck.luz/settings': { settings: { urlLigar: 'http://127.0.0.1/on' }, campos: [{ key: 'urlLigar', label: 'Endereço para ligar', type: 'text' }] },
+      '/api/plugins/castdeck.timer/settings': { settings: { urlLigar: 'http://127.0.0.1/on' }, campos: [{ key: 'urlLigar', label: 'Endereço para ligar', type: 'text' }] },
       '/api/plugins/castdeck.chat-commands/rules': { regras: [{ on: 'chat.comando', comando: 'oi', cooldownSeg: 20, do: [{ type: 'overlay.show', titulo: 'Oi', texto: '{{usuario}} chegou', segundos: 5 }] }] },
     };
     window.fetch = async (url, opt) => {
@@ -129,7 +129,7 @@ try {
 
   // configuração automática a partir dos settings do manifesto
   const form = await ev(`(async () => {
-    const card = document.querySelector('.plg-card[data-id="castdeck.luz"]');
+    const card = document.querySelector('.plg-card[data-id="castdeck.timer"]');
     let capturado = null;
     window.__plg.cd.render();
     // abre o modal real (a janela usa o modal do app; aqui interceptamos o clique)
@@ -175,12 +175,17 @@ try {
   const perm = await ev(`(async () => {
     document.querySelector('[data-plg-tab="instalados"]').click();
     await new Promise((r) => setTimeout(r, 300));
-    const card = document.querySelector('.plg-card[data-id="castdeck.luz"]');
+    const card = document.querySelector('.plg-card[data-id="castdeck.timer"]');
     card.querySelector('[data-plg-on]').click();
-    await new Promise((r) => setTimeout(r, 300));
-    return window.__plg.pedido || '';
+    await new Promise((r) => setTimeout(r, 500));
+    const m = [...document.querySelectorAll('.modal-back')].pop();
+    const texto = m ? m.innerText : '';
+    const riscos = m ? [...m.querySelectorAll('.plg-risco')].map((x) => x.textContent.trim()) : [];
+    const linhas = m ? m.querySelectorAll('.plg-consent li').length : 0;
+    return { texto, riscos, linhas, temAtivar: !!(m && m.querySelector('[data-ok]')) };
   })()`);
-  ok('pedido de permissões ao ativar plugin sensível', /Este plugin quer|permiss/i.test(String(perm)), String(perm).slice(0, 320));
+  ok('pedido de permissões ao ativar plugin sensível', perm.temAtivar && perm.linhas >= 1 && /Ativar/i.test(perm.texto), JSON.stringify(perm).slice(0, 400));
+  ok('consentimento mostra o risco de cada permissão', perm.riscos.length >= 1 && perm.riscos.every((r) => /risco/i.test(r)), JSON.stringify(perm.riscos));
 
   ok('sem erros de console', erros.length === 0, JSON.stringify(erros.slice(0, 3)));
   ws.close();

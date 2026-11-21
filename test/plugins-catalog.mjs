@@ -51,6 +51,12 @@ try {
   if (!pronto) throw new Error('não subiu');
 
   const cat = await api('/plugins/catalog');
+  // catálogo montado localmente (o publicado só muda quando o deploy acontece)
+  const localCat = JSON.parse(fs.readFileSync('landpage/plugins/index.json', 'utf8'));
+  const idsCat = (localCat.plugins || []).map((pl) => pl.id);
+  ok('catálogo local traz os dois oficiais', idsCat.includes('castdeck.chat-commands') && idsCat.includes('castdeck.timer'), JSON.stringify(idsCat));
+  const timerCat = (localCat.plugins || []).find((pl) => pl.id === 'castdeck.timer');
+  ok('catálogo local marca o cronômetro como oficial com tags', timerCat?.official === true && (timerCat?.tags || []).includes('tempo'), JSON.stringify({ official: timerCat?.official, tags: timerCat?.tags }));
   ok('catálogo público responde', cat.status === 200, cat.texto);
   ok('catálogo tem 2 plugins', (cat.json?.plugins || []).length === 2, JSON.stringify(cat.json?.plugins?.map((p) => p.id)));
   ok('catálogo veio da rede', cat.json?.fonte === 'rede', JSON.stringify({ fonte: cat.json?.fonte, aviso: cat.json?.aviso }));

@@ -176,3 +176,38 @@ export function descreverPermissoes(perms) {
     return CAPABILITIES[p] || p;
   });
 }
+
+// Risco e explicação de cada permissão: aparece no pedido de consentimento, no "Sobre o plugin" e no catálogo.
+// A ideia é a mesma do OBS: a pessoa entende o que aprova antes de aprovar.
+export const CAPACIDADES_INFO = {
+  'events:chat': { risco: 'baixo', porque: 'o plugin lê o que o público escreve no chat' },
+  'events:stage': { risco: 'baixo', porque: 'o plugin sabe quem entrou ou saiu do palco' },
+  'events:recording': { risco: 'baixo', porque: 'o plugin sabe quando a gravação começa e termina' },
+  'overlay:show': { risco: 'medio', porque: 'o plugin desenha textos no vídeo (aparece na transmissão e na gravação)' },
+  'panel:open': { risco: 'baixo', porque: 'o plugin abre uma janela própria para você controlar' },
+  'control:mixer': { risco: 'alto', porque: 'o plugin pode mudar volume e mudo dos canais' },
+  'control:scene': { risco: 'alto', porque: 'o plugin pode trocar a cena que está no ar' },
+  'control:playout': { risco: 'alto', porque: 'o plugin pode tocar e parar mídias do estúdio' },
+  'chat:send': { risco: 'medio', porque: 'o plugin escreve no chat do estúdio (o público convidado também vê)' },
+  network: { risco: 'medio', porque: 'o plugin faz requisições para os endereços declarados no manifesto' },
+  'storage:own': { risco: 'baixo', porque: 'o plugin grava apenas na própria pasta de dados' },
+  'storage:read:media': { risco: 'alto', porque: 'o plugin lê os arquivos de mídia do estúdio' },
+  'secrets:own': { risco: 'baixo', porque: 'o plugin guarda um token próprio, cifrado' },
+  'webhook:receive': { risco: 'medio', porque: 'o plugin aceita avisos externos na sua porta local' },
+};
+
+export const RISCO_LABEL = { baixo: 'risco baixo', medio: 'risco médio', alto: 'risco alto' };
+
+// Lista pronta para a interface: id, texto humano, risco e o porquê de cada permissão.
+export function descreverPermissoesDetalhado(perms) {
+  return (perms || []).map((p) => {
+    const id = String(p);
+    if (id.startsWith('network:')) {
+      const host = id.slice(8);
+      return { id, texto: `acessar ${host}`, risco: 'medio', porque: 'o plugin só pode falar com esse endereço' };
+    }
+    const info = CAPACIDADES_INFO[id] || { risco: 'baixo', porque: '' };
+    return { id, texto: CAPABILITIES[id] || id, risco: info.risco, porque: info.porque };
+  });
+}
+

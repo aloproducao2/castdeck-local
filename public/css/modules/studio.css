@@ -5802,3 +5802,30 @@ button.plg-badge.upd:hover { background: hsl(45 95% 65% / .12); }
 .plg-onboarding h3 { margin: 0; font-size: 14px; }
 .plg-passos { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; color: var(--text-2); font-size: 12.5px; }
 .plg-passos b { color: var(--text-1); }
+
+/* ---------- Clareza dos plugins: risco, guia, consentimento, diagnóstico ---------- */
+.plg-risco { display: inline-block; font: 700 10px/1.6 Inter, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .04em; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+.plg-risco.baixo { color: #5bd6a0; background: rgba(61, 220, 151, .12); border: 1px solid rgba(61, 220, 151, .28); }
+.plg-risco.medio { color: #ffcc66; background: rgba(255, 204, 102, .12); border: 1px solid rgba(255, 204, 102, .3); }
+.plg-risco.alto { color: #ff8f8f; background: rgba(255, 90, 90, .12); border: 1px solid rgba(255, 90, 90, .3); }
+.plg-perms-detalhe, .plg-consent { list-style: none; padding: 0; margin: 6px 0 10px; display: flex; flex-direction: column; gap: 8px; }
+.plg-perm-item { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255, 255, 255, .02); }
+.plg-perm-item > div { flex: 1; min-width: 0; }
+.plg-perm-item code { font-size: 10.5px; opacity: .75; margin-left: 6px; }
+.plg-perm-item .hint { margin: 2px 0 0; font-size: 11.5px; }
+.plg-guia h4 { margin: 14px 0 6px; font-size: 12.5px; }
+.plg-guia-passos { margin: 4px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.plg-guia-passos li { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: rgba(124, 92, 255, .05); }
+.plg-guia-passos b { color: var(--text-0); font-size: 12.5px; }
+.plg-guia-passos span { color: var(--text-2); font-size: 12px; }
+.plg-diag { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.plg-diag-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); }
+.plg-diag-row.ok { border-color: rgba(61, 220, 151, .25); background: rgba(61, 220, 151, .05); }
+.plg-diag-row.bad { border-color: rgba(255, 90, 90, .3); background: rgba(255, 90, 90, .06); }
+.plg-diag-ico { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 800; flex: none; }
+.plg-diag-row.ok .plg-diag-ico { background: rgba(61, 220, 151, .2); color: #5bd6a0; }
+.plg-diag-row.bad .plg-diag-ico { background: rgba(255, 90, 90, .2); color: #ff8f8f; }
+.plg-diag-dica { margin-top: 2px; font-size: 11.5px; color: #ffcc66; }
+.plg-logbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.plg-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
+.plg-log { max-height: 46vh; overflow: auto; }

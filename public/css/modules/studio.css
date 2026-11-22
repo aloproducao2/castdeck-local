@@ -5845,3 +5845,10 @@ button.plg-badge.upd:hover { background: hsl(45 95% 65% / .12); }
 .plg-chip.ex:hover { background: rgba(124,92,255,.2); }
 .plg-passos { margin: 6px 0 10px; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; line-height: 1.45; }
 .plg-passos li { color: var(--text-2); }
+
+/* ---------- PIP (Libras): botão do topo e seletor de canto ---------- */
+.pip-top { white-space: nowrap; }
+.pip-top.active { border-color: var(--accent); background: var(--accent-soft); color: var(--text-0); }
+.pip-pos { display: flex; gap: 6px; }
+.pip-pos .btn { flex: 1; font-size: 16px; line-height: 1; padding: 8px 0; }
+@media (max-width: 900px) { .pip-top { display: none; } }

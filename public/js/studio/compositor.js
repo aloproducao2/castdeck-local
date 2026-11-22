@@ -31,6 +31,8 @@ export const DEFAULT_BRAND = {
   // Camadas de overlays em relação ao DSK: global, escolhido pelo operador.
   // false = comentários/enquetes/banner atrás do DSK; true = acima do DSK 1/2.
   overlayLayers: { aboveDsk: false },
+  // PIP (picture-in-picture) no canto: pensado para o intérprete de Libras. enabled + id = fonte mostrada.
+  pip: { enabled: false, id: '', pos: 'br', size: 30, aspect: '3:4', border: true, muted: false, volume: 100 },
 };
 
 const num = (v, min, max, fallback) => (Number.isFinite(+v) ? Math.max(min, Math.min(max, +v)) : fallback);
@@ -289,6 +291,7 @@ export class Compositor {
     this.replayWipe = null; // { t0, ms, kind } transição de replay desenhada no PGM (não só no console)
     this.varOverlay = null; // { on, lines, stamp } linhas/carimbo do VAR no PGM
     this.cc = null; // legenda ao vivo { show, text, partial, t, style } (objeto compartilhado com o estúdio)
+    this.pip = null; // picture-in-picture (ex.: intérprete de Libras) { id, pos, size, aspect, border }
     this.hover = null; // id destacado durante o arrasto
     this.social = { featured: null, feed: [], opts: { pos: 'bottom', feedOn: false, feedMax: 5, feedTtl: 20, avatars: true } }; // chat de redes sociais no ar
     this.socialImgs = new Map();
@@ -568,6 +571,76 @@ export class Compositor {
     if (!text) this.ticker = null;
     else if (!this.ticker) this.ticker = { text, offset: 0, label: opts.label || '', speed: opts.speed || 0.09 };
     else Object.assign(this.ticker, { text, label: opts.label || '', speed: opts.speed || 0.09 }); // mantém a posição da rolagem
+  }
+
+  // PIP (picture-in-picture) no canto: pensado para o intérprete de Libras. Fica acima da cena, GCs,
+  // widgets, DSK e replay (abaixo apenas de Cena Segura/FTB), em qualquer canto, sem mexer na cena.
+  setPip(spec) {
+    if (!spec || !spec.id) { this.pip = null; return; }
+    this.pip = {
+      id: String(spec.id),
+      pos: ['tl', 'tr', 'bl', 'br'].includes(spec.pos) ? spec.pos : 'br',
+      size: num(spec.size, 8, 60, 30),
+      aspect: ['16:9', '4:3', '1:1', '3:4'].includes(spec.aspect) ? spec.aspect : '3:4',
+      border: spec.border !== false,
+    };
+  }
+
+  drawPip() {
+    const p = this.pip;
+    if (!p) return;
+    const s = this.sources.get(p.id);
+    if (!s || !s.el) return;
+    const el = s.el;
+    const isImg = el instanceof HTMLImageElement;
+    const vw = isImg ? el.naturalWidth : el.videoWidth;
+    const vh = isImg ? el.naturalHeight : el.videoHeight;
+    if (!(vw > 0 && vh > 0)) return;
+    const { ctx, W, H } = this;
+    const m = Math.round(Math.min(W, H) * 0.025);
+    const ar = p.aspect === '16:9' ? 16 / 9 : p.aspect === '4:3' ? 4 / 3 : p.aspect === '1:1' ? 1 : 3 / 4;
+    let h = Math.round((H * p.size) / 100);
+    let w = Math.round(h * ar);
+    if (w > W - 2 * m) {
+      w = W - 2 * m;
+      h = Math.round(w / ar);
+    }
+    // no 9:16 evita a faixa de interface dos apps (embaixo) e a coluna de botões (direita)
+    const uiBottom = this.vertical ? Math.round(H * 0.09) : 0;
+    const uiRight = this.vertical ? Math.round(W * 0.10) : 0;
+    const x = p.pos.endsWith('l') ? m : W - m - w - uiRight;
+    const y = p.pos.startsWith('t') ? m : H - m - h - uiBottom;
+    const r = Math.round(Math.min(W, H) * 0.018);
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.shadowColor = 'rgba(0,0,0,.55)';
+    ctx.shadowBlur = H * 0.03;
+    ctx.shadowOffsetY = H * 0.006;
+    roundRectPath(ctx, x, y, w, h, r);
+    ctx.fillStyle = '#000';
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.clip();
+    // enquadramento da fonte também vale no PIP: ajuste manual (zoom/posição/corte/fit) e enquadramento
+    // automático (efeitos de vídeo) são respeitados, igual ao desenho do palco.
+    const adjust = s.adjust ? normalizeAdjust(s.adjust) : null;
+    const contain = adjust ? adjust.fit === 'contain' : false;
+    const fx = !contain && this.vfx && s.kind === 'camera' && !isImg ? this.vfx.frame(s.id, el) : null;
+    if (contain) {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(x, y, w, h);
+    }
+    if (fx) this.drawCover(fx.img, x, y, w, h, fx.w, fx.h, false, fx.focus, fx.focus ? null : adjust);
+    else this.drawCover(el, x, y, w, h, vw, vh, contain, null, adjust);
+    ctx.restore();
+    if (p.border) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,.55)';
+      ctx.lineWidth = Math.max(1.5, Math.round(H * 0.003));
+      roundRectPath(ctx, x + ctx.lineWidth / 2, y + ctx.lineWidth / 2, w - ctx.lineWidth, h - ctx.lineWidth, r);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   // Cena segura: suporta PNG transparente/cartela em disco, fundo próprio (projeto, gradiente ou cor sólida),
@@ -969,6 +1042,9 @@ export class Compositor {
 
     // Stinger de entrada/saída desenhado no próprio programa (antes era só CSS no console)
     if (this.replayWipe) this.drawReplayWipe(now);
+
+    // PIP (intérprete de Libras): acima de cena/GC/DSK/widgets/replay, abaixo de Cena Segura/FTB
+    if (this.pip) this.drawPip();
 
     // Cena segura por cima de tudo, inclusive DSK, GC e replay; o FTB continua por cima.
     if (this.safe) this.drawSafe();
@@ -1826,6 +1902,7 @@ export class VerticalView {
     v.safeDefaults = m.safeDefaults;
     v.dsk = m.dsk; // DSKs marcados "também no vertical" (com posição/corte próprios, ver dsk.js)
     v.cc = m.cc; // legenda ao vivo: mesma camada no retorno, no vertical e na prévia
+    v.pip = m.pip; // PIP (Libras) também na saída vertical, com o mesmo canto/config
     v.stage = m.stage;
     // vídeos disparados no Pad também vão para o vertical (salvo itens marcados para não ir)
     v.getPadOverlays = typeof m.getPadOverlays === 'function' ? () => m.getPadOverlays().filter((o) => o && o.vertical !== false) : null;

@@ -85,7 +85,7 @@ try {
     const m = window.__castdeck?.tabLabels || {};
     return { outputs: m.outputs || '', director: m.director || '', total: Object.keys(m).length };
   })()`);
-  ok('__castdeck.tabLabels expõe os 24 rótulos (fonte única do popout)', tl.outputs === 'OBS/vMix' && tl.director === 'Diretor automático' && tl.total === 24, JSON.stringify(tl));
+  ok('__castdeck.tabLabels expõe os 25 rótulos (fonte única do popout)', tl.outputs === 'OBS/vMix' && tl.director === 'Diretor automático' && tl.total === 25, JSON.stringify(tl));
 
   // barra rápida
   const qs = await ev(`document.querySelector('.sq-pill[data-goto-tab=banners]')?.textContent.trim() || ''`);

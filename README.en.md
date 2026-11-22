@@ -147,7 +147,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **2.0.6** — clearer panels (renamed tabs and advanced sections collapsed by default), new official **Chat banner** plugin (a chat message becomes an on-screen banner with name and subtitle), plugins with guided **How to use** and **Test**, and a smarter quick search (Ctrl+K) with recents, ranking and match highlighting.
+Version **2.0.7** — new **PIP (sign language/Libras)**: any video source in a screen corner, above everything (GCs, DSK, polls and replay), with position, size, aspect, audio control and also on the 9:16 vertical output; right-click a thumbnail to **Use as PIP (Libras)** and the source framing (zoom, position, crop and auto-framing) is respected in the PIP. The **Pad** gained pause/resume and seek in the internal panel and a **30-second countdown** video among the presets.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

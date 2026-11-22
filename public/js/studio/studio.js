@@ -190,6 +190,7 @@ const TAB_GROUPS = [
     tabs: [
       ['brand', 'Marca', 'brand', 'Cores, fundo, logo e overlay'],
       ['display', 'Exibição', 'display', 'Nomes na tela, espaçamento e cantos dos vídeos'],
+      ['pip', 'PIP / Libras', 'pip', 'Intérprete de Libras (ou outra fonte) num canto, sobre tudo, com áudio'],
     ],
   },
   {
@@ -397,6 +398,7 @@ async function buildStudio() {
         ${IS_MOBILE || S.system.platform === 'android' ? '' : `<button class="btn" id="btn-replay" title="Abrir Console de Replay & VAR em janela separada (Shift+R)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:2px"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8" fill="currentColor"></polygon></svg><span>Replay & VAR</span></button>`}
       </div>
       <button class="btn mode-pill vertical-top" id="btn-vertical" title="Painel de vídeo vertical 9:16 (Instagram, TikTok, Reels, Shorts) ao lado do preview" aria-pressed="false">${VERT_ICON}<span>9:16 Vertical</span></button>
+      <button class="btn mode-pill pip-top" id="btn-pip" title="PIP: intérprete de Libras num canto da tela (clique para ativar/desativar)" aria-pressed="false">${PIP_ICON}<span>PIP</span></button>
       <button class="btn autoplay" id="btn-autoplay" type="button" aria-pressed="true" title="Auto play de vídeos ao entrar no PGM ou ao colocar no palco">${icons.play}<span class="auto-dot"></span><span class="lbl">Auto play</span><span class="auto-state">ON</span></button>
       ${S.system.platform === 'android' ? '' : `<button class="btn ready-chip" id="btn-ready" type="button" title="Ver o que está pronto para ir ao vivo" aria-haspopup="dialog"><span class="ready-dot" aria-hidden="true"></span><span class="ready-lbl">Pronto</span><b id="ready-score">—</b></button>`}
       <div class="safe-top-grp">
@@ -507,6 +509,7 @@ async function buildStudio() {
       <div class="panel" id="panel-messages"></div>
       <div class="panel" id="panel-whatsapp"></div>
       <div class="panel" id="panel-brand"></div>
+      <div class="panel" id="panel-pip"></div>
       <div class="panel" id="panel-chat"></div>
       <div class="panel" id="panel-social"></div>
       <div class="panel" id="panel-audio"></div>
@@ -1834,6 +1837,7 @@ async function buildStudio() {
     });
   ingest.restore().catch(() => { });
   browserSources.restore().catch(() => { });
+  applyPip();
 
   window.addEventListener('beforeunload', (e) => {
     multiRec?.shutdown();
@@ -1846,6 +1850,8 @@ async function buildStudio() {
 }
 
 const VERT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg>';
+// PIP (picture-in-picture): quadro menor no canto de um quadro maior
+const PIP_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2.5"/><rect x="12" y="11" width="8" height="7" rx="1.5" fill="currentColor" stroke="none"/></svg>';
 // mesa de corte: dois monitores e um T-bar
 const SW_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="9" height="7" rx="1.5"/><rect x="13" y="4" width="9" height="7" rx="1.5"/><path d="M5 15h14M12 15v6M9 21h6"/></svg>';
 // painel lateral: moldura com a coluna da direita + seta (gira 180° no modo ícones via CSS)
@@ -2201,6 +2207,7 @@ function addVideoSource(id, stream, meta) {
   renderTiles();
   renderControls();
   cameras?.refresh();
+  if (typeof applyPip === 'function') applyPip();
   return s;
 }
 
@@ -2329,6 +2336,7 @@ function removeSource(id) {
   renderTiles();
   cameras?.refresh();
   if (tabOpen('playout')) renderPlayoutPanel();
+  if (typeof applyPip === 'function') applyPip();
 }
 
 // aplica um nome personalizado (usado ao restaurar a sessão)
@@ -3093,6 +3101,11 @@ function renderTiles() {
       add('✦', vfx?.active(s.id) ? 'Efeitos de vídeo (ligados)' : 'Efeitos de vídeo: fundo virtual e enquadramento automático', () => openFx(s.id), vfx?.active(s.id) ? 'primary' : '');
     }
     add(icons.crop, 'Ajustar posição, zoom e corte desta fonte', () => openSourceAdjust(s.id), s.adjust ? 'primary' : '');
+    // PIP (Libras): usa esta fonte num canto da tela, mesmo que ela não esteja no palco
+    const pipavel = s.el && (s.el instanceof HTMLVideoElement || s.el instanceof HTMLImageElement);
+    if (pipavel) {
+      add('🖼️', pipAtivo(s.id) ? 'Tirar do PIP (Libras)' : 'Usar como PIP (Libras) — canto da tela', () => usarComoPip(s.id), pipAtivo(s.id) ? 'primary' : '');
+    }
     add('⛶', solo ? 'Sair do modo solo' : 'Colocar em tela cheia (Solo)', () => {
       if (!S.stage.includes(s.id)) toggleStage(s.id);
       setSolo(s.id);
@@ -6016,7 +6029,7 @@ function tabOpen(t) {
   return S.tab === t || !!floatWins?.has(t);
 }
 function renderTabContent(tab) {
-  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), raffle: () => raffle.render($('#panel-raffle')), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, music: renderMusicPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, plugins: () => plugins?.render(), outputs: () => outputs.open(), ndi: renderNdiPanel, multirec: () => multiRec?.render?.(), intercom: renderIntercomPanel })[tab]?.();
+  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), raffle: () => raffle.render($('#panel-raffle')), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, pip: renderPipPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, music: renderMusicPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, plugins: () => plugins?.render(), outputs: () => outputs.open(), ndi: renderNdiPanel, multirec: () => multiRec?.render?.(), intercom: renderIntercomPanel })[tab]?.();
 }
 
 // marca nas abas da lateral quais estão destacadas e cuida do botão ⧉
@@ -6500,6 +6513,136 @@ function renderDisplayPanel() {
   $$('#b-namestyle button', p).forEach((el) => (el.onclick = () => (setBrand({ nameStyle: el.dataset.v }), renderDisplayPanel())));
   $$('#b-padding button', p).forEach((el) => (el.onclick = () => (setBrand({ padding: el.dataset.v }), renderDisplayPanel())));
   $('#b-corner', p).oninput = (e) => setBrand({ corner: +e.target.value });
+}
+
+// ---------- PIP (picture-in-picture): intérprete de Libras num canto, sobre tudo ----------
+const PIP_POS = [['tl', '↖', 'Canto superior esquerdo'], ['tr', '↗', 'Canto superior direito'], ['bl', '↙', 'Canto inferior esquerdo'], ['br', '↘', 'Canto inferior direito']];
+const PIP_ASPECT = [['3:4', '3:4 (retrato)'], ['1:1', '1:1 (quadrado)'], ['4:3', '4:3'], ['16:9', '16:9']];
+const pipCfg = () => S.brand.pip || {};
+const pipFontes = () => [...S.sources.values()].filter((s) => s.el && (s.el instanceof HTMLVideoElement || s.el instanceof HTMLImageElement));
+function pipAtivo(id) { return !!S.brand.pip?.enabled && S.brand.pip?.id === id; }
+function usarComoPip(id) {
+  if (pipAtivo(id)) {
+    setPipCfg({ enabled: false }, true);
+    toast('PIP desligado.', 'info');
+    return;
+  }
+  setPipCfg({ id, enabled: true }, true);
+  const nome = S.sources.get(id)?.label || id;
+  toast(`PIP (Libras): ${nome} no canto.`, 'ok');
+}
+
+function setPipCfg(patch, rerender = false) {
+  const next = { ...(S.brand.pip || {}), ...patch };
+  // ligar o PIP sem ter escolhido fonte: pega a primeira fonte de vídeo disponível
+  if (next.enabled && !next.id) next.id = pipFontes()[0]?.id || '';
+  setBrand({ pip: next });
+  applyPip();
+  renderTiles(); // atualiza o rótulo da ação "Usar/Tirar do PIP (Libras)" na miniatura
+  if (rerender && tabOpen('pip')) renderPipPanel();
+}
+
+function pipAudioChannels() {
+  const id = S.brand.pip?.id;
+  if (!id) return [];
+  const out = [];
+  try {
+    for (const ch of mixer?.sources?.values?.() || []) {
+      if (ch.id === id || ch.stageKey === id) out.push(ch);
+    }
+  } catch {}
+  return out;
+}
+
+function applyPipAudio() {
+  const p = S.brand.pip || {};
+  if (!p.enabled) return; // desligado: não mexe no mixer
+  const vol = Math.max(0, Math.min(1, Number(p.volume) / 100));
+  for (const ch of pipAudioChannels()) {
+    try {
+      mixer.setVolume(ch.id, vol);
+      mixer.setMuted(ch.id, !!p.muted);
+    } catch {}
+  }
+}
+
+function applyPip() {
+  const p = S.brand.pip || {};
+  const on = !!p.enabled && !!p.id && S.sources.has(p.id);
+  comp.setPip(on ? { id: p.id, pos: p.pos, size: p.size, aspect: p.aspect, border: p.border } : null);
+  applyPipAudio();
+  const btn = $('#btn-pip');
+  if (btn) {
+    btn.classList.toggle('active', !!on);
+    btn.setAttribute('aria-pressed', String(!!on));
+    btn.title = on ? 'PIP ativo (clique para desligar)' : 'PIP: intérprete de Libras num canto (clique para ativar/desativar)';
+  }
+}
+
+function togglePip() {
+  const p = S.brand.pip || {};
+  if (!p.enabled) {
+    const id = p.id || pipFontes()[0]?.id;
+    if (!id) {
+      openSideTab('pip');
+      toast('Nenhuma fonte de vídeo disponível para o PIP. Adicione uma câmera ou mídia.', 'warn');
+      return;
+    }
+    setPipCfg({ enabled: true, id }, true);
+    const nome = S.sources.get(id)?.label || id;
+    toast(`PIP ligado: ${nome} no canto.`, 'ok');
+  } else {
+    setPipCfg({ enabled: false }, true);
+    toast('PIP desligado.', 'info');
+  }
+}
+
+function renderPipPanel() {
+  const p = $('#panel-pip');
+  const cfg = pipCfg();
+  const fontes = pipFontes();
+  const selId = cfg.id || fontes[0]?.id || '';
+  const opts = fontes.map((s) => `<option value="${esc(s.id)}" ${s.id === selId ? 'selected' : ''}>${esc(s.label || s.id)}</option>`).join('');
+  const posBtns = PIP_POS.map(([id, label, title]) => `<button type="button" class="btn ${cfg.pos === id ? 'primary' : 'ghost'}" data-pip-pos="${id}" title="${title}">${label}</button>`).join('');
+  const aspOpts = PIP_ASPECT.map(([v, l]) => `<option value="${v}" ${cfg.aspect === v ? 'selected' : ''}>${l}</option>`).join('');
+  const muted = !!cfg.muted;
+  const vol = Math.max(0, Math.min(100, Number(cfg.volume ?? 100)));
+  p.innerHTML = `
+    <div class="music-head"><div><b>🖼️ PIP / Libras</b><small>Uma fonte num canto, por cima da cena</small></div></div>
+    <label class="check" style="justify-content:space-between"><span>Ativar PIP</span><span class="switch"><input type="checkbox" id="pip-on" ${cfg.enabled ? 'checked' : ''}><span></span></span></label>
+    <label class="field"><span>Fonte (vídeo)</span>
+      <select class="input" id="pip-src" ${fontes.length ? '' : 'disabled'}>${fontes.length ? opts : '<option value="">Nenhuma fonte de vídeo no estúdio</option>'}</select>
+    </label>
+    <div class="field"><span>Posição</span><div class="pip-pos">${posBtns}</div></div>
+    <div class="mixer-row"><span class="nm">Tamanho</span><input type="range" id="pip-size" min="10" max="55" step="1" value="${Number(cfg.size) || 30}"><b id="pip-size-v">${Number(cfg.size) || 30}%</b></div>
+    <label class="field"><span>Proporção</span><select class="input" id="pip-aspect">${aspOpts}</select></label>
+    <label class="check" style="justify-content:space-between"><span>Borda e sombra</span><span class="switch"><input type="checkbox" id="pip-border" ${cfg.border !== false ? 'checked' : ''}><span></span></span></label>
+    <div class="music-volume">
+      <span>Áudio</span>
+      <button type="button" class="btn sm ghost icon ${muted ? 'on danger' : ''}" id="pip-mute" aria-pressed="${muted}" title="${muted ? 'Reativar áudio do PIP' : 'Silenciar áudio do PIP'}">${muted ? icons.volumeOff : icons.volume}</button>
+      <input id="pip-vol" type="range" min="0" max="100" step="1" value="${vol}" aria-label="Volume do áudio do PIP">
+      <b id="pip-vol-v">${vol}%</b>
+    </div>
+    <p class="hint">O PIP fica acima de GCs, DSK, enquetes e replay (só Cena Segura/FTB cobrem). Também aparece na saída vertical 9:16. O áudio controla o canal da fonte escolhida no mixer.</p>
+  `;
+  $('#pip-on', p).onchange = (e) => setPipCfg({ enabled: e.target.checked }, true);
+  $('#pip-src', p).onchange = (e) => setPipCfg({ id: e.target.value, enabled: !!e.target.value && !!cfg.enabled }, true);
+  $$('[data-pip-pos]', p).forEach((b) => (b.onclick = () => setPipCfg({ pos: b.dataset.pipPos }, true)));
+  $('#pip-size', p).oninput = (e) => {
+    const v = Number(e.target.value) || 30;
+    const lbl = $('#pip-size-v', p);
+    if (lbl) lbl.textContent = `${v}%`;
+    setPipCfg({ size: v });
+  };
+  $('#pip-aspect', p).onchange = (e) => setPipCfg({ aspect: e.target.value }, true);
+  $('#pip-border', p).onchange = (e) => setPipCfg({ border: e.target.checked }, true);
+  $('#pip-mute', p).onclick = () => setPipCfg({ muted: !cfg.muted }, true);
+  $('#pip-vol', p).oninput = (e) => {
+    const v = Number(e.target.value) || 0;
+    const lbl = $('#pip-vol-v', p);
+    if (lbl) lbl.textContent = `${v}%`;
+    setPipCfg({ volume: v });
+  };
 }
 
 const BN_STYLES = [['news', 'Jornal'], ['bar', 'Barra'], ['card', 'Cartão'], ['clean', 'Limpo'], ['center', 'Centro'], ['tpl', 'Template']];
@@ -7884,6 +8027,7 @@ function initVerticalDock() {
     $('#vd-focus', dock).innerHTML = FOCUS_ICONS[on ? 1 : 0];
   };
   $('#btn-vertical').onclick = () => setVerticalDock(!S.brand.vOn);
+  $('#btn-pip').onclick = () => togglePip();
   $$('#v-layouts .vl', dock).forEach(
     (b) =>
     (b.onclick = () => {

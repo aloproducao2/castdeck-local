@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **2.0.6** — paneles más claros (pestañas renombradas y secciones avanzadas plegadas por defecto), nuevo plugin oficial **Banner del chat** (el mensaje del chat se convierte en banner con nombre y subtítulo), plugins con **Cómo usar** y **Probar** guiados, y búsqueda rápida (Ctrl+K) con recientes, ranking y resaltado.
+Versión **2.0.7** — nuevo **PIP (Lengua de Signos/Libras)**: cualquier fuente de vídeo en una esquina de la pantalla, por encima de todo (GCs, DSK, encuestas y replay), con posición, tamaño, proporción, control de audio y también en la salida vertical 9:16; clic derecho en la miniatura para **Usar como PIP (Libras)** y el encuadre de la fuente (zoom, posición, recorte y auto-encuadre) se respeta en el PIP. El **Pad** ganó pausa/reanudar y seek en el panel interno y un vídeo de **cuenta regresiva de 30 s** entre los ajustes predefinidos.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

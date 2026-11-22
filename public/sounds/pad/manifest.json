@@ -262,6 +262,17 @@
       "overlayMode": "once",
       "url": "/sounds/pad/dancer1.webm",
       "size": 4086729
+    },
+    {
+      "id": "contagem-regressiva-30s",
+      "file": "contagem-regressiva-30s.mp4",
+      "name": "Contagem regressiva — 30s",
+      "category": "videos",
+      "color": "orange",
+      "kind": "video",
+      "overlayMode": "once",
+      "url": "/sounds/pad/contagem-regressiva-30s.mp4",
+      "size": 3867882
     }
   ]
 }

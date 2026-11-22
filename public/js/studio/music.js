@@ -377,7 +377,8 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
   }
 
   function syncAmbientDucking() {
-    const shouldDuck = padDucking && activePadPlays.size > 0;
+    const tocando = [...activePadPlays.values()].filter((p) => !p.paused).length;
+    const shouldDuck = padDucking && tocando > 0;
     if (shouldDuck === padDucked) return;
     padDucked = shouldDuck;
     const target = shouldDuck ? volume * 0.22 : volume;
@@ -1139,6 +1140,22 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
     return false;
   }
 
+  // ---- pause/retomar o efeito que está tocando (mantém o ponto atual) ----
+  function togglePadPause(sampleId) {
+    const id = sampleId || lastPadSampleId;
+    if (!id) return false;
+    const plays = [...activePadPlays.values()].filter((p) => p.sampleId === id);
+    if (!plays.length) return false;
+    const anyPlaying = plays.some((p) => !p.paused);
+    for (const p of plays) {
+      try { anyPlaying ? p.pause?.() : p.resume?.(); } catch {}
+    }
+    syncAmbientDucking();
+    if (panel && viewMode === 'pad') paintPadProgress();
+    emitPadState();
+    return true;
+  }
+
   async function playPad(id, opts = {}) {
     const sample = padSamples.find((s) => s.id === id);
     if (!sample) return;
@@ -1184,6 +1201,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
         try { vid.onended = null; vid.pause(); vid.removeAttribute('src'); vid.load(); } catch {}
         try { mediaNode?.disconnect(); } catch {}
       };
+      const vstate = { paused: false };
       const entry = {
         playId,
         sampleId: sample.id,
@@ -1198,6 +1216,9 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
             vid.currentTime = Math.max(0, Math.min(lim, t));
           } catch {}
         },
+        get paused() { return vstate.paused; },
+        pause: () => { try { vid.pause(); vstate.paused = true; } catch {} },
+        resume: () => { try { vid.play(); vstate.paused = false; } catch {} },
         setGain: (v) => { try { if (!mediaNode) vid.volume = clamp01(v); } catch {} },
         stop: cleanup,
       };
@@ -1298,14 +1319,31 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
           ctxStart = ctx.currentTime;
           node.start(0, base);
         };
+        let pausedAt = 0;
+        const wstate = { paused: false };
         const entry = {
           playId,
           sampleId: sample.id,
           name: sample.name,
           startedAt: performance.now(),
           duration: dur,
-          position: () => Math.max(0, Math.min(dur, base + Math.max(0, ctx.currentTime - ctxStart))),
-          seek: (t) => startNodeAt(t),
+          position: () => (wstate.paused ? pausedAt : Math.max(0, Math.min(dur, base + Math.max(0, ctx.currentTime - ctxStart)))),
+          seek: (t) => {
+            if (wstate.paused) { pausedAt = Math.max(0, Math.min(dur, t)); return; }
+            startNodeAt(t);
+          },
+          get paused() { return wstate.paused; },
+          pause: () => {
+            if (wstate.paused) return;
+            pausedAt = Math.max(0, Math.min(dur, base + Math.max(0, ctx.currentTime - ctxStart)));
+            try { if (node) { node.onended = null; node.stop(0); node.disconnect(); } } catch {}
+            wstate.paused = true;
+          },
+          resume: () => {
+            if (!wstate.paused) return;
+            wstate.paused = false;
+            startNodeAt(pausedAt);
+          },
           stop: () => {
             try { if (node) { node.onended = null; node.stop(0); node.disconnect(); } } catch {}
           },
@@ -1315,6 +1353,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
       } else {
         const el = new Audio(sample.url);
         el.volume = padMuted ? 0 : padVolume;
+        const astate = { paused: false };
         const entry = {
           playId,
           sampleId: sample.id,
@@ -1328,6 +1367,9 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
               el.currentTime = Math.max(0, Math.min(lim, t));
             } catch {}
           },
+          get paused() { return astate.paused; },
+          pause: () => { try { el.pause(); astate.paused = true; } catch {} },
+          resume: () => { try { el.play(); astate.paused = false; } catch {} },
           setGain: (v) => { try { el.volume = clamp01(v); } catch {} },
           stop: () => {
             try { el.onended = null; el.pause(); el.currentTime = 0; } catch {}
@@ -1689,6 +1731,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
     const activeBySample = new Map();
     let lastPlay = null;
     for (const p of activePadPlays.values()) {
+      const paused = !!p.paused;
       // posição real do elemento/nó quando disponível (um seek muda o currentTime; startedAt não acompanha)
       const elapsed = p.position ? Math.max(0, p.position()) : Math.max(0, (now - p.startedAt) / 1000);
       const dur = p.duration || 0;
@@ -1696,9 +1739,9 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
       const remaining = dur > 0 ? Math.max(0, dur - elapsed) : 0;
       const cur = activeBySample.get(p.sampleId);
       if (!cur || elapsed < cur.elapsed) {
-        activeBySample.set(p.sampleId, { elapsed, remaining, duration: dur, pct });
+        activeBySample.set(p.sampleId, { elapsed, remaining, duration: dur, pct, paused });
       }
-      lastPlay = { sampleId: p.sampleId, name: p.name, elapsed, remaining, duration: dur, pct };
+      lastPlay = { sampleId: p.sampleId, name: p.name, elapsed, remaining, duration: dur, pct, paused };
     }
     return {
       studioId,
@@ -1831,6 +1874,15 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
       card?.classList.remove('active');
     }
 
+    const pauseBtn = panel.querySelector('#pad-timer-pause');
+    if (pauseBtn) {
+      const np = snap.nowPlaying;
+      pauseBtn.disabled = !np;
+      pauseBtn.classList.toggle('on', !!np?.paused);
+      pauseBtn.textContent = np?.paused ? '▶ Retomar' : '⏸ Pausar';
+      pauseBtn.title = np?.paused ? 'Retomar o efeito pausado' : 'Pausar o efeito no ponto atual';
+    }
+
     const stopBtn = panel.querySelector('#pad-stop');
     if (stopBtn) stopBtn.disabled = snap.playingCount === 0;
     panel.querySelectorAll('[data-pad-id]').forEach((btn) => {
@@ -1850,9 +1902,12 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
   }
 
   // Arrastar/clicar na barra de progresso de um padrão = seek (padrão parado começa naquele ponto).
-  function bindPadSeek(el, id) {
-    if (!el || !id) return;
+  function bindPadSeek(el, idOrGetter) {
+    if (!el) return;
+    const getId = typeof idOrGetter === 'function' ? idOrGetter : () => idOrGetter;
     const seekTo = (ev) => {
+      const id = getId();
+      if (!id) return;
       const r = el.getBoundingClientRect();
       if (!(r.width > 0)) return;
       const pct = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
@@ -1874,6 +1929,22 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
       el.addEventListener('pointercancel', up);
     });
     el.addEventListener('click', (ev) => ev.stopPropagation());
+    // teclado (a barra do "tocando agora" é focável): setas avançam/voltam 2 s
+    if (el.tabIndex >= 0) {
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
+        const id = getId();
+        if (!id) return;
+        ev.preventDefault();
+        const sample = padSamples.find((s) => s.id === id);
+        const dur = Number(sample?.duration) || 0;
+        const plays = [...activePadPlays.values()].filter((p) => p.sampleId === id);
+        const pos = plays[0]?.position ? plays[0].position() : 0;
+        const delta = ev.key === 'ArrowRight' ? 2 : -2;
+        const max = dur > 0 ? Math.max(0, dur - 0.05) : Math.max(0, pos + delta);
+        seekPad(id, Math.max(0, Math.min(max, pos + delta)));
+      });
+    }
   }
 
   function renderPadGrid(root) {
@@ -2017,7 +2088,10 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
             <div><small>RESTANTE</small><b class="pad-clock-rem ${snap.nowPlaying && snap.nowPlaying.duration > 0 && snap.nowPlaying.remaining < 1.5 ? 'ending' : ''}" id="pad-timer-rem">${snap.nowPlaying ? `-${fmtPadClock(snap.nowPlaying.remaining)}` : '-00:00.0'}</b></div>
             <div><small>DURAÇÃO</small><b class="pad-clock-dur" id="pad-timer-dur">${snap.nowPlaying ? fmtPadClock(snap.nowPlaying.duration) : '00:00.0'}</b></div>
           </div>
-          <div class="pad-now-bar"><i id="pad-timer-bar" style="width:${snap.nowPlaying ? Math.round(snap.nowPlaying.pct * 100) : 0}%"></i></div>
+          <div class="pad-now-bar pad-now-bar-seek" id="pad-timer-seek" role="slider" tabindex="0" aria-label="Posição do efeito no ar" title="Clique ou arraste para avançar/voltar o efeito atual"><i id="pad-timer-bar" style="width:${snap.nowPlaying ? Math.round(snap.nowPlaying.pct * 100) : 0}%"></i></div>
+          <div class="pad-timer-acts">
+            <button type="button" class="btn sm ghost" id="pad-timer-pause" disabled title="Pausar o efeito no ponto atual">⏸ Pausar</button>
+          </div>
         </div>
 
         <div class="pad-mini-bar">
@@ -2057,6 +2131,8 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
       $('#music-pad-qr', panel)?.addEventListener('click', () => openPadQrModal({ studioId, doc: panel.ownerDocument }));
       $('#music-open-pad', panel)?.addEventListener('click', openPadWindow);
       $('#pad-stop', panel)?.addEventListener('click', stopAllPads);
+      $('#pad-timer-pause', panel)?.addEventListener('click', () => togglePadPause());
+      bindPadSeek($('#pad-timer-seek', panel), () => getPadSnapshot().nowPlaying?.sampleId);
       $('#pad-overlap', panel)?.addEventListener('change', (e) => setPadOverlap(e.target.checked));
       $('#pad-duck', panel)?.addEventListener('change', (e) => setPadDucking(e.target.checked));
       $('#pad-mute', panel)?.addEventListener('click', () => setPadMuted(!padMuted));
@@ -2401,6 +2477,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
     stopPadSample,
     seekPad,
     seekPadPct,
+    togglePadPause,
     addPadFiles,
     updatePadMeta,
     removePadSample,
@@ -2445,7 +2522,7 @@ export function createMusic({ studioId = 'local', mixer = null, onChange, getStu
 
   if (bridgeBc) {
     const BRIDGE_OPS = new Set([
-      'playPad', 'replayLastPad', 'stopAllPads', 'stopPadSample', 'seekPad', 'seekPadPct', 'setPadVolume', 'setPadMuted', 'setPadMonitor',
+      'playPad', 'replayLastPad', 'stopAllPads', 'stopPadSample', 'seekPad', 'seekPadPct', 'togglePadPause', 'setPadVolume', 'setPadMuted', 'setPadMonitor',
       'setPadOverlap', 'setPadDucking', 'setPadGrouped', 'setPadCategory', 'setPadSearch',
       'togglePadGroupCollapse', 'addPadGroup', 'updatePadGroup', 'removePadGroup',
       'movePadGroup', 'movePadGroupBy', 'movePad', 'movePadBy', 'movePadToGroup', 'updatePadMeta',

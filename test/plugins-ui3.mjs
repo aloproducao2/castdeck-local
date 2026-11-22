@@ -1,4 +1,4 @@
-﻿// Teste de UI dos extras: Sobre, Testar com 2 eventos, onboarding, resumo de regras e aviso de config pendente.
+// Teste de UI dos extras: Sobre, Testar com 2 eventos, onboarding, resumo de regras e aviso de config pendente.
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';

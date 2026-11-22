@@ -10,6 +10,7 @@ export const icons = {
   cam: P('<rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3z"/>'),
   camOff: P('<path d="M2 2l20 20M16 16v1a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h2M9.7 6H15a1 1 0 0 1 1 1v3.3l1 1L22 7v10"/>'),
   crop: P('<path d="M6 2v16h16M2 6h16v16"/>'),
+  pip: P('<rect x="2" y="4" width="20" height="16" rx="2.5"/><rect x="12" y="11" width="8" height="7" rx="1.5" fill="currentColor" stroke="none"/>'),
   screen: P('<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4M9 10l3-3 3 3M12 7v6"/>'),
   tab: P('<rect x="2" y="5" width="20" height="16" rx="2"/><path d="M2 9h20M2 5h7l2 4"/><path d="M10 15l4-2.5v5z" fill="currentColor"/>'),
   cursor: P('<path d="M5 3l14 7-6 2-2 6z"/><path d="M13 13l5 5"/>'),

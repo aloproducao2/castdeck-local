@@ -77,3 +77,11 @@ desktop.ini
 /test/.shot.mjs
 /test/dbg.mjs
 /test/*.tmp
+
+# Ferramentas internas (landpage/plugins/site) — nunca entram no repositório público
+build/i18n-extract.mjs
+build/make-key-guides.mjs
+build/plugins-publish.mjs
+build/plugins-site-deploy.mjs
+build/verify-publish.mjs
+test/inspect-landpage.mjs

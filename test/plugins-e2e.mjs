@@ -228,6 +228,48 @@ try {
   const desativaTimer = await api('/plugins/castdeck.timer/disable', { method: 'POST', body: {} });
   ok('desliga o cronômetro', desativaTimer.status === 200, desativaTimer.texto);
 
+  // ---------- plugin oficial: Banner do chat (chat interno -> lower third) ----------
+  const instBanner = await api('/plugins/install', { method: 'POST', body: { pasta: 'plugins/castdeck.chat-banner' } });
+  ok('instala o banner do chat da pasta oficial', instBanner.status === 200 && instBanner.json?.id === 'castdeck.chat-banner', instBanner.texto);
+
+  // ativa sem storage:own (permissão implícita): o diagnóstico NÃO deve acusar falta dela
+  const ativarBanner = await api('/plugins/castdeck.chat-banner/enable', {
+    method: 'POST',
+    body: { permissoes: ['events:chat', 'overlay:show'] },
+  });
+  ok('ativa o banner do chat', ativarBanner.status === 200, ativarBanner.texto);
+  for (let i = 0; i < 30; i++) {
+    const l = await api('/plugins');
+    if (l.json?.lista?.find((p) => p.id === 'castdeck.chat-banner')?.rodando) break;
+    await esperar(200);
+  }
+  const infoBanner = (await api('/plugins')).json?.lista?.find((p) => p.id === 'castdeck.chat-banner');
+  ok('banner aparece rodando', infoBanner?.rodando === true, JSON.stringify({ ativo: infoBanner?.ativo, rodando: infoBanner?.rodando }));
+  ok('card expõe Como usar e exemplo de teste', (infoBanner?.uso || []).length > 0 && String(infoBanner?.teste?.texto || '').includes('!banner'), JSON.stringify({ uso: infoBanner?.uso, teste: infoBanner?.teste }));
+
+  const docBanner = await api('/plugins/castdeck.chat-banner/doctor');
+  const checkPerm = (docBanner.json?.checks || []).find((c) => /permiss/i.test(String(c.nome || c.label || '')));
+  ok('diagnóstico não acusa permissão implícita (storage:own)', docBanner.json?.ok === true && checkPerm?.ok !== false, JSON.stringify(docBanner.json?.checks?.filter((c) => !c.ok)));
+
+  // chat INTERNO via WebSocket do estúdio (host "Ana") -> banner no estúdio
+  const antesBanner = msgs.length;
+  ws.send(JSON.stringify({ type: 'state', state: { name: 'Ana' } }));
+  await esperar(300);
+  ws.send(JSON.stringify({ type: 'chat', text: '!banner Olá do chat interno' }));
+  for (let i = 0; i < 30 && !msgs.slice(antesBanner).some((m) => m.type === 'plugin' && m.acao === 'plugin-overlay' && m.payload?.spec?.estilo === 'banner'); i++) await esperar(200);
+  const overlayBanner = msgs.slice(antesBanner).find((m) => m.type === 'plugin' && m.acao === 'plugin-overlay' && m.payload?.spec?.estilo === 'banner');
+  ok('chat interno vira banner no estúdio', !!overlayBanner, JSON.stringify(msgs.slice(antesBanner).slice(-3)));
+  ok('banner usa o nome de quem escreveu', overlayBanner?.payload?.spec?.titulo === 'Ana', JSON.stringify(overlayBanner?.payload?.spec));
+  ok('banner usa a mensagem como subtítulo', /Olá do chat interno/.test(String(overlayBanner?.payload?.spec?.texto || '')), JSON.stringify(overlayBanner?.payload?.spec));
+
+  // test-drive pelo exemplo do manifesto (não precisa digitar comando); respeita o cooldown do banner
+  await esperar(900);
+  const testBanner = await api('/plugins/castdeck.chat-banner/test', { method: 'POST', body: {} });
+  ok('teste usa o exemplo do manifesto', testBanner.status === 200 && testBanner.json?.ok === true, testBanner.texto);
+  const acoesBanner = testBanner.json?.acoes || [];
+  ok('teste do banner mostra a ação de overlay', acoesBanner.some((a) => a.acao === 'overlay.show' && a.ok !== false), JSON.stringify(acoesBanner));
+  await api('/plugins/castdeck.chat-banner/disable', { method: 'POST', body: {} });
+
   // ---------- plugin malicioso é recusado ----------
   const malicioso = path.join(os.tmpdir(), 'cd-malicioso-' + crypto.randomBytes(3).toString('hex'));
   fs.mkdirSync(path.join(malicioso, 'src'), { recursive: true });

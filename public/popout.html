@@ -139,27 +139,10 @@
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab') || 'director';
 
-    const LABELS = {
-      director: 'Diretor Automático',
-      audio: 'Mixer de Áudio',
-      social: 'Redes Sociais',
-      chat: 'Chat do Estúdio',
-      messages: 'Mensagens do Público',
-      whatsapp: 'WhatsApp',
-      widgets: 'Enquetes e QR Code',
-      media: 'Mídia e Vídeos',
-      banners: 'Banners e GCs',
-      journal: 'GC de Telejornal',
-      sports: 'Placar Esportivo',
-      brand: 'Identidade Visual',
-      display: 'Exibição de Nomes',
-      output: 'Transmissão e Destinos',
-      devices: 'Dispositivos e Câmeras',
-      outputs: 'Sinais OBS/vMix',
-      music: 'Trilha sonora & Pad'
-    };
-
-    const titleText = LABELS[tab] || (tab.charAt(0).toUpperCase() + tab.slice(1));
+    // Título da janela = rótulo da aba (fonte única: __castdeck.tabLabels do estúdio aberto).
+    // Sem o estúdio (ex.: recarregado sozinho), cai num título de reserva capitalizado.
+    const openerLabels = window.opener && !window.opener.closed ? (window.opener.__castdeck?.tabLabels || {}) : {};
+    const titleText = openerLabels[tab] || (tab.charAt(0).toUpperCase() + tab.slice(1));
     document.title = `${titleText} — CastDeck`;
     document.getElementById('pop-title-text').textContent = titleText;
 

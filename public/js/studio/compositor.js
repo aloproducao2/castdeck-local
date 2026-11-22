@@ -1000,6 +1000,8 @@ export class Compositor {
       titulo: String(spec.titulo || '').slice(0, 80),
       texto: String(spec.texto || '').slice(0, 240),
       cor: /^#[0-9a-f]{3,8}$/i.test(String(spec.cor || '')) ? String(spec.cor) : '#7c5cff',
+      // 'caixa' (padrão, aviso central) ou 'banner' (lower third com nome e subtítulo)
+      estilo: spec.estilo === 'banner' ? 'banner' : 'caixa',
       persistente,
       ate: persistente ? Number.POSITIVE_INFINITY : performance.now() + s * 1000,
     };
@@ -1012,6 +1014,7 @@ export class Compositor {
   drawPluginOverlay(now) {
     const o = this.pluginOverlay;
     if (!o) return;
+    if (o.estilo === 'banner') return this.drawPluginBanner(now);
     const { ctx, W, H } = this;
     const rem = Math.max(0, o.ate - now) / 1000;
     const alpha = Math.min(1, rem / 0.35); // fadinho no fim
@@ -1062,6 +1065,70 @@ export class Compositor {
     ctx.font = `600 ${Math.round(H * 0.032)}px Inter, system-ui, sans-serif`;
     for (const linha of linhas) {
       ctx.fillText(linha, x + pad, cy);
+      cy += alturaLinha;
+    }
+    ctx.restore();
+  }
+
+  // Banner de plugin (lower third): nome em destaque + mensagem como subtítulo, alinhado à esquerda.
+  // Usado por plugins de chat (ex.: "Banner do chat") sem tocar no sistema de banners do estúdio.
+  drawPluginBanner(now) {
+    const o = this.pluginOverlay;
+    if (!o) return;
+    const { ctx, W, H } = this;
+    const rem = Math.max(0, o.ate - now) / 1000;
+    const alpha = Math.min(1, rem / 0.35);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const margem = Math.round(Math.min(W, H) * 0.05);
+    const largura = Math.min(Math.round(W * 0.56), Math.round(H * 1.05));
+    const padX = Math.round(H * 0.035);
+    const padY = Math.round(H * 0.026);
+    const barra = Math.max(5, Math.round(W * 0.006));
+    const fonteTitulo = Math.round(H * 0.036);
+    const fonteTexto = Math.round(H * 0.028);
+    const maxTexto = largura - padX * 2 - barra;
+    // quebra o subtítulo em até 2 linhas
+    ctx.font = `600 ${fonteTexto}px Inter, system-ui, sans-serif`;
+    const linhas = [];
+    let atual = '';
+    for (const palavra of String(o.texto || '').split(/\s+/).filter(Boolean)) {
+      const tent = atual ? atual + ' ' + palavra : palavra;
+      if (ctx.measureText(tent).width > maxTexto && atual) {
+        linhas.push(atual);
+        atual = palavra;
+        if (linhas.length >= 2) break;
+      } else atual = tent;
+    }
+    if (atual && linhas.length < 2) linhas.push(atual);
+    const alturaLinha = Math.round(fonteTexto * 1.35);
+    const altura = padY * 2 + fonteTitulo + (linhas.length ? Math.round(fonteTexto * 0.45) + linhas.length * alturaLinha : 0);
+    const x = margem;
+    const y = H - margem - altura;
+    ctx.fillStyle = 'rgba(6,8,14,.9)';
+    const raio = Math.round(H * 0.012);
+    ctx.beginPath();
+    ctx.moveTo(x + raio, y);
+    ctx.arcTo(x + largura, y, x + largura, y + altura, raio);
+    ctx.arcTo(x + largura, y + altura, x, y + altura, raio);
+    ctx.arcTo(x, y + altura, x, y, raio);
+    ctx.arcTo(x, y, x + largura, y, raio);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = o.cor;
+    ctx.fillRect(x, y, barra, altura);
+    let cy = y + padY;
+    ctx.textBaseline = 'top';
+    if (o.titulo) {
+      ctx.fillStyle = o.cor;
+      ctx.font = `800 ${fonteTitulo}px Outfit, Inter, system-ui, sans-serif`;
+      ctx.fillText(this.fit(o.titulo, maxTexto), x + barra + padX, cy);
+      cy += fonteTitulo + Math.round(fonteTexto * 0.35);
+    }
+    ctx.fillStyle = '#f4f4fa';
+    ctx.font = `500 ${fonteTexto}px Inter, system-ui, sans-serif`;
+    for (const linha of linhas) {
+      ctx.fillText(linha, x + barra + padX, cy);
       cy += alturaLinha;
     }
     ctx.restore();

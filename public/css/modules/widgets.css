@@ -3,6 +3,8 @@
  * Descrição: Enquetes com QR Code, placar esportivo e sub-abas laterais
  * Módulo com escopo reduzido para facilitar leitura e edição por IAs e desenvolvedores.
  */
+/* MAPA-PAINEIS — Mapa dos painéis: .grp / .grp-tabs / .subtabs (estrutura base) — sobrescritas por onair.css (trilho/desktop), features.css (side-mini ativo) e studio.css (gaveta mobile/topo). */
+
 /* ---------- Widgets (enquetes / QR) e Sports ---------- */
 .wg-item { padding: 12px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); margin-bottom: 10px; transition: border-color .2s, background .2s; }
 .wg-item.showing { border-color: var(--accent); background: var(--accent-soft); }

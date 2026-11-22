@@ -147,7 +147,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **2.0.5** — clear, useful plugins: **How they work** guide, consent with **per-permission risk**, fuller **About**, **Diagnostics** with hints, live log and the new official **On-air timer** (panel + !timer 5, persistent on-screen overlay). Panel actions control the plugin and the catalog shows tags/risk.
+Version **2.0.6** — clearer panels (renamed tabs and advanced sections collapsed by default), new official **Chat banner** plugin (a chat message becomes an on-screen banner with name and subtitle), plugins with guided **How to use** and **Test**, and a smarter quick search (Ctrl+K) with recents, ranking and match highlighting.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

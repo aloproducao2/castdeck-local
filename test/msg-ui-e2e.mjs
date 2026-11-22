@@ -70,10 +70,10 @@ try {
   check('estúdio abriu', await waitFor(host, `!!document.querySelector('#program-canvas') && !!window.__castdeck`));
   await host.ev(`document.querySelector('.studio').classList.add('panel-open')`);
 
-  // ---- organização das abas: Interatividade e Público separados
-  const grps = await host.ev(`[...document.querySelectorAll('.grp')].map(g=>g.dataset.group+':'+g.textContent.trim())`);
-  check('grupo Público existe', grps.some((g) => g.startsWith('audience:Público')), grps.join(' | '));
-  check('grupo Interatividade existe', grps.some((g) => g.startsWith('interaction:Interatividade')), grps.join(' | '));
+  // ---- organização das abas: Pessoas e Interatividade separados (asserção por id, não por rótulo)
+  const grps = await host.ev(`[...document.querySelectorAll('.grp')].map(g=>g.dataset.group)`);
+  check('grupo Pessoas existe', grps.includes('audience'), grps.join(' | '));
+  check('grupo Interatividade existe', grps.includes('interaction'), grps.join(' | '));
   await host.ev(`document.querySelector('.grp[data-group=audience]').click()`);
   await sleep(300);
   const aud = await host.ev(`[...document.querySelectorAll('.subtabs .tab:not([hidden])')].map(t=>t.dataset.tab)`);
@@ -82,7 +82,7 @@ try {
   await host.ev(`document.querySelector('.grp[data-group=interaction]').click()`);
   await sleep(300);
   const inter = await host.ev(`[...document.querySelectorAll('.subtabs .tab:not([hidden])')].map(t=>t.dataset.tab)`);
-  check('Interatividade: enquetes e mensagens', inter.join(',') === 'widgets,messages', inter.join(','));
+  check('Interatividade: 5 itens', inter.join(',') === 'widgets,raffle,messages,whatsapp,plugins', inter.join(','));
 
   // ---- Configurar → Exibição
   await host.ev(`document.querySelector('.tab[data-tab=display]').click()`);

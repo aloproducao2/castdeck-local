@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **2.0.5** — plugins claros y útiles: guía **Cómo funcionan**, consentimiento con **riesgo por permiso**, **Acerca de** completo, **Diagnóstico** con consejos, log en vivo y el nuevo oficial **Cronómetro en vivo** (panel + !timer 5, aviso persistente en pantalla). Acciones de panel controlan el plugin y el catálogo muestra etiquetas/riesgo.
+Versión **2.0.6** — paneles más claros (pestañas renombradas y secciones avanzadas plegadas por defecto), nuevo plugin oficial **Banner del chat** (el mensaje del chat se convierte en banner con nombre y subtítulo), plugins con **Cómo usar** y **Probar** guiados, y búsqueda rápida (Ctrl+K) con recientes, ranking y resaltado.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

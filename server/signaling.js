@@ -68,10 +68,11 @@ const cleanState = (s = {}) => {
 export { cleanState, cleanCamCaps, cleanCamCtl, cleanDevices };
 
 export class SignalingHub {
-  constructor({ studioExists, outKey }) {
+  constructor({ studioExists, outKey, onChat }) {
     this.rooms = new Map(); // roomId -> { host, clients: Map }
     this.studioExists = studioExists;
     this.outKey = outKey || (() => ''); // chave das saídas para OBS/vMix (links /out)
+    this.onChat = typeof onChat === 'function' ? onChat : null; // chat interno -> plugins/API
     setInterval(() => this.heartbeat(), 15000).unref();
   }
 
@@ -315,6 +316,9 @@ export class SignalingHub {
         c.chatTimes.push(now);
         const out = { type: 'chat', id: randomUUID().slice(0, 8), from: c.id, name: c.name, role: c.role, text, ts: Date.now() };
         for (const other of r.clients.values()) this.send(other, out);
+        try {
+          this.onChat?.({ ...out, roomId: r.id });
+        } catch {}
         break;
       }
       case 'state': {

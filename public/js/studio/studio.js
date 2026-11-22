@@ -142,9 +142,11 @@ let whatsapp; // ponte local WhatsApp (desktop)
 let ytJob = null; // download yt-dlp em andamento
 let ytTimer = null;
 let ytLastUrl = '';
-let ytCollapsed = false;
+let ytCollapsed = true; // downloader do YouTube recolhido por padrão (a dobra mostra importar + biblioteca)
 try {
-  ytCollapsed = localStorage.getItem('castdeck.ytdl.collapsed') === '1';
+  const ytv = localStorage.getItem('castdeck.ytdl.collapsed');
+  if (ytv === '0') ytCollapsed = false;
+  else if (ytv === '1') ytCollapsed = true;
 } catch { }
 let replayEngine; // motor sob demanda de Replay & VAR (buffer circular em RAM e playout)
 let captions; // legenda ao vivo (aba Legendas): na tela (PGM) e por link /cc
@@ -216,10 +218,10 @@ const TAB_GROUPS = [
       ['social', 'Redes', 'social', 'Comentários do YouTube, Twitch e outras redes'],
     ],
   },
-  { id: 'director', label: 'Diretor', icon: 'auto', hint: 'Diretor automático: corta ou destaca quem fala e abaixa a música quando alguém fala', tabs: [['director', 'Diretor', 'auto', 'Corte automático e áudio inteligente']] },
+  { id: 'director', label: 'Diretor', icon: 'auto', hint: 'Diretor automático: corta ou destaca quem fala e abaixa a música quando alguém fala', tabs: [['director', 'Diretor automático', 'auto', 'Corte automático e áudio inteligente']] },
   { id: 'audio', label: 'Áudio', icon: 'mixer', hint: 'Mixer, trilha sonora, Pad de efeitos e intercom', tabs: [['audio', 'Mixer', 'mixer', 'Volume de cada fonte'], ['music', 'Trilha & Pad', 'music', 'Trilha sonora reordenável e Pad de efeitos sonoros (samples)'], ['intercom', 'Intercom', 'mic', 'Intercom do diretor com câmeras e repórteres']] },
-  { id: 'captions', label: 'Legendas', icon: 'cc', hint: 'Legenda ao vivo da fala: na tela (PGM) e por link, com tradução opcional', tabs: [['captions', 'Legendas', 'cc', 'Legenda ao vivo: na tela e por link']] },
-  { id: 'outputs', label: 'Sinais', icon: 'signal', hint: 'Sinais para OBS/vMix, saída NDI e gravação Multi-Rec', tabs: [['outputs', 'Sinais', 'signal', 'Sinais separados para OBS e vMix: programa horizontal, vertical e cada pessoa'], ...(IS_MOBILE ? [] : [['ndi', 'NDI', 'signal', 'Saída NDI do programa']]), ['multirec', 'Multi-Rec', 'record', 'Multi-Rec: grave cada câmera, convidado ou fonte em arquivo separado (ISO)']] },
+  { id: 'captions', label: 'Legendas', icon: 'cc', hint: 'Legenda ao vivo da fala: na tela (PGM) e por link, com tradução opcional', tabs: [['captions', 'Legenda ao vivo', 'cc', 'Legenda ao vivo: na tela e por link']] },
+  { id: 'outputs', label: 'Sinais', icon: 'signal', hint: 'Sinais para OBS/vMix, saída NDI e gravação Multi-Rec', tabs: [['outputs', 'OBS/vMix', 'signal', 'Sinais separados para OBS e vMix: programa horizontal, vertical e cada pessoa'], ...(IS_MOBILE ? [] : [['ndi', 'NDI', 'signal', 'Saída NDI do programa']]), ['multirec', 'Multi-Rec', 'record', 'Multi-Rec: grave cada câmera, convidado ou fonte em arquivo separado (ISO)']] },
   {
     id: 'setup',
     label: 'Ajustes',
@@ -484,7 +486,7 @@ async function buildStudio() {
       </div>
       <div class="side-quick-strip" aria-label="Atalhos rápidos do painel">
         <button type="button" class="sq-pill" data-goto-tab="social" title="Abrir Redes (comentários do YouTube, Twitch e Social Stream Ninja)">Redes</button>
-        <button type="button" class="sq-pill" data-goto-tab="banners" title="Abrir Grafismo e GCs">GC / Grafismo</button>
+        <button type="button" class="sq-pill" data-goto-tab="banners" title="Abrir Grafismo e GCs">Grafismo</button>
         <button type="button" class="sq-pill" id="sq-open-pad" title="Abrir Pad de efeitos sonoros (duplo clique abre janela separada)">🎛️ Pad</button>
       </div>
       <nav class="grp-tabs" aria-label="Seções do painel">${TAB_GROUPS.map((g) => `<button class="grp" data-group="${g.id}" title="${esc(g.label)} — ${esc(g.hint)}">${icons[g.icon]}<span>${esc(g.short || g.label)}</span>${g.id === 'audience' ? '<i class="count chat-count" hidden></i>' : g.id === 'interaction' ? '<i class="count msg-count" hidden></i>' : g.id === 'content' ? '<i class="count gf-live-count" hidden></i>' : ''}</button>`).join('')}</nav>
@@ -756,6 +758,8 @@ async function buildStudio() {
     mixer,
     multiRec,
     music,
+    // fonte única dos rótulos de aba (popout.html usa para o título da janela destacada)
+    tabLabels: Object.fromEntries(TAB_GROUPS.flatMap((g) => g.tabs.map(([id, label]) => [id, label]))),
     get ndi() { return ndiOut; },
     applySpeakerMode: (safe) => applySpeakerMode(safe),
     social,
@@ -1240,97 +1244,176 @@ async function buildStudio() {
       <div class="modal-actions"><button class="btn primary" data-close>Entendi</button></div>`);
   }
 
-  const CMD_TAB_KEYWORDS = {
-    media: 'video audio imagem youtube download biblioteca arquivo',
-    playout: 'fila mini player break intervalo comercial',
-    banners: 'gc grafismo banner tarja template dados lower third',
-    journal: 'jornal logo noticia rss manchete letreiro',
+    const CMD_TAB_KEYWORDS = {
+    media: 'video audio imagem youtube download biblioteca arquivo importar upload subir foto musica clip videos imagens',
+    playout: 'fila programacao agenda mini player break intervalo comercial play tocar playlist',
+    banners: 'gc grafismo banner tarja template dados lower third nome subtitulo',
+    journal: 'jornal logo noticia rss manchete letreiro telejornal',
     sports: 'esporte futebol placar cronometro time gol',
-    brand: 'marca cor fundo logo overlay tema visual',
-    display: 'exibicao nomes cantos espacamento',
-    widgets: 'enquete votacao qr code poll',
+    brand: 'marca cor fundo logo overlay tema visual identidade',
+    display: 'exibicao nomes cantos espacamento layout',
+    widgets: 'enquete votacao qr code poll pesquisa',
     raffle: 'sorteio roleta premio numero qr',
     messages: 'mensagem publico caixa entrada qr',
-    whatsapp: 'whatsapp celular mensagem audio bridge',
-    chat: 'chat convidado estudio interno',
-    social: 'redes comentarios youtube twitch social stream ninja ssn moderacao super chat',
+    whatsapp: 'whatsapp celular mensagem audio bridge zap',
+    chat: 'chat convidado estudio interno mensagem privado',
+    social: 'redes comentarios youtube twitch instagram tiktok facebook social stream ninja ssn moderacao super chat',
     director: 'diretor corte automatico auto voz ducking',
-    audio: 'audio mixer som volume ganho bus',
-    music: 'trilha sonora musica pad efeitos sample',
-    intercom: 'intercom camera reporter ptt',
-    captions: 'legenda transcricao whisper traducao',
-    outputs: 'sinais obs vmix browser source iso',
-    ndi: 'ndi rede saida',
+    audio: 'audio mixer som volume ganho bus fader mudo solo micro',
+    music: 'trilha sonora musica pad efeitos sample jingle vinheta',
+    intercom: 'intercom camera reporter ptt diretor',
+    captions: 'legenda transcricao whisper traducao cc closed caption',
+    outputs: 'sinais obs vmix browser source iso saida',
+    ndi: 'ndi rede saida sinal obs',
     multirec: 'multirec multi-rec gravacao iso cameras',
-    output: 'destinos rtmp youtube facebook twitch chave transmissao bitrate',
-    devices: 'dispositivos camera microfone pasta gravacoes',
+    output: 'destinos rtmp youtube facebook twitch instagram tiktok chave transmissao bitrate live ao vivo stream qualidade resolucao fps encoder ir ao ar',
+    devices: 'dispositivos camera microfone pasta gravacoes webcam mic nome perfil',
   };
+
+  // ---------- busca rápida: MRU + ranqueamento ----------
+  const CMD_MRU_KEY = 'castdeck.cmd.mru.v1';
+  function cmdMru() {
+    try {
+      const l = JSON.parse(localStorage.getItem(CMD_MRU_KEY) || '[]');
+      return Array.isArray(l) ? l.filter((x) => typeof x === 'string').slice(0, 12) : [];
+    } catch { return []; }
+  }
+  function cmdTocar(id) {
+    try {
+      const l = cmdMru().filter((x) => x !== id);
+      l.unshift(id);
+      localStorage.setItem(CMD_MRU_KEY, JSON.stringify(l.slice(0, 12)));
+    } catch {}
+  }
+  const cmdNorm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const cmdWordStart = (s, i) => i === 0 || /[\s\-·/()]/.test(s[i - 1] || '');
+  function cmdRank(it, terms) {
+    const title = cmdNorm(it.title);
+    const hint = cmdNorm(it.hint);
+    const kw = cmdNorm(it.kw || '');
+    let pts = 0;
+    for (const t of terms) {
+      const ti = title.indexOf(t);
+      const ki = kw.indexOf(t);
+      const hi = hint.indexOf(t);
+      if (ti < 0 && ki < 0 && hi < 0) return -1;
+      if (ti === 0) pts += 120;
+      else if (ti > 0) pts += 70 + (cmdWordStart(title, ti) ? 20 : 0);
+      else if (ki === 0 || (ki > 0 && cmdWordStart(kw, ki))) pts += 50; // palavra-chave curta começa com o termo
+      else if (ki > 0) pts += 40;
+      else if (hi === 0 || (hi > 0 && cmdWordStart(hint, hi))) pts += 25;
+      else if (hi > 0) pts += 15;
+    }
+    pts -= Math.round(title.length / 30);
+    return pts;
+  }
+  function cmdHl(text, terms) {
+    let out = esc(text);
+    for (const t of terms) {
+      if (!t) continue;
+      try {
+        const re = new RegExp('(' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'i');
+        out = out.replace(re, '<mark>$1</mark>');
+      } catch {}
+    }
+    return out;
+  }
 
   function openCommandPalette() {
     if (document.querySelector('#cmd-input')) {
       document.querySelector('#cmd-input').focus();
       return;
     }
-    const items = [
-      { id: 'act:social-connect', title: 'Conectar chat (YouTube / Twitch / Social Ninja)', hint: 'Ação rápida · Redes', kw: 'conectar youtube twitch social stream ninja ssn comentarios chat', run: () => { openSideTab('social'); setTimeout(() => social?.openConnect?.(), 60); } },
-      { id: 'act:invite', title: 'Convidar participantes (link / QR)', hint: 'Ação rápida · Pessoas', kw: 'convidar convidado link qr co-host', run: () => $('#c-invite')?.click() },
-      { id: 'act:pad', title: 'Abrir Pad de efeitos sonoros', hint: 'Ação rápida · Áudio', kw: 'pad soundboard efeitos vinheta audio', run: () => { music?.setViewMode?.('pad'); openSideTab('music'); } },
-      { id: 'act:cameras', title: 'Abrir painel de Câmeras', hint: 'Ação rápida · Vídeo', kw: 'camera zoom exposicao lanterna uvc', run: () => cameras?.open?.() },
-      { id: 'act:switcher', title: S.switcher ? 'Voltar para o Modo Estúdio' : 'Abrir Mesa de Corte (PRÉVIA / PGM)', hint: 'Ação rápida · Modo', kw: 'mesa corte switcher previa pgm', run: () => switcher?.setMode(!S.switcher) },
-      { id: 'act:safe', title: safeOn ? 'Desativar Cena Segura' : 'Ativar Cena Segura', hint: 'Ação rápida · Segurança', kw: 'cena segura emergencia mudo cartela', run: () => setSafeMode(!safeOn) },
-      { id: 'act:ready', title: 'Checar Prontidão para o ar', hint: 'Ação rápida · Diagnóstico', kw: 'pronto prontidao diagnostico checagem', run: () => openReadiness() },
-      { id: 'act:live', title: S.streaming ? 'Encerrar transmissão ao vivo' : 'Transmitir ao vivo', hint: 'Ação rápida · Live', kw: 'transmitir live rtmp stream entrar ao vivo', run: () => $('#btn-live')?.click() },
-      { id: 'act:rec', title: S.recording ? 'Parar gravação MP4' : 'Gravar localmente (MP4)', hint: 'Ação rápida · Gravação', kw: 'gravar gravacao mp4 disco', run: () => $('#btn-record')?.click() },
+    const cmdAcoes = [
+      { id: 'act:social-connect', title: 'Conectar chat (YouTube / Twitch / Social Ninja)', hint: 'Ação · Redes', kw: 'conectar youtube twitch instagram tiktok facebook social stream ninja ssn comentarios chat', run: () => { openSideTab('social'); setTimeout(() => social?.openConnect?.(), 60); } },
+      { id: 'act:invite', title: 'Convidar participantes (link / QR)', hint: 'Ação · Pessoas', kw: 'convidar convidado link qr co-host', run: () => $('#c-invite')?.click() },
+      { id: 'act:pad', title: 'Abrir Pad de efeitos sonoros', hint: 'Ação · Áudio', kw: 'pad soundboard efeitos vinheta audio', run: () => { music?.setViewMode?.('pad'); openSideTab('music'); } },
+      { id: 'act:cameras', title: 'Abrir painel de Câmeras', hint: 'Ação · Vídeo', kw: 'camera zoom exposicao lanterna uvc', run: () => cameras?.open?.() },
+      { id: 'act:switcher', title: S.switcher ? 'Voltar para o Modo Estúdio' : 'Abrir Mesa de Corte (PRÉVIA / PGM)', hint: 'Ação · Modo', kw: 'mesa corte switcher previa pgm', run: () => switcher?.setMode(!S.switcher) },
+      { id: 'act:safe', title: safeOn ? 'Desativar Cena Segura' : 'Ativar Cena Segura', hint: 'Ação · Segurança', kw: 'cena segura emergencia mudo cartela', run: () => setSafeMode(!safeOn) },
+      { id: 'act:ready', title: 'Checar Prontidão para o ar', hint: 'Ação · Diagnóstico', kw: 'pronto prontidao diagnostico checagem', run: () => openReadiness() },
+      { id: 'act:live', title: S.streaming ? 'Encerrar transmissão ao vivo' : 'Transmitir ao vivo', hint: 'Ação · Live', kw: 'transmitir live rtmp stream entrar ao vivo ir ao ar', run: () => $('#btn-live')?.click() },
+      { id: 'act:rec', title: S.recording ? 'Parar gravação MP4' : 'Gravar localmente (MP4)', hint: 'Ação · Gravação', kw: 'gravar gravacao mp4 disco', run: () => $('#btn-record')?.click() },
+      { id: 'act:replay', title: 'Abrir Replay & VAR', hint: 'Ação · Replay', kw: 'replay var clipe console shift r', run: () => $('#btn-replay')?.click() },
+      { id: 'act:remote', title: 'Controle remoto no celular', hint: 'Ação · Remoto', kw: 'remoto celular qr telefone controle', run: () => $('#btn-remote')?.click() },
+      { id: 'act:clear', title: 'Limpar tela (tirar tudo do ar)', hint: 'Ação · Palco', kw: 'limpar tela tirar tudo ar limpar programa', run: () => $('#deck-clear')?.click() },
       { id: 'act:shortcuts', title: 'Ver atalhos de teclado (?)', hint: 'Ajuda', kw: 'atalhos teclado ajuda', run: () => openShortcuts() },
-      ...TAB_GROUPS.flatMap((g) => g.tabs.map(([id, label, _icon, hint]) => ({
-        id: 'tab:' + id,
-        title: label,
-        hint: `${g.label} · ${hint}`,
-        kw: `${label} ${g.label} ${hint} ${CMD_TAB_KEYWORDS[id] || ''}`,
-        run: () => openSideTab(id),
-      }))),
-    ];
-    const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    ].map((a) => ({ ...a, grupo: 'Ações' }));
+
+    const cmdPaineis = TAB_GROUPS.flatMap((g) => g.tabs.map(([id, label, _icon, hint]) => ({
+      id: 'tab:' + id,
+      title: label,
+      hint: `${g.label} · ${hint}`,
+      kw: `${label} ${g.label} ${CMD_TAB_KEYWORDS[id] || ''}`,
+      run: () => openSideTab(id),
+      grupo: 'Painéis',
+    })));
+
+    const cmdItens = [...cmdAcoes, ...cmdPaineis];
+    const cmdPorId = new Map(cmdItens.map((it) => [it.id, it]));
+    const cmdRecentes = cmdMru().map((id) => cmdPorId.get(id)).filter(Boolean).slice(0, 6);
 
     modal(`<div class="cmd-palette">
       <div class="cmd-head">
         <span aria-hidden="true">🔍</span>
-        <input class="input cmd-input" id="cmd-input" placeholder="Buscar painel ou ação (ex.: youtube, ninja, gc, sorteio, mixer)…" autocomplete="off">
+        <input class="input cmd-input" id="cmd-input" placeholder="Buscar painel ou ação — ex.: youtube, gc, pad, mixer, chave…" autocomplete="off">
         <kbd>Esc</kbd>
       </div>
       <div class="cmd-list" id="cmd-list" role="listbox"></div>
+      <div class="cmd-footer" id="cmd-footer"></div>
     </div>`, {
       onMount(m, close) {
         const inp = $('#cmd-input', m);
         const listEl = $('#cmd-list', m);
-        let filtered = items.slice(0, 14);
+        const footEl = $('#cmd-footer', m);
+        let ranked = [];
         let selIdx = 0;
 
+        const runItem = (it) => {
+          cmdTocar(it.id);
+          close();
+          it.run?.();
+        };
+
         const paint = () => {
-          const q = norm(inp.value).trim();
+          const q = cmdNorm(inp.value).trim();
           const terms = q ? q.split(/\s+/).filter(Boolean) : [];
-          filtered = (terms.length
-            ? items.filter((it) => {
-                const hay = norm(`${it.title} ${it.hint} ${it.kw}`);
-                return terms.every((w) => hay.includes(w));
-              })
-            : items.slice(0, 14));
-          if (!filtered.length) {
-            listEl.innerHTML = `<div class="empty" style="padding:20px 12px">Nenhum painel ou ação encontrado para “${esc(inp.value)}”.</div>`;
+          if (terms.length) {
+            ranked = cmdItens
+              .map((it) => ({ it, pts: cmdRank(it, terms), grupo: null }))
+              .filter((x) => x.pts >= 0)
+              .sort((a, b) => b.pts - a.pts || a.it.title.length - b.it.title.length);
+          } else {
+            ranked = [
+              ...cmdRecentes.map((it) => ({ it, pts: 0, grupo: 'Recentes' })),
+              ...cmdAcoes.map((it) => ({ it, pts: 0, grupo: 'Ações' })),
+              ...cmdPaineis.map((it) => ({ it, pts: 0, grupo: 'Painéis' })),
+            ];
+          }
+          if (!ranked.length) {
+            listEl.innerHTML = `<div class="empty" style="padding:20px 12px">Nenhum painel ou ação encontrado para “${esc(inp.value)}”. Tente outro termo (ex.: youtube, gc, pad).</div>`;
+            footEl.textContent = '↑↓ navegar · Enter abrir · Esc fechar';
             return;
           }
-          if (selIdx >= filtered.length) selIdx = 0;
-          listEl.innerHTML = filtered.map((it, idx) => `
-            <button type="button" class="cmd-item ${idx === selIdx ? 'sel' : ''}" data-cmd-idx="${idx}" role="option" aria-selected="${idx === selIdx}">
-              <strong>${esc(it.title)}</strong>
-              <span>${esc(it.hint)}</span>
-            </button>`).join('');
+          if (selIdx >= ranked.length) selIdx = 0;
+          let html = '';
+          let lastG = null;
+          ranked.forEach(({ it, grupo }, idx) => {
+            if (grupo && grupo !== lastG) {
+              html += `<div class="cmd-group" role="presentation">${esc(grupo)}</div>`;
+              lastG = grupo;
+            }
+            const title = terms.length ? cmdHl(it.title, terms) : esc(it.title);
+            const hint = terms.length ? cmdHl(it.hint, terms) : esc(it.hint);
+            html += `<button type="button" class="cmd-item ${idx === selIdx ? 'sel' : ''}" data-cmd-idx="${idx}" role="option" aria-selected="${idx === selIdx}">
+              <strong>${title}</strong>
+              <span>${hint}</span>
+            </button>`;
+          });
+          listEl.innerHTML = html;
+          footEl.innerHTML = `<span>↑↓ navegar · Enter abrir · Esc fechar</span><span>${ranked.length} ${ranked.length === 1 ? 'item' : 'itens'}</span>`;
           $$('[data-cmd-idx]', listEl).forEach((b) => {
-            b.onclick = () => {
-              const chosen = filtered[Number(b.dataset.cmdIdx)];
-              close();
-              chosen?.run?.();
-            };
+            b.onclick = () => runItem(ranked[Number(b.dataset.cmdIdx)].it);
           });
           listEl.querySelector('.cmd-item.sel')?.scrollIntoView({ block: 'nearest' });
         };
@@ -1339,14 +1422,14 @@ async function buildStudio() {
         inp.onkeydown = (e) => {
           if (e.key === 'ArrowDown') {
             e.preventDefault();
-            if (filtered.length) { selIdx = (selIdx + 1) % filtered.length; paint(); }
+            if (ranked.length) { selIdx = (selIdx + 1) % ranked.length; paint(); }
           } else if (e.key === 'ArrowUp') {
             e.preventDefault();
-            if (filtered.length) { selIdx = (selIdx - 1 + filtered.length) % filtered.length; paint(); }
+            if (ranked.length) { selIdx = (selIdx - 1 + ranked.length) % ranked.length; paint(); }
           } else if (e.key === 'Enter') {
             e.preventDefault();
-            const chosen = filtered[selIdx];
-            if (chosen) { close(); chosen.run?.(); }
+            const chosen = ranked[selIdx];
+            if (chosen) runItem(chosen.it);
           }
         };
         paint();
@@ -1801,11 +1884,34 @@ function setSideMini(on, { save = true } = {}) {
   window.dispatchEvent(new Event('resize'));
 }
 function syncPanelState() {
-  const open = $('.studio')?.classList.contains('panel-open');
+  const st = $('.studio');
+  const open = st?.classList.contains('panel-open');
+  const side = $('#side');
   const b = $('#btn-panel');
   if (b) {
     b.setAttribute('aria-expanded', String(!!open));
     b.title = open ? 'Fechar o painel de controle' : 'Abrir painel de controle (mídia, banners, jornal...)';
+  }
+  // Semântica de diálogo + gestão de foco apenas na GAVETA (position:fixed), não no painel fixo do desktop.
+  if (side) {
+    const isDrawer = getComputedStyle(side).position === 'fixed';
+    if (isDrawer) {
+      side.setAttribute('role', 'dialog');
+      side.setAttribute('aria-modal', open ? 'true' : 'false');
+      side.setAttribute('aria-label', 'Painel de Controle');
+      if (!side.hasAttribute('tabindex')) side.setAttribute('tabindex', '-1');
+    } else {
+      side.removeAttribute('role');
+      side.removeAttribute('aria-modal');
+    }
+    if (open && isDrawer) {
+      requestAnimationFrame(() => {
+        const alvo = side.querySelector('.subtabs .tab:not([hidden]), .side-quick-strip button, .side-body');
+        (alvo || side).focus?.();
+      });
+    } else if (!open && side.contains(document.activeElement)) {
+      b?.focus?.();
+    }
   }
 }
 function applySideForMode(sw) {
@@ -1839,6 +1945,14 @@ function updateModeHint(on) {
 }
 // abre uma seção no painel flutuante (modo ícones), na gaveta mobile, ou só troca a aba (painel fixo)
 function openSideTab(tab) {
+  try {
+    // MRU da busca rápida (local, sem dependência de helper externo)
+    const k = 'castdeck.cmd.mru.v1';
+    const id = 'tab:' + tab;
+    const l = JSON.parse(localStorage.getItem(k) || '[]').filter((x) => typeof x === 'string' && x !== id);
+    l.unshift(id);
+    localStorage.setItem(k, JSON.stringify(l.slice(0, 12)));
+  } catch {}
   const st = $('.studio');
   const side = $('#side');
   const isDrawer = !!(side && getComputedStyle(side).position === 'fixed');
@@ -1846,11 +1960,7 @@ function openSideTab(tab) {
   if (alreadyAudio) {
     // Segundo toque no mesmo atalho fecha a gaveta no mobile
     st.classList.remove('panel-open');
-    const b = $('#btn-panel');
-    if (b) {
-      b.setAttribute('aria-expanded', 'false');
-      b.title = 'Abrir painel de controle (mídia, banners, jornal...)';
-    }
+    syncPanelState();
     return;
   }
   switchTab(tab);
@@ -1861,11 +1971,7 @@ function openSideTab(tab) {
   } else if (isDrawer) {
     // No mobile o painel vira gaveta fixa; abrir a aba precisa revelar a gaveta
     st?.classList.add('panel-open');
-    const b = $('#btn-panel');
-    if (b) {
-      b.setAttribute('aria-expanded', 'true');
-      b.title = 'Fechar o painel de controle';
-    }
+    syncPanelState();
   }
 }
 function closeSideFly() {
@@ -3669,7 +3775,7 @@ function bindUI() {
     setTimeout(() => document.addEventListener('pointerdown', close, true), 0);
   };
   $('#c-media').onclick = () => {
-    switchTab('media');
+    openSideTab('media'); // no mobile também revela a gaveta (consistente com "Dispositivos")
     openFilePicker($('#media-file'));
   };
   $('#media-file').onchange = (e) => {
@@ -5159,8 +5265,8 @@ function renderPlayoutPanel() {
             <input type="range" class="pl-vol" id="pl-vol" min="0" max="1" step="0.01" title="Volume" aria-label="Volume">
           </div>
           <div class="pl-now-air-row">
-            <button class="btn sm ${curOnAir ? 'danger' : 'primary'} pl-air-btn" id="pl-air">${curOnAir ? '✕ Tirar do Ar' : '▶ Entrar no Ar'}</button>
-            <button class="btn sm" id="pl-stage" title="Apenas colocar/tirar do palco sem dar play">Palco</button>
+            <button class="btn ${curOnAir ? 'danger' : 'primary'} grow pl-air-btn" id="pl-air">${S.switcher ? (curOnAir ? '✕ Tirar do PGM' : '▶ Entrar no PGM') : (curOnAir ? '✕ Tirar do solo' : '▶ Solo')}</button>
+            <button class="btn sm ghost" id="pl-stage" title="Apenas colocar/tirar do palco sem dar play">Palco</button>
           </div>
         </div>
       </section>
@@ -5351,8 +5457,8 @@ function updatePlayout() {
   $('#pl-now-badge', p).className = 'pl-now-badge' + (isAir ? ' live' : '');
   const airBtn = $('#pl-air', p);
   if (airBtn) {
-    airBtn.textContent = isAir ? '✕ Tirar do Ar' : '▶ Entrar no Ar';
-    airBtn.className = `btn sm ${isAir ? 'danger' : 'primary'} pl-air-btn`;
+    airBtn.textContent = S.switcher ? (isAir ? '✕ Tirar do PGM' : '▶ Entrar no PGM') : (isAir ? '✕ Tirar do solo' : '▶ Solo');
+    airBtn.className = `btn ${isAir ? 'danger' : 'primary'} grow pl-air-btn`;
   }
   const brkStop = $('#pl-brk-qstop', p);
   if (brkStop && breaks?.isActive?.()) brkStop.textContent = `⏹ Voltar (${fmtClock(breaks.remainingSeconds())})`;
@@ -5870,19 +5976,29 @@ function switchTab(tab) {
   if (!grp) return;
   S.tab = tab;
   lastTabOf[grp.id] = tab;
-  $$('.grp').forEach((g) => g.classList.toggle('active', g.dataset.group === grp.id));
+  $$('.grp').forEach((g) => {
+    const on = g.dataset.group === grp.id;
+    g.classList.toggle('active', on);
+    g.setAttribute('aria-current', on ? 'true' : 'false');
+  });
   const curTabEl = $('#side-cur-tab');
   if (curTabEl) {
     const tabTuple = grp.tabs.find(([id]) => id === tab);
     curTabEl.textContent = tabTuple?.[1] || grp.label;
   }
   $$('.sq-pill[data-goto-tab]').forEach((b) => b.classList.toggle('active', b.dataset.gotoTab === tab));
+  // o Pad é uma pílula sem data-goto-tab (abre o Pad por handler); acende quando a aba Trilha & Pad está ativa
+  $('#sq-open-pad')?.classList.toggle('active', tab === 'music');
   // sub-abas só do grupo atual; grupo de um item só não mostra a segunda linha
   $$('.subtabs .tab').forEach((t) => {
     t.hidden = t.dataset.group !== grp.id;
-    t.classList.toggle('active', t.dataset.tab === tab);
+    const on = t.dataset.tab === tab;
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-current', on ? 'true' : 'false');
   });
-  $('.subtabs')?.toggleAttribute('hidden', grp.tabs.length < 2);
+  // sub-abas sempre visíveis: mesmo grupo de aba única mostra seu rótulo (confirmação de onde você está)
+  // e o ritmo vertical fica uniforme entre as seções (antes o conteúdo "subia" quando o grupo tinha 1 aba)
+  $('.subtabs')?.removeAttribute('hidden');
   $$('.panel').forEach((p) => p.classList.toggle('active', p.id === 'panel-' + tab));
   // proteção extra: o painel WhatsApp nunca deve ficar ativo dentro de Mídia/Banners/etc.
   const wpPanel = $('#panel-whatsapp');
@@ -6477,6 +6593,8 @@ function renderGcAirList() {
   }
   const box = $('#gf-air-list');
   if (!box) return;
+  const clear = $('#gf-air-clear');
+  if (clear) clear.hidden = items.length === 0;
   box.innerHTML = items.length
     ? items.map((it) => `<div class="gf-air-item">
         <span class="pill live">NO AR</span>
@@ -6484,7 +6602,7 @@ function renderGcAirList() {
         <span class="gf-air-title" title="${esc(it.title)}">${esc(it.title)}</span>
         <button type="button" class="btn ghost sm" data-air-off="${esc(it.id)}" title="Tirar do ar">✕ Tirar</button>
       </div>`).join('')
-    : '<div class="gf-air-empty">Nada no ar.</div>';
+    : '<div class="gf-air-empty">Nada no ar agora. Clique num GC para exibir.</div>';
 }
 
 function renderBannersPanel() {
@@ -6528,7 +6646,7 @@ function renderBannersPanel() {
       : '<div class="empty">Nenhum GC cadastrado ainda. Crie um abaixo ou use um template pronto.</div>'
     }</div>
 
-          <details class="acc bn-new-acc" data-acc-key="panel-banners|Novo banner" ${accOpen('panel-banners|Novo banner', false) ? 'open' : ''} style="margin-top:8px">
+          <details class="acc bn-new-acc" data-acc-key="panel-banners|Novo banner" ${accOpen('panel-banners|Novo banner', S.banners.length === 0) ? 'open' : ''} style="margin-top:8px">
             <summary>＋ Cadastrar GC rápido</summary>
             <div class="acc-body">
               <div id="bn-new">${bannerFields({ style: 'bar', pos: 'bl' })}</div>
@@ -6541,7 +6659,7 @@ function renderBannersPanel() {
         </div>
       </details>
 
-      <details class="gf-acc acc" id="gf-acc-live" data-acc-key="panel-banners|Templates" ${accOpen('panel-banners|Templates', true) ? 'open' : ''}>
+      <details class="gf-acc acc" id="gf-acc-live" data-acc-key="panel-banners|Templates" ${accOpen('panel-banners|Templates', S.banners.length > 0) ? 'open' : ''}>
         <summary>Templates &amp; Designer de GC</summary>
         <div class="gf-acc-body">${gcDesigner ? gcDesigner.operatorHtml() : '<div class="hint">Template Studio indisponível.</div>'}</div>
       </details>
@@ -7628,7 +7746,9 @@ function renderOutputPanel() {
   const presets = S.system.presets;
   const stateLabel = { connecting: ['warn', 'Conectando'], reconnecting: ['warn', 'Reconectando'], live: ['ok', 'Ao vivo'], error: ['err', 'Erro'], failed: ['err', 'Falhou'], stopped: ['', 'Encerrado'], idle: ['', 'Aguardando'] };
   p.innerHTML = `
-    <h4>Qualidade de saída</h4>
+    <details class="out-acc">
+      <summary>Qualidade de saída (avançado)</summary>
+      <div class="out-acc-body">
     <label class="field"><span>Resolução / FPS</span>
       <select class="input" id="o-preset" ${S.live ? 'disabled' : ''}>
         ${Object.entries(presets).filter(([, v]) => !v.vertical).map(([k, v]) => `<option value="${k}" ${k === S.preset ? 'selected' : ''}>${v.height}p ${v.fps}fps — ${(v.videoKbps / 1000).toFixed(1)} Mbps</option>`).join('')}
@@ -7641,6 +7761,8 @@ function renderOutputPanel() {
       <select class="input" id="o-enc" ${S.live ? 'disabled' : ''}>
         ${S.system.ffmpeg.encoders.map((e) => `<option value="${e.id}" ${e.id === S.encoder ? 'selected' : ''}>${esc(e.label)}${e.hw ? ' (GPU)' : ''}</option>`).join('')}
       </select></label>
+      </div>
+    </details>
     ${st
       ? `<h4>Transmissão</h4>
       <div class="dest-status">
@@ -7672,7 +7794,8 @@ function renderOutputPanel() {
         .join('')
       : '<div class="empty">Nenhum destino ainda. Adicione YouTube, Facebook, Twitch, Instagram, TikTok ou qualquer servidor RTMP.</div>'
     }</div>
-    <p class="hint" style="margin-top:8px">A chave fica salva só neste aparelho. O botão ligado deixa o destino já marcado quando você clicar em Transmitir.</p>`;
+    <p class="hint" style="margin-top:8px">A chave fica salva só neste aparelho. O botão ligado deixa o destino já marcado quando você clicar em Transmitir.</p>
+    <p class="hint">Para enviar o vídeo para OBS/vMix (sem internet, pela rede local), use a aba <b>Sinais</b>.</p>`;
   $('#o-preset', p).onchange = (e) => {
     S.preset = e.target.value;
     applyPreset();

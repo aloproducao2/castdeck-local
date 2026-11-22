@@ -32,6 +32,9 @@ const DEFAULTS = {
 };
 const TEXT_COLORS = ['#ffffff', '#ffe14d', '#7ee8ff', '#9dff8a', '#ffb3c7'];
 const BG_COLORS = ['#000000', '#101a3a', '#3a0d14', '#0f2e1d', '#ffffff'];
+// Nome legível para o leitor de tela (o title continua mostrando o hex para quem vê).
+const CC_COLOR_NAME = { '#ffffff': 'Branco', '#ffe14d': 'Amarelo', '#7ee8ff': 'Azul-claro', '#9dff8a': 'Verde-claro', '#ffb3c7': 'Rosa', '#000000': 'Preto', '#101a3a': 'Azul-escuro', '#3a0d14': 'Vinho', '#0f2e1d': 'Verde-escuro' };
+const ccColorName = (k) => CC_COLOR_NAME[k] || k;
 const LANGS = [
   ['pt', 'Português'],
   ['en', 'Inglês'],
@@ -502,11 +505,11 @@ export function createCaptions({ S, comp, getMixer, $, esc, toast, icons, api, s
           </div>
           <div class="cc-colors">
             <span class="cc-lbl">Cor do texto</span>
-            <div class="cc-swatches" data-swatch="color">${TEXT_COLORS.map((k) => `<button class="cc-sw ${k === c.color ? 'on' : ''}" data-v="${k}" style="--c:${k}" title="${k}"></button>`).join('')}<input type="color" id="cc-color" value="${esc(c.color)}" title="Outra cor"></div>
+            <div class="cc-swatches" data-swatch="color">${TEXT_COLORS.map((k) => `<button class="cc-sw ${k === c.color ? 'on' : ''}" data-v="${k}" style="--c:${k}" title="${k}" aria-label="${ccColorName(k)}"></button>`).join('')}<input type="color" id="cc-color" value="${esc(c.color)}" title="Outra cor"></div>
           </div>
           <div class="cc-colors">
             <span class="cc-lbl">Cor do fundo</span>
-            <div class="cc-swatches" data-swatch="bgColor">${BG_COLORS.map((k) => `<button class="cc-sw ${k === c.bgColor ? 'on' : ''}" data-v="${k}" style="--c:${k}" title="${k}"></button>`).join('')}<input type="color" id="cc-bgcolor" value="${esc(c.bgColor)}" title="Outra cor"></div>
+            <div class="cc-swatches" data-swatch="bgColor">${BG_COLORS.map((k) => `<button class="cc-sw ${k === c.bgColor ? 'on' : ''}" data-v="${k}" style="--c:${k}" title="${k}" aria-label="${ccColorName(k)}"></button>`).join('')}<input type="color" id="cc-bgcolor" value="${esc(c.bgColor)}" title="Outra cor"></div>
           </div>
           <label class="field"><span>Transparência do fundo</span><select class="input" id="cc-bg">${opt([['0', 'Sem fundo (só texto)'], ['0.5', 'Leve'], ['0.72', 'Médio'], ['0.9', 'Forte'], ['1', 'Sólido']], String(c.bg))}</select></label>
           <div class="cc-preview" id="cc-preview"><span>Assim fica a legenda no ar</span></div>

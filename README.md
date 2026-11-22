@@ -147,7 +147,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Versão **2.0.5** — plugins claros e úteis: guia **Como funcionam**, consentimento com **risco por permissão**, **Sobre** completo, **Diagnóstico** com dicas, log ao vivo e o novo oficial **Cronômetro no ar** (painel + !timer 5, aviso persistente na tela). Ações de painel controlam o plugin e o catálogo mostra tags/risco.
+Versão **2.0.6** — painéis mais claros (abas renomeadas e seções avançadas recolhidas por padrão), novo plugin oficial **Banner do chat** (a mensagem do chat vira banner com nome e subtítulo), plugins com **Como usar** e **Testar** guiados, e busca rápida (Ctrl+K) com recentes, ranqueamento e destaque.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

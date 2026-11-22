@@ -130,7 +130,24 @@ async function main() {
       });
   }
 
-  const hub = new SignalingHub({ studioExists: (id) => !!store.getStudio(id), outKey: (id) => store.studioOutKey(id) });
+  const hub = new SignalingHub({
+    studioExists: (id) => !!store.getStudio(id),
+    outKey: (id) => store.studioOutKey(id),
+    // chat interno do estúdio (host + convidados) também alimenta os plugins e a API v1
+    onChat: (msg) => {
+      try {
+        plugins?.emitirEvento("chat", {
+          usuario: msg?.name || msg?.role || "convidado",
+          texto: msg?.text || "",
+          rede: "estudio",
+          args: String(msg?.text || "").trim().split(/\s+/).slice(1),
+        }).catch(() => {});
+      } catch {}
+      try {
+        apiV1?.publicar({ tipo: 'chat', usuario: msg?.name || '', texto: msg?.text || '', rede: 'estudio', em: new Date().toISOString() });
+      } catch {}
+    },
+  });
   // entradas e saídas RTMP/SRT/WebRTC (MediaMTX embutido)
   const ingest = new Ingest({ deps, store, ffmpegInfo, dataDir: DATA, lanIps });
   const broadcasts = new BroadcastManager({ ffmpegInfo, recordingsDir: recDir, store, ingest });
@@ -926,11 +943,13 @@ async function main() {
   });
   api.post('/plugins/:id/test', async (req, res) => {
     try {
+      // sem defaults aqui: o PluginManager usa o exemplo do manifesto quando o corpo não manda nada
+      const b = req.body || {};
       const r = await plugins.testar(req.params.id, {
-        tipo: req.body?.tipo === 'stage' ? 'stage' : 'chat',
-        usuario: String(req.body?.usuario || 'teste'),
-        texto: String(req.body?.texto || '!oi'),
-        fonteNome: String(req.body?.fonteNome || 'Teste'),
+        tipo: b.tipo === 'stage' ? 'stage' : b.tipo === 'chat' ? 'chat' : undefined,
+        usuario: b.usuario !== undefined ? String(b.usuario) : undefined,
+        texto: b.texto !== undefined ? String(b.texto) : undefined,
+        fonteNome: b.fonteNome !== undefined ? String(b.fonteNome) : undefined,
       });
       res.json(r);
     } catch (e) {

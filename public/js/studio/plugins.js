@@ -58,10 +58,10 @@ export function createPlugins({ S, $, toast, modal, confirmDialog, comp, onMedia
   let abertaRegra = null;
 
 // Janela simples (a API do app recebe HTML + onMount e resolve true/false).
-function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, onOk } = {}) {
+function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, onOk, extra = '' } = {}) {
   return modal(
     `<h3>${esc(titulo)}</h3><div class="plg-modal${wide ? ' wide' : ''}">${corpo}</div>
-     <div class="modal-actions">${cancel ? `<button class="btn" data-close>${esc(cancel)}</button>` : ''}
+     <div class="modal-actions">${extra}${cancel ? `<button class="btn" data-close>${esc(cancel)}</button>` : ''}
      <button class="btn ${cancel ? 'primary' : ''}" data-ok>${esc(ok)}</button></div>`,
     {
       onMount: (el, close) => {
@@ -209,10 +209,40 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
     }
   }
 
-  // Test-drive: escolhe o evento, roda de verdade e mostra o que o plugin fez.
-  async function testar(p, tipoEscolhido) {
-    const tipo = tipoEscolhido || 'chat';
-    const texto = tipo === 'chat' ? '!oi' : '';
+  // Test-drive: explica o que vai acontecer, permite editar a mensagem e roda de verdade.
+  function abrirTeste(p) {
+    const tipoInicial = p.teste?.tipo === 'stage' ? 'stage' : 'chat';
+    const textoInicial = String(p.teste?.texto || (tipoInicial === 'chat' ? '!oi' : ''));
+    const exemplo = (p.exemplos || [])[0];
+    janela(
+      T('Testar') + ' — ' + p.nome,
+      `<p class="hint">${T('O teste envia um evento de verdade para o plugin rodar. Você pode editar a mensagem abaixo e ver exatamente o que ele fez.')}</p>
+       <div class="plg-row">
+         <label class="plg-field"><span>${T('Tipo do evento')}</span>
+           <select id="plg-teste-tipo">
+             <option value="chat" ${tipoInicial === 'chat' ? 'selected' : ''}>${T('Mensagem no chat')}</option>
+             <option value="stage" ${tipoInicial === 'stage' ? 'selected' : ''}>${T('Entrada no palco')}</option>
+           </select></label>
+         <label class="plg-field grow"><span>${T('Mensagem')}</span>
+           <input id="plg-teste-texto" value="${esc(textoInicial)}" placeholder="!oi" maxlength="200"></label>
+       </div>
+       ${exemplo ? `<p class="hint">${T('Exemplo deste plugin')}: <code>${esc(exemplo.texto || '')}</code> ${exemplo.usuario ? '(' + esc(exemplo.usuario) + ')' : ''}</p>` : ''}
+       <p class="hint">${T('O evento vira uma ação real: aviso no vídeo, resposta no chat, banner etc. Nada é enviado para fora do seu computador.')}</p>`,
+      {
+        wide: true,
+        ok: T('Executar teste'),
+        onOk: () => {
+          const tipo = document.querySelector('#plg-teste-tipo')?.value === 'stage' ? 'stage' : 'chat';
+          const texto = document.querySelector('#plg-teste-texto')?.value || '';
+          executarTeste(p, tipo, texto);
+        },
+      },
+    );
+  }
+
+  async function executarTeste(p, tipoEscolhido, textoEscolhido) {
+    const tipo = tipoEscolhido === 'stage' ? 'stage' : 'chat';
+    const texto = String(textoEscolhido ?? (tipo === 'chat' ? '!oi' : '')).slice(0, 200);
     try {
       const r = await api(`/plugins/${encodeURIComponent(p.id)}/test`, { method: 'POST', body: { tipo, texto, usuario: 'teste', fonteNome: 'Teste' } });
       const acoes = (r.acoes || []).map((a) => ({ nome: a.acao, ok: a.ok !== false, detalhe: a.detalhe || '' }));
@@ -226,24 +256,74 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
         ? acoes.map((a) => `<li><b>${esc(a.nome)}</b>${a.detalhe ? ' — ' + esc(a.detalhe) : ''} ${a.ok ? '' : '⚠'}</li>`).join('')
         : `<li class="hint">${esc(r.dica || T('(nenhuma ação)'))}</li>`;
       janela(
-        T('Testar') + ' — ' + p.nome,
+        T('Resultado do teste') + ' — ' + p.nome,
         `<p class="hint">${T('O evento abaixo foi disparado de verdade: o plugin executou (ou tentou) estas ações.')}</p>
+         <p class="plg-teste-enviado"><b>${T('Enviado')}:</b> <code>${esc(texto || (tipo === 'stage' ? '(palco)' : ''))}</code></p>
          <ul class="plg-resultado">${linhas}</ul>
-         <div class="plg-row" style="margin-top:6px">
-           <button class="btn sm" data-testar="chat" type="button">${T('Testar com mensagem no chat')}</button>
-           <button class="btn sm" data-testar="stage" type="button">${T('Testar com entrada no palco')}</button>
-         </div>`,
-        { wide: true },
+         <p class="hint">${T('Se a lista estiver vazia, o plugin não usa este tipo de evento ou não reconheceu a mensagem. Veja "Como usar" para o comando certo.')}</p>`,
+        {
+          wide: true,
+          ok: T('Fechar'),
+          onOk: () => {},
+          extra: `<button class="btn sm" data-teste-denovo type="button">${T('Testar de novo')}</button>
+                  <button class="btn sm ghost" data-teste-como type="button">${T('Como usar')}</button>`,
+        },
       );
-      document.querySelectorAll('[data-testar]').forEach((b) => {
-        b.onclick = () => {
-          document.querySelectorAll('.modal-back').forEach((m) => m.remove());
-          testar(p, b.dataset.testar);
-        };
-      });
+      document.querySelectorAll('[data-teste-denovo]').forEach((b) => (b.onclick = () => {
+        document.querySelectorAll('.modal-back').forEach((m) => m.remove());
+        abrirTeste(p);
+      }));
+      document.querySelectorAll('[data-teste-como]').forEach((b) => (b.onclick = () => {
+        document.querySelectorAll('.modal-back').forEach((m) => m.remove());
+        abrirComoUsar(p);
+      }));
     } catch (e) {
       toast(T('Falha no teste: ') + e.message, 'err');
     }
+  }
+
+  // "Como usar": o que fazer com o plugin, exemplos clicáveis e como testar.
+  function abrirComoUsar(p) {
+    const usos = Array.isArray(p.uso) ? p.uso.filter(Boolean) : [];
+    const exemplos = Array.isArray(p.exemplos) ? p.exemplos.filter((e) => e && e.texto) : [];
+    const fallback = p.tier === 'declarative' && (p.listaRegras || []).length
+      ? [T('Use o editor de Regras para escolher o gatilho e o que acontece.'), T('Quando o evento acontecer, o plugin executa a ação sem você fazer nada.')]
+      : [T('Ative o plugin e configure o que ele pede.'), T('Ele reage aos eventos que declarou: chat, palco, transmissão.')];
+    const lista = (usos.length ? usos : fallback).map((u) => `<li>${esc(u)}</li>`).join('');
+    const ex = exemplos.length
+      ? `<div class="plg-chips">${exemplos.map((e, i) => `<button type="button" class="plg-chip ex" data-exemplo="${i}" title="${T('Clique para testar este exemplo')}">${esc(e.texto)}</button>`).join('')}</div>
+         <p class="hint">${T('Clique em um exemplo para testá-lo agora.')}</p>`
+      : `<p class="hint">${T('Nenhum exemplo cadastrado para este plugin.')}</p>`;
+    const config = (p.settings || []).length
+      ? `<h4>${T('Configuração')}</h4><p class="hint">${p.settings.map((c) => esc(c.label || c.key)).join(' · ')}</p>`
+      : '';
+    janela(
+      T('Como usar') + ' — ' + p.nome,
+      `<p>${esc(p.descricao || '')}</p>
+       <h4>${T('Passos para usar')}</h4>
+       <ol class="plg-passos">${lista}</ol>
+       <h4>${T('Exemplos')}</h4>${ex}
+       <h4>${T('Como testar')}</h4>
+       <p class="hint">${T('Clique em Testar: o app envia o exemplo em destaque (ou um !oi) como se viesse do chat. Você pode editar a mensagem antes de rodar e o resultado mostra cada ação do plugin.')}</p>
+       ${config}
+       <p class="hint">${T('Para ver o que o plugin fez, abra o Log e o Diagnóstico no card. Tudo fica no seu computador.')}</p>`,
+      {
+        wide: true,
+        ok: T('Fechar'),
+        onOk: () => {},
+        extra: p.ativo ? `<button class="btn primary sm" data-como-testar type="button">${T('Testar agora')}</button>` : '',
+      },
+    );
+    document.querySelectorAll('[data-exemplo]').forEach((b) => (b.onclick = () => {
+      const e = exemplos[Number(b.dataset.exemplo)];
+      if (!e) return;
+      document.querySelectorAll('.modal-back').forEach((m) => m.remove());
+      executarTeste(p, e.tipo === 'stage' ? 'stage' : 'chat', e.texto);
+    }));
+    document.querySelectorAll('[data-como-testar]').forEach((b) => (b.onclick = () => {
+      document.querySelectorAll('.modal-back').forEach((m) => m.remove());
+      abrirTeste(p);
+    }));
   }
 
   // Sobre o plugin: tudo o que a pessoa precisa para entender e confiar
@@ -288,7 +368,7 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
     }));
     document.querySelectorAll('[data-sobre-test]').forEach((b) => (b.onclick = () => {
       document.querySelectorAll('.modal-back').forEach((m) => m.remove());
-      testar(p);
+      abrirTeste(p);
     }));
     document.querySelectorAll('[data-sobre-log]').forEach((b) => (b.onclick = () => {
       document.querySelectorAll('.modal-back').forEach((m) => m.remove());
@@ -312,7 +392,7 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
     const valor = dados.settings || {};
     const corpo = campos
       .map((c, i) => {
-        const v = valor[c.key];
+        const v = valor[c.key] !== undefined ? valor[c.key] : c.default;
         const id = `cf-${i}`;
         if (c.type === 'checkbox')
           return `<label class="plg-field check"><input type="checkbox" id="${id}" data-key="${esc(c.key)}" ${v ? 'checked' : ''}> <span>${esc(c.label || c.key)}</span></label>`;
@@ -341,7 +421,7 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
         },
       },
     );
-    if (ok && p.ativo) await testar(p);
+    if (ok && p.ativo) setTimeout(() => abrirTeste(p), 180);
   }
 
   function abrirPainel(p) {
@@ -454,8 +534,14 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
           <li><b>${T('1. Instale')}</b><span>${T('Pelo catálogo (oficiais, assinados) ou por um arquivo .cdplug / pasta local.')}</span></li>
           <li><b>${T('2. Ative')}</b><span>${T('Aparece um pedido de permissões em português, com o risco de cada uma. Sem aprovar, ele não age.')}</span></li>
           <li><b>${T('3. Configure')}</b><span>${T('O formulário é gerado pelo próprio plugin; quem tem painel abre uma janela só dele (ex.: o cronômetro).')}</span></li>
-          <li><b>${T('4. Teste e acompanhe')}</b><span>${T('O botão Testar dispara o evento de verdade, o Log mostra o que ele fez e a Atividade registra tudo.')}</span></li>
+          <li><b>${T('4. Teste e acompanhe')}</b><span>${T('O botão Testar mostra a mensagem que será enviada (você pode editar), dispara o evento e lista cada ação do plugin. O Log e a Atividade mostram o resto.')}</span></li>
         </ol>
+        <h4>${T('Como usar e testar')}</h4>
+        <ul class="plg-perms">
+          <li><b>${T('Como usar')}</b> — ${T('cada card tem o botão Como usar, com os passos, os comandos e exemplos clicáveis daquele plugin.')}</li>
+          <li><b>${T('Como testar')}</b> — ${T('Testar abre uma janela que explica o evento, deixa editar a mensagem e mostra o resultado. Não precisa estar ao vivo.')}</li>
+          <li><b>${T('Se não reagir')}</b> — ${T('veja o Diagnóstico (permissões/processo) e o Log; a mensagem de teste precisa ser o comando que o plugin espera.')}</li>
+        </ul>
         <h4>${T('Dois tipos de plugin')}</h4>
         <table class="tbl plg-sobre"><tbody>
           <tr><th>${T('Declarativo')}</th><td>${T('Só regras (quando alguém escrever !oi, mostre este aviso). Você edita pelo editor de regras, sem programar.')}</td></tr>
@@ -557,7 +643,7 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
             await api(`/plugins/${encodeURIComponent(p.id)}/rules`, { method: 'POST', body: { regras } });
             toast(T('Regras salvas'), 'ok');
             await atualizar();
-            if (p.ativo) await testar(p);
+            if (p.ativo) setTimeout(() => abrirTeste(p), 180);
           } catch (e) {
             toast(T('Falha ao salvar regras: ') + e.message, 'err');
             return false;
@@ -645,6 +731,7 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
         ? `<button class="btn sm ghost" data-plg-off>${T('Desligar')}</button>`
         : `<button class="btn sm primary" data-plg-on>${T(p.sensiveis?.length ? 'Ativar (pede permissões)' : 'Ativar')}</button>`,
     );
+    acoes.push(`<button class="btn sm ghost" data-plg-help title="${T('Como usar este plugin')}">${T('Como usar')}</button>`);
     if (p.ativo) acoes.push(`<button class="btn sm" data-plg-test>${T('Testar')}</button>`);
     if ((p.settings || []).length || p.painel?.entry) acoes.push(`<button class="btn sm" data-plg-config>${T('Configurar')}</button>`);
     if (p.tier === 'declarative') acoes.push(`<button class="btn sm" data-plg-rules>${T('Regras')}</button>`);
@@ -862,7 +949,8 @@ function janela(titulo, corpo, { ok = T('Fechar'), cancel = '', wide = false, on
         toast(T('Plugin desligado'), 'ok');
         await atualizar();
       });
-      ligar('[data-plg-test]', () => testar(item));
+      ligar('[data-plg-test]', () => abrirTeste(item));
+    ligar('[data-plg-help]', () => abrirComoUsar(item));
       ligar('[data-plg-about]', () => abrirSobre(item));
       ligar('[data-plg-doctor]', () => abrirDiagnostico(item));
       ligar('[data-plg-config]', () => configurar(item));

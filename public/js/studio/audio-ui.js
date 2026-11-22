@@ -38,9 +38,9 @@ export function createAudioPanel({
 }) {
   const meters = new Map(); // id -> estado de balística (pico, retenção, clip)
   let lastText = 0;
-  // Accordion: estado por usuário; padrão tudo aberto na primeira vez.
+  // Accordion: estado por usuário; primeira visita mostra só o essencial (Master + Canais).
   const SEC_KEY = 'castdeck.audiosec.v1';
-  const DEFAULT_SEC = { master: true, channels: true, buses: true, mon: true };
+  const DEFAULT_SEC = { master: true, channels: true, buses: false, mon: false };
   let secOpen = (() => {
     try {
       const raw = JSON.parse(localStorage.getItem(SEC_KEY) || 'null');

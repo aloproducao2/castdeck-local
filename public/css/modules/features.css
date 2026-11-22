@@ -3,6 +3,8 @@
  * Descrição: Efeitos de vídeo (fundo virtual), saídas OBS/vMix, Drones RTMP/SRT e DSK
  * Módulo com escopo reduzido para facilitar leitura e edição por IAs e desenvolvedores.
  */
+/* MAPA-PAINEIS — Mapa dos painéis: .studio.side-mini .grp.active (trilho recolhido e realce do grupo ativo), .out-acc (accordions do painel Destinos). */
+
 /* ===== Efeitos de vídeo (fundo virtual / enquadramento) ===== */
 .fx-prev {
   position: relative;
@@ -2063,8 +2065,9 @@
     color: var(--text-2);
   }
 
+  /* manter o "onde estou" visível no trilho: só o ícone do grupo ativo ganha a cor de destaque */
   .studio.side-mini:not(.side-fly) .grp.active svg {
-    color: inherit;
+    color: var(--accent-2);
   }
 
   .studio.side-mini .grp:hover {

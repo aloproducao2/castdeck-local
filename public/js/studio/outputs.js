@@ -341,7 +341,7 @@ export function createOutputs({
 
       <details class="out-acc" data-acc="out-stream" ${accOpen('out-stream', localOn || liveInputs.length > 0) ? 'open' : ''}>
         <summary>
-          <span>Saída RTMP / SRT / WebRTC (VLC & Players)</span>
+          <span>Saída local (MediaMTX) — VLC/OBS/player na rede</span>
           <span class="out-acc-badge ${localOn ? 'on' : ''}">${localOn ? '● No ar' : 'Desligada'}</span>
         </summary>
         <div class="out-acc-body">

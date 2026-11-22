@@ -122,6 +122,10 @@ export class PluginManager extends EventEmitter {
             ? [...new Set((m.rules || []).map((r) => String(r.on || '').split('.')[0]).filter(Boolean))]
             : [],
         tags: Array.isArray(m.tags) ? m.tags.slice(0, 8).map((t) => String(t).slice(0, 24)) : [],
+        // "como usar" e "como testar" declarados no manifesto (aparecem no card/Sobre e no Testar)
+        uso: Array.isArray(m.usage) ? m.usage.slice(0, 6).map((u) => String(u).slice(0, 160)) : [],
+        exemplos: Array.isArray(m.examples) ? m.examples.slice(0, 6) : [],
+        teste: m.test && typeof m.test === "object" ? { tipo: m.test.tipo === "stage" ? "stage" : "chat", texto: String(m.test.texto || "").slice(0, 200) } : null,
         sensiveis: (m.permissions || []).filter((p) => CAPACIDADES_SENSIVEIS.has(p) || String(p).startsWith('network:')),
         concedidas: st.grants || [],
         painel: (m.panels || [])[0] || null,
@@ -575,7 +579,11 @@ export class PluginManager extends EventEmitter {
 
   // Test-drive: dispara um evento sintético NESTE plugin (executa de verdade para o usuário ver) e devolve
   // o que aconteceu. Serve para o botão "Testar" da aba Plugins.
-  async testar(id, { tipo = 'chat', usuario = 'teste', texto = '!oi', fonteNome = 'Teste' } = {}) {
+  async testar(id, { tipo, usuario = 'teste', texto, fonteNome = 'Teste' } = {}) {
+    const manifesto = this.manifestoDe(id);
+    const exemplo = manifesto?.test && typeof manifesto.test === "object" ? manifesto.test : null;
+    tipo = tipo || (exemplo?.tipo === "stage" ? "stage" : "chat");
+    texto = texto || String(exemplo?.texto || "!oi");
     if (!this.state.plugins[id]) throw new Error('plugin não encontrado');
     const m = this.manifestoDe(id);
     if (!m) throw new Error('manifesto não encontrado');
@@ -643,8 +651,8 @@ export class PluginManager extends EventEmitter {
 
     const perms = m.permissions || [];
     const concedidas = st.grants || [];
-    const faltando = perms.filter((p) => !concedidas.includes(p));
-    add('permissões aprovadas', faltando.length === 0, faltando.length ? `falta aprovar: ${faltando.join(', ')}` : `${perms.length} aprovada(s)`, 'clique em Ativar e aprove o pedido');
+    const faltando = perms.filter((p) => (CAPACIDADES_SENSIVEIS.has(p) || String(p).startsWith("network:")) && !concedidas.includes(p));
+    add('permissões aprovadas', faltando.length === 0, faltando.length ? `falta aprovar: ${faltando.join(', ')}` : `${perms.length} aprovada(s) (as demais são implícitas)`, 'clique em Ativar e aprove o pedido');
 
     const obrigatorios = (m.settings || []).filter((c) => c.required).map((c) => c.key);
     let salvo = {};

@@ -3,6 +3,8 @@
  * Descrição: Central No Ar (REC/LIVE), AUTO-VOZ, cenas rápidas F1-F6 e janelas flutuantes
  * Módulo com escopo reduzido para facilitar leitura e edição por IAs e desenvolvedores.
  */
+/* MAPA-PAINEIS — Mapa dos painéis: .side-quick-strip/.sq-pill (atalhos), .subtabs .tab (linha única desktop), .side-mini .grp span (rótulo do trilho). */
+
 /* ---------- Central No Ar (REC/LIVE independentes, saúde, contagem) — inspirada no YoloBox ---------- */
 .btn.oa-rec { gap: 8px; }
 .btn.oa-rec .oa-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--live); box-shadow: 0 0 0 3px hsl(354 85% 57% / .18); flex: none; transition: border-radius .2s var(--ease), transform .2s var(--ease); }
@@ -294,7 +296,7 @@ body:has(.studio) #toasts { bottom: 112px; }
 /* sub-abas em linha única compacta (26 px no desktop) */
 .studio .side .subtabs { gap: 3px; padding: 2px 6px 5px; border-bottom: 1px solid var(--line); }
 .studio:not(.is-mobile) .side .subtabs .tab { flex: 1 0 auto; min-width: 0; flex-direction: row; align-items: center; justify-content: center; gap: 4px; height: 26px; min-height: 26px; padding: 2px 6px; border-radius: 6px; font-size: 10.5px; line-height: 1; }
-.studio:not(.is-mobile) .side .subtabs .tab > span { overflow: visible; text-overflow: clip; white-space: nowrap; max-width: none; }
+.studio:not(.is-mobile) .side .subtabs .tab > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .studio:not(.is-mobile) .side .subtabs .tab svg { width: 12.5px; height: 12.5px; flex: none; }
 .studio .side .subtabs .tab .count { position: static; margin-left: 2px; }
 .studio .side .subtabs .tab { position: relative; }
@@ -589,7 +591,7 @@ body:has(.studio) #toasts { bottom: 112px; }
 .studio:not(.side-mini) .side .grp span { white-space: normal; line-height: 1.1; text-align: center; }
 /* No trilho de ícones (68 px) o rótulo também precisa caber; em uma linha com reticências,
    porque quebrar no meio da palavra ("Interativida de") parece defeito. */
-.studio.side-mini .side .grp span { font-size: 8.5px; line-height: 1.05; letter-spacing: -.1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; padding: 0 1px; }
+.studio.side-mini .side .grp span { font-size: 10px; line-height: 1.05; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; padding: 0 1px; }
 /* A fileira de cenas era o único item flex que encolhia: a 900×700 ela ficava com 4 px de altura
    e os botões apareciam cortados no meio. */
 .studio .qscenes { flex: none; }
@@ -2131,6 +2133,10 @@ body:has(.studio) #toasts { bottom: 112px; }
 .cmd-item:hover, .cmd-item.sel { background: var(--accent-soft); border-color: hsl(252 90% 68% / 0.45); }
 .cmd-item strong { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmd-item span { font-size: 11.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 52%; }
+.cmd-item strong mark { background: rgba(124, 92, 255, .34); color: inherit; border-radius: 3px; padding: 0 1px; }
+.cmd-group { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-2); padding: 8px 6px 2px; }
+.cmd-group:first-child { padding-top: 2px; }
+.cmd-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 4px 0; font-size: 11px; color: var(--text-2); border-top: 1px solid var(--line); }
 .shortcut-sec { margin: 10px 0 6px; }
 .shortcut-sec h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-2); }
 

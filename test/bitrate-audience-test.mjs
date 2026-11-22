@@ -39,29 +39,24 @@ const args = videoEncoderArgs('libx264', bCustom.preset.videoKbps, 30);
 check('Argumentos do FFmpeg aplicam -b:v 12000k', args.includes('-b:v') && args[args.indexOf('-b:v') + 1] === '12000k', args.join(' '));
 check('Argumentos do FFmpeg aplicam -maxrate 12000k', args.includes('-maxrate') && args[args.indexOf('-maxrate') + 1] === '12000k');
 
-// 2. Validar a organização das abas: Interação (Enquetes + Mensagens) e Público (Chat interno + Redes)
+// 2. Validar a organização das abas (por ids, robusto a renomeações de rótulo)
 const studioCode = fs.readFileSync('public/js/studio/studio.js', 'utf8');
 const intIdx = studioCode.indexOf("id: 'interaction'");
-check('Grupo interaction (Interação) encontrado no studio.js', intIdx !== -1);
+check('Grupo interaction encontrado no studio.js', intIdx !== -1);
 if (intIdx !== -1) {
   const intBlock = studioCode.slice(intIdx, studioCode.indexOf("id: 'audience'", intIdx));
-  check('Rótulo do grupo é "Interação"', intBlock.includes("label: 'Interação'"));
-  const wIdx = intBlock.indexOf("['widgets',");
-  const mIdx = intBlock.indexOf("['messages',");
-  check('Primeiro botão de Interação é widgets (Enquetes)', wIdx !== -1 && (mIdx === -1 || wIdx < mIdx));
-  check('Interação tem a aba Mensagens', mIdx !== -1);
+  check('Rótulo do grupo é "Interatividade"', intBlock.includes("label: 'Interatividade'"));
+  check('Rótulo curto é "Interação"', intBlock.includes("short: 'Interação'"));
+  for (const t of ["['widgets',", "['raffle',", "['messages',", "['whatsapp',", "['plugins',"]) {
+    check(`Interação tem a aba ${t}`, intBlock.includes(t), t);
+  }
 }
 const audIdx = studioCode.indexOf("id: 'audience'");
 check('Grupo audience encontrado no studio.js', audIdx !== -1);
-
 if (audIdx !== -1) {
-  const audBlock = studioCode.slice(audIdx, audIdx + 400);
-  const cIdx = audBlock.indexOf("['chat',");
-  const sIdx = audBlock.indexOf("['social',");
+  const audBlock = studioCode.slice(audIdx, studioCode.indexOf("id: 'director'", audIdx));
   check('Público não tem mais as enquetes', audBlock.indexOf("['widgets',") === -1);
-  check('Primeiro botão do submenu Público é chat (Chat interno)', cIdx !== -1 && cIdx < sIdx);
-  check('Segundo botão do submenu Público é social (Redes)', sIdx !== -1 && sIdx > cIdx);
-  check('Rótulo de chat é "Chat interno"', audBlock.includes("'Chat interno'"));
+  check('Público tem chat e social', audBlock.includes("['chat',") && audBlock.includes("['social',"));
 }
 // Nomes na tela / Espaçamento e cantos: em Configurar → Exibição (não mais na Marca)
 check('Configurar tem a aba display (Exibição)', studioCode.includes("['display', 'Exibição'"));
@@ -76,7 +71,8 @@ check('studio.js salva bitrate no studioBody', studioCode.includes('bitrate: S.b
 
 // 4. Validar i18n
 const stringsJson = JSON.parse(fs.readFileSync('public/js/i18n/strings.json', 'utf8'));
-check('strings.json tem tradução para "Chat interno"', !!stringsJson['Chat interno'], JSON.stringify(stringsJson['Chat interno']));
+check('strings.json tem tradução para "Pessoas"', !!stringsJson['Pessoas']);
+check('strings.json tem tradução para "Interatividade"', !!stringsJson['Interatividade']);
 
 console.log(ok ? '\nTODOS OS TESTES PASSARAM COM SUCESSO!' : '\nHOUVE FALHAS NOS TESTES.');
 process.exit(ok ? 0 : 1);

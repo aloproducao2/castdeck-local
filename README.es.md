@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **2.0.8** — **efectos avanzados (Longpipe)**: **suavizado de piel** y **fondo virtual** con modelo propio en WebGPU/WebGL2, además de **auto-encuadre**, todo 100 % local (SDK y pesos incluidos, MIT); selector de motor **Rápido (MediaPipe)** / **Avanzado (Longpipe)** en el diálogo ✦ Efectos de vídeo, con estado del backend y fallback automático. Mantiene el PIP (Libras), el Pad con pausa/seek y la cuenta regresiva.
+Versión **2.0.9** — en el modo **Avanzado (Longpipe)**, el **auto-encuadre** ahora tiene los controles **Abierto / Medio / Cerrado** (zoom 1,15 / 1,35 / 1,6), guardados con la fuente y heredados por el modo Rápido (MediaPipe). Mantiene el suavizado de piel, el fondo virtual, el auto-encuadre, el PIP (Libras), el Pad con pausa/seek y la cuenta regresiva.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

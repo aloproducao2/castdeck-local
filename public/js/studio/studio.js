@@ -3417,6 +3417,7 @@ async function openFx(id) {
      </div>
      <div class="fx-sec" id="fx-lp-frame-sec" hidden>
        <label class="check" style="justify-content:space-between"><span>Enquadramento automático (segue o rosto)</span><span class="switch"><input type="checkbox" id="fx-lp-reframe"><span></span></span></label>
+       <div class="seg" id="fx-lp-fr" style="margin-top:8px">${fr.map(([k, l]) => `<button type="button" data-k="${k}">${l}</button>`).join('')}</div>
        <p class="fx-hint">Centraliza e aproxima o sujeito com zona morta: fica parado e só move quando precisa.</p>
      </div>
      <div class="fx-sec" id="fx-fr-sec">
@@ -3476,6 +3477,10 @@ async function openFx(id) {
           $('#fx-touch-v', m).textContent = (c.touchupStrength ?? 60) + '%';
           $('#fx-touch-row', m).style.opacity = c.touchup ? '1' : '.5';
           $('#fx-lp-reframe', m).checked = !!c.reframe;
+          $$('#fx-lp-fr button', m).forEach((b) => {
+            b.classList.toggle('active', b.dataset.k === (c.framing || 'medium'));
+            b.disabled = !c.reframe;
+          });
         };
         const setEngine = async (next) => {
           if (!isCam || next === engine) return;
@@ -3531,6 +3536,7 @@ async function openFx(id) {
         $('#fx-touch', m).onchange = (e) => apply({ touchup: e.target.checked });
         $('#fx-touch-str', m).oninput = (e) => apply({ touchupStrength: +e.target.value });
         $('#fx-lp-reframe', m).onchange = (e) => apply({ reframe: e.target.checked });
+        $$('#fx-lp-fr button', m).forEach((b) => (b.onclick = () => apply({ framing: b.dataset.k })));
         $('#fx-reset', m).onclick = () => apply(engine === 'longpipe' ? { bg: 'off', touchup: false } : { bg: 'off', track: false });
         sync();
         // prévia ao vivo (para sozinha quando o modal fecha)

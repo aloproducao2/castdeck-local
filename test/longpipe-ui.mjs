@@ -144,6 +144,14 @@ try {
   const errFrame = await ev(`window.__castdeck.longpipe.error('host:cam')`);
   ok('reframe não gera erro no pipeline', !errFrame, String(errFrame));
 
+  // abertura (aberto/médio/fechado) no modo avançado
+  await ev(`document.querySelector('#fx-lp-fr button[data-k="close"]')?.click()`);
+  await esperar(700);
+  const cfgFraming = await ev(`window.__castdeck.longpipe.get('host:cam')`);
+  ok('abertura Fechada aplica zoom no reframe', cfgFraming?.framing === 'close', JSON.stringify(cfgFraming));
+  const errZoom = await ev(`window.__castdeck.longpipe.error('host:cam')`);
+  ok('zoom do reframe não gera erro', !errZoom, String(errZoom));
+
   // stats do pipeline
   const stats = await ev(`window.__castdeck.longpipe.stats('host:cam')`);
   ok('pipeline reporta stats (fps/preset)', stats && (stats.preset === 'small' || stats.preset === null), JSON.stringify(stats));

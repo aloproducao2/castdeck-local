@@ -147,7 +147,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **2.0.8** — **advanced effects (Longpipe)**: **skin smoothing** and **virtual backgrounds** with a dedicated model on WebGPU/WebGL2, plus **auto-reframe**, fully local (vendored SDK and weights, MIT); a **Fast (MediaPipe)** / **Advanced (Longpipe)** engine selector in the ✦ effects dialog, with backend status and automatic fallback. Keeps PIP (Libras), the Pad with pause/seek and the countdown.
+Version **2.0.9** — in **Advanced (Longpipe)** mode, **auto-reframe** now has **Wide / Medium / Close** controls (zoom 1.15 / 1.35 / 1.6), saved with the source and inherited by Fast (MediaPipe) mode. Keeps skin smoothing, virtual backgrounds, auto-reframe, PIP (Libras), the Pad with pause/seek and the countdown.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

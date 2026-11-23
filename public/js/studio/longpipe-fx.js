@@ -24,7 +24,11 @@ export const LP_DEFAULT = {
   touchup: false,
   touchupStrength: 60, // 0..100
   reframe: false, // enquadramento automático (segue o rosto)
+  framing: 'medium', // aberto | medio | fechado (zoom do reframe)
 };
+
+// Zoom do auto-reframe por abertura (1 = quadro inteiro; 1.35 é o padrão do SDK).
+export const LP_ZOOM = { wide: 1.15, medium: 1.35, close: 1.6 };
 
 const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
 const bgInput = (c) => {
@@ -35,6 +39,7 @@ const bgInput = (c) => {
   return 'none';
 };
 const touchInput = (c) => (c && c.touchup ? { strength: clamp01((c.touchupStrength ?? 60) / 100) } : false);
+const reframeInput = (c) => (c && c.reframe ? { zoom: LP_ZOOM[c.framing] || LP_ZOOM.medium } : false);
 
 // Resolução de saída: no máximo 1280 px no lado maior (o programa compõe em 1280x720).
 const outputRes = (raw) => {
@@ -91,7 +96,7 @@ export class LongpipeFx {
       outputResolution: outputRes(raw),
       background: bgInput(conf),
       touchup: touchInput(conf),
-      reframe: conf.reframe ? { auto: true } : false,
+      reframe: reframeInput(conf),
       weightsBaseUrl: LP_WEIGHTS,
       onError: (e) => {
         this.err.set(id, `${e?.type || 'erro'}: ${e?.message || ''}`.slice(0, 160));
@@ -153,9 +158,9 @@ export class LongpipeFx {
         this.err.set(id, err?.message || String(err));
       }
     }
-    if ('reframe' in patch) {
+    if ('reframe' in patch || 'framing' in patch) {
       try {
-        await e.pip.setReframe(e.cfg.reframe ? { auto: true } : null);
+        await e.pip.setReframe(reframeInput(e.cfg));
         this.err.delete(id);
       } catch (err) {
         this.err.set(id, err?.message || String(err));

@@ -14,6 +14,7 @@ import { createMusic } from './music.js';
 import { createNdiOutput } from './ndi.js';
 import { createBrowserSources } from './browser-source.js';
 import { VideoFx, FX_BACKGROUNDS } from './vfx.js';
+import { LongpipeFx, LP_DEFAULT } from './longpipe-fx.js';
 import { Broadcaster } from './broadcaster.js';
 import { createOnAir } from './onair.js';
 import { createPlugins } from './plugins.js';
@@ -107,7 +108,7 @@ const S = {
   intercom: { talk: {}, listen: {}, ifb: true, ifbLevel: 0.18, ptt: false, latch: false },
 };
 
-let comp, mixer, sig, programStream, broadcaster, ticker, social, news, gcDesigner, audioPanel, vfx, multiRec, plugins;
+let comp, mixer, sig, programStream, broadcaster, ticker, social, news, gcDesigner, audioPanel, vfx, lp, multiRec, plugins;
 // FPS real do render do programa (janela de 1 s). Serve de medidor do custo dos 4 ISOs no replay.
 let renderFps = 0;
 let renderFrames = 0;
@@ -546,7 +547,13 @@ async function buildStudio() {
   // efeitos de câmera (fundo virtual, enquadramento automático): motores só carregam quando usados
   vfx = new VideoFx();
   comp.vfx = vfx;
-  for (const [id, c] of Object.entries(loadPrefs().fx || {})) if (id.startsWith('host:')) vfx.set(id, c).catch(() => { });
+  // efeitos avançados (Longpipe): outro motor, escolhido por fonte no diálogo de efeitos
+  lp = new LongpipeFx();
+  for (const [id, c] of Object.entries(loadPrefs().fx || {})) {
+    if (!id.startsWith('host:')) continue;
+    if (c?.engine === 'longpipe') continue; // restaurado quando a câmera subir (addVideoSource)
+    vfx.set(id, c).catch(() => { });
+  }
   applyPreset();
   // celular: a barra de baixo rola de lado; o degradê na borda direita avisa que há mais botões
   {
@@ -759,6 +766,9 @@ async function buildStudio() {
     S,
     comp,
     mixer,
+    vfx,
+    longpipe: lp,
+    openFx,
     multiRec,
     music,
     // fonte única dos rótulos de aba (popout.html usa para o título da janela destacada)
@@ -2197,6 +2207,12 @@ function addVideoSource(id, stream, meta) {
       s.stream = stream;
       s.el.srcObject = stream;
       if (stream) s.el.play().catch(() => { });
+      // Efeitos avançados (Longpipe): recria no stream novo (troca de câmera) ou restaura da sessão
+      if (lp) {
+        const saved = id.startsWith('host:') ? loadPrefs().fx?.[id] : null;
+        if (lp.active(id)) lp.rebind(id, s, comp).catch(() => { });
+        else if (saved?.engine === 'longpipe') lp.enable(id, s, comp, saved).catch(() => { });
+      }
     } else if (stream) {
       if (s.el.srcObject !== stream) s.el.srcObject = stream;
       if (s.el.paused) s.el.play().catch(() => { });
@@ -2305,6 +2321,7 @@ function removeSource(id) {
   browserSources?.stop?.(id, { remove: false });
   const s = S.sources.get(id);
   if (!s) return;
+  try { lp?.forget(id); } catch {}
   if (s.kind === 'uvc') {
     stopUvcVideo(s);
     stopUvcAudio(s);
@@ -3098,7 +3115,8 @@ function renderTiles() {
       add(icons.trash, 'Tirar dos bastidores (a entrada continua cadastrada)', () => removeSource(s.id), 'danger');
     }
     if (s.kind === 'camera' && !s.ingest) {
-      add('✦', vfx?.active(s.id) ? 'Efeitos de vídeo (ligados)' : 'Efeitos de vídeo: fundo virtual e enquadramento automático', () => openFx(s.id), vfx?.active(s.id) ? 'primary' : '');
+      const fxOn = !!(vfx?.active(s.id) || lp?.active(s.id));
+      add('✦', fxOn ? 'Efeitos de vídeo (ligados)' : 'Efeitos de vídeo: fundo virtual, beleza e enquadramento automático', () => openFx(s.id), fxOn ? 'primary' : '');
     }
     add(icons.crop, 'Ajustar posição, zoom e corte desta fonte', () => openSourceAdjust(s.id), s.adjust ? 'primary' : '');
     // PIP (Libras): usa esta fonte num canto da tela, mesmo que ela não esteja no palco
@@ -3354,6 +3372,7 @@ function drawFxThumb(ctx, { img, w, h, focus }, W = 320, H = 180) {
 async function openFx(id) {
   const s = S.sources.get(id);
   if (!s) return;
+  const isCam = s.kind === 'camera' || s.kind === 'uvc';
   const persist = () => {
     if (!id.startsWith('host:')) return;
     const all = { ...(loadPrefs().fx || {}) };
@@ -3372,16 +3391,35 @@ async function openFx(id) {
     ['medium', 'Médio'],
     ['close', 'Fechado'],
   ];
+  // motor desta fonte: "rápido" (MediaPipe, o de sempre) ou "avançado" (Longpipe)
+  let engine = lp.active(id) ? 'longpipe' : 'mediapipe';
+  const cur = () => (engine === 'longpipe' ? (lp.get(id) || LP_DEFAULT) : vfx.get(id));
   await modal(
     `<h3>✦ Efeitos de vídeo — ${esc(s.label || 'Câmera')}</h3>
      <div class="fx-prev"><canvas id="fx-cv" width="480" height="270"></canvas><span class="fx-st" id="fx-st"></span></div>
+     ${isCam ? `<div class="fx-sec">
+       <div class="fx-lbl">Motor de efeitos</div>
+       <div class="seg" id="fx-engine">
+         <button type="button" data-k="mediapipe">Rápido (padrão)</button>
+         <button type="button" data-k="longpipe">Avançado (Longpipe)</button>
+       </div>
+       <p class="fx-hint" id="fx-engine-hint">O avançado usa WebGPU/WebGL2 para um recorte mais estável e a suavização de pele; o rápido funciona em qualquer PC. Os dois rodam neste computador, sem internet.</p>
+     </div>` : ''}
      <div class="fx-sec"><div class="fx-lbl">Fundo</div>
        <div class="seg" id="fx-bg">${bgBtns.map(([k, l]) => `<button data-k="${k}">${l}</button>`).join('')}</div>
        <div class="fx-opt" data-for="blur"><label class="fx-range"><span>Intensidade do desfoque</span><input type="range" id="fx-blur" min="0" max="100"><b id="fx-blur-v"></b></label></div>
        <div class="fx-opt" data-for="image"><div class="fx-gal" id="fx-gal"></div></div>
        <div class="fx-opt" data-for="color"><label class="fx-range"><span>Cor do fundo</span><input type="color" id="fx-color"></label></div>
      </div>
-     <div class="fx-sec">
+     <div class="fx-sec" id="fx-touch-sec" hidden>
+       <label class="check" style="justify-content:space-between"><span>Suavizar pele (beleza)</span><span class="switch"><input type="checkbox" id="fx-touch"><span></span></span></label>
+       <label class="fx-range" id="fx-touch-row"><span>Intensidade da suavização</span><input type="range" id="fx-touch-str" min="0" max="100"><b id="fx-touch-v"></b></label>
+     </div>
+     <div class="fx-sec" id="fx-lp-frame-sec" hidden>
+       <label class="check" style="justify-content:space-between"><span>Enquadramento automático (segue o rosto)</span><span class="switch"><input type="checkbox" id="fx-lp-reframe"><span></span></span></label>
+       <p class="fx-hint">Centraliza e aproxima o sujeito com zona morta: fica parado e só move quando precisa.</p>
+     </div>
+     <div class="fx-sec" id="fx-fr-sec">
        <label class="check" style="justify-content:space-between"><span>Enquadramento automático (segue o rosto)</span><span class="switch"><input type="checkbox" id="fx-track"><span></span></span></label>
        <div class="seg" id="fx-fr" style="margin-top:8px">${fr.map(([k, l]) => `<button data-k="${k}">${l}</button>`).join('')}</div>
      </div>
@@ -3392,31 +3430,78 @@ async function openFx(id) {
         const cv = $('#fx-cv', m);
         const cx = cv.getContext('2d');
         const st = $('#fx-st', m);
-        const apply = (patch) => {
-          const p = vfx.set(id, patch);
+        const apply = async (patch) => {
+          if (engine === 'longpipe') {
+            if (!lp.active(id)) {
+              try {
+                await lp.enable(id, s, comp, { ...LP_DEFAULT, ...(lp.get(id) || {}), ...patch });
+              } catch (e) {
+                toast('Efeitos avançados: ' + (e?.message || 'não foi possível iniciar'), 'err');
+                return;
+              }
+            } else {
+              await lp.update(id, patch);
+            }
+          } else {
+            try {
+              await vfx.set(id, patch);
+            } catch (e) {
+              toast('Efeitos: ' + (e?.message || 'falha ao carregar o motor'), 'err');
+              return;
+            }
+          }
+          persist();
           sync();
-          p.then(() => {
-            persist();
-            renderTiles();
-          }).catch((e) => toast('Efeitos: ' + (e?.message || 'falha ao carregar o motor'), 'err'));
-          sync();
+          renderTiles();
         };
         const sync = () => {
-          const c = vfx.get(id);
+          const c = cur();
           $$('#fx-bg button', m).forEach((b) => b.classList.toggle('active', b.dataset.k === c.bg));
           $$('.fx-opt', m).forEach((o) => (o.hidden = o.dataset.for !== c.bg));
-          $('#fx-blur', m).value = c.blur;
-          $('#fx-blur-v', m).textContent = c.blur + '%';
-          $('#fx-color', m).value = c.color;
-          $('#fx-track', m).checked = c.track;
+          $('#fx-blur', m).value = c.blur ?? 55;
+          $('#fx-blur-v', m).textContent = (c.blur ?? 55) + '%';
+          $('#fx-color', m).value = c.color || '#141a33';
+          $('#fx-track', m).checked = !!c.track;
           $$('#fx-fr button', m).forEach((b) => {
             b.classList.toggle('active', b.dataset.k === c.framing);
             b.disabled = !c.track;
           });
           $$('#fx-gal .fx-img', m).forEach((t) => t.classList.toggle('active', t.dataset.url === c.image));
+          $$('#fx-engine button', m).forEach((b) => b.classList.toggle('active', b.dataset.k === engine));
+          $('#fx-touch-sec', m).hidden = engine !== 'longpipe';
+          $('#fx-lp-frame-sec', m).hidden = engine !== 'longpipe';
+          $('#fx-fr-sec', m).hidden = engine === 'longpipe';
+          $('#fx-touch', m).checked = !!c.touchup;
+          $('#fx-touch-str', m).value = c.touchupStrength ?? 60;
+          $('#fx-touch-v', m).textContent = (c.touchupStrength ?? 60) + '%';
+          $('#fx-touch-row', m).style.opacity = c.touchup ? '1' : '.5';
+          $('#fx-lp-reframe', m).checked = !!c.reframe;
+        };
+        const setEngine = async (next) => {
+          if (!isCam || next === engine) return;
+          const bg = cur();
+          if (next === 'longpipe') {
+            vfx.forget(id);
+            try {
+              await lp.enable(id, s, comp, { ...LP_DEFAULT, bg: bg.bg, blur: bg.blur, image: bg.image, color: bg.color, touchup: false, touchupStrength: 60, reframe: false });
+              engine = 'longpipe';
+            } catch (e) {
+              engine = 'mediapipe';
+              toast('Efeitos avançados: ' + (e?.message || 'não foi possível iniciar'), 'err');
+              await vfx.set(id, { bg: bg.bg, blur: bg.blur, image: bg.image, color: bg.color, track: false }).catch(() => { });
+            }
+          } else {
+            const c = lp.get(id) || bg;
+            lp.disable(id);
+            engine = 'mediapipe';
+            await vfx.set(id, { bg: c.bg, blur: c.blur, image: c.image, color: c.color, track: !!c.reframe }).catch(() => { });
+          }
+          persist();
+          sync();
+          renderTiles();
         };
         const gallery = () => {
-          const c = vfx.get(id);
+          const c = cur();
           const list = [...FX_BACKGROUNDS];
           if (c.image && !list.some((b) => b.url === c.image)) list.push({ url: c.image, label: 'Sua imagem' });
           $('#fx-gal', m).innerHTML =
@@ -3437,12 +3522,16 @@ async function openFx(id) {
           };
         };
         gallery();
+        $$('#fx-engine button', m).forEach((b) => (b.onclick = () => setEngine(b.dataset.k)));
         $$('#fx-bg button', m).forEach((b) => (b.onclick = () => apply({ bg: b.dataset.k })));
         $$('#fx-fr button', m).forEach((b) => (b.onclick = () => apply({ framing: b.dataset.k })));
         $('#fx-blur', m).oninput = (e) => apply({ blur: +e.target.value });
         $('#fx-color', m).oninput = (e) => apply({ color: e.target.value });
         $('#fx-track', m).onchange = (e) => apply({ track: e.target.checked });
-        $('#fx-reset', m).onclick = () => apply({ bg: 'off', track: false });
+        $('#fx-touch', m).onchange = (e) => apply({ touchup: e.target.checked });
+        $('#fx-touch-str', m).oninput = (e) => apply({ touchupStrength: +e.target.value });
+        $('#fx-lp-reframe', m).onchange = (e) => apply({ reframe: e.target.checked });
+        $('#fx-reset', m).onclick = () => apply(engine === 'longpipe' ? { bg: 'off', touchup: false } : { bg: 'off', track: false });
         sync();
         // prévia ao vivo (para sozinha quando o modal fecha)
         const loop = () => {
@@ -3452,7 +3541,7 @@ async function openFx(id) {
           cx.fillStyle = '#000';
           cx.fillRect(0, 0, 480, 270);
           if (!src?.camOff && v && v.videoWidth && v.readyState >= 2) {
-            const fx = vfx.frame(id, v);
+            const fx = engine === 'longpipe' ? null : vfx.frame(id, v);
             drawFxThumb(cx, fx || { img: v, w: v.videoWidth, h: v.videoHeight, focus: null }, 480, 270);
           } else {
             cx.fillStyle = '#8a8aa0';
@@ -3460,7 +3549,12 @@ async function openFx(id) {
             cx.textAlign = 'center';
             cx.fillText(window.CDi18n?.t?.('Câmera desligada — ligue para ver a prévia') || 'Câmera desligada — ligue para ver a prévia', 240, 140);
           }
-          st.textContent = vfx.status === 'loading' ? 'Carregando motor de efeitos…' : vfx.status === 'error' ? 'Erro: ' + vfx.error : '';
+          if (engine === 'longpipe') {
+            const b = lp.backend(id);
+            st.textContent = lp.error(id) || (b === null ? 'Carregando efeitos avançados…' : b === 'none' ? 'Sem WebGPU/WebGL2 neste aparelho — use o modo rápido' : 'Efeitos avançados (' + (b === 'webgpu' ? 'WebGPU' : 'WebGL2') + ')');
+          } else {
+            st.textContent = vfx.status === 'loading' ? 'Carregando motor de efeitos…' : vfx.status === 'error' ? 'Erro: ' + vfx.error : '';
+          }
           st.hidden = !st.textContent;
           requestAnimationFrame(loop);
         };

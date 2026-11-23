@@ -147,7 +147,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **2.0.7** — new **PIP (sign language/Libras)**: any video source in a screen corner, above everything (GCs, DSK, polls and replay), with position, size, aspect, audio control and also on the 9:16 vertical output; right-click a thumbnail to **Use as PIP (Libras)** and the source framing (zoom, position, crop and auto-framing) is respected in the PIP. The **Pad** gained pause/resume and seek in the internal panel and a **30-second countdown** video among the presets.
+Version **2.0.8** — **advanced effects (Longpipe)**: **skin smoothing** and **virtual backgrounds** with a dedicated model on WebGPU/WebGL2, plus **auto-reframe**, fully local (vendored SDK and weights, MIT); a **Fast (MediaPipe)** / **Advanced (Longpipe)** engine selector in the ✦ effects dialog, with backend status and automatic fallback. Keeps PIP (Libras), the Pad with pause/seek and the countdown.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

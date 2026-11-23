@@ -137,6 +137,19 @@ try {
   ok('ativar sem fonte escolhe a primeira fonte de vídeo', auto.id === 'host:cam' && auto.enabled === true, JSON.stringify(auto));
 
   // PIP desenhado mesmo com a fonte FORA do palco (pixels do canto inferior direito)
+  // (injeta um stream sintético: a câmera fake do headless é instável e o PIP precisa de vídeo)
+  await ev(`(async () => {
+    const s = window.__castdeck.S.sources.get('host:cam');
+    if (!s) return 'sem host:cam';
+    const cv = document.createElement('canvas'); cv.width = 640; cv.height = 360;
+    const cx = cv.getContext('2d'); let t = 0;
+    window.__pipCamTimer = setInterval(() => { cx.fillStyle = 'hsl(' + ((t += 11) % 360) + ' 70% 50%)'; cx.fillRect(0, 0, 640, 360); }, 33);
+    const st = cv.captureStream(30);
+    s.el.srcObject = st; s.stream = st;
+    await s.el.play().catch(() => {});
+    return { tracks: st.getVideoTracks().length };
+  })()`);
+  await esperar(900);
   await ev(`window.__castdeck.setStage([])`);
   await esperar(700);
   const sig = `(() => { const c = document.querySelector('#program-canvas'); const ctx = c.getContext('2d'); const x = Math.round(c.width*0.78), y = Math.round(c.height*0.5); const d = ctx.getImageData(x, y, 120, 120).data; let s = 0, n = 0; for (let i = 0; i < d.length; i += 4) { s += d[i] + d[i+1] + d[i+2]; n++; } return Math.round(s/n); })()`;

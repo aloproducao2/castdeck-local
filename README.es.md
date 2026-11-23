@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **2.0.7** — nuevo **PIP (Lengua de Signos/Libras)**: cualquier fuente de vídeo en una esquina de la pantalla, por encima de todo (GCs, DSK, encuestas y replay), con posición, tamaño, proporción, control de audio y también en la salida vertical 9:16; clic derecho en la miniatura para **Usar como PIP (Libras)** y el encuadre de la fuente (zoom, posición, recorte y auto-encuadre) se respeta en el PIP. El **Pad** ganó pausa/reanudar y seek en el panel interno y un vídeo de **cuenta regresiva de 30 s** entre los ajustes predefinidos.
+Versión **2.0.8** — **efectos avanzados (Longpipe)**: **suavizado de piel** y **fondo virtual** con modelo propio en WebGPU/WebGL2, además de **auto-encuadre**, todo 100 % local (SDK y pesos incluidos, MIT); selector de motor **Rápido (MediaPipe)** / **Avanzado (Longpipe)** en el diálogo ✦ Efectos de vídeo, con estado del backend y fallback automático. Mantiene el PIP (Libras), el Pad con pausa/seek y la cuenta regresiva.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

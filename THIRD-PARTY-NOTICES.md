@@ -29,7 +29,7 @@ Apache-2.0, BSD, ISC, MPL e Zlib; os casos de copyleft estão destacados abaixo.
 | **npm (runtime)** | Express, ws, pino, Baileys, libsignal, sharp/libvips | MIT, Apache-2.0, LGPL-3.0, GPL-3.0 | Textos em `licenses/npm-dependencies.txt`; atenção a libsignal/LGPL |
 | **Rust (launcher)** | tray-icon, muda, windows-sys, serde, open | MIT/Apache-2.0/MPL-2.0/Zlib/Unicode-3.0 | Textos em `licenses/rust-dependencies.txt` |
 | **Android** | NanoHTTPD WebSocket, JSch; JUnit/JSON (teste) | BSD-3-Clause / EPL-1.0 / Public Domain | Avisos no app/instalador |
-| **Web vendor** | MediaPipe Tasks Vision + modelos, RNNoise WASM | Apache-2.0/BSD-3 | `licenses/components/` |
+| **Web vendor** | MediaPipe Tasks Vision + modelos, RNNoise WASM, Longpipe SDK + pesos | Apache-2.0/BSD-3/MIT | `licenses/components/` |
 | **Modelos de fala** | Whisper ggml, Parakeet pt-BR | MIT / CC-BY-4.0 | Atribuição; ver componentes |
 | **Fontes** | Inter | SIL OFL 1.1 | `licenses/OFL-1.1.txt` |
 | **Marca/conteúdo** | CastDeck, logo, splash | Direitos reservados, fora da AGPL | `TRADEMARK.md` |
@@ -91,6 +91,14 @@ Detalhes em [`licenses/components/Whisper-models.txt`](licenses/components/Whisp
 - MediaPipe Tasks Vision e modelos `.tflite`: Apache-2.0 (Google).
 - RNNoise/@jitsi/rnnoise-wasm: BSD-3-Clause/Apache-2.0 (Xiph.Org/Jean-Marc Valin).
 - Textos em `licenses/components/`.
+
+### Longpipe
+
+- Longpipe SDK (0.0.23) e pesos `model_small`/`model_landmark_mesh` (f16+f32): MIT (Sam Bhattacharyya),
+  incluindo os pesos dos modelos. Vendorizado em `public/vendor/longpipe/` — nada é baixado da CDN do
+  Longpipe em tempo de execução (o app continua 100% local).
+- Proveniência dos dados de treino: <https://longpipe.dev/docs/licensing>.
+- Textos em `licenses/components/Longpipe.txt` e `public/vendor/longpipe/LICENSE`.
 
 ### Node.js
 

@@ -344,44 +344,51 @@ function mais() {
 }
 
 function replayTab() {
-  const r = st.replay || {};
-  const onAir = !!r.onAir;
-  const pct = r.max > 0 ? Math.min(100, (r.duration / r.max) * 100) : 0;
+  const rp = st.replay || {};
+  const onAir = !!rp.onAir;
+  const speed = Number(rp.speed) || 1;
+  const rev = speed < 0;
+  const pct = rp.max > 0 ? Math.min(100, (Math.abs(rp.duration) / rp.max) * 100) : 0;
   return `
     <div class="rp-head ${onAir ? 'on-air' : ''}">
       <div class="rp-head-top">
         <span class="rp-badge">${onAir ? 'NO AR' : 'REPLAY'}</span>
-        <b>${onAir ? (r.paused ? 'PAUSADO' : `${Math.round((r.speed || 1) * 100)}% · ${fmtTime(r.time || 0)}`) : 'Buffer de replay'}</b>
-        <small>${r.active ? `${Math.round(r.duration || 0)}s / ${r.max || 45}s em RAM` : 'Buffer parado'}</small>
+        <b>${onAir ? (rp.paused ? 'PAUSADO' : (rev ? 'REV · ' + Math.round(Math.abs(speed) * 100) + '%' : Math.round(speed * 100) + '% · ' + fmtTime(rp.time || 0))) : 'Buffer de replay'}</b>
+        <small>${rp.active ? `${Math.round(rp.duration || 0)}s / ${rp.max || 45}s em RAM` : 'Buffer parado'}</small>
       </div>
       <div class="rp-bar"><i style="width:${pct.toFixed(1)}%"></i></div>
     </div>
 
     <h2>Instant replay</h2>
     <div class="rp-triggers">
-      ${[5, 10, 15, 30].map((s) => `<button class="rp-trig" data-act="replay-trigger" data-sec="${s}"><b>${s}s</b><small>ir ao ar</small></button>`).join('')}
+      ${[5, 10, 15, 30].map((s) => `<button class="rp-trig" data-act="replay-trigger" data-sec="${s}" ${rp.active ? '' : 'disabled'}><b>${s}s</b><small>ir ao ar</small></button>`).join('')}
     </div>
     <div class="rp-controls">
-      ${onAir ? `<button class="btn ${r.paused ? '' : 'ghost'}" data-act="replay-pause">${r.paused ? '▶ Tocar' : '⏸ Pausar'}</button>` : ''}
+      ${onAir ? `<button class="btn ${rp.paused ? '' : 'ghost'}" data-act="replay-pause">${rp.paused ? '▶ Tocar' : '⏸ Pausar'}</button>` : ''}
+      <button class="btn ${rev ? 'on' : 'ghost'}" data-act="replay-rev" ${onAir ? '' : 'disabled'} title="Reprodução reversa">REV</button>
       <button class="btn danger" data-act="replay-stop">Voltar ao vivo</button>
+    </div>
+    <div class="rp-controls" style="margin-top:6px">
+      <button class="btn ghost sm" data-act="replay-step" data-dir="-1" ${onAir ? '' : 'disabled'} title="Voltar 1 quadro">◀ 1F</button>
+      <button class="btn ghost sm" data-act="replay-step" data-dir="1" ${onAir ? '' : 'disabled'} title="Avançar 1 quadro">1F ▶</button>
+      <button class="btn ghost sm" data-act="replay-save" data-sec="10" title="Salva os últimos 10 s como lance">Salvar lance</button>
     </div>
 
     <h2>Buffer</h2>
-    <button class="row ${r.active ? 'on' : ''}" data-act="replay-buffer">
-      <span><b>Buffer circular</b><small>${r.active ? `${Math.round(r.duration || 0)}s gravados` : 'Parado — inicie para poder puxar o lance'}</small></span><i class="sw"></i>
+    <button class="row ${rp.active ? 'on' : ''}" data-act="replay-buffer">
+      <span><b>Buffer circular</b><small>${rp.active ? `${Math.round(rp.duration || 0)}s gravados` : 'Parado — inicie para poder puxar o lance'}</small></span><i class="sw"></i>
     </button>
     <h2>Comportamento do gatilho</h2>
-    <button class="row ${r.autoTake !== false ? 'on' : ''}" data-act="replay-auto-take" data-on="${r.autoTake !== false ? 0 : 1}">
-      <span><b>Ir ao ar direto (AUTO TAKE)</b><small>${r.autoTake !== false ? 'O gatilho coloca o replay no PGM na hora' : 'O gatilho só prepara no Preview do console'}</small></span><i class="sw"></i>
+    <button class="row ${rp.autoTake !== false ? 'on' : ''}" data-act="replay-auto-take" data-on="${rp.autoTake !== false ? 0 : 1}">
+      <span><b>Ir ao ar direto (AUTO TAKE)</b><small>${rp.autoTake !== false ? 'O gatilho coloca o replay no PGM na hora' : 'O gatilho só prepara no Preview do console'}</small></span><i class="sw"></i>
     </button>
 
     <h2>Velocidade</h2>
     <div class="rp-speed">
-      ${[0.25, 0.5, 0.75, 1].map((v) => `<button class="btn sm ${Math.abs((r.speed || 1) - v) < 0.01 ? 'on' : 'ghost'}" data-act="replay-speed" data-speed="${v}">${Math.round(v * 100)}%</button>`).join('')}
+      ${[0.25, 0.5, 0.75, 1].map((v) => `<button class="btn sm ${Math.abs(Math.abs(speed) - v) < 0.01 ? 'on' : 'ghost'}" data-act="replay-speed" data-speed="${v}">${Math.round(v * 100)}%</button>`).join('')}
     </div>
-    <p class="note" style="text-align:left">Os botões de tempo puxam o buffer e colocam o replay <b>direto no PGM</b> (com áudio no programa).</p>`;
+    <p class="note" style="text-align:left">Os botões de tempo puxam o buffer e colocam o replay <b>direto no PGM</b> (com áudio no programa). REV e 1F controlam o replay no ar.</p>`;
 }
-
 const RENDER = { mesa, audio, replay: replayTab, conteudo, mais };
 
 // ---------- mini player estilo app de música ----------
@@ -653,6 +660,13 @@ document.addEventListener('click', (e) => {
       return cmd({ op: 'replay-auto-take', on: b.dataset.on === '1' });
     case 'replay-speed':
       return cmd({ op: 'replay-speed', speed: Number(b.dataset.speed) || 0.5 });
+    case 'replay-rev':
+      return cmd({ op: 'replay-rev' });
+    case 'replay-step':
+      return cmd({ op: 'replay-step', dir: Number(b.dataset.dir) || 1 });
+    case 'replay-save':
+      toast('Salvando lance…');
+      return cmd({ op: 'replay-save', sec: Number(b.dataset.sec) || 10 });
     case 'mute': return cmd({ op: 'mute', id, on: b.dataset.on === '1' });
     case 'asolo': return cmd({ op: 'audio-solo', id, on: b.dataset.on === '1' });
     case 'send': return cmd({ op: 'send', id, bus: b.dataset.bus, on: b.dataset.on === '1' });

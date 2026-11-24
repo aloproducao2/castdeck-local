@@ -1240,6 +1240,16 @@ async function main() {
       res.status(500).json({ error: err.message });
     }
   });
+  // Remux sob demanda (playout WebCodecs de clipes do buffer precisa de tamanhos conhecidos/Cues).
+  api.post('/replay/remux', express.raw({ type: ['video/webm', 'application/octet-stream'], limit: '200mb' }), async (req, res) => {
+    try {
+      const out = await replayStore.remuxBuffer(req.body);
+      if (!out) return res.status(503).json({ ok: false, error: 'Remux indisponível' });
+      res.set('Content-Type', 'video/webm').send(out);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
   // Versão suavizada do lance (interpolação 2× por mescla de quadros, gerada no console).
   api.post('/replay/clips/:id/smooth', express.raw({ type: ['video/webm', 'application/octet-stream'], limit: '200mb' }), async (req, res) => {
     try {

@@ -156,6 +156,16 @@ export class SignalingHub {
       }
       case 'mic':
         return cmd.to && ['mute', 'unmute-request'].includes(cmd.action) ? { op: 'mic', to: clean(cmd.to, 20), action: cmd.action } : null;
+      case 'replay':
+        return { op: 'replay', sec: Math.max(1, Math.min(60, Number(cmd.sec) || 10)) };
+      case 'replay-play':
+        return { op: 'replay-play' };
+      case 'replay-pause':
+        return { op: 'replay-pause' };
+      case 'replay-live':
+        return { op: 'replay-live' };
+      case 'replay-speed':
+        return { op: 'replay-speed', speed: Math.max(0.05, Math.min(2, Number(cmd.speed) || 0.5)) };
     }
     return null;
   }
@@ -234,6 +244,12 @@ export class SignalingHub {
         return { op: 'replay-speed', speed: Math.max(0.05, Math.min(2, Number(cmd.speed) || 0.5)) };
       case 'replay-auto-take':
         return { op: 'replay-auto-take', on: !!cmd.on };
+      case 'replay-step':
+        return { op: 'replay-step', dir: Number(cmd.dir) < 0 ? -1 : 1 };
+      case 'replay-rev':
+        return { op: 'replay-rev' };
+      case 'replay-save':
+        return { op: 'replay-save', sec: Math.max(1, Math.min(60, Number(cmd.sec) || 10)) };
       case 'pad-play':
         return id ? { op: 'pad-play', id } : null;
       case 'pad-seek':

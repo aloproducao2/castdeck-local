@@ -52,3 +52,23 @@
 .rp-tab-air { font: 700 9.5px/1 ui-monospace, Consolas, monospace; letter-spacing: 0.6px; color: #94a3b8; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 3px; padding: 3px 7px; }
 .rp-tab-air.on { color: #ffb4b4; background: rgba(220, 38, 38, 0.18); border-color: rgba(220, 38, 38, 0.55); }
 .rp-tab-grid .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Painel de co-host: abas, replay instantâneo e cartões */
+.cp-tabs { display: flex; gap: 4px; padding: 4px; margin: 0 0 10px; background: rgba(255, 255, 255, 0.045); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 9px; }
+.cp-tab { flex: 1; height: 30px; border: 0; border-radius: 6px; background: transparent; color: #94a3b8; font: 600 11px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; cursor: pointer; letter-spacing: 0.2px; }
+.cp-tab:hover { color: #e2e8f0; }
+.cp-tab.active { background: rgba(16, 185, 129, 0.16); color: #8ed69a; box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.38); }
+.cp-group[hidden] { display: none; }
+.cp-rp { border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.035); border-radius: 9px; padding: 9px; display: flex; flex-direction: column; gap: 8px; }
+.cp-rp.on { border-color: rgba(220, 38, 38, 0.55); background: rgba(220, 38, 38, 0.08); }
+.cp-rp-state { display: flex; align-items: center; gap: 7px; font-size: 11px; }
+.cp-rp-state > i { width: 8px; height: 8px; border-radius: 50%; background: #64748b; flex: none; }
+.cp-rp.on .cp-rp-state > i { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.7); }
+.cp-rp-state b { color: #e2e8f0; font-size: 11px; }
+.cp-rp-state small { margin-left: auto; color: #94a3b8; font: 500 10px/1 ui-monospace, Consolas, monospace; }
+.cp-rp-triggers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+.cp-rp-triggers .btn { justify-content: center; }
+.cp-rp-acts { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.cp-rp-speed { display: flex; gap: 4px; margin-left: auto; }
+.cp-rp-speed .btn { padding: 0 7px; }
+.cp-sec { border-radius: 9px; }

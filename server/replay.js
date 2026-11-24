@@ -4,6 +4,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 
 // Mesmo limite do cliente (setBufferDuration): 10 a 180 s. Antes o servidor aceitava qualquer
@@ -455,6 +456,32 @@ export class ReplayStore {
     }
     await fsp.unlink(tmp).catch(() => {});
     return false;
+  }
+
+  // Remuxa um clipe RAW recebido em memória (MediaRecorder) para um WebM com tamanhos conhecidos e
+  // Cues: o demuxer do playout WebCodecs consegue então abrir, buscar e fazer reverse.
+  async remuxBuffer(buffer) {
+    if (!this._ffmpegInfo?.available) return null;
+    const base = path.join(os.tmpdir(), 'castdeck-remux-' + Date.now() + '-' + Math.random().toString(16).slice(2, 8));
+    const inFile = base + '.webm';
+    const outFile = base + '.out.webm';
+    try {
+      await fsp.writeFile(inFile, buffer);
+      const ok = await new Promise((resolve) => {
+        const p = spawn(this.ffmpegPath, ['-hide_banner', '-loglevel', 'error', '-fflags', '+genpts', '-i', inFile, '-c', 'copy', '-y', outFile], { windowsHide: true });
+        p.on('error', () => resolve(false));
+        p.on('close', (code) => resolve(code === 0));
+      });
+      if (!ok || !fs.existsSync(outFile)) return null;
+      const out = await fsp.readFile(outFile);
+      return out.length ? out : null;
+    } catch (e) {
+      console.warn('[replay] remuxBuffer:', e.message);
+      return null;
+    } finally {
+      await fsp.unlink(inFile).catch(() => {});
+      await fsp.unlink(outFile).catch(() => {});
+    }
   }
 
   async appendMatchChunk(buffer) {

@@ -204,7 +204,10 @@ export function createWcPlayout({ lookahead = 0.7, keepPast = 0.5 } = {}) {
         resetDecoder(0);
         startLoop();
         return { duration, fps, width, height, frames: samples.length };
-      })();
+      })().catch((e) => {
+        loading = null;
+        throw e;
+      });
       return loading;
     },
     play() {

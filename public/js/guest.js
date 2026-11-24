@@ -187,27 +187,45 @@ function build() {
       <div class="panel" id="panel-prod">
         <div id="prod-live">
           <div id="cp-head"></div>
-          <section class="cp-sec" hidden>
-            <div class="cp-title">Cena<small>Layout do programa</small></div>
-            <div class="cp-layouts" id="cp-layouts"></div>
-          </section>
-          <section class="cp-sec" hidden>
-            <div class="cp-title">Fontes<small id="cp-count"></small></div>
-            <div class="cp-list" id="cp-sources"></div>
-          </section>
-          <section class="cp-sec" hidden>
-            <div class="cp-title">Banners<small>Texto sobre o programa</small></div>
-            <div class="cp-quick">
-              <input class="input" id="qb-title" placeholder="Título do banner rápido" maxlength="90" autocomplete="off">
-              <input class="input" id="qb-sub" placeholder="Subtítulo (opcional)" maxlength="120" autocomplete="off">
-              <div class="cp-quick-acts"><button class="btn primary sm" id="qb-send">Enviar ao ar</button><button class="btn sm" id="qb-clear">Ocultar banner</button></div>
-            </div>
-            <div class="cp-list" id="cp-banners"></div>
-          </section>
-          <section class="cp-sec" hidden>
-            <div class="cp-title">Mensagens<small>Mande para o ar ou retire</small></div>
-            <div class="cp-list" id="cp-messages"></div>
-          </section>
+          <nav class="cp-tabs" id="cp-tabs" aria-label="Painel de co-host">
+            <button class="cp-tab active" data-cptab="live" type="button">Ao vivo</button>
+            <button class="cp-tab" data-cptab="stage" type="button">Palco</button>
+            <button class="cp-tab" data-cptab="gfx" type="button">Gráficos</button>
+          </nav>
+          <div class="cp-group" data-cpgroup="live">
+            <section class="cp-sec" hidden>
+              <div class="cp-title">Replay instantâneo<small id="cp-rp-meta"></small></div>
+              <div id="cp-replay"></div>
+            </section>
+            <section class="cp-sec" hidden>
+              <div class="cp-title">Banner rápido<small>Texto sobre o programa</small></div>
+              <div class="cp-quick">
+                <input class="input" id="qb-title" placeholder="Título do banner rápido" maxlength="90" autocomplete="off">
+                <input class="input" id="qb-sub" placeholder="Subtítulo (opcional)" maxlength="120" autocomplete="off">
+                <div class="cp-quick-acts"><button class="btn primary sm" id="qb-send">Enviar ao ar</button><button class="btn sm" id="qb-clear">Ocultar banner</button></div>
+              </div>
+            </section>
+          </div>
+          <div class="cp-group" data-cpgroup="stage">
+            <section class="cp-sec" hidden>
+              <div class="cp-title">Cena<small>Layout do programa</small></div>
+              <div class="cp-layouts" id="cp-layouts"></div>
+            </section>
+            <section class="cp-sec" hidden>
+              <div class="cp-title">Fontes<small id="cp-count"></small></div>
+              <div class="cp-list" id="cp-sources"></div>
+            </section>
+          </div>
+          <div class="cp-group" data-cpgroup="gfx">
+            <section class="cp-sec" hidden>
+              <div class="cp-title">Banners salvos<small>Clique para ir ao ar</small></div>
+              <div class="cp-list" id="cp-banners"></div>
+            </section>
+            <section class="cp-sec" hidden>
+              <div class="cp-title">Mensagens<small>Mande para o ar ou retire</small></div>
+              <div class="cp-list" id="cp-messages"></div>
+            </section>
+          </div>
         </div>
       </div>
     </aside>
@@ -918,11 +936,19 @@ const setHTML = (el, html) => {
   }
 };
 
+let prodTab = 'live';
+
+function syncProdTabs() {
+  $$('#cp-tabs .cp-tab').forEach((b) => b.classList.toggle('active', b.dataset.cptab === prodTab));
+  $$('#prod-live .cp-group').forEach((g) => (g.hidden = g.dataset.cpgroup !== prodTab));
+}
+
 function renderProd() {
   const box = $('#prod-live');
   if (!box || !G.cohost) return;
   const st = G.cohostState;
   $$('.cp-sec', box).forEach((s) => (s.hidden = !st));
+  syncProdTabs();
   if (!st) {
     setHTML($('#cp-head'), `<div class="cp-head"><div class="spin"></div><div class="cp-head-txt"><b>Aguardando o host</b><span>O painel aparece quando o estúdio estiver aberto.</span></div></div>`);
     return;
@@ -1001,6 +1027,23 @@ function renderProd() {
           .join('')
       : '<div class="cp-empty">Nenhuma mensagem recebida ainda.</div>',
   );
+  // Replay instantâneo do co-host (gatilhos, pausa, AO VIVO e velocidade)
+  const rp = st.replay || {};
+  const speed = Number(rp.speed) || 1;
+  setHTML(
+    $('#cp-replay'),
+    `<div class="cp-rp ${rp.onAir ? 'on' : ''}">
+      <div class="cp-rp-state"><i></i><b>${rp.onAir ? (rp.paused ? 'PAUSADO' : 'NO AR · ' + Math.round(Math.abs(speed) * 100) + '%') : 'Fora do ar'}</b>
+        <small>${rp.active ? Math.round(Number(rp.duration) || 0) + 's / ' + (Number(rp.max) || 45) + 's' : 'Buffer parado'}</small></div>
+      <div class="cp-rp-triggers">${[5, 10, 15, 30].map((s) => `<button class="btn sm" data-op="replay" data-sec="${s}" ${rp.active ? '' : 'disabled'} title="Puxa ${s}s e manda ao PGM">${s}s</button>`).join('')}</div>
+      <div class="cp-rp-acts">
+        ${rp.onAir ? `<button class="btn sm ${rp.paused ? 'primary' : 'ghost'}" data-op="${rp.paused ? 'replay-play' : 'replay-pause'}">${rp.paused ? '▶ Tocar' : '⏸ Pausar'}</button>` : ''}
+        <button class="btn sm ghost" data-op="replay-live" ${rp.onAir ? '' : 'disabled'}>AO VIVO</button>
+        <div class="cp-rp-speed">${[0.25, 0.5, 0.75, 1].map((v) => `<button class="btn sm ${Math.abs(Math.abs(speed) - v) < 0.01 ? 'primary' : 'ghost'}" data-op="replay-speed" data-speed="${v}">${Math.round(v * 100)}%</button>`).join('')}</div>
+      </div>
+    </div>`,
+  );
+  $('#cp-rp-meta').textContent = rp.onAir ? 'no ar' : rp.active ? 'pronto' : 'buffer parado';
   $('#qb-clear').classList.toggle('live-on', !!st.activeBanner);
 }
 
@@ -1022,6 +1065,7 @@ function initProd() {
     if ($('.side').classList.contains('open') && G.panel === 'prod') return closeSide();
     openSide('prod');
   };
+  $$('#cp-tabs .cp-tab').forEach((b) => (b.onclick = () => { prodTab = b.dataset.cptab || 'live'; syncProdTabs(); }));
   $('#tab-chat').onclick = () => showPanel('chat');
   $('#tab-prod').onclick = () => showPanel('prod');
   // um único ouvinte para o painel inteiro: os botões são recriados quando o estado muda
@@ -1036,6 +1080,11 @@ function initProd() {
     else if (d.op === 'solo') sendCmd({ op: 'solo', id: st.solo === d.id ? null : d.id }, b);
     else if (d.op === 'banner') sendCmd({ op: 'banner', id: d.id }, b);
     else if (d.op === 'message') sendCmd({ op: 'message', id: d.id }, b);
+    else if (d.op === 'replay') sendCmd({ op: 'replay', sec: Number(d.sec) || 10 }, b);
+    else if (d.op === 'replay-play') sendCmd({ op: 'replay-play' }, b);
+    else if (d.op === 'replay-pause') sendCmd({ op: 'replay-pause' }, b);
+    else if (d.op === 'replay-live') sendCmd({ op: 'replay-live' }, b);
+    else if (d.op === 'replay-speed') sendCmd({ op: 'replay-speed', speed: Number(d.speed) || 0.5 }, b);
     else if (d.op === 'mic') {
       // pedir para ativar não muda o estado até o convidado aceitar, então não espera confirmação
       cmd({ op: 'mic', to: d.to, action: d.action });

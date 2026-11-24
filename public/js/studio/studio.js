@@ -4071,6 +4071,30 @@ function runCohostCmd(m) {
       if (messages?.toggleExternal?.(c.id)) what = was ? 'tirou uma mensagem do ar' : 'colocou uma mensagem no ar';
       break;
     }
+    case 'replay': {
+      const sec = Math.max(1, Math.min(60, Number(c.sec) || 10));
+      cohostReplay(sec);
+      what = 'mandou um replay de ' + sec + 's';
+      break;
+    }
+    case 'replay-play':
+      replayEngine?.playPlayout?.();
+      what = 'voltou a tocar o replay';
+      break;
+    case 'replay-pause':
+      replayEngine?.pausePlayout?.();
+      what = 'pausou o replay';
+      break;
+    case 'replay-live':
+      replayEngine?.stopPlayout?.();
+      what = 'voltou ao vivo';
+      break;
+    case 'replay-speed':
+      if (Number.isFinite(Number(c.speed)) && replayEngine?.isPlayoutOnAir?.()) {
+        replayEngine.setPlayoutSpeed?.(Number(c.speed));
+        what = 'mudou a velocidade do replay';
+      }
+      break;
     case 'mic':
       if (S.guests.has(c.to)) sig.send({ type: 'control', to: c.to, action: c.action });
       what = c.action === 'mute' ? 'silenciou um microfone' : 'pediu para ativar um microfone';
@@ -4079,6 +4103,19 @@ function runCohostCmd(m) {
       return;
   }
   toast(`${g.name} (co-host) ${what}`);
+}
+
+// Gatilho de replay do co-host: puxa o buffer e coloca direto no PGM (mesmo fluxo do controle remoto).
+async function cohostReplay(sec) {
+  const eng = replayEngine;
+  if (!eng) return;
+  if (!eng.isBufferActive?.()) eng.startBuffer?.();
+  const clip = await eng.createClip(sec);
+  if (!clip) {
+    toast('Buffer ainda não tem ' + sec + 's. Aguarde um pouco.', 'err');
+    return;
+  }
+  eng.playoutReplay?.({ url: clip.url, speed: 0.5, currentTime: 0, audioRoute: 'pgm', audioVolume: 0.8, wipe: true });
 }
 
 let lastCohostSnap = '';
@@ -4098,6 +4135,23 @@ function cohostSync() {
       .filter((m) => m.text || m.audio)
       .slice(0, 6)
       .map((m) => ({ id: m.id, name: m.name || '', text: String(m.text || '').slice(0, 120), audio: !!m.audio, duration: m.dur || 0, source: m.source || 'public', air: messages.airId === m.id })),
+    replay: (() => {
+      try {
+        const s = replayEngine?.getStats?.() || {};
+        const ps = replayEngine?.getPlayoutState?.() || {};
+        return {
+          active: !!s.active,
+          duration: Number(s.duration) || 0,
+          max: Number(s.maxDuration) || 45,
+          onAir: !!ps.onAir,
+          paused: !!ps.paused,
+          speed: Number(ps.speed) || 1,
+          time: Number(ps.time) || 0,
+        };
+      } catch {
+        return { active: false, duration: 0, max: 45, onAir: false, paused: false, speed: 1, time: 0 };
+      }
+    })(),
     items: [...S.sources.values()].map((s) => ({ id: s.id, label: s.label || '', kind: s.kind, ownerId: s.ownerId, micOn: s.micOn, camOff: !!s.camOff })),
   };
   const j = JSON.stringify(snap);

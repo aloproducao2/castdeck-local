@@ -31,6 +31,7 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
   let wcReverse = false;
   let wcSyncTimer = null;
   let wcGen = 0;
+  let wcPendingSpeed = null; // velocidade pedida antes do WebCodecs ativar (ex.: REV logo no início)
 
   // ---------------------------------------------------------------
   // SAÍDA COM BLEND (canvas A/B): o compositor desenha este canvas, não o <video>.
@@ -841,7 +842,21 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
       if (!wcModule) wcModule = await import('/js/wc-playout.js');
       if (!wcModule?.createWcPlayout || gen !== wcGen) return false;
       if (!wcPlayer) wcPlayer = wcModule.createWcPlayout();
-      await wcPlayer.load(url);
+      try {
+        await wcPlayer.load(url);
+      } catch (e) {
+        // Clipes gerados do buffer (MediaRecorder) podem terminar com cluster de tamanho desconhecido
+        // e o demuxer não abrir. Remuxa no servidor (ffmpeg -c copy) e tenta de novo.
+        try {
+          const blob = await (await fetch(url)).blob();
+          const rem = await fetch('/api/replay/remux', { method: 'POST', headers: { 'Content-Type': 'video/webm' }, body: blob });
+          if (!rem.ok) throw e;
+          const fixed = await rem.blob();
+          await wcPlayer.load(URL.createObjectURL(fixed));
+        } catch (e2) {
+          throw e;
+        }
+      }
       if (gen !== wcGen) return false;
       await wcPlayer.waitFrame();
       if (gen !== wcGen) return false;
@@ -865,6 +880,20 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
       wcPlayer.setSpeed(wcReverse ? -wcSpeed : wcSpeed);
       wcActive = true;
       setReplaySourceElement(wcPlayer.canvas);
+      if (wcPendingSpeed != null) {
+        const raw = wcPendingSpeed;
+        wcPendingSpeed = null;
+        wcSpeed = Math.max(0.05, Math.min(2, Math.abs(raw)));
+        wcReverse = raw < 0;
+        wcPlayer.setSpeed(wcReverse ? -wcSpeed : wcSpeed);
+        if (wcReverse) {
+          try { playoutVideo.pause(); } catch {}
+        } else {
+          wcPlayer.play();
+          try { playoutVideo.play().catch(() => {}); } catch {}
+        }
+        if (comp && comp.replayBug) comp.replayBugText = wcReverse ? 'REPLAY REV' : 'REPLAY';
+      }
       if (!wcReverse) {
         wcPlayer.play();
         startWcSync();
@@ -1105,6 +1134,7 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
       if (wcActive) stopWcPlayout();
     } else {
       if (wcActive) stopWcPlayout();
+      wcPendingSpeed = null;
       void startWcPlayout(url, currentTime, speed);
     }
 
@@ -1153,6 +1183,7 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
     const sp = Math.max(0.05, Math.min(2.0, Math.abs(raw)));
     playoutBaseRate = sp;
     if (wcActive && wcPlayer) {
+      wcPendingSpeed = null;
       wcSpeed = sp;
       wcReverse = raw < 0;
       wcPlayer.setSpeed(wcReverse ? -sp : sp);
@@ -1170,6 +1201,7 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
       if (comp && comp.replayBug) comp.replayBugText = wcReverse ? 'REPLAY REV' : 'REPLAY';
       return;
     }
+    wcPendingSpeed = raw;
     if (playoutVideo) {
       // Durante a convergência suave o rate é controlado pelo loop; não sobrescreve.
       if (playoutSoftTarget === null) playoutVideo.playbackRate = sp;

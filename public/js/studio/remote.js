@@ -148,7 +148,8 @@ export function createRemote({ S, comp, mixer, getSig, studioId, getSwitcher, ge
           onAir: !!ps.onAir,
           paused: !!ps.paused,
           time: ps.time || 0,
-          speed: ps.onAir ? (ps.baseSpeed || ps.speed || replaySpeed) : replaySpeed,
+          speed: ps.onAir ? (Number(ps.speed) || replaySpeed) : replaySpeed,
+          reverse: ps.onAir ? Number(ps.speed) < 0 : replaySpeed < 0,
           autoTake: eng.getAutoTake?.() !== false,
         };
       })(),
@@ -267,6 +268,33 @@ export function createRemote({ S, comp, mixer, getSig, studioId, getSwitcher, ge
         return;
       }
       case 'replay-auto-take': getReplay?.()?.setAutoTake?.(!!c.on); return;
+      case 'replay-step': {
+        const eng = getReplay?.();
+        if (!eng?.isPlayoutOnAir?.()) return;
+        eng.stepPlayout?.((Number(c.dir) || 1) / 30);
+        return;
+      }
+      case 'replay-rev': {
+        const eng = getReplay?.();
+        if (!eng) return;
+        const ps = eng.getPlayoutState?.() || {};
+        const cur = Math.abs(Number(ps.speed) || replaySpeed || 0.5);
+        const next = ps.onAir ? (Number(ps.speed) < 0 ? cur : -cur) : replaySpeed < 0 ? cur : -cur;
+        replaySpeed = Math.abs(next);
+        if (ps.onAir) eng.setPlayoutSpeed?.(next);
+        return;
+      }
+      case 'replay-save': {
+        const eng = getReplay?.();
+        if (!eng) return;
+        const secs = Math.max(1, Math.min(60, Number(c.sec) || 10));
+        (async () => {
+          if (!eng.getStats?.().active) return;
+          const clip = await eng.createClip(secs);
+          if (clip?.blob) await eng.saveClipToDisk?.(clip, { title: 'Lance (controle remoto)', tag: 'LANCE', speed: Math.abs(replaySpeed) || 0.5, markIn: 0 });
+        })();
+        return;
+      }
       case 'replay-stop': getReplay?.()?.stopPlayout?.(); return;
       case 'replay-pause': getReplay?.()?.pausePlayout?.(); return;
       case 'replay-play': getReplay?.()?.playPlayout?.(); return;

@@ -147,7 +147,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Version **2.0.9** — in **Advanced (Longpipe)** mode, **auto-reframe** now has **Wide / Medium / Close** controls (zoom 1.15 / 1.35 / 1.6), saved with the source and inherited by Fast (MediaPipe) mode. Keeps skin smoothing, virtual backgrounds, auto-reframe, PIP (Libras), the Pad with pause/seek and the countdown.
+Version **2.0.10** — translations at **100%**: the whole interface in **English, Spanish, French and German** (including PIP, Longpipe effects, plugins and API), with shorter French/German words so the layout does not break. Keeps PIP (Libras), the Pad with pause/seek, the countdown, Longpipe effects and Wide/Medium/Close auto-reframe.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

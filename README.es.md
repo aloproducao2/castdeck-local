@@ -148,7 +148,7 @@ el código en productos cerrados. Los componentes de terceros mantienen sus lice
 
 ## Estado
 
-Versión **2.0.9** — en el modo **Avanzado (Longpipe)**, el **auto-encuadre** ahora tiene los controles **Abierto / Medio / Cerrado** (zoom 1,15 / 1,35 / 1,6), guardados con la fuente y heredados por el modo Rápido (MediaPipe). Mantiene el suavizado de piel, el fondo virtual, el auto-encuadre, el PIP (Libras), el Pad con pausa/seek y la cuenta regresiva.
+Versión **2.0.10** — traducciones al **100%**: toda la interfaz en **inglés, español, francés y alemán** (incluidos PIP, efectos Longpipe, plugins y API), con palabras más cortas en francés/alemán para no romper el diseño. Mantiene el PIP (Libras), el Pad con pausa/seek, la cuenta regresiva, los efectos Longpipe y el auto-encuadre Abierto/Medio/Cerrado.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Hecho por **Miguel Kallemback / flue.live**, de Brasil para el mundo. 🌎

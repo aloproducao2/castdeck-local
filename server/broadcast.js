@@ -196,7 +196,7 @@ class Output extends EventEmitter {
 }
 
 export class Broadcast extends EventEmitter {
-  constructor({ ffmpegPath, recordingsDir, studio, destinations, record, localUrl = null, presetId, encoder, inputMime, vertical, vi, soc = null, deoKbps, audioKbps }) {
+  constructor({ ffmpegPath, recordingsDir, studio, destinations, record, localUrl = null, presetId, encoder, inputMime, vertical, vi, soc = null, videoKbps, audioKbps }) {
     super();
     this.ffmpegPath = ffmpegPath;
     this.recordingsDir = recordingsDir;

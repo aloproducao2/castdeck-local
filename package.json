@@ -1,6 +1,6 @@
 {
   "name": "castdeck-local",
-  "version": "2.0.12",
+  "version": "2.0.13",
   "description": "EstÃºdio de transmissÃ£o ao vivo 100% local para Windows: chamadas de vÃ­deo com convidados, composiÃ§Ã£o de cena e multistream RTMP via FFmpeg.",
   "type": "module",
   "main": "server/index.js",
@@ -26,6 +26,7 @@
     "test:msg-ui": "node test/msg-ui-e2e.mjs",
     "test:dash": "node test/dash-e2e.mjs",
     "test:guest": "node test/guest-quality-e2e.mjs",
+    "test:guest-leave": "node test/guest-leave-redirect.mjs",
     "test:cohost": "node test/cohost-e2e.mjs",
     "test:tunnel": "node test/tunnel-e2e.mjs",
     "test:turn": "node test/guest-quality-e2e.mjs --relay",

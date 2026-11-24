@@ -7,6 +7,9 @@ import { lobby, getScreen, getTab, cursorOn, cursorSupported, setCursor, getCame
 import { toggleFull, isFull, onFullChange } from './fullscreen.js';
 
 const studioId = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '');
+// Ao sair da chamada o convidado é levado ao site (o host não fica "preso" numa call morta).
+const LEAVE_URL = 'https://cast.flue.live';
+let leaveTimer = 0;
 const app = $('#app');
 
 const G = {
@@ -1320,5 +1323,11 @@ function leave(message) {
   G.peer?.close();
   G.local?.getTracks().forEach((t) => t.stop());
   G.screen?.getTracks().forEach((t) => t.stop());
-  app.innerHTML = `<div class="lobby"><div class="card modal" style="text-align:center"><h3>${esc(message)}</h3><p class="sub">Obrigado por participar de “${esc(G.studio.name)}”.</p><button class="btn primary" onclick="location.reload()">Entrar novamente</button></div></div>`;
+  clearTimeout(leaveTimer);
+  const goSite = () => {
+    try { location.replace(LEAVE_URL); } catch { try { location.href = LEAVE_URL; } catch {} }
+  };
+  app.innerHTML = `<div class="lobby"><div class="card modal" style="text-align:center"><h3>${esc(message)}</h3><p class="sub">Obrigado por participar de “${esc(G.studio.name)}”.</p><p class="sub" style="opacity:.72">Levando você para <b>cast.flue.live</b>…</p><button class="btn primary" id="g-site">Ir para cast.flue.live</button></div></div>`;
+  document.getElementById('g-site')?.addEventListener('click', goSite);
+  leaveTimer = setTimeout(goSite, 3000);
 }

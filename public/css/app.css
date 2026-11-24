@@ -49,3 +49,6 @@
 .rp-tab-clip span { color: #94a3b8; font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; white-space: nowrap; }
 .rp-tab-ico { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; color: #a78bfa; }
 .rp-tab-ico svg { width: 18px; height: 18px; }
+.rp-tab-air { font: 700 9.5px/1 ui-monospace, Consolas, monospace; letter-spacing: 0.6px; color: #94a3b8; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 3px; padding: 3px 7px; }
+.rp-tab-air.on { color: #ffb4b4; background: rgba(220, 38, 38, 0.18); border-color: rgba(220, 38, 38, 0.55); }
+.rp-tab-grid .btn:disabled { opacity: 0.45; cursor: not-allowed; }

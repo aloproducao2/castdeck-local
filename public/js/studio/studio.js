@@ -6136,16 +6136,89 @@ function renderTabContent(tab) {
 
 // marca nas abas da lateral quais estão destacadas e cuida do botão ⧉
 // ---------- Aba Replay: replay instantâneo dentro do estúdio ----------
+// Funciona SEM a janela do console: buffer, gatilhos, TAKE e AO VIVO usam o motor do estúdio direto.
 let replayTabTimer = null;
+let replayTabLastClip = null;
+let replayTabLastSeconds = 10;
+let replayTabSpeed = 0.5;
+try { replayTabSpeed = Number(localStorage.getItem('castdeck.replay.tabSpeed')) || 0.5; } catch {}
 
-function replayTabSend(cmd, { openIfClosed = true } = {}) {
-  const sent = replayEngine?.sendCommand?.(cmd) === true;
-  if (!sent && openIfClosed) {
-    openReplayConsole();
-    setTimeout(() => replayEngine?.sendCommand?.(cmd), 1600);
-    toast('Console de Replay aberto — o comando será aplicado assim que ele conectar.');
+function replayOpenConsole() {
+  const fn = window.__castdeck?.openReplayConsole;
+  if (typeof fn === 'function') fn();
+  else toast('Console de Replay indisponível neste dispositivo.');
+}
+
+function replayTabEnsureBuffer(seconds) {
+  const eng = replayEngine;
+  if (!eng) {
+    toast('Replay indisponível neste dispositivo.');
+    return false;
   }
-  return sent;
+  if (!eng.isBufferActive?.()) {
+    eng.startBuffer?.();
+    toast('Buffer ligado — aguarde ' + seconds + ' s e toque de novo.');
+    setTimeout(renderReplayPanel, 400);
+    return false;
+  }
+  return true;
+}
+
+async function replayTabTrigger(seconds) {
+  const eng = replayEngine;
+  if (!replayTabEnsureBuffer(seconds)) return;
+  const clip = await eng.createClip(seconds);
+  if (!clip) {
+    toast('Ainda não há ' + seconds + ' s no buffer — aguarde mais um pouco.');
+    return;
+  }
+  replayTabLastClip = clip;
+  replayTabLastSeconds = seconds;
+  const ok = eng.playoutReplay({ url: clip.url, speed: replayTabSpeed, currentTime: 0, audioRoute: 'pgm', audioVolume: 1 });
+  if (!ok) toast('Não foi possível colocar o lance no ar.');
+  setTimeout(renderReplayPanel, 700);
+}
+
+async function replayTabSave() {
+  const eng = replayEngine;
+  if (!replayTabEnsureBuffer(5)) return;
+  const clip = replayTabLastClip || (await eng.createClip(replayTabLastSeconds || 10));
+  if (!clip) {
+    toast('Nada para salvar ainda — gere um lance primeiro.');
+    return;
+  }
+  const meta = await eng.saveClipToDisk(clip, { title: 'Lance (aba Replay)', tag: 'LANCE', speed: replayTabSpeed, markIn: 0 });
+  if (meta) {
+    toast('Lance salvo em disco.');
+    renderReplayPanel();
+  } else {
+    toast('Falha ao salvar o lance.');
+  }
+}
+
+async function replayTabTake() {
+  const eng = replayEngine;
+  if (!replayTabEnsureBuffer(5)) return;
+  const clip = replayTabLastClip || (await eng.createClip(10));
+  if (!clip) {
+    toast('Gere um lance com um gatilho primeiro.');
+    return;
+  }
+  replayTabLastClip = clip;
+  eng.playoutReplay({ url: clip.url, speed: replayTabSpeed, currentTime: 0, audioRoute: 'pgm', audioVolume: 1 });
+  setTimeout(renderReplayPanel, 700);
+}
+
+function replayTabLive() {
+  replayEngine?.stopPlayout?.();
+  setTimeout(renderReplayPanel, 400);
+}
+
+function replayTabSetSpeed(v) {
+  replayTabSpeed = Math.max(0.05, Math.min(2, Number(v) || 0.5));
+  try { localStorage.setItem('castdeck.replay.tabSpeed', String(replayTabSpeed)); } catch {}
+  if (replayEngine?.isPlayoutOnAir?.()) replayEngine.setPlayoutSpeed?.(replayTabSpeed);
+  renderReplayPanel();
 }
 
 async function loadReplayTabClips(p) {
@@ -6155,7 +6228,7 @@ async function loadReplayTabClips(p) {
     const list = await (await fetch('/api/replay/clips', { cache: 'no-store' })).json();
     const items = (Array.isArray(list) ? list : []).slice(0, 5);
     if (!items.length) {
-      el.innerHTML = '<span class="hint">Nenhum lance salvo ainda. Use os gatilhos ou o Shotbox do console.</span>';
+      el.innerHTML = '<span class="hint">Nenhum lance salvo ainda. Use os gatilhos ou o botão Salvar lance.</span>';
       return;
     }
     el.innerHTML = items.map((c) => '<div class="rp-tab-clip"><b>' + esc(c.title || 'Lance') + '</b><span>' + (Number(c.duration) || 0).toFixed(1) + 's · ' + Math.round((Number(c.speed) || 0.5) * 100) + '%</span></div>').join('');
@@ -6167,24 +6240,31 @@ async function loadReplayTabClips(p) {
 function renderReplayPanel() {
   const p = $('#panel-replay');
   if (!p) return;
+  if (!replayEngine) {
+    p.innerHTML = '<h3 style="margin:0 0 6px">Replay instantâneo</h3><p class="hint">O Replay &amp; VAR é exclusivo do app desktop.</p>';
+    return;
+  }
   const st = replayEngine?.getStats?.() || {};
   const active = !!st.active;
+  const onAir = !!replayEngine?.isPlayoutOnAir?.();
   const dur = Number(st.duration) || 0;
   const max = Number(st.maxDuration) || 45;
   const pct = Math.max(0, Math.min(100, Math.round((dur / Math.max(1, max)) * 100)));
+  const lastTxt = replayTabLastClip ? (Number(replayTabLastClip.duration) || 0).toFixed(1) + 's · ' + Math.round(replayTabSpeed * 100) + '%' : 'nenhum';
   p.innerHTML = [
     '<h3 style="display:flex;align-items:center;gap:8px;margin:0 0 4px"><span class="rp-tab-ico">' + icons.play + '</span><span>Replay instantâneo</span></h3>',
-    '<p class="hint" style="margin:0 0 12px">O buffer grava o programa em segundo plano. Os gatilhos mandam o lance direto ao PGM (sem abrir o console).</p>',
+    '<p class="hint" style="margin:0 0 12px">O buffer grava o programa em segundo plano. Os gatilhos criam o lance e mandam direto ao PGM — funciona sem abrir o console.</p>',
     '<div class="rp-tab-card">',
     '  <div class="rp-tab-row"><span class="rp-dot ' + (active ? 'on' : '') + '"></span><b>' + (active ? 'Buffer ativo' : 'Buffer parado') + '</b><span class="rp-ms" id="rp-tab-buffer">' + dur.toFixed(1) + ' s / ' + max + ' s</span><span class="rp-bar"><i style="width:' + pct + '%"></i></span></div>',
     '  <div class="rp-tab-actions"><button class="btn ' + (active ? '' : 'primary') + '" id="rp-tab-toggle">' + (active ? 'Parar buffer' : 'Ligar buffer') + '</button><button class="btn sm" id="rp-tab-open">Abrir console</button></div>',
     '</div>',
     '<div class="rp-tab-card">',
+    '  <div class="rp-tab-row" style="margin-bottom:8px"><b style="font-size:11px">NO AR</b><span id="rp-tab-air" class="rp-tab-air ' + (onAir ? 'on' : '') + '">' + (onAir ? 'PGM · REPLAY' : 'FORA DO AR') + '</span><span class="rp-ms" style="margin-left:auto;font-size:10px">último: ' + lastTxt + '</span></div>',
     '  <div class="rp-tab-title">Gatilhos — últimos N segundos no PGM</div>',
-    '  <div class="rp-tab-grid">' + [5, 10, 15, 30].map((s) => '<button class="btn" data-rp-replay="' + s + '">' + s + 's</button>').join('') + '</div>',
+    '  <div class="rp-tab-grid">' + [5, 10, 15, 30].map((s) => '<button class="btn" data-rp-replay="' + s + '"' + (active ? '' : ' disabled') + '>' + s + 's</button>').join('') + '</div>',
     '  <div class="rp-tab-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:8px"><button class="btn" id="rp-tab-save">Salvar lance</button><button class="btn" id="rp-tab-take">TAKE</button><button class="btn" id="rp-tab-live">AO VIVO</button></div>',
     '  <div class="rp-tab-title" style="margin-top:10px">Velocidade</div>',
-    '  <div class="rp-tab-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' + [25, 50, 75, 100].map((v) => '<button class="btn sm" data-rp-speed="' + v / 100 + '">' + v + '%</button>').join('') + '</div>',
+    '  <div class="rp-tab-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' + [25, 50, 75, 100].map((v) => '<button class="btn sm ' + (Math.abs(replayTabSpeed - v / 100) < 0.01 ? 'primary' : '') + '" data-rp-speed="' + v / 100 + '">' + v + '%</button>').join('') + '</div>',
     '</div>',
     '<div class="rp-tab-card"><div class="rp-tab-title">Últimos lances salvos</div><div id="rp-tab-last" class="rp-tab-last">Carregando…</div></div>',
   ].join('');
@@ -6193,14 +6273,12 @@ function renderReplayPanel() {
     else replayEngine.startBuffer?.();
     setTimeout(renderReplayPanel, 400);
   });
-  $('#rp-tab-open', p)?.addEventListener('click', () => openReplayConsole());
-  p.querySelectorAll('[data-rp-replay]').forEach((b) => b.addEventListener('click', () => {
-    replayTabSend({ action: 'replay', seconds: Number(b.dataset.rpReplay) || 10 });
-  }));
-  $('#rp-tab-save', p)?.addEventListener('click', () => replayTabSend({ action: 'save' }));
-  $('#rp-tab-take', p)?.addEventListener('click', () => replayTabSend({ action: 'take' }));
-  $('#rp-tab-live', p)?.addEventListener('click', () => replayTabSend({ action: 'live' }));
-  p.querySelectorAll('[data-rp-speed]').forEach((b) => b.addEventListener('click', () => replayTabSend({ action: 'speed', value: Number(b.dataset.rpSpeed) || 1 })));
+  $('#rp-tab-open', p)?.addEventListener('click', replayOpenConsole);
+  p.querySelectorAll('[data-rp-replay]').forEach((b) => b.addEventListener('click', () => replayTabTrigger(Number(b.dataset.rpReplay) || 10)));
+  $('#rp-tab-save', p)?.addEventListener('click', replayTabSave);
+  $('#rp-tab-take', p)?.addEventListener('click', replayTabTake);
+  $('#rp-tab-live', p)?.addEventListener('click', replayTabLive);
+  p.querySelectorAll('[data-rp-speed]').forEach((b) => b.addEventListener('click', () => replayTabSetSpeed(Number(b.dataset.rpSpeed) || 0.5)));
   loadReplayTabClips(p);
   clearInterval(replayTabTimer);
   replayTabTimer = setInterval(() => {
@@ -6215,6 +6293,13 @@ function renderReplayPanel() {
     p.querySelector('.rp-dot')?.classList.toggle('on', !!s.active);
     const btn = $('#rp-tab-toggle', p);
     if (btn) btn.textContent = s.active ? 'Parar buffer' : 'Ligar buffer';
+    p.querySelectorAll('[data-rp-replay]').forEach((b) => (b.disabled = !s.active));
+    const air = $('#rp-tab-air', p);
+    const nowAir = !!replayEngine?.isPlayoutOnAir?.();
+    if (air) {
+      air.textContent = nowAir ? 'PGM · REPLAY' : 'FORA DO AR';
+      air.classList.toggle('on', nowAir);
+    }
   }, 1000);
 }
 

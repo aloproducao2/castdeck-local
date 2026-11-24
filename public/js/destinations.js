@@ -115,28 +115,30 @@ export async function editDestination(d, preset = {}) {
   const res = await modal(
     `
     <h3>${d ? T('Editar destino') : T('Novo destino')}</h3>
-    <p class="sub">${T('A chave fica salva só neste aparelho. Se conectar a conta, o CastDeck cria a live e renova a chave sozinho.')}</p>
+    <p class="sub">${T('A forma mais rápida é colar a chave de transmissão. Ela fica salva só neste aparelho. Conectar a conta é opcional.')}</p>
     <label class="field"><span>${T('Plataforma')}</span><select class="input" id="d-plat">${Object.entries(PLATFORMS).map(([k, v]) => `<option value="${k}" ${plat0 === k ? 'selected' : ''}>${v.label}</option>`).join('')}</select></label>
-    <div class="d-conn" id="d-conn" hidden>
-      <div class="d-conn-row">
-        <span class="d-conn-badge" id="d-conn-badge">○</span>
-        <span class="d-conn-txt" id="d-conn-txt"></span>
-        <button type="button" class="btn sm primary" id="d-connect">${T('Conectar conta')}</button>
+    <div class="field"><span>${T('Formato da chave')}</span>
+      <div class="fmt-seg" id="d-fmt" role="radiogroup">
+        <label class="fmt-opt"><input type="radio" name="d-fmt" value="h" ${fmt0 === 'h' ? 'checked' : ''}><i class="fmt-ico h"></i><span><b>Horizontal 16:9</b><small>YouTube, Facebook, Twitch, Kick…</small></span></label>
+        <label class="fmt-opt"><input type="radio" name="d-fmt" value="v" ${fmt0 === 'v' ? 'checked' : ''}><i class="fmt-ico v"></i><span><b>Vertical 9:16</b><small>Instagram, TikTok, Shorts</small></span></label>
       </div>
-      <p class="hint" id="d-conn-hint"></p>
     </div>
-    <details class="d-manual" id="d-manual" ${d && !CONNECTABLE.has(plat0) ? 'open' : ''}>
-      <summary>${T('Usar chave manual')}</summary>
-      <div class="field" style="margin-top:10px"><span>${T('Formato da chave')}</span>
-        <div class="fmt-seg" id="d-fmt" role="radiogroup">
-          <label class="fmt-opt"><input type="radio" name="d-fmt" value="h" ${fmt0 === 'h' ? 'checked' : ''}><i class="fmt-ico h"></i><span><b>Horizontal 16:9</b><small>YouTube, Facebook, Twitch, Kick…</small></span></label>
-          <label class="fmt-opt"><input type="radio" name="d-fmt" value="v" ${fmt0 === 'v' ? 'checked' : ''}><i class="fmt-ico v"></i><span><b>Vertical 9:16</b><small>Instagram, TikTok, Shorts</small></span></label>
-        </div>
-      </div>
-      <label class="field"><span>${T('URL do servidor (rtmp:// ou rtmps://)')}</span><input class="input" id="d-url" value="${esc(d?.url ?? PLATFORMS[plat0]?.url ?? '')}"></label>
-      <label class="field"><span>${T('Chave de transmissão')}</span><input class="input" id="d-key" type="password" autocomplete="off" value="${esc(d?.key || '')}" placeholder="${d ? T('Deixe como está para manter') : T('Cole a chave aqui')}"></label>
+    <label class="field"><span>${T('URL do servidor (rtmp:// ou rtmps://)')}</span><input class="input" id="d-url" value="${esc(d?.url ?? PLATFORMS[plat0]?.url ?? '')}"></label>
+    <label class="field"><span>${T('Chave de transmissão')}</span><input class="input" id="d-key" type="password" autocomplete="off" value="${esc(d?.key || '')}" placeholder="${d ? T('Deixe como está para manter a chave salva') : T('Cole aqui a chave da live')}"></label>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button type="button" class="kh-btn" id="d-help">❓ <span>${T('Onde pego a chave?')}</span></button>
-      <p class="hint" id="d-hint"></p>
+      <p class="hint" id="d-hint" style="margin:0"></p>
+    </div>
+    <details class="d-manual" id="d-login">
+      <summary>${T('Prefere entrar com a conta? (opcional)')}</summary>
+      <div class="d-conn" id="d-conn" hidden>
+        <div class="d-conn-row">
+          <span class="d-conn-badge" id="d-conn-badge">○</span>
+          <span class="d-conn-txt" id="d-conn-txt"></span>
+          <button type="button" class="btn sm" id="d-connect">${T('Conectar conta')}</button>
+        </div>
+        <p class="hint" id="d-conn-hint"></p>
+      </div>
     </details>
     <label class="field"><span>${T('Nome')}</span><input class="input" id="d-name" maxlength="80" value="${esc(d?.name || '')}" placeholder="Ex.: ${T('Canal principal')}"></label>
     <div class="modal-actions"><button class="btn" data-close>${T('Cancelar')}</button><button class="btn primary" id="d-save" data-save>${T('Salvar')}</button></div>`,
@@ -151,12 +153,10 @@ export async function editDestination(d, preset = {}) {
         const syncConn = () => {
           const p = plat.value;
           const can = CONNECTABLE.has(p);
+          $('#d-login', m).hidden = !can;
           const box = $('#d-conn', m);
           box.hidden = !can;
-          if (!can) {
-            $('#d-manual', m).open = true;
-            return;
-          }
+          if (!can) return;
           const connected = conn === p;
           $('#d-conn-badge', m).textContent = connected ? '●' : '○';
           $('#d-conn-badge', m).className = `d-conn-badge ${connected ? 'ok' : ''}`;
@@ -208,7 +208,7 @@ export async function editDestination(d, preset = {}) {
             connectionId: usingConn ? platform : '',
           });
         };
-        setTimeout(() => (d ? $('#d-name', m) : plat).focus(), 30);
+        setTimeout(() => (d ? $('#d-name', m) : $('#d-key', m))?.focus(), 30);
       },
     },
   );

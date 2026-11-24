@@ -40,11 +40,11 @@ const num = (v, min, max, fallback) => (Number.isFinite(+v) ? Math.max(min, Math
 // O objeto fica em s.adjust e é salvo em brand.sourceAdjust pelo estúdio.
 export function normalizeAdjust(a = {}) {
   const crop = a.crop || {};
-  let l = num(crop.l, 0, 0.45, 0), r = num(crop.r, 0, 0.45, 0);
-  let t = num(crop.t, 0, 0.45, 0), b = num(crop.b, 0, 0.45, 0);
+  let l = num(crop.l, 0, 0.5, 0), r = num(crop.r, 0, 0.5, 0);
+  let t = num(crop.t, 0, 0.5, 0), b = num(crop.b, 0, 0.5, 0);
   // nunca deixa o corte atravessar a fonte inteira
-  if (l + r > 0.9) { const k = 0.9 / (l + r); l *= k; r *= k; }
-  if (t + b > 0.9) { const k = 0.9 / (t + b); t *= k; b *= k; }
+  if (l + r > 0.98) { const k = 0.98 / (l + r); l *= k; r *= k; }
+  if (t + b > 0.98) { const k = 0.98 / (t + b); t *= k; b *= k; }
   return {
     fit: a.fit === 'contain' ? 'contain' : 'cover',
     zoom: num(a.zoom, 0.1, 3, 1),

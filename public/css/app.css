@@ -72,3 +72,8 @@
 .cp-rp-speed { display: flex; gap: 4px; margin-left: auto; }
 .cp-rp-speed .btn { padding: 0 7px; }
 .cp-sec { border-radius: 9px; }
+
+.dup-mode { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:4px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:9px; margin:8px 0 4px; }
+.dup-mode-btn { height:34px; border:0; border-radius:6px; background:transparent; color:#94a3b8; font:600 12px/1 system-ui; cursor:pointer; }
+.dup-mode-btn:hover { color:#e2e8f0; }
+.dup-mode-btn.active { background:var(--acc,#6366f1); color:#fff; }

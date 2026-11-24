@@ -787,6 +787,7 @@ async function buildStudio() {
     get renderFps() { return renderFps; },
     get renderTargetFps() { return S?.system?.presets?.[S.preset]?.fps || 30; },
     openReplayConsole,
+    duplicateSource: (id, opts) => duplicateSource(S.sources.get(id), opts),
     addVideoSource,
     removeSource,
     setStage,
@@ -2184,6 +2185,163 @@ function setSourceAdjust(s, adjust) {
   comp.upsertSource(s.id, { adjust: s.adjust || null });
 }
 
+// ---------- Fontes derivadas: duplicar uma fonte recortando uma parte ----------
+// Cada duplicata compartilha o mesmo stream/elemento da origem (zero captura extra) e guarda o
+// próprio ajuste (crop l/r/t/b), então serve para montar 4 quadrantes de uma câmera, detalhes etc.
+const DUP_PRESETS = [
+  { id: 'full', label: 'Inteira', crop: { l: 0, r: 0, t: 0, b: 0 } },
+  { id: 'left', label: 'Esquerda', crop: { l: 0, r: 0.5, t: 0, b: 0 } },
+  { id: 'right', label: 'Direita', crop: { l: 0.5, r: 0, t: 0, b: 0 } },
+  { id: 'top', label: 'Topo', crop: { l: 0, r: 0, t: 0, b: 0.5 } },
+  { id: 'bottom', label: 'Base', crop: { l: 0, r: 0, t: 0.5, b: 0 } },
+  { id: 'tl', label: 'Q1', crop: { l: 0, r: 0.5, t: 0, b: 0.5 } },
+  { id: 'tr', label: 'Q2', crop: { l: 0.5, r: 0, t: 0, b: 0.5 } },
+  { id: 'bl', label: 'Q3', crop: { l: 0, r: 0.5, t: 0.5, b: 0 } },
+  { id: 'br', label: 'Q4', crop: { l: 0.5, r: 0, t: 0.5, b: 0 } },
+];
+let restoringDerived = false;
+
+function canDuplicateSource(s) {
+  return !!s?.el && !s.derivedFrom && ['camera', 'screen', 'uvc', 'ingest', 'media', 'image', 'browser'].includes(s.kind);
+}
+
+function duplicateSource(orig, { crop, name, onStage = false, silent = false } = {}) {
+  if (!orig?.el) return null;
+  const adjust = normalizeAdjust({ crop });
+  const defs = (S.brand.derivedSources ||= []);
+  let n = defs.filter((d) => d.from === orig.id).length + 1;
+  let id = 'dup:' + orig.id + ':' + n;
+  while (S.sources.has(id)) id = 'dup:' + orig.id + ':' + ++n;
+  const meta = { kind: orig.kind, label: name || (orig.label || 'Fonte') + ' · recorte ' + n, ownerId: 'host', camOff: false, derivedFrom: orig.id };
+  let s;
+  if (orig.stream && ['camera', 'screen', 'uvc', 'ingest'].includes(orig.kind)) s = addVideoSource(id, orig.stream, meta);
+  else {
+    s = { id, el: orig.el, stream: orig.stream || null, ...meta };
+    S.sources.set(id, s);
+  }
+  s.adjust = adjust;
+  comp.upsertSource(id, { kind: s.kind, label: s.label, el: s.el, camOff: false, adjust });
+  defs.push({ id, from: orig.id, label: s.label, crop: adjust.crop, onStage: !!onStage });
+  if (onStage && !S.stage.includes(id)) setStage([...S.stage, id]);
+  renderTiles();
+  saveStudio();
+  if (!silent) toast('Fonte duplicada. Dê duplo clique na miniatura para colocar no palco.', 'ok');
+  return s;
+}
+
+async function openDuplicateSource(orig) {
+  if (!canDuplicateSource(orig)) return toast('Esta fonte não pode ser duplicada.', 'warn');
+  const crop = { l: 0, r: 0, t: 0, b: 0 };
+  const presetBtns = DUP_PRESETS.map((p) => '<button type="button" class="btn sm ghost dup-preset" data-dup="' + p.id + '">' + p.label + '</button>').join('');
+  const range = (k) => '<label class="field dup-range"><span>Cortar da ' + ({ l: 'esquerda', r: 'direita', t: 'topo', b: 'base' }[k]) + ': <b id="dup-v-' + k + '">0</b>%</span><input type="range" id="dup-' + k + '" min="0" max="50" step="1" value="0"></label>';
+  const res = await modal(
+    '<h3>Duplicar fonte</h3>' +
+      '<p class="sub">A cópia usa a mesma captura de “' + esc(orig.label || 'fonte') + '” (sem capturar de novo e sem duplicar áudio). Escolha cópia inteira ou um recorte; depois dê <b>duplo clique na miniatura</b> para colocar no palco.</p>' +
+      '<div class="dup-mode" id="dup-mode" role="tablist">' +
+      '<button type="button" class="dup-mode-btn active" data-mode="full">Cópia inteira</button>' +
+      '<button type="button" class="dup-mode-btn" data-mode="crop">Recortar região</button>' +
+      '</div>' +
+      '<div class="dup-prev-wrap"><canvas id="dup-prev" width="320" height="180"></canvas><span class="dup-prev-tag" id="dup-prev-tag">CÓPIA INTEIRA</span></div>' +
+      '<div id="dup-crop-controls" hidden>' +
+      '<div class="dup-presets">' + presetBtns + '</div>' +
+      range('l') + range('r') + range('t') + range('b') +
+      '</div>' +
+      '<label class="field"><span>Nome da nova fonte</span><input class="input" id="dup-name" maxlength="60" value="' + esc((orig.label || 'Fonte') + ' · cópia') + '"></label>' +
+      '<div class="modal-actions"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="dup-ok">Duplicar</button></div>',
+    {
+      onMount(m, close) {
+        const cv = $('#dup-prev', m);
+        const ctx = cv.getContext('2d');
+        let mode = 'full';
+        let nameTouched = false;
+        const controls = $('#dup-crop-controls', m);
+        const setCrop = (c) => {
+          Object.assign(crop, normalizeAdjust({ crop: c }).crop);
+          for (const k of ['l', 'r', 't', 'b']) {
+            $('#dup-' + k, m).value = Math.round(crop[k] * 100);
+            $('#dup-v-' + k, m).textContent = Math.round(crop[k] * 100);
+          }
+        };
+        const setMode = (next) => {
+          mode = next;
+          m.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+          controls.hidden = mode !== 'crop';
+          $('#dup-prev-tag', m).textContent = mode === 'crop' ? 'PRÉVIA DO RECORTE' : 'CÓPIA INTEIRA';
+          if (!nameTouched) $('#dup-name', m).value = (orig.label || 'Fonte') + (mode === 'crop' ? ' · recorte' : ' · cópia');
+        };
+        m.querySelectorAll('[data-mode]').forEach((b) => (b.onclick = () => setMode(b.dataset.mode)));
+        m.querySelectorAll('[data-dup]').forEach((b) => (b.onclick = () => {
+          m.querySelectorAll('[data-dup]').forEach((x) => x.classList.toggle('active', x === b));
+          setCrop(DUP_PRESETS.find((p) => p.id === b.dataset.dup).crop);
+        }));
+        m.querySelectorAll('input[type="range"]').forEach((r) => (r.oninput = () => {
+          const k = r.id.slice(4);
+          crop[k] = Math.max(0, Math.min(50, Number(r.value) || 0)) / 100;
+          $('#dup-v-' + k, m).textContent = r.value;
+        }));
+        $('#dup-name', m).oninput = () => (nameTouched = true);
+        const paint = () => {
+          if (!document.body.contains(cv)) return;
+          const el = orig.el;
+          const vw = el instanceof HTMLImageElement ? el.naturalWidth : el.videoWidth;
+          const vh = el instanceof HTMLImageElement ? el.naturalHeight : el.videoHeight;
+          const applied = mode === 'crop' ? crop : { l: 0, r: 0, t: 0, b: 0 };
+          ctx.fillStyle = '#000';
+          ctx.fillRect(0, 0, cv.width, cv.height);
+          if (vw > 0 && vh > 0) {
+            try { drawFramed(ctx, el, 0, 0, cv.width, cv.height, vw, vh, normalizeAdjust({ crop: applied })); } catch {}
+          } else {
+            ctx.fillStyle = '#64748b';
+            ctx.font = '600 13px system-ui';
+            ctx.textAlign = 'center';
+            ctx.fillText('Sem imagem da fonte no momento', cv.width / 2, cv.height / 2);
+          }
+          requestAnimationFrame(paint);
+        };
+        paint();
+        $('#dup-ok', m).onclick = () => close({
+          crop: mode === 'crop' ? { ...crop } : { l: 0, r: 0, t: 0, b: 0 },
+          name: $('#dup-name', m).value.trim() || (orig.label || 'Fonte') + ' · cópia',
+          onStage: false,
+        });
+      },
+    },
+  );
+  if (!res) return null;
+  return duplicateSource(orig, res);
+}
+
+// Recria as duplicatas salvas quando a fonte de origem aparece (troca de câmera, reabrir estúdio etc.).
+function restoreDerivedSources() {
+  if (restoringDerived) return;
+  const defs = S.brand?.derivedSources || [];
+  if (!defs.length) return;
+  const pending = defs.filter((d) => !S.sources.has(d.id) && S.sources.has(d.from) && !isBackgroundVideo(d.id));
+  if (!pending.length) return;
+  restoringDerived = true;
+  const toStage = [];
+  try {
+    for (const d of pending) {
+      const orig = S.sources.get(d.from);
+      if (!orig?.el) continue;
+      const meta = { kind: orig.kind, label: d.label || orig.label, ownerId: 'host', camOff: false, derivedFrom: orig.id };
+      let s;
+      if (orig.stream && ['camera', 'screen', 'uvc', 'ingest'].includes(orig.kind)) s = addVideoSource(d.id, orig.stream, meta);
+      else {
+        s = { id: d.id, el: orig.el, stream: orig.stream || null, ...meta };
+        S.sources.set(d.id, s);
+      }
+      s.adjust = normalizeAdjust({ crop: d.crop });
+      comp.upsertSource(d.id, { kind: s.kind, label: s.label, el: s.el, camOff: false, adjust: s.adjust });
+      if (d.onStage && !S.stage.includes(d.id)) toStage.push(d.id);
+    }
+  } finally {
+    restoringDerived = false;
+  }
+  if (toStage.length) setStage([...new Set([...S.stage, ...toStage])]);
+  else renderTiles();
+}
+
 function addVideoSource(id, stream, meta) {
   let s = S.sources.get(id);
   if (!s) {
@@ -2320,9 +2478,19 @@ async function setCameraAudioInterface(id, deviceId) {
 }
 
 function removeSource(id) {
-  browserSources?.stop?.(id, { remove: false });
   const s = S.sources.get(id);
   if (!s) return;
+  if (s.derivedFrom) {
+    comp.removeSource(id);
+    S.sources.delete(id);
+    S.brand.derivedSources = (S.brand.derivedSources || []).filter((d) => d.id !== id);
+    if (S.stage.includes(id)) setStage(S.stage.filter((x) => x !== id));
+    renderTiles();
+    saveStudio();
+    return;
+  }
+  for (const [did, ds] of [...S.sources]) if (ds.derivedFrom === id) removeSource(did);
+  browserSources?.stop?.(id, { remove: false });
   try { lp?.forget(id); } catch {}
   if (s.kind === 'uvc') {
     stopUvcVideo(s);
@@ -2947,6 +3115,7 @@ function ensureBsGroup(box, key) {
 function renderTiles() {
   const box = $('#backstage');
   if (!box) return;
+  restoreDerivedSources();
   for (const [id, el] of tileEls) {
     if (!S.sources.has(id)) {
       el.remove();
@@ -2985,12 +3154,8 @@ function renderTiles() {
       el.dataset.srcId = s.id;
       el.addEventListener('click', (e) => {
         if (e.target.closest('button, .tile-menu') || el.classList.contains('dragging')) return;
-        if (S.switcher) {
-          switcher?.setPreview(s.id);
-          return;
-        }
-        // No modo Estúdio, clicar na imagem da fonte alterna direto entre bastidor e palco.
-        if (e.target.closest('.tv')) toggleStage(s.id);
+        // Operação segura: no Estúdio o clique simples NÃO muda o palco (evita toque acidental).
+        if (S.switcher) switcher?.setPreview(s.id);
       });
       el.addEventListener('dblclick', (e) => {
         if (e.target.closest('button, .tile-menu') || el.classList.contains('dragging')) return;
@@ -2998,14 +3163,15 @@ function renderTiles() {
           switcher?.cutTo(s.id);
           return;
         }
-        if (e.target.closest('.tbar-head') && s.kind !== 'browser') renameSource(s.id);
+        if (e.target.closest('.tv')) toggleStage(s.id);
+        else if (e.target.closest('.tbar-head') && s.kind !== 'browser') renameSource(s.id);
       });
       el.querySelector('.stage-btn button').onclick = (e) => {
         e.stopPropagation();
         toggleStage(s.id);
       };
       el.draggable = true;
-      el.title = 'Arraste para um espaço do programa';
+      el.title = 'Duplo clique na imagem para colocar/tirar do palco · arraste para um espaço do programa';
       el.ondragstart = (e) => {
         if (e.target.closest?.('button')) return e.preventDefault();
         startDragSrc(e, s.id);
@@ -3079,6 +3245,7 @@ function renderTiles() {
       if (/\bdanger\b/.test(cls)) dangerActions.push({ icon, title, fn, cls });
       else primaryActions.push({ icon, title, fn, cls });
     };
+    if (canDuplicateSource(s)) add(icons.copy, 'Duplicar fonte (cópia inteira ou recorte — ex.: 4 quadrantes)', () => openDuplicateSource(s));
     if (s.kind === 'media') {
       add(s.el.paused ? icons.play : icons.pause, s.el.paused ? 'Reproduzir' : 'Pausar', () => {
         if (s.el.paused) {
@@ -3631,10 +3798,10 @@ async function openSourceAdjust(id) {
           <div class="srcadj-group">
             <div class="srcadj-group-head"><span>03</span><div><b>Corte da fonte</b><small>Recorte as quatro bordas</small></div></div>
             <div class="srcadj-grid srcadj-grid-2">
-              <label class="srcadj-range"><span>Topo <b id="sa-ct-v"></b></span><input type="range" id="sa-ct" min="0" max="45" step="1"></label>
-              <label class="srcadj-range"><span>Direita <b id="sa-cr-v"></b></span><input type="range" id="sa-cr" min="0" max="45" step="1"></label>
-              <label class="srcadj-range"><span>Baixo <b id="sa-cb-v"></b></span><input type="range" id="sa-cb" min="0" max="45" step="1"></label>
-              <label class="srcadj-range"><span>Esquerda <b id="sa-cl-v"></b></span><input type="range" id="sa-cl" min="0" max="45" step="1"></label>
+              <label class="srcadj-range"><span>Topo <b id="sa-ct-v"></b></span><input type="range" id="sa-ct" min="0" max="50" step="1"></label>
+              <label class="srcadj-range"><span>Direita <b id="sa-cr-v"></b></span><input type="range" id="sa-cr" min="0" max="50" step="1"></label>
+              <label class="srcadj-range"><span>Baixo <b id="sa-cb-v"></b></span><input type="range" id="sa-cb" min="0" max="50" step="1"></label>
+              <label class="srcadj-range"><span>Esquerda <b id="sa-cl-v"></b></span><input type="range" id="sa-cl" min="0" max="50" step="1"></label>
             </div>
           </div>
         </section>

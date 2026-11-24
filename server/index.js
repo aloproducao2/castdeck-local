@@ -1240,6 +1240,29 @@ async function main() {
       res.status(500).json({ error: err.message });
     }
   });
+  // Versão suavizada do lance (interpolação 2× por mescla de quadros, gerada no console).
+  api.post('/replay/clips/:id/smooth', express.raw({ type: ['video/webm', 'application/octet-stream'], limit: '200mb' }), async (req, res) => {
+    try {
+      const fps = Number(req.headers['x-replay-smooth-fps']) || 60;
+      const factor = Number(req.headers['x-replay-smooth-factor']) || 2;
+      const meta = await replayStore.saveSmoothClip(req.params.id, req.body, { fps, factor });
+      if (!meta) return res.status(404).json({ ok: false, error: 'Clipe não encontrado' });
+      res.json({ ok: true, clip: meta });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+  // Versão suavizada gerada por WebCodecs (vídeo 60 fps) — o servidor junta o áudio do RAW.
+  api.post('/replay/clips/:id/smooth-video', express.raw({ type: ['video/webm', 'application/octet-stream'], limit: '400mb' }), async (req, res) => {
+    try {
+      const factor = Number(req.headers['x-replay-smooth-factor']) || 2;
+      const meta = await replayStore.saveSmoothVideo(req.params.id, req.body, { factor });
+      if (!meta) return res.status(404).json({ ok: false, error: 'Clipe não encontrado' });
+      res.json({ ok: true, clip: meta });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
   api.delete('/replay/clips/:id', async (req, res) => {
     try {
       res.json({ ok: await replayStore.deleteClip(req.params.id) });

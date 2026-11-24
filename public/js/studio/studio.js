@@ -177,6 +177,7 @@ const TAB_GROUPS = [
     hint: 'O que aparece na tela: mídias, Playout, GCs, jornal e esportes',
     tabs: [
       ['media', 'Mídia', 'film', 'Vídeos, áudios e imagens'],
+      ['replay', 'Replay', 'play', 'Replay instantâneo: buffer, gatilhos e lance no PGM'],
       ['playout', 'Playout', 'play', 'Fila, mini player e o que está no ar'],
       ['banners', 'Grafismo', 'banner', 'Grafismo: GC ao vivo, templates, dados e saídas'],
       ['journal', 'Jornal', 'news', 'GC de jornalismo, logo e etiquetas'],
@@ -501,6 +502,7 @@ async function buildStudio() {
       </div>
       <nav class="tabs subtabs" aria-label="Itens da seção">${TAB_GROUPS.map((g) => g.tabs.map(([id, label, icon, hint]) => `<button class="tab" data-tab="${id}" data-group="${g.id}" title="${hint}" hidden>${icons[icon]}<span>${label}</span>${id === 'chat' ? '<i class="count chat-count" hidden></i>' : id === 'messages' ? '<i class="count msg-count" hidden></i>' : id === 'banners' ? '<i class="count gf-live-count" hidden></i>' : ''}</button>`).join('')).join('')}</nav>
       <div class="panel" id="panel-media"></div>
+      <div class="panel" id="panel-replay"></div>
       <div class="panel" id="panel-playout"></div>
       <div class="panel" id="panel-banners"></div>
         <div class="panel" id="panel-journal"></div>
@@ -6129,10 +6131,93 @@ function tabOpen(t) {
   return S.tab === t || !!floatWins?.has(t);
 }
 function renderTabContent(tab) {
-  ({ journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), raffle: () => raffle.render($('#panel-raffle')), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, pip: renderPipPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, music: renderMusicPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, plugins: () => plugins?.render(), outputs: () => outputs.open(), ndi: renderNdiPanel, multirec: () => multiRec?.render?.(), intercom: renderIntercomPanel })[tab]?.();
+  ({ replay: renderReplayPanel, journal: () => journal.render(), sports: () => sports.render(), widgets: () => widgets.render(), raffle: () => raffle.render($('#panel-raffle')), messages: () => messages.render(), whatsapp: () => whatsapp?.renderPanel(), brand: renderBrandPanel, pip: renderPipPanel, banners: renderBannersPanel, chat: renderChatPanel, social: () => social.render($('#panel-social')), media: renderMediaPanel, playout: renderPlayoutPanel, audio: renderAudioPanel, music: renderMusicPanel, captions: () => captions?.render(), director: () => (autoVoice?.mountPanel(), autoVoice?.paint(), remote?.mountPanel()), output: renderOutputPanel, display: renderDisplayPanel, devices: renderDevicesPanel, plugins: () => plugins?.render(), outputs: () => outputs.open(), ndi: renderNdiPanel, multirec: () => multiRec?.render?.(), intercom: renderIntercomPanel })[tab]?.();
 }
 
 // marca nas abas da lateral quais estão destacadas e cuida do botão ⧉
+// ---------- Aba Replay: replay instantâneo dentro do estúdio ----------
+let replayTabTimer = null;
+
+function replayTabSend(cmd, { openIfClosed = true } = {}) {
+  const sent = replayEngine?.sendCommand?.(cmd) === true;
+  if (!sent && openIfClosed) {
+    openReplayConsole();
+    setTimeout(() => replayEngine?.sendCommand?.(cmd), 1600);
+    toast('Console de Replay aberto — o comando será aplicado assim que ele conectar.');
+  }
+  return sent;
+}
+
+async function loadReplayTabClips(p) {
+  const el = $('#rp-tab-last', p);
+  if (!el) return;
+  try {
+    const list = await (await fetch('/api/replay/clips', { cache: 'no-store' })).json();
+    const items = (Array.isArray(list) ? list : []).slice(0, 5);
+    if (!items.length) {
+      el.innerHTML = '<span class="hint">Nenhum lance salvo ainda. Use os gatilhos ou o Shotbox do console.</span>';
+      return;
+    }
+    el.innerHTML = items.map((c) => '<div class="rp-tab-clip"><b>' + esc(c.title || 'Lance') + '</b><span>' + (Number(c.duration) || 0).toFixed(1) + 's · ' + Math.round((Number(c.speed) || 0.5) * 100) + '%</span></div>').join('');
+  } catch {
+    el.innerHTML = '<span class="hint">Não foi possível ler a lista de lances.</span>';
+  }
+}
+
+function renderReplayPanel() {
+  const p = $('#panel-replay');
+  if (!p) return;
+  const st = replayEngine?.getStats?.() || {};
+  const active = !!st.active;
+  const dur = Number(st.duration) || 0;
+  const max = Number(st.maxDuration) || 45;
+  const pct = Math.max(0, Math.min(100, Math.round((dur / Math.max(1, max)) * 100)));
+  p.innerHTML = [
+    '<h3 style="display:flex;align-items:center;gap:8px;margin:0 0 4px"><span class="rp-tab-ico">' + icons.play + '</span><span>Replay instantâneo</span></h3>',
+    '<p class="hint" style="margin:0 0 12px">O buffer grava o programa em segundo plano. Os gatilhos mandam o lance direto ao PGM (sem abrir o console).</p>',
+    '<div class="rp-tab-card">',
+    '  <div class="rp-tab-row"><span class="rp-dot ' + (active ? 'on' : '') + '"></span><b>' + (active ? 'Buffer ativo' : 'Buffer parado') + '</b><span class="rp-ms" id="rp-tab-buffer">' + dur.toFixed(1) + ' s / ' + max + ' s</span><span class="rp-bar"><i style="width:' + pct + '%"></i></span></div>',
+    '  <div class="rp-tab-actions"><button class="btn ' + (active ? '' : 'primary') + '" id="rp-tab-toggle">' + (active ? 'Parar buffer' : 'Ligar buffer') + '</button><button class="btn sm" id="rp-tab-open">Abrir console</button></div>',
+    '</div>',
+    '<div class="rp-tab-card">',
+    '  <div class="rp-tab-title">Gatilhos — últimos N segundos no PGM</div>',
+    '  <div class="rp-tab-grid">' + [5, 10, 15, 30].map((s) => '<button class="btn" data-rp-replay="' + s + '">' + s + 's</button>').join('') + '</div>',
+    '  <div class="rp-tab-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:8px"><button class="btn" id="rp-tab-save">Salvar lance</button><button class="btn" id="rp-tab-take">TAKE</button><button class="btn" id="rp-tab-live">AO VIVO</button></div>',
+    '  <div class="rp-tab-title" style="margin-top:10px">Velocidade</div>',
+    '  <div class="rp-tab-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' + [25, 50, 75, 100].map((v) => '<button class="btn sm" data-rp-speed="' + v / 100 + '">' + v + '%</button>').join('') + '</div>',
+    '</div>',
+    '<div class="rp-tab-card"><div class="rp-tab-title">Últimos lances salvos</div><div id="rp-tab-last" class="rp-tab-last">Carregando…</div></div>',
+  ].join('');
+  $('#rp-tab-toggle', p)?.addEventListener('click', () => {
+    if (replayEngine?.isBufferActive?.()) replayEngine.stopBuffer?.();
+    else replayEngine.startBuffer?.();
+    setTimeout(renderReplayPanel, 400);
+  });
+  $('#rp-tab-open', p)?.addEventListener('click', () => openReplayConsole());
+  p.querySelectorAll('[data-rp-replay]').forEach((b) => b.addEventListener('click', () => {
+    replayTabSend({ action: 'replay', seconds: Number(b.dataset.rpReplay) || 10 });
+  }));
+  $('#rp-tab-save', p)?.addEventListener('click', () => replayTabSend({ action: 'save' }));
+  $('#rp-tab-take', p)?.addEventListener('click', () => replayTabSend({ action: 'take' }));
+  $('#rp-tab-live', p)?.addEventListener('click', () => replayTabSend({ action: 'live' }));
+  p.querySelectorAll('[data-rp-speed]').forEach((b) => b.addEventListener('click', () => replayTabSend({ action: 'speed', value: Number(b.dataset.rpSpeed) || 1 })));
+  loadReplayTabClips(p);
+  clearInterval(replayTabTimer);
+  replayTabTimer = setInterval(() => {
+    if (!tabOpen('replay')) {
+      clearInterval(replayTabTimer);
+      replayTabTimer = null;
+      return;
+    }
+    const s = replayEngine?.getStats?.() || {};
+    const el = $('#rp-tab-buffer', p);
+    if (el) el.textContent = (Number(s.duration) || 0).toFixed(1) + ' s / ' + (Number(s.maxDuration) || 45) + ' s';
+    p.querySelector('.rp-dot')?.classList.toggle('on', !!s.active);
+    const btn = $('#rp-tab-toggle', p);
+    if (btn) btn.textContent = s.active ? 'Parar buffer' : 'Ligar buffer';
+  }, 1000);
+}
+
 function markFloating() {
   $$('.subtabs .tab').forEach((b) => b.classList.toggle('floating', !!floatWins?.has(b.dataset.tab)));
   const d = $('#btn-detach');

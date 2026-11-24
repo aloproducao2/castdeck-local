@@ -21,6 +21,17 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
   playoutVideo.crossOrigin = 'anonymous';
   playoutVideo.preservesPitch = true;
 
+  // ---- Playout WebCodecs (quadro-a-quadro, 60 Hz, passo real e reverse) ----
+  // O compositor desenha um canvas decodificado por VideoDecoder; o <video> continua como fonte de
+  // ÁUDIO no mixer (play/pause/seek acompanham). Sem WebCodecs/demux, cai no modo antigo.
+  let wcModule = null;
+  let wcPlayer = null;
+  let wcActive = false;
+  let wcSpeed = 0.5;
+  let wcReverse = false;
+  let wcSyncTimer = null;
+  let wcGen = 0;
+
   // ---------------------------------------------------------------
   // SAÍDA COM BLEND (canvas A/B): o compositor desenha este canvas, não o <video>.
   // Ao buscar uma posição, o canvas segura o quadro antigo e faz um dissolve de ~140 ms até o
@@ -328,6 +339,54 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
     return found;
   }
 
+  // Lê um VINT (ID mantém o bit de marca; tamanho descarta). Usado pela checagem de keyframe.
+  function readVintAt(u8, p, keep) {
+    const first = u8[p];
+    if (!first) return null;
+    let len = 1;
+    let mask = 0x80;
+    while (!(first & mask)) {
+      mask >>= 1;
+      len++;
+      if (len > 8) return null;
+    }
+    let value = keep ? first : first & (mask - 1);
+    for (let i = 1; i < len && p + i < u8.length; i++) value = value * 256 + u8[p + i];
+    return { value, len };
+  }
+
+  // O Cluster escolhido para iniciar o clipe tem keyframe de vídeo? Sem isso o clipe pode começar
+  // com até ~1 s só de áudio (o vídeo só entra no keyframe seguinte), o que atrapalha o playout e o
+  // "Suavizar" (o decodificador não consegue começar antes do primeiro keyframe).
+  function clusterHasVideoKey(u8, off) {
+    const id = readVintAt(u8, off, true);
+    if (!id) return false;
+    const sz = readVintAt(u8, off + id.len, false);
+    if (!sz) return false;
+    let p = off + id.len + sz.len;
+    const end = u8.length;
+    while (p < end - 1) {
+      // próximo Cluster (assinatura estrita do modo ao vivo do Chromium)
+      if (u8[p] === 0x1f && u8[p + 1] === 0x43 && u8[p + 2] === 0xb6 && u8[p + 3] === 0x75 && u8[p + 4] === 0x01 && u8[p + 12] === 0xe7) break;
+      const eid = readVintAt(u8, p, true);
+      if (!eid) break;
+      const esz = readVintAt(u8, p + eid.len, false);
+      if (!esz) break;
+      const dataStart = p + eid.len + esz.len;
+      const dataEnd = Math.min(end, dataStart + esz.value);
+      if (eid.value === 0xa3) {
+        const track = readVintAt(u8, dataStart, false);
+        if (track && track.value === 1) {
+          const flagsAt = dataStart + track.len + 2;
+          if (flagsAt < dataEnd && (u8[flagsAt] & 0x80)) return true;
+        }
+      }
+      p = dataEnd;
+      if (p <= dataStart) break;
+    }
+    return false;
+  }
+
   function resetBufferState() {
     ringBuffer = [];
     clusterIndex = [];
@@ -552,6 +611,28 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
       if (c.tc <= wantTc) start = c;
       else break;
     }
+    // Garante que o clipe comece num Cluster com keyframe de vídeo (senão pode ter ~1 s só de áudio).
+    const chunkOf = (c) => ringBuffer.find((e) => e.seq === c.seq);
+    let startChunk = chunkOf(start);
+    if (startChunk && !clusterHasVideoKey(startChunk.bytes, start.off)) {
+      const startIdx = usable.indexOf(start);
+      // Prefere o keyframe ANTERIOR (mantém a duração pedida do lance); se não houver, o próximo.
+      let keyCluster = null;
+      for (let i = startIdx - 1; i >= 0; i--) {
+        const c = usable[i];
+        const ch = chunkOf(c);
+        if (ch && clusterHasVideoKey(ch.bytes, c.off)) { keyCluster = c; break; }
+      }
+      if (!keyCluster) {
+        for (let i = startIdx + 1; i < usable.length; i++) {
+          const c = usable[i];
+          const ch = chunkOf(c);
+          if (ch && clusterHasVideoKey(ch.bytes, c.off)) { keyCluster = c; break; }
+        }
+      }
+      if (keyCluster) start = keyCluster;
+    }
+    startChunk = chunkOf(start);
 
     const startPos = ringBuffer.findIndex((e) => e.seq === start.seq);
     if (startPos < 0) return null;
@@ -710,6 +791,93 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
       globalThis.__castdeck?.renderTiles?.();
       globalThis.__castdeck?.switcher?.refresh?.();
       globalThis.__castdeck?.switcher?.syncTally?.();
+    }
+  }
+
+  // Troca o elemento que o compositor desenha para a fonte replay:out (vídeo <-> canvas WebCodecs).
+  function setReplaySourceElement(el) {
+    const src = S?.sources?.get('replay:out');
+    if (!src) return;
+    src.video = el;
+    src.el = el;
+    comp?.upsertSource?.('replay:out', { kind: 'media', label: 'REPLAY / VAR', el });
+    globalThis.__castdeck?.renderTiles?.();
+  }
+
+  function stopWcSync() {
+    if (wcSyncTimer) clearInterval(wcSyncTimer);
+    wcSyncTimer = null;
+  }
+
+  // Mantém o canvas (imagem) e o <video> (áudio) no mesmo tempo durante o playout normal.
+  function startWcSync() {
+    stopWcSync();
+    wcSyncTimer = setInterval(() => {
+      if (!wcActive || !wcPlayer || wcReverse) return;
+      const pt = wcPlayer.currentTime;
+      const vt = playoutVideo.currentTime || 0;
+      if (Math.abs(pt - vt) > 0.12 && !playoutVideo.paused) {
+        try { wcPlayer.seek(vt); } catch {}
+      }
+    }, 250);
+  }
+
+  function stopWcPlayout() {
+    wcGen++;
+    stopWcSync();
+    wcActive = false;
+    wcReverse = false;
+    try { wcPlayer?.pause(); } catch {}
+    try { wcPlayer?.dispose(); } catch {}
+    wcPlayer = null;
+    if (S?.sources?.has('replay:out')) setReplaySourceElement(playoutVideo);
+  }
+
+  // Prepara o player WebCodecs e troca a fonte do compositor quando o primeiro quadro está pronto.
+  async function startWcPlayout(url, currentTime, speed) {
+    const gen = ++wcGen;
+    try {
+      if (!url) return false;
+      if (!wcModule) wcModule = await import('/js/wc-playout.js');
+      if (!wcModule?.createWcPlayout || gen !== wcGen) return false;
+      if (!wcPlayer) wcPlayer = wcModule.createWcPlayout();
+      await wcPlayer.load(url);
+      if (gen !== wcGen) return false;
+      await wcPlayer.waitFrame();
+      if (gen !== wcGen) return false;
+      wcPlayer.pause();
+      wcPlayer.setCallbacks({
+        ended: () => {
+          if (wcReverse) return;
+          if (playoutOnEnded) {
+            const cb = playoutOnEnded;
+            playoutOnEnded = null;
+            cb();
+          } else {
+            stopPlayout();
+          }
+        },
+        error: (e) => console.warn('[replay] playout WebCodecs:', e?.message || e),
+      });
+      wcPlayer.seek(Math.max(0, Number(currentTime) || 0));
+      wcSpeed = Math.max(0.05, Math.min(2, Math.abs(Number(speed) || 0.5)));
+      wcReverse = Number(speed) < 0;
+      wcPlayer.setSpeed(wcReverse ? -wcSpeed : wcSpeed);
+      wcActive = true;
+      setReplaySourceElement(wcPlayer.canvas);
+      if (!wcReverse) {
+        wcPlayer.play();
+        startWcSync();
+        if (comp && comp.replayBug) comp.replayBugText = 'REPLAY';
+      } else if (comp && comp.replayBug) {
+        comp.replayBugText = 'REPLAY REV';
+      }
+      return true;
+    } catch (e) {
+      console.warn('[replay] WebCodecs playout indisponível; usando <video>:', e?.message || e);
+      wcActive = false;
+      if (S?.sources?.has('replay:out')) setReplaySourceElement(playoutVideo);
+      return false;
     }
   }
 
@@ -932,6 +1100,13 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
     applyPlayoutAudio(audioRoute, audioVolume);
 
     playoutVideo.play().catch(() => {});
+    // Playout quadro-a-quadro: o canvas decodificado vira a imagem; o <video> segue como áudio.
+    if (isLiveStream) {
+      if (wcActive) stopWcPlayout();
+    } else {
+      if (wcActive) stopWcPlayout();
+      void startWcPlayout(url, currentTime, speed);
+    }
 
     // Salva o estado exato da cena antes do replay entrar (palco, solo, take do switcher, layout)
     if (!previousStateBeforeReplay) {
@@ -974,8 +1149,27 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
 
   // Ajuste dinâmico de velocidade de playout em tempo real (EVS Slow-Motion no ar)
   function setPlayoutSpeed(speed) {
-    const sp = Math.max(0.05, Math.min(2.0, Number(speed) || 0.5));
+    const raw = Number(speed) || 0.5;
+    const sp = Math.max(0.05, Math.min(2.0, Math.abs(raw)));
     playoutBaseRate = sp;
+    if (wcActive && wcPlayer) {
+      wcSpeed = sp;
+      wcReverse = raw < 0;
+      wcPlayer.setSpeed(wcReverse ? -sp : sp);
+      if (wcReverse) {
+        try { playoutVideo.pause(); } catch {}
+        wcPlayer.play();
+      } else {
+        wcPlayer.play();
+        try {
+          playoutVideo.currentTime = wcPlayer.currentTime;
+          playoutVideo.playbackRate = sp;
+          playoutVideo.play().catch(() => {});
+        } catch {}
+      }
+      if (comp && comp.replayBug) comp.replayBugText = wcReverse ? 'REPLAY REV' : 'REPLAY';
+      return;
+    }
     if (playoutVideo) {
       // Durante a convergência suave o rate é controlado pelo loop; não sobrescreve.
       if (playoutSoftTarget === null) playoutVideo.playbackRate = sp;
@@ -1013,6 +1207,18 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
     return !!ownPlayoutOnAir;
   }
   function getPlayoutState() {
+    if (wcActive && wcPlayer) {
+      return {
+        onAir: !!ownPlayoutOnAir,
+        paused: wcPlayer.paused,
+        time: wcPlayer.currentTime,
+        duration: wcPlayer.duration,
+        speed: wcReverse ? -wcSpeed : wcSpeed,
+        baseSpeed: wcSpeed,
+        live: false,
+        url: currentPlayoutUrl || '',
+      };
+    }
     const v = playoutVideo;
     const dur = Number.isFinite(v.duration) ? v.duration : 0;
     return {
@@ -1028,11 +1234,22 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
   }
   function pausePlayout() {
     playoutSoftTarget = null;
+    if (wcActive && wcPlayer) {
+      try { wcPlayer.pause(); } catch {}
+    }
     try { playoutVideo.pause(); } catch {}
     try { playoutVideo.playbackRate = playoutBaseRate; } catch {}
     return getPlayoutState();
   }
   function playPlayout() {
+    if (wcActive && wcPlayer) {
+      wcPlayer.setSpeed(wcReverse ? -wcSpeed : wcSpeed);
+      wcPlayer.play();
+      if (!wcReverse) {
+        try { playoutVideo.currentTime = wcPlayer.currentTime; playoutVideo.play().catch(() => {}); } catch {}
+        startWcSync();
+      }
+    }
     try { playoutVideo.play().catch(() => {}); } catch {}
     return getPlayoutState();
   }
@@ -1100,11 +1317,25 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
       return getPlayoutState();
     }
     playoutSoftTarget = null;
+    if (wcActive && wcPlayer) {
+      wcPlayer.seek(target);
+      if (!wcReverse) {
+        try { playoutVideo.currentTime = target; } catch {}
+      }
+      return getPlayoutState();
+    }
     if (opts.blend !== false) beginBlend();
     try { playoutVideo.currentTime = target; } catch {}
     return getPlayoutState();
   }
   function stepPlayout(sec) {
+    if (wcActive && wcPlayer) {
+      const dir = Math.sign(Number(sec) || 1) || 1;
+      wcPlayer.pause();
+      try { playoutVideo.pause(); } catch {}
+      wcPlayer.step(dir);
+      return getPlayoutState();
+    }
     const st = getPlayoutState();
     playoutSoftTarget = null;
     try { playoutVideo.pause(); } catch {}
@@ -1125,6 +1356,7 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
     stopSoftSync();
     stopBlendDraw();
     cancelRvfc();
+    if (wcActive) stopWcPlayout();
     // Limpa o canvas: sem isso a fonte replay:out guardaria o último quadro do lance anterior.
     try {
       if (blendCtx) {
@@ -1472,6 +1704,15 @@ export function createReplayEngine({ S, comp, getProgramStream, toast, mixer = n
     stopPlayout,
     isPlayoutOnAir,
     getPlayoutState,
+    getPlayoutDebug: () => ({
+      wcActive,
+      wcReverse,
+      wcSpeed,
+      time: wcPlayer?.currentTime || 0,
+      duration: wcPlayer?.duration || 0,
+      hasCanvas: !!wcPlayer?.canvas,
+      sourceIsCanvas: S?.sources?.get('replay:out')?.el === wcPlayer?.canvas,
+    }),
     pausePlayout,
     playPlayout,
     seekPlayout,

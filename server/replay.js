@@ -279,6 +279,86 @@ export class ReplayStore {
     return meta;
   }
 
+  // Versão "suavizada" do lance: o console gera um WebM 2× quadros (interpolação por mescla) e
+  // manda por aqui. O arquivo original (RAW) continua intacto; o VAR deve usar sempre o RAW.
+  async saveSmoothClip(id, buffer, info = {}) {
+    const safeId = String(id || '').replace(/[^\w.-]/g, '');
+    if (!safeId || !buffer || !buffer.length) return null;
+    const jsonFile = path.join(this.dir, `${safeId}.json`);
+    let meta;
+    try {
+      meta = JSON.parse(await fsp.readFile(jsonFile, 'utf-8'));
+    } catch {
+      return null;
+    }
+    const smoothFile = path.join(this.dir, `${safeId}-smooth.webm`);
+    await fsp.writeFile(smoothFile, buffer);
+    // Remux sem recodificar (ffmpeg): grava duração e índice de busca (Cues) e deixa os Clusters com
+    // tamanho conhecido — sem isso o arquivo do MediaRecorder não busca direito no player e o
+    // demuxer WebCodecs precisa adivinhar o próximo cluster.
+    const seekable = await this.remuxSeekable(smoothFile);
+    const dur = await this.probeDuration(smoothFile);
+    meta.smoothUrl = `/api/replay/file/${encodeURIComponent(path.basename(smoothFile))}`;
+    meta.smoothFps = Math.max(1, Math.round(Number(info.fps) || 60));
+    meta.smoothDuration = dur && dur > 0 ? +dur.toFixed(2) : meta.duration;
+    meta.interpolated = true;
+    meta.smoothFactor = Math.max(2, Math.min(4, Math.round(Number(info.factor) || 2)));
+    meta.smoothSeekable = !!seekable;
+    meta.smoothAt = Date.now();
+    await fsp.writeFile(jsonFile, JSON.stringify(meta, null, 2), 'utf-8');
+    return meta;
+  }
+
+  // Versão suavizada gerada offline pelo WebCodecs (só vídeo, 2x quadros, 60 fps exatos).
+  // Junta o áudio do clipe RAW via FFmpeg (copy) e remuxa para ficar com índice de busca.
+  async saveSmoothVideo(id, buffer, info = {}) {
+    const safeId = String(id || '').replace(/[^\w.-]/g, '');
+    if (!safeId || !buffer || !buffer.length) return null;
+    const jsonFile = path.join(this.dir, `${safeId}.json`);
+    let meta;
+    try {
+      meta = JSON.parse(await fsp.readFile(jsonFile, 'utf-8'));
+    } catch {
+      return null;
+    }
+    const rawFile = path.join(this.dir, `${safeId}.webm`);
+    const tmpVideo = path.join(this.dir, `${safeId}-smooth-video.webm`);
+    const smoothFile = path.join(this.dir, `${safeId}-smooth.webm`);
+    await fsp.writeFile(tmpVideo, buffer);
+    let merged = false;
+    if (this._ffmpegInfo?.available && fs.existsSync(rawFile)) {
+      merged = await new Promise((resolve) => {
+        let p;
+        try {
+          p = spawn(this.ffmpegPath, [
+            '-hide_banner', '-loglevel', 'error', '-y',
+            '-i', tmpVideo, '-i', rawFile,
+            '-map', '0:v:0', '-map', '1:a:0?',
+            '-c', 'copy', '-shortest', smoothFile,
+          ], { windowsHide: true });
+        } catch {
+          return resolve(false);
+        }
+        p.on('error', () => resolve(false));
+        p.on('close', (code) => resolve(code === 0));
+      });
+      merged = merged && fs.existsSync(smoothFile) && fs.statSync(smoothFile).size > 0;
+    }
+    if (!merged) await fsp.copyFile(tmpVideo, smoothFile);
+    await fsp.unlink(tmpVideo).catch(() => {});
+    const seekable = await this.remuxSeekable(smoothFile);
+    const dur = await this.probeDuration(smoothFile);
+    meta.smoothUrl = `/api/replay/file/${encodeURIComponent(path.basename(smoothFile))}`;
+    meta.smoothFps = 60;
+    meta.smoothDuration = dur && dur > 0 ? +dur.toFixed(2) : meta.duration;
+    meta.interpolated = true;
+    meta.smoothFactor = Math.max(2, Math.min(4, Math.round(Number(info.factor) || 2)));
+    meta.smoothSeekable = !!seekable;
+    meta.smoothAt = Date.now();
+    await fsp.writeFile(jsonFile, JSON.stringify(meta, null, 2), 'utf-8');
+    return meta;
+  }
+
   // Miniatura JPEG do lance (gerada no console). Fica ao lado do vídeo para a lista abrir instantânea
   // depois de reiniciar — sem precisar recarregar 1 quadro de cada vídeo.
   async saveThumb(id, buffer) {
@@ -573,11 +653,13 @@ export class ReplayStore {
     const mp4 = path.join(this.dir, `${safeId}.mp4`);
     const json = path.join(this.dir, `${safeId}.json`);
     const jpg = path.join(this.dir, `${safeId}.jpg`);
+    const smooth = path.join(this.dir, `${safeId}-smooth.webm`);
 
     await fsp.unlink(webm).catch(() => {});
     await fsp.unlink(mp4).catch(() => {});
     await fsp.unlink(json).catch(() => {});
     await fsp.unlink(jpg).catch(() => {});
+    await fsp.unlink(smooth).catch(() => {});
     return true;
   }
 }

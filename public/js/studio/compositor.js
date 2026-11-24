@@ -1686,7 +1686,13 @@ export class Compositor {
 
   // Recebe do console o estado do VAR (linhas/carimbo) em coordenadas 0..1.
   setVarOverlay(data) {
-    this.varOverlay = data ? { on: data.on !== false, lines: data.lines || [], stamp: data.stamp || null } : null;
+    this.varOverlay = data ? {
+      on: data.on !== false,
+      lines: data.lines || [],
+      stamp: data.stamp || null,
+      status: data.status || null,
+      lens: data.lens || null,
+    } : null;
   }
 
   drawVarOverlayPgm() {
@@ -1695,38 +1701,90 @@ export class Compositor {
     const ctx = this.ctx;
     const W = this.W;
     const H = this.H;
+    // Lupa: copia a região do próprio canvas (antes de desenhar as linhas) e amplia em círculo.
+    if (v.lens) {
+      const lx = Math.max(0, Math.min(1, Number(v.lens.x) || 0.5)) * W;
+      const ly = Math.max(0, Math.min(1, Number(v.lens.y) || 0.5)) * H;
+      const r = Math.max(24, Math.min(W, H) * Math.max(0.03, Math.min(0.3, Number(v.lens.r) || 0.12)));
+      const z = Math.max(1.2, Math.min(8, Number(v.lens.zoom) || 4));
+      const src = (r * 2) / z;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(lx, ly, r, 0, Math.PI * 2);
+      ctx.clip();
+      try {
+        ctx.drawImage(ctx.canvas, lx - src / 2, ly - src / 2, src, src, lx - r, ly - r, r * 2, r * 2);
+      } catch {}
+      ctx.restore();
+      ctx.strokeStyle = '#d9a036';
+      ctx.lineWidth = Math.max(2, W * 0.002);
+      ctx.beginPath();
+      ctx.arc(lx, ly, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.save();
     for (const line of v.lines || []) {
-      const x = Math.max(0, Math.min(1, Number(line.x) || 0)) * W;
+      let x1;
+      let y1;
+      let x2;
+      let y2;
+      if (Number.isFinite(Number(line.x1))) {
+        x1 = Number(line.x1) * W;
+        y1 = Number(line.y1) * H;
+        x2 = Number(line.x2) * W;
+        y2 = Number(line.y2) * H;
+      } else {
+        x1 = x2 = Math.max(0, Math.min(1, Number(line.x) || 0)) * W;
+        y1 = 0;
+        y2 = H;
+      }
       ctx.strokeStyle = line.color || '#00d2ff';
       ctx.lineWidth = Math.max(2, W * 0.0018);
       ctx.setLineDash([W * 0.008, W * 0.005]);
       ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, H);
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
       ctx.stroke();
       ctx.setLineDash([]);
       if (line.label) {
         const fs = Math.round(H * 0.024);
-        ctx.font = `900 ${fs}px "Inter", -apple-system, sans-serif`;
+        ctx.font = '900 ' + fs + 'px "Inter", -apple-system, sans-serif';
         const tw = ctx.measureText(line.label).width + fs;
+        const mx = (x1 + x2) / 2;
+        const my = (y1 + y2) / 2;
         ctx.fillStyle = line.color || '#00d2ff';
-        ctx.fillRect(x - tw / 2, H * 0.045, tw, fs * 1.5);
+        ctx.fillRect(mx - tw / 2, my - fs * 0.75, tw, fs * 1.5);
         ctx.fillStyle = '#000';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(line.label, x, H * 0.045 + fs * 0.78);
+        ctx.fillText(line.label, mx, my);
       }
+    }
+    if (v.status?.text) {
+      const fs = Math.round(H * 0.03);
+      ctx.font = '900 ' + fs + 'px "Inter", -apple-system, sans-serif';
+      const tw = ctx.measureText(v.status.text).width + fs * 2;
+      const bx = (W - tw) / 2;
+      const by = H - fs * 2.7;
+      ctx.fillStyle = v.status.offside ? 'rgba(224, 82, 74, 0.96)' : 'rgba(63, 163, 77, 0.96)';
+      ctx.fillRect(bx, by, tw, fs * 1.7);
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(v.status.text, W / 2, by + fs * 0.85);
     }
     if (v.stamp?.text) {
       const fs = Math.round(H * 0.028);
-      ctx.font = `900 ${fs}px "Inter", -apple-system, sans-serif`;
+      ctx.font = '900 ' + fs + 'px "Inter", -apple-system, sans-serif';
       const tw = Math.min(W * 0.7, ctx.measureText(v.stamp.text).width + fs * 2);
       const x = Math.max(0, Math.min(1, Number(v.stamp.x) || 0.5)) * W;
       const y = Math.max(0, Math.min(1, Number(v.stamp.y) || 0.5)) * H;
-      ctx.fillStyle = 'rgba(124, 92, 255, 0.95)';
+      ctx.fillStyle = 'rgba(12, 13, 15, 0.92)';
       ctx.fillRect(x - tw / 2, y - fs * 0.9, tw, fs * 1.8);
-      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = '#d9a036';
+      ctx.lineWidth = Math.max(1, W * 0.0012);
+      ctx.strokeRect(x - tw / 2, y - fs * 0.9, tw, fs * 1.8);
+      ctx.fillStyle = '#e6bd72';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(v.stamp.text, x, y);

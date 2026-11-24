@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>CastDeck Instant Replay — Monitor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  #pop-video { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
+  #pop-bar {
+    position: fixed; left: 0; right: 0; top: 0; height: 30px;
+    display: flex; align-items: center; gap: 10px; padding: 0 10px;
+    background: rgba(12, 13, 15, 0.72); color: #c9ccd0;
+    font: 600 11px/1 var(--vx-font, system-ui); letter-spacing: 0.7px; text-transform: uppercase;
+    opacity: 0; transition: opacity 0.18s; user-select: none;
+  }
+  body:hover #pop-bar, body:focus-within #pop-bar { opacity: 1; }
+  #pop-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: #3fa34d; box-shadow: 0 0 6px rgba(63, 163, 77, 0.7); flex: none; }
+  #pop-bar b { color: #e8eaed; }
+  #pop-bar #pop-status { color: #9aa0a6; font-weight: 500; letter-spacing: 0.3px; text-transform: none; }
+  #pop-bar #pop-res { margin-left: auto; font: 500 10.5px ui-monospace, Consolas, monospace; color: #9aa0a6; letter-spacing: 0; }
+  #pop-bar button {
+    background: #202428; border: 1px solid #3a3f45; color: #c9ccd0; border-radius: 3px;
+    padding: 3px 8px; font: 600 10px/1 system-ui; cursor: pointer; letter-spacing: 0.3px;
+  }
+  #pop-bar button:hover { background: #2a2f35; color: #fff; }
+  #pop-msg {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #8b9096; font: 600 13px/1.5 system-ui; text-align: center; padding: 24px;
+  }
+  #pop-msg[hidden] { display: none; }
+</style>
+</head>
+<body>
+<video id="pop-video" autoplay muted playsinline></video>
+<div id="pop-bar">
+  <span class="dot"></span>
+  <b id="pop-label">PREVIEW</b>
+  <span id="pop-status">conectando…</span>
+  <span id="pop-res">—</span>
+  <button id="pop-close" title="Fechar (Esc)">FECHAR</button>
+</div>
+<div id="pop-msg" hidden>Janela do console fechada.<br />Abra o console de Replay e clique em “janela separada”.</div>
+<script type="module" src="/js/replay-popout.js"></script>
+</body>
+</html>

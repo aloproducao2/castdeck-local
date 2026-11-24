@@ -147,7 +147,7 @@ code in closed products. Third-party components keep their own licenses; see
 
 ## Status
 
-Versão **2.0.10** — traduções em **100%**: interface completa em **inglês, espanhol, francês e alemão** (inclusive PIP, efeitos Longpipe, plugins e API), com palavras mais curtas em francês/alemão para não quebrar o layout. Mantém o PIP (Libras), o Pad com pausa/seek, a contagem regressiva, os efeitos Longpipe e o auto-reframe Aberto/Médio/Fechado.
+Versão **2.0.11** — replay instantâneo mais completo: nova aba **Replay** no estúdio com gatilhos rápidos, lista de lances numerada com hora e ordem invertível, monitores **Preview** e **Programa** simétricos, **tela cheia** por monitor, painéis redimensionáveis e janelas separadas de Preview/PGM com qualidade total (mesma imagem da saída), além do playout quadro a quadro com reverso e do **Suavizar** em 2×/4×. Mantém o PIP (Libras), o Pad com pausa/seek, a contagem regressiva, os efeitos Longpipe e o auto-reframe Aberto/Médio/Fechado.
 [releases](https://github.com/aloproducao2/castdeck-local/releases).
 
 Built by **Miguel Kallemback / flue.live**, from Brazil to the world. 🌎

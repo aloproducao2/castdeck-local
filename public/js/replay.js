@@ -63,6 +63,115 @@ let verticalLines = []; // [{ x, y1, y2, color }]
 let varStamp = null; // { text, color, x, y }
 let zoomMagnifier = null; // { x, y, radius, zoom }
 
+// ===== Calibração de perspectiva do VAR =====
+// 4 cliques: 2 pontos na linha de fundo (direção da linha) + 2 pontos na linha da área (16,5 m
+// de profundidade). Com isso as linhas de impedimento ficam paralelas à linha de fundo e o
+// delta é medido em metros (px por metro calibrado na linha da área).
+const VAR_CALIB_KEY = 'castdeck.replay.varCalib';
+const VAR_FIELD_M = 16.5;
+let varCalib = null;
+let varCalibMode = false;
+let varCalibPts = [];
+let varLensZoom = 4;
+try {
+  const raw = localStorage.getItem(VAR_CALIB_KEY);
+  if (raw) varCalib = JSON.parse(raw);
+} catch {}
+
+function saveVarCalib() {
+  try {
+    if (varCalib) localStorage.setItem(VAR_CALIB_KEY, JSON.stringify(varCalib));
+    else localStorage.removeItem(VAR_CALIB_KEY);
+  } catch {}
+}
+function varUnit(v) {
+  const l = Math.hypot(v.x, v.y) || 1;
+  return { x: v.x / l, y: v.y / l };
+}
+function varPerp(v, u) {
+  const d = v.x * u.x + v.y * u.y;
+  return { x: v.x - u.x * d, y: v.y - u.y * d };
+}
+function computeVarCalib(pts) {
+  if (!pts || pts.length < 4) return null;
+  const g1 = pts[0], g2 = pts[1], r1 = pts[2], r2 = pts[3];
+  const u = varUnit({ x: g2.x - g1.x, y: g2.y - g1.y });
+  const midG = { x: (g1.x + g2.x) / 2, y: (g1.y + g2.y) / 2 };
+  const midR = { x: (r1.x + r2.x) / 2, y: (r1.y + r2.y) / 2 };
+  const n = varUnit(varPerp({ x: midR.x - midG.x, y: midR.y - midG.y }, u));
+  const d = (midR.x - midG.x) * n.x + (midR.y - midG.y) * n.y;
+  if (!Number.isFinite(d) || Math.abs(d) < 12) return null;
+  return { g1, g2, r1, r2, u, n, pxPerM: Math.abs(d) / VAR_FIELD_M, at: Date.now() };
+}
+function varLineDir() { return varCalib ? varCalib.u : { x: 0, y: 1 }; }
+function varLineDepth(p) {
+  return varCalib ? (p.x - varCalib.g1.x) * varCalib.n.x + (p.y - varCalib.g1.y) * varCalib.n.y : p.x;
+}
+function varLineSeg(p) {
+  const u = varLineDir();
+  const L = (varCanvas.width + varCanvas.height) || 1000;
+  return { x1: p.x - u.x * L, y1: p.y - u.y * L, x2: p.x + u.x * L, y2: p.y + u.y * L };
+}
+function varMeasure() {
+  if (offsideLines.length < 2) return null;
+  const def = offsideLines.find((l) => l.label === 'DEFESA') || offsideLines[0];
+  const atk = offsideLines.find((l) => l.label === 'ATAQUE') || offsideLines[1];
+  if (!def || !atk) return null;
+  const sDef = varLineDepth(def);
+  const sAtk = varLineDepth(atk);
+  const offside = varCalib ? sAtk < sDef : atk.x > def.x;
+  const meters = varCalib ? Math.abs(sAtk - sDef) / varCalib.pxPerM : null;
+  return {
+    offside,
+    meters,
+    text: meters != null ? 'Δ ' + String(meters.toFixed(2)).replace('.', ',') + ' m' : 'Δ ' + Math.round(Math.abs(atk.x - def.x)) + ' px',
+    label: offside ? 'IMPEDIMENTO' : 'POSIÇÃO LEGAL',
+    def,
+    atk,
+  };
+}
+function setVarCalibState(text, kind) {
+  const el = document.getElementById('rp-var-calib-state');
+  if (!el) return;
+  el.textContent = text;
+  el.dataset.kind = kind || '';
+}
+function updateVarCalibUI() {
+  if (varCalibMode) setVarCalibState('CALIBRANDO ' + varCalibPts.length + '/4', 'warn');
+  else if (varCalib) setVarCalibState('CALIBRADO · 16,5 m', 'ok');
+  else setVarCalibState('SEM CALIBRAÇÃO', 'dim');
+}
+function toggleVarCalibMode() {
+  varCalibMode = !varCalibMode;
+  if (varCalibMode) varCalibPts = [];
+  updateVarCalibUI();
+  drawVarOverlay();
+  studio?.toast?.(varCalibMode
+    ? 'Calibrar: clique 2 pontos na linha de fundo e 2 na linha da área (16,5 m).'
+    : 'Calibração cancelada.');
+}
+function cycleVarLens() {
+  varLensZoom = varLensZoom === 4 ? 2 : 4;
+  const btn = document.getElementById('rp-var-tool-lens');
+  const span = btn?.querySelector('span');
+  if (span) span.textContent = 'Lupa ' + varLensZoom + 'x';
+  if (zoomMagnifier) {
+    zoomMagnifier.zoom = varLensZoom;
+    drawVarOverlay();
+  }
+  studio?.toast?.('Lupa ' + varLensZoom + 'x.');
+}
+window.__varDebug = () => ({
+  calib: varCalib,
+  calibMode: varCalibMode,
+  calibPts: varCalibPts.length,
+  lines: offsideLines.map((l) => ({ x: l.x, y: l.y, label: l.label, color: l.color })),
+  measure: varMeasure(),
+  lens: zoomMagnifier,
+  stamp: varStamp,
+  overlay: studio?.comp?.varOverlay || null,
+});
+
 // Modo Live Mirror / Sincronização direta Preview ➜ PGM
 let isLiveMirrorActive = false;
 let quadIso = null; // buffer ISO dos 4 ângulos (replay-quad.js)
@@ -145,6 +254,7 @@ function init() {
     else if (d.action === 'take') takePreviewToPgm();
     else if (d.action === 'live') cutToLive();
     else if (d.action === 'auto-take') { autoTake = !!d.on; updateAutoTakeBtn(); }
+    else if (d.action === 'speed') setSpeed(Math.max(0.05, Math.min(2, Number(d.value) || 1)));
     else if (d.action === 'preview-clip' && d.url) {
       currentClip = { url: d.url, duration: Number(d.duration) || 10, timestamp: Date.now() };
       loadClipToPreview(d.url, true);
@@ -165,6 +275,8 @@ function init() {
   initJogWheel();
   initTBar();
   initVarLayer();
+  startFpsMeters();
+  initEventResize();
   // O canvas do VAR é dimensionado pelo CSS; sem isto, redimensionar a janela desalinhava linhas/lupa.
   window.addEventListener('resize', () => { resizeVarCanvas(); drawVarOverlay(); });
   initAudioControls();
@@ -708,6 +820,7 @@ async function captureLiveMoment(tag = 'LANCE') {
       markIn: mIn,
       markOut: mOut,
     };
+    if (!item.createdAt) item.createdAt = Date.now();
     highlights.push(item);
     savePlaylistOrder();
     renderPlaylist();
@@ -1454,6 +1567,24 @@ async function stepFrame(dir) {
 
 // IN/OUT a qualquer momento: no clipe marca o ponto do Preview; ao vivo o IN guarda a hora e o OUT
 // recorta o lance do buffer já com as duas marcas (fluxo EVS: marca no lance e revisa depois).
+// REV: alterna frente/reverso no replay que está NO AR (playout WebCodecs, quadro a quadro).
+function toggleReversePlayout() {
+  const eng = engineOf();
+  if (!eng || !pgmOnAir()) {
+    flashPvwStatus('REVERSO: só com o replay NO AR (playout WebCodecs)');
+    return;
+  }
+  const st = eng.getPlayoutState?.() || {};
+  const cur = Number(st.speed) || currentSpeed;
+  const next = cur < 0 ? Math.abs(cur) : -Math.abs(cur);
+  eng.setPlayoutSpeed?.(next);
+  currentSpeed = Math.abs(next);
+  const btn = $('#rp-btn-rev');
+  if (btn) btn.classList.toggle('active', next < 0);
+  flashPvwStatus(next < 0 ? 'REVERSO ' + Math.round(Math.abs(next) * 100) + '%' : 'FRENTE ' + Math.round(Math.abs(next) * 100) + '%');
+  updatePgmTransportUI?.();
+}
+
 function markIn() {
   if (!pvwVideo) return;
   if (isLivePreview()) {
@@ -2115,6 +2246,13 @@ function bindEvents() {
   $('#rp-btn-pause')?.addEventListener('click', pauseClip);
   $('#rp-btn-step-back')?.addEventListener('click', () => stepFrame(-1));
   $('#rp-btn-step-fwd')?.addEventListener('click', () => stepFrame(1));
+  $('#rp-btn-rev')?.addEventListener('click', toggleReversePlayout);
+  $('#rp-pop-pvw')?.addEventListener('click', () => openReplayPopout('pvw'));
+  $('#rp-pop-pgm')?.addEventListener('click', () => openReplayPopout('pgm'));
+  $('#rp-fs-pvw')?.addEventListener('click', () => toggleMonitorFullscreen('pvw'));
+  $('#rp-fs-pgm')?.addEventListener('click', () => toggleMonitorFullscreen('pgm'));
+  $('#rp-order-toggle')?.addEventListener('click', togglePlaylistOrder);
+  updateOrderToggleUI();
   $('#rp-btn-in')?.addEventListener('click', markIn);
   $('#rp-btn-out')?.addEventListener('click', markOut);
   // Clique na bandeira IN/OUT da seekbar leva o Preview até aquele ponto
@@ -2224,6 +2362,9 @@ function bindEvents() {
   $('#rp-var-tool-stamp')?.addEventListener('click', () => setVarTool('stamp'));
   $('#rp-var-tool-sendpgm')?.addEventListener('click', sendVarDecisionToPgm);
   $('#rp-var-tool-clear')?.addEventListener('click', clearVarDrawings);
+  $('#rp-var-tool-calib')?.addEventListener('click', toggleVarCalibMode);
+  $('#rp-var-tool-lens')?.addEventListener('click', cycleVarLens);
+  updateVarCalibUI();
 
   // 9. Atalhos no Topo (Modo Buffer, Gravação de Partida, Config, Pin, Fullscreen, Fechar)
   $('#rp-btn-buffer-toggle')?.addEventListener('click', toggleBufferMode);
@@ -2299,6 +2440,9 @@ function onGlobalKeyDown(e) {
   } else if (e.code === 'Escape') {
     e.preventDefault();
     cutToLive();
+  } else if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    toggleMonitorFullscreen(e.shiftKey ? 'pgm' : 'pvw');
   } else if (e.code === 'F8') {
     e.preventDefault();
     triggerReplay(5);
@@ -2348,7 +2492,8 @@ async function tagCurrentClip(tag) {
     markIn: markInTime,
     markOut: markOutTime,
   };
-  highlights.push(item);
+  if (!item.createdAt) item.createdAt = Date.now();
+    highlights.push(item);
   savePlaylistOrder();
   renderPlaylist();
   await persistHighlight(item, currentClip);
@@ -2453,7 +2598,13 @@ async function loadSavedClips() {
             markIn: Number.isFinite(c.markIn) ? c.markIn : null,
             markOut: Number.isFinite(c.markOut) ? c.markOut : null,
             thumbUrl: c.thumbUrl || null,
+            smoothUrl: c.smoothUrl || null,
+            smoothFps: c.smoothFps || null,
+            smoothDuration: c.smoothDuration || null,
+            interpolated: !!c.interpolated,
+            playSmooth: false,
             savedDisk: true,
+            createdAt: Number(c.createdAt) || Date.now(),
           });
         }
       });
@@ -2540,6 +2691,40 @@ function observeThumbs() {
   list.forEach((el) => thumbObserver.observe(el));
 }
 
+function fmtClipTime(c) {
+  const ts = Number(c?.createdAt);
+  if (!Number.isFinite(ts) || ts <= 0) return '';
+  try {
+    return new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  } catch {
+    return '';
+  }
+}
+
+// Ordem explícita da lista: o topo é o primeiro do Play All. O botão inverte e fica salvo.
+let playlistOrderAsc = false;
+try { playlistOrderAsc = localStorage.getItem('castdeck.replay.orderDir') === 'asc'; } catch {}
+
+function updateOrderToggleUI() {
+  const b = document.getElementById('rp-order-toggle');
+  if (b) {
+    b.textContent = playlistOrderAsc ? '↑ ANTIGO' : '↓ RECENTE';
+    b.title = playlistOrderAsc ? 'Ordem: mais antigo primeiro (clique para recente primeiro)' : 'Ordem: mais recente primeiro (clique para antigo primeiro)';
+  }
+  const hint = document.getElementById('rp-events-hint');
+  if (hint) hint.textContent = playlistOrderAsc ? 'ordem: topo = mais antigo · ▲▼ move' : 'ordem: topo = mais recente · ▲▼ move';
+}
+
+function togglePlaylistOrder() {
+  if (!highlights.length) return;
+  highlights.reverse();
+  playlistOrderAsc = !playlistOrderAsc;
+  try { localStorage.setItem('castdeck.replay.orderDir', playlistOrderAsc ? 'asc' : 'desc'); } catch {}
+  savePlaylistOrder();
+  renderPlaylist();
+  updateOrderToggleUI();
+}
+
 function renderPlaylist() {
   const pl = $('#rp-playlist');
   $('#rp-clip-count').textContent = `${highlights.length} clipe${highlights.length === 1 ? '' : 's'}`;
@@ -2547,17 +2732,19 @@ function renderPlaylist() {
     pl.innerHTML = `<div style="padding:32px 14px;text-align:center;color:#64748b;font-size:12px">Nenhum lance no banco.<br>Pressione <b>Ctrl+Alt+S</b> ou clique em uma tag do Shotbox.</div>`;
     return;
   }
+  const newest = highlights.reduce((m, c) => Math.max(m, Number(c.createdAt) || 0), 0);
   pl.innerHTML = highlights.map((c, i) => `
-    <div class="bc-clip-card" data-idx="${i}" data-url="${escapeHtml(c.url || '')}" title="${escapeHtml(c.title || '')}">
+    <div class="bc-clip-card" data-idx="${i}" data-url="${escapeHtml(c.url || '')}" title="Lance #${i + 1}${fmtClipTime(c) ? ' · criado às ' + fmtClipTime(c) : ''}">
       <div class="bc-clip-thumb-wrap">
         ${c.thumbUrl
           ? `<div class="bc-thumb-ph" data-done="1" style="background-image:url('${escapeHtml(c.thumbUrl)}')"></div>`
           : `<div class="bc-thumb-ph" data-src="${escapeHtml(c.url)}" data-t="${Number.isFinite(c.markIn) ? c.markIn.toFixed(2) : 1}"></div>`}
+        <span class="bc-clip-pos">#${i + 1}</span>
         <span class="bc-clip-tag">${escapeHtml(c.tag || 'LANCE')}</span>
       </div>
       <div class="bc-clip-info">
         <div class="bc-clip-title" title="Duplo clique para renomear" ondblclick="window.renameHighlight(${i})">${escapeHtml(c.title)}</div>
-        <div class="bc-clip-meta"><span>${(c.duration || 10).toFixed(1)}s</span> · <span>${Math.round((c.speed || 0.5) * 100)}%</span> ${c.mp4Url ? '· <b style="color:#10b981">MP4</b>' : ''}</div>
+        <div class="bc-clip-meta"><b class="bc-clip-pos-txt">#${i + 1}</b>${fmtClipTime(c) ? ' · <span>' + fmtClipTime(c) + '</span>' : ''} · <span>${(c.duration || 10).toFixed(1)}s</span> · <span>${Math.round((c.speed || 0.5) * 100)}%</span> ${c.mp4Url ? '· <b style="color:#10b981">MP4</b>' : ''}${newest > 0 && Number(c.createdAt) === newest ? ' · <b class="bc-clip-new">NOVO</b>' : ''}${c.smoothUrl ? ` · <b style="color:#a78bfa;cursor:pointer" title="Alternar RAW / SUAVIZADO (AUTO usa o suavizado em slow motion)" onclick="event.stopPropagation();window.toggleSmoothHighlight(${i})">${c.playSmooth ? 'SUAVIZADO' : (c.userRaw ? 'RAW' : 'AUTO')}</b>${c.smoothFactor ? ` <b style="color:#6d737a">${c.smoothFactor}×</b>` : ''}` : ''} · <span style="cursor:pointer;color:#a78bfa" title="${c.smoothUrl ? 'Suavizar de novo (2×; Shift = 4× para 25%)' : 'Suavizar este lance (2×; Shift = 4× para 25%)'}" onclick="event.stopPropagation();window.smoothHighlight(${i}, event && event.shiftKey ? 4 : 2)">${c.smoothBusy ? '…' : '✨'}</span></div>
       </div>
       <div class="bc-clip-acts">
         <button class="bc-btn" title="Subir na lista" aria-label="Subir" style="height:24px;padding:0 4px" onclick="window.moveHighlight(${i}, -1)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"></polyline></svg></button>
@@ -2574,10 +2761,17 @@ function renderPlaylist() {
 window.playHighlight = (idx) => {
   const c = highlights[idx];
   if (c) {
+    // Clipe suavizado: usa se o operador ligou OU automaticamente em slow motion (< 90%),
+    // a menos que ele tenha fixado RAW no selo. Em 100% o RAW é o padrão.
+    const autoSmooth = !!(c.smoothUrl && !c.userRaw && (c.speed || 0.5) < 0.9);
+    const useSmooth = !!(c.smoothUrl && (c.playSmooth || autoSmooth));
+    const src = useSmooth ? c.smoothUrl : c.url;
     // O clipe da playlist passa a ser o clipe atual (duração/scrub/tag corretos)
-    currentClip = { url: c.url, blob: c.blob, duration: c.clipDuration || c.duration || 10, timestamp: Date.now() };
+    currentClip = { url: src, blob: useSmooth ? null : c.blob, duration: c.clipDuration || c.duration || 10, timestamp: Date.now(), interpolated: useSmooth && !!c.interpolated };
+    const rawChip = document.getElementById('rp-var-raw-chip');
+    if (rawChip) { rawChip.style.display = currentClip.interpolated ? 'inline-flex' : 'none'; }
     pendingClipMarks = { in: c.markIn, out: c.markOut, seek: 'in' };
-    loadClipToPreview(c.url, true);
+    loadClipToPreview(src, true);
     setSpeed(c.speed || 0.5, { applyPgm: false });
   }
 };
@@ -2617,14 +2811,677 @@ window.moveHighlight = (idx, delta) => {
 window.downloadHighlight = (idx) => {
   const c = highlights[idx];
   if (!c) return;
-  const href = c.mp4Url || c.url;
+  const smooth = c.playSmooth && c.smoothUrl;
+  const href = smooth ? c.smoothUrl : c.mp4Url || c.url;
   if (!href) return;
   const a = document.createElement('a');
   a.href = href;
-  a.download = `${(c.title || 'lance').replace(/[^\w.-]+/g, '-')}.${c.mp4Url ? 'mp4' : 'webm'}`;
+  a.download = `${(c.title || 'lance').replace(/[^\w.-]+/g, '-')}${smooth ? '-suavizado' : ''}.${c.mp4Url && !smooth ? 'mp4' : 'webm'}`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+};
+
+// ---------- Suavizar lance (interpolação 2× por mescla de quadros) ----------
+// Gera um WebM com o dobro de quadros (original + mescla com o próximo), mantendo o áudio original
+// em 1×. É a v1: suaviza o movimento (motion blur) sem estimar fluxo. O RAW continua no disco e o
+// VAR deve sempre usar o RAW (a decisão não pode usar quadro interpolado).
+const SMOOTH_MAX_EDGE = 1280;
+// Máximo de movimento representável (em UV, 0.05 = 5% da largura) no mapa de fluxo.
+const WARP_MOTION_UV = 0.05;
+
+// Interpolação de quadros por fluxo de movimento (block matching em GPU) + warp.
+// O Longpipe vendorizado calcula fluxo óptico internamente, mas não o expõe na API pública;
+// esta é a alternativa local: estima um campo de movimento por blocos na WebGL2 e sintetiza o
+// quadro intermediário com warp dos dois vizinhos — sem double exposure (ghosting) do blend puro.
+function createMotionWarp() {
+  try {
+    const cv = document.createElement('canvas');
+    const gl = cv.getContext('webgl2', { preserveDrawingBuffer: true, antialias: false, alpha: false, premultipliedAlpha: false });
+    if (!gl) return null;
+    const VS = `#version 300 es
+      in vec2 aPos;
+      out vec2 vUV;
+      void main() { vUV = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }
+    `;
+    // Block matching com penalidade de deslocamento (evita vetores aleatórios em áreas ambíguas).
+    const FS_MOTION = `#version 300 es
+      precision highp float;
+      in vec2 vUV;
+      out vec4 outColor;
+      uniform sampler2D uA;
+      uniform sampler2D uB;
+      uniform vec2 uTexel;
+      uniform float uStepPx;
+      const int R = 6;
+      void main() {
+        vec2 step = uTexel * uStepPx;
+        float best = 1e20;
+        vec2 bestOff = vec2(0.0);
+        for (int j = -R; j <= R; j++) {
+          for (int i = -R; i <= R; i++) {
+            vec2 off = vec2(float(i), float(j)) * step;
+            float sad = 0.0;
+            for (int by = -1; by <= 1; by++) {
+              for (int bx = -1; bx <= 1; bx++) {
+                vec2 p = clamp(vUV + vec2(float(bx), float(by)) * step * 0.5, vec2(0.0), vec2(1.0));
+                vec2 q = clamp(p + off, vec2(0.0), vec2(1.0));
+                vec3 a = texture(uA, p).rgb;
+                vec3 b = texture(uB, q).rgb;
+                sad += abs(a.r - b.r) + abs(a.g - b.g) + abs(a.b - b.b);
+              }
+            }
+            float cost = sad + 0.004 * (abs(float(i)) + abs(float(j)));
+            if (cost < best) { best = cost; bestOff = off; }
+          }
+        }
+        vec2 enc = bestOff / (${WARP_MOTION_UV.toFixed(4)} * 2.0) + 0.5;
+        outColor = vec4(clamp(enc, 0.0, 1.0), 0.0, 1.0);
+      }
+    `;
+    // Suaviza o campo por blocos (3x3 no espaço de tiles) contra ruído do matching.
+    const FS_BLUR = `#version 300 es
+      precision highp float;
+      in vec2 vUV;
+      out vec4 outColor;
+      uniform sampler2D uM;
+      uniform vec2 uTile;
+      void main() {
+        vec2 sum = vec2(0.0);
+        for (int y = -1; y <= 1; y++) {
+          for (int x = -1; x <= 1; x++) {
+            sum += texture(uM, vUV + vec2(float(x), float(y)) * uTile).rg;
+          }
+        }
+        outColor = vec4(sum / 9.0, 0.0, 1.0);
+      }
+    `;
+    const FS_WARP = `#version 300 es
+      precision highp float;
+      in vec2 vUV;
+      out vec4 outColor;
+      uniform sampler2D uA;
+      uniform sampler2D uB;
+      uniform sampler2D uM;
+      uniform float uF;
+      void main() {
+        vec2 m = (texture(uM, vUV).rg * 2.0 - 1.0) * ${WARP_MOTION_UV.toFixed(4)};
+        vec2 aUV = clamp(vUV - m * uF, vec2(0.0), vec2(1.0));
+        vec2 bUV = clamp(vUV + m * (1.0 - uF), vec2(0.0), vec2(1.0));
+        vec3 a = texture(uA, aUV).rgb;
+        vec3 b = texture(uB, bUV).rgb;
+        outColor = vec4(mix(a, b, 0.5), 1.0);
+      }
+    `;
+    const compile = (type, src) => {
+      const sh = gl.createShader(type);
+      gl.shaderSource(sh, src);
+      gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+        throw new Error('shader: ' + gl.getShaderInfoLog(sh));
+      }
+      return sh;
+    };
+    const program = (vsSrc, fsSrc) => {
+      const pr = gl.createProgram();
+      gl.attachShader(pr, compile(gl.VERTEX_SHADER, vsSrc));
+      gl.attachShader(pr, compile(gl.FRAGMENT_SHADER, fsSrc));
+      gl.linkProgram(pr);
+      if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error('link: ' + gl.getProgramInfoLog(pr));
+      return pr;
+    };
+    const progMotion = program(VS, FS_MOTION);
+    const progBlur = program(VS, FS_BLUR);
+    const progWarp = program(VS, FS_WARP);
+    const progDetail = program(VS, `#version 300 es
+      precision highp float;
+      in vec2 vUV;
+      out vec4 outColor;
+      uniform sampler2D uA;
+      void main() { outColor = vec4(texture(uA, vUV).rgb, 1.0); }
+    `);
+
+    const quad = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+    const mkTex = (linear = true) => {
+      const tx = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tx);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, linear ? gl.LINEAR : gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, linear ? gl.LINEAR : gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      return tx;
+    };
+    const texA = mkTex();
+    const texB = mkTex();
+    const texM = mkTex();
+    const texM2 = mkTex();
+    const fbo = gl.createFramebuffer();
+    const fbo2 = gl.createFramebuffer();
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+    let curW = 0, curH = 0, mW = 0, mH = 0, attached = false;
+    let lastA = null;
+    const ensure = (w, h) => {
+      if (w !== curW || h !== curH) {
+        curW = w;
+        curH = h;
+        cv.width = w;
+        cv.height = h;
+      }
+      const tilesX = 40;
+      const tilesY = Math.max(1, Math.round((tilesX * h) / w));
+      if (tilesX !== mW || tilesY !== mH) {
+        mW = tilesX;
+        mH = tilesY;
+        for (const [tx, fb] of [[texM, fbo], [texM2, fbo2]]) {
+          gl.bindTexture(gl.TEXTURE_2D, tx);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, mW, mH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+          gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+          gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tx, 0);
+        }
+        attached = true;
+      }
+    };
+    const upload = (tex, src) => {
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    };
+    const draw = () => {
+      gl.bindVertexArray(vao);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    };
+
+    // Renderiza o quadro intermediário (t=0.5) entre as imagens a e b no canvas interno.
+    const render = (a, b, w, h, forceUploadA, frac = 0.5) => {
+      if (!w || !h || !a || !b) return null;
+      try {
+        ensure(w, h);
+        if (forceUploadA || a !== lastA) upload(texA, a);
+        upload(texB, b);
+        lastA = b;
+        // 1) campo de movimento (blocos)
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        gl.viewport(0, 0, mW, mH);
+        gl.useProgram(progMotion);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texA);
+        gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texB);
+        gl.uniform1i(gl.getUniformLocation(progMotion, 'uA'), 0);
+        gl.uniform1i(gl.getUniformLocation(progMotion, 'uB'), 1);
+        gl.uniform2f(gl.getUniformLocation(progMotion, 'uTexel'), 1 / w, 1 / h);
+        gl.uniform1f(gl.getUniformLocation(progMotion, 'uStepPx'), 6);
+        draw();
+        // 2) suaviza o campo
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo2);
+        gl.viewport(0, 0, mW, mH);
+        gl.useProgram(progBlur);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texM);
+        gl.uniform1i(gl.getUniformLocation(progBlur, 'uM'), 0);
+        gl.uniform2f(gl.getUniformLocation(progBlur, 'uTile'), 1 / mW, 1 / mH);
+        draw();
+        // 3) warp + mix no canvas final
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, w, h);
+        gl.useProgram(progWarp);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texA);
+        gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texB);
+        gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texM2);
+        gl.uniform1i(gl.getUniformLocation(progWarp, 'uA'), 0);
+        gl.uniform1i(gl.getUniformLocation(progWarp, 'uB'), 1);
+        gl.uniform1i(gl.getUniformLocation(progWarp, 'uM'), 2);
+        gl.uniform1f(gl.getUniformLocation(progWarp, 'uF'), Math.max(0.02, Math.min(0.98, Number(frac) || 0.5)));
+        draw();
+        return cv;
+      } catch (e) {
+        console.warn('[replay] warp falhou:', e.message);
+        return null;
+      }
+    };
+    // Desenha uma imagem sem interpolação (diagnóstico)
+    const blit = (a, w, h) => {
+      try {
+        ensure(w, h);
+        upload(texA, a);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, w, h);
+        gl.useProgram(progDetail);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texA);
+        gl.uniform1i(gl.getUniformLocation(progDetail, 'uA'), 0);
+        draw();
+        return cv;
+      } catch {
+        return null;
+      }
+    };
+    const readMotion = () => {
+      try {
+        const buf = new Uint8Array(mW * mH * 4);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo2);
+        gl.readPixels(0, 0, mW, mH, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+        let sx = 0, sy = 0, n = 0;
+        for (let i = 0; i < buf.length; i += 4) {
+          sx += (buf[i] / 255) * 2 - 1;
+          sy += (buf[i + 1] / 255) * 2 - 1;
+          n++;
+        }
+        if (!n) return null;
+        return { x: (sx / n) * WARP_MOTION_UV, y: (sy / n) * WARP_MOTION_UV, tiles: [mW, mH] };
+      } catch { return null; }
+    };
+    return { render, blit, readMotion, canvas: cv };
+  } catch (e) {
+    console.warn('[replay] WebGL2 indisponível para interpolação:', e.message);
+    return null;
+  }
+}
+
+// Diagnóstico de qualidade: compara o blend puro e o warp contra o quadro real do meio (PSNR).
+// Usado pelo teste `test/replay-warp-quality.mjs`. Não roda no fluxo normal do console.
+window.__replayWarpSelfTest = () => {
+  const warp = createMotionWarp();
+  if (!warp) return { ok: false, reason: 'WebGL2 indisponível' };
+  const W = 640, H = 360;
+  const scene = (t) => {
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    const pan = t * 240;
+    x.fillStyle = '#1b2436'; x.fillRect(0, 0, W, H);
+    for (let i = -2; i < W / 80 + 3; i++) {
+      x.fillStyle = i % 2 ? '#2b3a55' : '#22304a';
+      x.fillRect(i * 80 + pan - 80, 0, 80, H);
+    }
+    x.fillStyle = '#3d5677';
+    for (let i = -1; i < 12; i++) x.fillRect(i * 60 + pan - 60, 300, 30, 60);
+    const bx = 80 + 320 * t;
+    const by = H / 2 + Math.sin(t * 6) * 50;
+    x.fillStyle = '#f5b22a'; x.beginPath(); x.arc(bx, by, 36, 0, 7); x.fill();
+    x.fillStyle = '#e0524a'; x.fillRect(bx + 10, by - 10, 10, 10);
+    return c;
+  };
+  const t0 = 0, t1 = 1 / 30, tm = 0.5 / 30;
+  const A = scene(t0), B = scene(t1), T = scene(tm);
+  const blend = document.createElement('canvas');
+  blend.width = W; blend.height = H;
+  const bc = blend.getContext('2d');
+  bc.drawImage(A, 0, 0);
+  bc.globalAlpha = 0.5;
+  bc.drawImage(B, 0, 0);
+  const glc = warp.render(A, B, W, H);
+  if (!glc) return { ok: false, reason: 'falha ao renderizar com WebGL2' };
+  // Prova estática: B = A; o warp deve devolver A (valida alinhamento/orientação)
+  const staticWarp = warp.render(A, A, W, H);
+  let staticPsnr = null;
+  if (staticWarp) {
+    const s2 = document.createElement('canvas');
+    s2.width = W; s2.height = H;
+    s2.getContext('2d').drawImage(staticWarp, 0, 0);
+    staticPsnr = null;
+    try {
+      const a2 = A.getContext('2d').getImageData(0, 0, W, H).data;
+      const b2 = s2.getContext('2d').getImageData(0, 0, W, H).data;
+      let se2 = 0;
+      for (let i = 0; i < a2.length; i += 4) {
+        const dr = a2[i] - b2[i], dg = a2[i + 1] - b2[i + 1], db = a2[i + 2] - b2[i + 2];
+        se2 += dr * dr + dg * dg + db * db;
+      }
+      staticPsnr = +(10 * Math.log10((255 * 255) / (se2 / (W * H * 3)))).toFixed(2);
+    } catch {}
+  }
+  // Amostra do campo de movimento médio (em UV) — só para diagnóstico
+  const motion = (() => { try { warp.render(A, B, W, H); return warp.readMotion(); } catch { return null; } })();
+  const flat = document.createElement('canvas');
+  flat.width = W; flat.height = H;
+  flat.getContext('2d').drawImage(glc, 0, 0);
+  const psnr = (x, y) => {
+    const a = x.getContext('2d').getImageData(0, 0, W, H).data;
+    const b = y.getContext('2d').getImageData(0, 0, W, H).data;
+    let se = 0;
+    for (let i = 0; i < a.length; i += 4) {
+      const dr = a[i] - b[i], dg = a[i + 1] - b[i + 1], db = a[i + 2] - b[i + 2];
+      se += dr * dr + dg * dg + db * db;
+    }
+    const mse = se / (W * H * 3);
+    return mse <= 0 ? 99 : +(10 * Math.log10((255 * 255) / mse)).toFixed(2);
+  };
+  return { ok: true, blend: psnr(blend, T), warp: psnr(flat, T), staticPSNR: staticPsnr, motion };
+};
+
+// Suavizar offline: decodifica o clipe (WebCodecs), interpola cada par com o warp e reencoda
+// VP8 a 2x quadros. Não depende da gravação em tempo real do MediaRecorder (o servidor junta o
+// áudio do RAW via FFmpeg). Retorna { blob, width, height, frames } ou null se indisponível.
+async function renderSmoothClipOffline(url, onProgress, factor = 2) {
+  const steps = Math.max(2, Math.min(4, Math.round(Number(factor) || 2)));
+  if (typeof VideoDecoder === 'undefined' || typeof VideoEncoder === 'undefined') return null;
+  const mods = await Promise.all([import('/js/webm-demux.js'), import('/js/webm-mux.js')]);
+  const parseWebM = mods[0].parseWebM;
+  const createWebMMuxer = mods[1].createWebMMuxer;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('não foi possível baixar o clipe');
+  const dem = parseWebM(new Uint8Array(await res.arrayBuffer()));
+  const samples = dem.video.samples || [];
+  if (samples.length < 2) throw new Error('clipe sem quadros de vídeo suficientes');
+  const srcW = dem.video.width || 0;
+  const srcH = dem.video.height || 0;
+  const scale = Math.min(1, SMOOTH_MAX_EDGE / Math.max(srcW || 1280, srcH || 720));
+  const outW = Math.max(2, Math.round(((srcW || 1280) * scale) / 2) * 2);
+  const outH = Math.max(2, Math.round(((srcH || 720) * scale) / 2) * 2);
+  const muxer = createWebMMuxer({ width: outW, height: outH, fps: 60, codecId: 'V_VP8' });
+  const outCount = steps;
+  const warp = createMotionWarp();
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = outW;
+  outCanvas.height = outH;
+  const outCtx = outCanvas.getContext('2d', { alpha: false });
+  const ca = document.createElement('canvas');
+  ca.width = outW;
+  ca.height = outH;
+  const cb = document.createElement('canvas');
+  cb.width = outW;
+  cb.height = outH;
+  const caCtx = ca.getContext('2d', { alpha: false });
+  const cbCtx = cb.getContext('2d', { alpha: false });
+  let encError = null;
+  let encCount = 0;
+  let t0Us = null;
+  let warpCostMs = 0;
+  let warpTries = 0;
+  let warpEnabled = true;
+  const encoder = new VideoEncoder({
+    output: (chunk) => { muxer.addVideoChunk(chunk); },
+    error: (e) => { encError = e; },
+  });
+  const cfg = { codec: 'vp8', width: outW, height: outH, bitrate: 6000000, framerate: 60, latencyMode: 'quality' };
+  try {
+    const sup = await VideoEncoder.isConfigSupported(cfg);
+    if (!sup || !sup.supported) return null;
+  } catch {}
+  encoder.configure(cfg);
+  const encodeCanvas = (ts, dur, key) => {
+    const frame = new VideoFrame(outCanvas, { timestamp: Math.max(0, Math.round(ts)), duration: Math.max(1, Math.round(dur || 0)) });
+    try {
+      encoder.encode(frame, { keyFrame: !!key });
+    } finally {
+      frame.close();
+    }
+    encCount++;
+  };
+  let prev = null;
+  let prevTs = 0;
+  let lastTs = 0;
+  let lastDelta = 0;
+  let pos = 0;
+  const total = samples.length;
+  const dec = new VideoDecoder({
+    output: (frame) => {
+      try {
+        const ts = frame.timestamp;
+        if (t0Us == null) t0Us = ts;
+        if (!prev) {
+          prev = frame;
+          prevTs = ts;
+          lastTs = ts;
+          return;
+        }
+        const delta = Math.max(1, ts - prevTs);
+        const relPrev = Math.max(0, prevTs - t0Us);
+        caCtx.drawImage(prev, 0, 0, outW, outH);
+        cbCtx.drawImage(frame, 0, 0, outW, outH);
+        outCtx.drawImage(ca, 0, 0, outW, outH);
+        encodeCanvas(relPrev, delta / outCount, pos % 120 === 0);
+        for (let k = 1; k < outCount; k++) {
+          const frac = k / outCount;
+          let warped = null;
+          if (warp && warpEnabled) {
+            const tw = performance.now();
+            warped = warp.render(ca, cb, outW, outH, true, frac);
+            warpCostMs += performance.now() - tw;
+            warpTries++;
+            // Máquina/GPU lenta: depois de algumas amostras, troca o warp pelo blend barato
+            // (o clipe continua com o número de quadros pedido; perde o casamento de movimento).
+            if (warpTries === 12 && warpCostMs / warpTries > 25) warpEnabled = false;
+          }
+          if (warped) {
+            outCtx.drawImage(warped, 0, 0, outW, outH);
+          } else {
+            outCtx.globalAlpha = 1 - frac;
+            outCtx.drawImage(ca, 0, 0, outW, outH);
+            outCtx.globalAlpha = frac;
+            outCtx.drawImage(cb, 0, 0, outW, outH);
+            outCtx.globalAlpha = 1;
+          }
+          encodeCanvas(relPrev + delta * frac, delta / outCount, false);
+        }
+        lastTs = ts;
+        lastDelta = delta;
+        prev.close();
+        prev = frame;
+        prevTs = ts;
+        pos++;
+        if (onProgress && pos % 10 === 0) onProgress(Math.min(0.98, (pos * outCount) / (total * outCount)));
+      } catch (e) {
+        encError = encError || e;
+      }
+    },
+    error: (e) => { encError = e; },
+  });
+  dec.configure({ codec: 'vp8', codedWidth: srcW || 1280, codedHeight: srcH || 720, optimizeForLatency: true });
+  let started = false;
+  for (const s of samples) {
+    if (!started) {
+      if (!s.key) continue;
+      started = true;
+    }
+    dec.decode(new EncodedVideoChunk({ type: s.key ? 'key' : 'delta', timestamp: s.timestamp, data: s.data }));
+  }
+  await dec.flush();
+  if (prev) {
+    caCtx.drawImage(prev, 0, 0, outW, outH);
+    outCtx.drawImage(ca, 0, 0, outW, outH);
+    encodeCanvas(Math.max(0, lastTs - (t0Us || 0)) + (lastDelta || 16667) / 2, lastDelta || 16667, false);
+    prev.close();
+    prev = null;
+  }
+  await encoder.flush();
+  try { dec.close(); } catch {}
+  try { encoder.close(); } catch {}
+  if (encError) throw encError;
+  if (onProgress) onProgress(1);
+  const blob = muxer.finish();
+  if (!blob) return null;
+  return { blob, width: outW, height: outH, frames: encCount };
+}
+
+function captureSmoothClip(url) {
+  return new Promise(async (resolve, reject) => {
+    let video = null;
+    let ac = null;
+    let timer = null;
+    try {
+      video = document.createElement('video');
+      video.src = url;
+      video.crossOrigin = 'anonymous';
+      video.playsInline = true;
+      video.preload = 'auto';
+      video.style.display = 'none';
+      document.body.appendChild(video);
+      await new Promise((ok, bad) => {
+        video.onloadedmetadata = ok;
+        video.onerror = () => bad(new Error('não foi possível abrir o clipe'));
+      });
+      const srcW = video.videoWidth || 1280;
+      const srcH = video.videoHeight || 720;
+      const scale = Math.min(1, SMOOTH_MAX_EDGE / Math.max(srcW, srcH));
+      const outW = Math.max(2, Math.round((srcW * scale) / 2) * 2);
+      const outH = Math.max(2, Math.round((srcH * scale) / 2) * 2);
+      const canvas = document.createElement('canvas');
+      canvas.width = outW;
+      canvas.height = outH;
+      const ctx = canvas.getContext('2d', { alpha: false });
+      // Áudio: o clipe toca mudo (não sai nos alto-falantes) e o WebAudio captura em 1×.
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      const srcNode = ac.createMediaElementSource(video);
+      const dest = ac.createMediaStreamDestination();
+      srcNode.connect(dest);
+      await ac.resume().catch(() => {});
+      const outFps = 60;
+      const stream = new MediaStream([...canvas.captureStream(outFps).getVideoTracks(), ...dest.stream.getAudioTracks()]);
+      const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm';
+      const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8_000_000, audioBitsPerSecond: 128_000 });
+      const chunks = [];
+      rec.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data); };
+      const done = new Promise((ok) => { rec.onstop = () => ok(new Blob(chunks, { type: 'video/webm' })); });
+      const queue = [];
+      let outIdx = 0;
+      let drawing = true;
+      let ending = false;
+      let lastDraw = 0;
+      const stopAll = () => {
+        if (!drawing) return;
+        drawing = false;
+        clearInterval(timer);
+        try { if (rec.state !== 'inactive') rec.stop(); } catch {}
+      };
+      const drawFrame = (bmp) => {
+        ctx.drawImage(bmp, 0, 0, outW, outH);
+        lastDraw = performance.now();
+      };
+      // v2: interpolação por movimento (WebGL2). Sem WebGL2, cai no blend antigo.
+      const warp = createMotionWarp();
+      const tickMs = 1000 / outFps;
+      let lastTickAt = performance.now();
+      let warpDisabledUntil = 0;
+      const tick = () => {
+        if (!drawing) return;
+        const now = performance.now();
+        const late = now - lastTickAt;
+        lastTickAt = now;
+        const n = Math.floor(outIdx / 2);
+        if (outIdx % 2 === 0) {
+          if (queue.length > n) drawFrame(queue[n]);
+        } else if (queue.length > n + 1) {
+          // GPU/máquina lenta: mantém a cadência de 60 quadros/s com blend em vez de travar.
+          let warped = null;
+          if (warp && now >= warpDisabledUntil && late < tickMs * 2.2) {
+            const tWarp = performance.now();
+            warped = warp.render(queue[n], queue[n + 1], outW, outH);
+            const cost = performance.now() - tWarp;
+            if (cost > 12) warpDisabledUntil = performance.now() + 1500;
+          }
+          if (warped) {
+            ctx.drawImage(warped, 0, 0, outW, outH);
+          } else {
+            ctx.globalAlpha = 0.55;
+            ctx.drawImage(queue[n], 0, 0, outW, outH);
+            ctx.globalAlpha = 0.45;
+            ctx.drawImage(queue[n + 1], 0, 0, outW, outH);
+            ctx.globalAlpha = 1;
+          }
+          lastDraw = performance.now();
+        }
+        if (queue.length > 90) {
+          for (const old of queue.splice(0, 45)) { try { old.close?.(); } catch {} }
+        }
+        outIdx++;
+        if (ending) {
+          const need = outIdx % 2 === 0 ? n + 1 : n + 2;
+          if (queue.length < need) stopAll();
+        }
+      };
+      const onFrame = () => {
+        if (!drawing || ending) return;
+        createImageBitmap(video)
+          .then((bmp) => { queue.push(bmp); })
+          .catch(() => {})
+          .finally(() => { if (drawing && !ending) video.requestVideoFrameCallback(onFrame); });
+      };
+      video.onended = () => { ending = true; };
+      await video.play();
+      // Primeiro quadro antes de abrir o gravador (sem frame preto no início).
+      try { ctx.drawImage(video, 0, 0, outW, outH); } catch {}
+      rec.start(400);
+      video.requestVideoFrameCallback(onFrame);
+      timer = setInterval(tick, 1000 / outFps);
+      const blob = await done;
+      try { stream.getTracks().forEach((t) => t.stop()); } catch {}
+      try { await ac.close(); } catch {}
+      try { video.remove(); } catch {}
+      resolve({ blob, fps: outFps, width: outW, height: outH, duration: video.duration });
+    } catch (e) {
+      try { clearInterval(timer); } catch {}
+      try { await ac?.close(); } catch {}
+      try { video?.remove(); } catch {}
+      reject(e);
+    }
+  });
+}
+
+window.smoothHighlight = async (idx, factor = 2) => {
+  const smoothSteps = Number(factor) === 4 ? 4 : 2;
+  const c = highlights[idx];
+  if (!c) return;
+  if (!c.id) {
+    studio?.toast?.('Salve o lance primeiro (Ctrl+Alt+S) para poder suavizar.');
+    return;
+  }
+  if (c.smoothBusy) return;
+  c.smoothBusy = true;
+  renderPlaylist();
+  try {
+    flashPvwStatus('SUAVIZANDO LANCE…');
+    const source = c.url || c.webmUrl;
+    let blob = null;
+    let fps = 60;
+    let endpoint = 'smooth-video';
+    try {
+      const offline = await renderSmoothClipOffline(source, (p) => flashPvwStatus('SUAVIZANDO ' + smoothSteps + 'x · ' + Math.round(p * 100) + '%'), smoothSteps);
+      if (offline && offline.blob) {
+        blob = offline.blob;
+      }
+    } catch (e) {
+      console.warn('[replay] Suavizar offline falhou; usando o gravador em tempo real:', e.message);
+    }
+    if (!blob) {
+      const rec = await captureSmoothClip(source);
+      blob = rec.blob;
+      fps = rec.fps;
+      endpoint = 'smooth';
+    }
+    const r = await fetch('/api/replay/clips/' + encodeURIComponent(c.id) + '/' + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'video/webm', 'X-Replay-Smooth-Fps': String(fps), 'X-Replay-Smooth-Factor': String(smoothSteps) },
+      body: blob,
+    });
+    const data = await r.json().catch(() => null);
+    if (!data?.ok) throw new Error(data?.error || 'falha ao salvar a versão suavizada');
+    c.smoothUrl = data.clip.smoothUrl;
+    c.smoothFps = data.clip.smoothFps;
+    c.smoothDuration = data.clip.smoothDuration;
+    c.smoothFactor = data.clip.smoothFactor || smoothSteps;
+    c.interpolated = true;
+    c.playSmooth = true;
+    studio?.toast?.(`Lance suavizado (${data.clip.smoothFps} fps, interpolado). Use o selo SUAVIZADO/RAW para alternar.`);
+  } catch (e) {
+    studio?.toast?.('Suavizar: ' + e.message);
+  } finally {
+    c.smoothBusy = false;
+    renderPlaylist();
+  }
+};
+
+window.toggleSmoothHighlight = (idx) => {
+  const c = highlights[idx];
+  if (!c?.smoothUrl) return;
+  c.playSmooth = !c.playSmooth;
+  c.userRaw = !c.playSmooth;
+  renderPlaylist();
+  studio?.toast?.(c.playSmooth ? 'Reproduzindo a versão SUAVIZADA (interpolada).' : 'Reproduzindo o RAW (fixado — não troca sozinho em slow motion).');
 };
 
 window.deleteHighlight = async (idx) => {
@@ -2692,6 +3549,39 @@ function exportHighlights() {
 }
 
 // MODO VAR DE ALTA PRECISÃO
+// Medidor de fps apresentados no Preview/Programa (requestVideoFrameCallback): mostra a fluidez
+// real do monitor, independente do relógio/refresh do console.
+function startFpsMeters() {
+  const meter = (video, label) => {
+    if (!video || !label || typeof video.requestVideoFrameCallback !== "function") return;
+    let frames = 0;
+    let since = performance.now();
+    const paint = (fps, live) => {
+      label.textContent = live ? fps + " fps" : "PAUSA";
+      label.dataset.live = live ? "play" : "pause";
+    };
+    const onFrame = (now) => {
+      frames++;
+      if (now - since >= 1000) {
+        paint(Math.round((frames * 1000) / (now - since)), true);
+        frames = 0;
+        since = now;
+      }
+      video.requestVideoFrameCallback(onFrame);
+    };
+    video.requestVideoFrameCallback(onFrame);
+    setInterval(() => {
+      if (video.paused || video.readyState < 2) {
+        paint(0, false);
+        frames = 0;
+        since = performance.now();
+      }
+    }, 1000);
+  };
+  meter(pvwVideo, document.getElementById("rp-pvw-fps"));
+  meter(pgmVideo, document.getElementById("rp-pgm-fps"));
+}
+
 function toggleVarMode() {
   isVarActive = !isVarActive;
   $('#rp-box-pvw').classList.toggle('bc-var-active', isVarActive);
@@ -2702,6 +3592,9 @@ function toggleVarMode() {
     updatePlayPauseUI(false);
     resizeVarCanvas();
     drawVarOverlay();
+    updateVarCalibUI();
+    const rawChip = document.getElementById('rp-var-raw-chip');
+    if (rawChip) rawChip.style.display = currentClip?.interpolated ? 'inline-flex' : 'none';
   } else {
     syncVarOverlayToPgm(false);
     varCtx?.clearRect(0, 0, varCanvas.width, varCanvas.height);
@@ -2719,6 +3612,9 @@ function clearVarDrawings() {
   verticalLines = [];
   varStamp = null;
   zoomMagnifier = null;
+  varCalibMode = false;
+  varCalibPts = [];
+  updateVarCalibUI();
   syncVarOverlayToPgm(false);
   varCtx?.clearRect(0, 0, varCanvas.width, varCanvas.height);
 }
@@ -2745,85 +3641,97 @@ let dragOffset = { x: 0, y: 0 };
 function initVarLayer() {
   const layer = $('#rp-var-layer');
   if (!layer) return;
-
+  const pt = (e) => {
+    const r = varCanvas.getBoundingClientRect();
+    return { x: Math.max(0, Math.min(varCanvas.width, e.clientX - r.left)), y: Math.max(0, Math.min(varCanvas.height, e.clientY - r.top)) };
+  };
+  const capture = (e) => { try { layer.setPointerCapture(e.pointerId); } catch {} };
+  const release = (e) => { try { layer.releasePointerCapture(e.pointerId); } catch {} };
+  const distToLine = (l, x, y) => {
+    const seg = varLineSeg(l);
+    const dx = seg.x2 - seg.x1, dy = seg.y2 - seg.y1;
+    return Math.abs(dx * (y - seg.y1) - dy * (x - seg.x1)) / (Math.hypot(dx, dy) || 1);
+  };
   layer.addEventListener('pointerdown', (e) => {
     if (!isVarActive) return;
-    const r = varCanvas.getBoundingClientRect();
-    const x = e.clientX - r.left;
-    const y = e.clientY - r.top;
-
-    // 1. Verifica se clicou sobre a Lupa 4x
+    const p = pt(e);
+    const x = p.x, y = p.y;
+    // 0. Calibração de perspectiva (4 pontos)
+    if (varCalibMode) {
+      varCalibPts.push({ x, y });
+      if (varCalibPts.length === 4) {
+        const c = computeVarCalib(varCalibPts);
+        if (c) {
+          varCalib = c;
+          varCalibMode = false;
+          varCalibPts = [];
+          saveVarCalib();
+          studio?.toast?.('VAR calibrado: linhas paralelas à linha de fundo e delta em metros.');
+        } else {
+          varCalibPts = [];
+          studio?.toast?.('Calibração inválida — clique as duas linhas novamente.');
+        }
+      }
+      updateVarCalibUI();
+      drawVarOverlay();
+      return;
+    }
+    // 1. Lupa
     if (zoomMagnifier && Math.hypot(x - zoomMagnifier.x, y - zoomMagnifier.y) <= zoomMagnifier.radius) {
       draggingVarItem = { type: 'zoom', item: zoomMagnifier };
       dragOffset = { x: x - zoomMagnifier.x, y: y - zoomMagnifier.y };
-      layer.setPointerCapture(e.pointerId);
+      capture(e);
       layer.style.cursor = 'grabbing';
       return;
     }
-
-    // 2. Verifica se clicou sobre o Carimbo de Decisão
+    // 2. Carimbo
     if (varStamp && x >= varStamp.x && x <= varStamp.x + 240 && y >= varStamp.y && y <= varStamp.y + 36) {
       draggingVarItem = { type: 'stamp', item: varStamp };
       dragOffset = { x: x - varStamp.x, y: y - varStamp.y };
-      layer.setPointerCapture(e.pointerId);
+      capture(e);
       layer.style.cursor = 'move';
       return;
     }
-
-    // 3. Verifica se clicou perto de uma linha de impedimento existente (< 18px)
-    const hitLine = offsideLines.find((l) => Math.abs(l.x - x) < 18);
+    // 3. Linha existente (distância até o segmento)
+    const hitLine = offsideLines.find((l) => distToLine(l, x, y) < 16);
     if (hitLine) {
       draggingVarItem = { type: 'line', item: hitLine };
-      dragOffset = { x: x - hitLine.x, y: 0 };
-      layer.setPointerCapture(e.pointerId);
-      layer.style.cursor = 'ew-resize';
+      dragOffset = { x: x - hitLine.x, y: y - hitLine.y };
+      capture(e);
+      layer.style.cursor = 'move';
       return;
     }
-
-    // 4. Se não clicou em nada existente, usa a ferramenta ativa
+    // 4. Ferramenta ativa
     if (currentVarTool === 'offside') {
       const isRed = offsideLines.length % 2 === 0;
-      const newLine = {
-        x,
-        y: Math.max(30, Math.min(varCanvas.height - 30, y)),
-        color: isRed ? '#ef4444' : '#00d2ff',
-        label: isRed ? 'DEFESA' : 'ATAQUE',
-      };
+      const newLine = { x, y, color: isRed ? '#e0524a' : '#3fa34d', label: isRed ? 'DEFESA' : 'ATAQUE' };
       offsideLines.push(newLine);
       draggingVarItem = { type: 'line', item: newLine };
-      layer.setPointerCapture(e.pointerId);
+      capture(e);
+      layer.style.cursor = 'move';
     } else if (currentVarTool === 'vert') {
-      verticalLines.push({
-        x,
-        y1: y,
-        y2: varCanvas.height,
-        color: '#f59e0b',
-      });
+      verticalLines.push({ x, y1: y, y2: varCanvas.height, color: '#d9a036' });
     } else if (currentVarTool === 'zoom') {
-      zoomMagnifier = { x, y, radius: 85, zoom: 3 };
+      zoomMagnifier = { x, y, radius: 92, zoom: varLensZoom };
       draggingVarItem = { type: 'zoom', item: zoomMagnifier };
-      layer.setPointerCapture(e.pointerId);
+      capture(e);
     } else if (currentVarTool === 'stamp') {
-      // Antes era sorteado no Math.random(); agora usa a decisão escolhida no seletor do VAR.
       const next = $('#rp-var-decision')?.value || 'GOL CONFIRMADO';
-      varStamp = { text: `DECISÃO VAR: ${next}`, x: Math.max(20, x - 120), y: Math.max(20, y - 18) };
+      varStamp = { text: 'DECISÃO VAR: ' + next, x: Math.max(20, x - 120), y: Math.max(20, y - 18) };
       draggingVarItem = { type: 'stamp', item: varStamp };
-      layer.setPointerCapture(e.pointerId);
+      capture(e);
     }
-
     drawVarOverlay();
   });
 
   layer.addEventListener('pointermove', (e) => {
     if (!isVarActive) return;
-    const r = varCanvas.getBoundingClientRect();
-    const x = e.clientX - r.left;
-    const y = e.clientY - r.top;
-
+    const p = pt(e);
+    const x = p.x, y = p.y;
     if (draggingVarItem) {
       if (draggingVarItem.type === 'line') {
-        draggingVarItem.item.x = Math.max(10, Math.min(varCanvas.width - 10, x - dragOffset.x));
-        draggingVarItem.item.y = Math.max(30, Math.min(varCanvas.height - 30, y));
+        draggingVarItem.item.x = x;
+        draggingVarItem.item.y = y;
       } else if (draggingVarItem.type === 'zoom') {
         draggingVarItem.item.x = Math.max(draggingVarItem.item.radius, Math.min(varCanvas.width - draggingVarItem.item.radius, x - dragOffset.x));
         draggingVarItem.item.y = Math.max(draggingVarItem.item.radius, Math.min(varCanvas.height - draggingVarItem.item.radius, y - dragOffset.y));
@@ -2834,37 +3742,35 @@ function initVarLayer() {
       drawVarOverlay();
       return;
     }
-
-    // Cursor contextual ao passar o mouse
-    if (zoomMagnifier && Math.hypot(x - zoomMagnifier.x, y - zoomMagnifier.y) <= zoomMagnifier.radius) {
-      layer.style.cursor = 'grab';
-    } else if (varStamp && x >= varStamp.x && x <= varStamp.x + 240 && y >= varStamp.y && y <= varStamp.y + 36) {
-      layer.style.cursor = 'move';
-    } else if (offsideLines.some((l) => Math.abs(l.x - x) < 18)) {
-      layer.style.cursor = 'ew-resize';
-    } else {
-      layer.style.cursor = 'crosshair';
-    }
+    if (varCalibMode) { layer.style.cursor = 'crosshair'; return; }
+    if (zoomMagnifier && Math.hypot(x - zoomMagnifier.x, y - zoomMagnifier.y) <= zoomMagnifier.radius) layer.style.cursor = 'grab';
+    else if (varStamp && x >= varStamp.x && x <= varStamp.x + 240 && y >= varStamp.y && y <= varStamp.y + 36) layer.style.cursor = 'move';
+    else if (offsideLines.some((l) => distToLine(l, x, y) < 16)) layer.style.cursor = 'move';
+    else layer.style.cursor = 'crosshair';
   });
 
   const stopDrag = (e) => {
     if (draggingVarItem) {
       draggingVarItem = null;
-      try { layer.releasePointerCapture(e.pointerId); } catch {}
+      release(e);
     }
   };
-
   layer.addEventListener('pointerup', stopDrag);
   layer.addEventListener('pointercancel', stopDrag);
 
-  // Botão direito limpa item sob o cursor
+  // Botão direito: cancela calibração ou remove item sob o cursor
   layer.addEventListener('contextmenu', (e) => {
     e.preventDefault();
-    const r = varCanvas.getBoundingClientRect();
-    const x = e.clientX - r.left;
-    const y = e.clientY - r.top;
-
-    const lineIdx = offsideLines.findIndex((l) => Math.abs(l.x - x) < 20);
+    if (varCalibMode) {
+      varCalibMode = false;
+      varCalibPts = [];
+      updateVarCalibUI();
+      drawVarOverlay();
+      return;
+    }
+    const p = pt(e);
+    const x = p.x, y = p.y;
+    const lineIdx = offsideLines.findIndex((l) => distToLine(l, x, y) < 20);
     if (lineIdx !== -1) {
       offsideLines.splice(lineIdx, 1);
       drawVarOverlay();
@@ -2878,7 +3784,6 @@ function initVarLayer() {
     if (varStamp && x >= varStamp.x && x <= varStamp.x + 240 && y >= varStamp.y && y <= varStamp.y + 36) {
       varStamp = null;
       drawVarOverlay();
-      return;
     }
   });
 }
@@ -2901,10 +3806,16 @@ function syncVarOverlayToPgm(on) {
   }
   const w = varCanvas?.width || 1;
   const h = varCanvas?.height || 1;
+  const measure = varMeasure();
   comp.setVarOverlay({
     on: true,
-    lines: offsideLines.map((l) => ({ x: l.x / w, color: l.color, label: l.label })),
+    lines: offsideLines.map((l) => {
+      const seg = varLineSeg(l);
+      return { x1: seg.x1 / w, y1: seg.y1 / h, x2: seg.x2 / w, y2: seg.y2 / h, color: l.color, label: l.label };
+    }),
     stamp: varStamp ? { text: varStamp.text, x: varStamp.x / w, y: varStamp.y / h } : null,
+    status: measure ? { text: measure.text + ' · ' + measure.label, offside: measure.offside } : null,
+    lens: zoomMagnifier ? { x: zoomMagnifier.x / w, y: zoomMagnifier.y / h, r: zoomMagnifier.radius / Math.min(w, h), zoom: zoomMagnifier.zoom || 4 } : null,
   });
 }
 
@@ -2912,33 +3823,69 @@ function drawVarOverlay() {
   if (!isVarActive || !varCtx) return;
   varCtx.clearRect(0, 0, varCanvas.width, varCanvas.height);
   if (studio?.comp?.varOverlay?.on) syncVarOverlayToPgm(true);
+  const W = varCanvas.width;
+  const H = varCanvas.height;
+  const measure = varMeasure();
 
-  // Faixa de impedimento e indicador de delta entre DEFESA e ATAQUE
-  if (offsideLines.length >= 2) {
-    const def = offsideLines.find((l) => l.label === 'DEFESA') || offsideLines[0];
-    const atk = offsideLines.find((l) => l.label === 'ATAQUE') || offsideLines[1];
-    if (def && atk) {
-      const xMin = Math.min(def.x, atk.x);
-      const xMax = Math.max(def.x, atk.x);
-      const width = xMax - xMin;
-      const isOffside = atk.x > def.x;
-
-      varCtx.fillStyle = isOffside ? 'rgba(239, 68, 68, 0.18)' : 'rgba(0, 210, 255, 0.18)';
-      varCtx.fillRect(xMin, 0, width, varCanvas.height);
-
-      // Banner central com medição milimétrica
-      const midX = (xMin + xMax) / 2;
-      const deltaY = varCanvas.height - 35;
-      varCtx.fillStyle = isOffside ? '#ef4444' : '#10b981';
-      varCtx.fillRect(midX - 75, deltaY - 14, 150, 26);
-      varCtx.fillStyle = '#fff';
-      varCtx.font = 'bold 11px sans-serif';
-      varCtx.textAlign = 'center';
-      varCtx.fillText(`Δ ${Math.round(width)}px · ${window.CDi18n?.t?.(isOffside ? 'IMPEDIMENTO' : 'POSIÇÃO LEGAL') || (isOffside ? 'IMPEDIMENTO' : 'POSIÇÃO LEGAL')}`, midX, deltaY + 3);
-    }
+  // Faixa entre as linhas + HUD de medição
+  if (measure) {
+    const u = varLineDir();
+    const L = W + H;
+    const poly = [
+      [measure.def.x, measure.def.y],
+      [measure.def.x + u.x * L, measure.def.y + u.y * L],
+      [measure.atk.x + u.x * L, measure.atk.y + u.y * L],
+      [measure.atk.x, measure.atk.y],
+    ];
+    varCtx.fillStyle = measure.offside ? 'rgba(224, 82, 74, 0.16)' : 'rgba(63, 163, 77, 0.16)';
+    varCtx.beginPath();
+    varCtx.moveTo(poly[0][0], poly[0][1]);
+    for (let i = 1; i < poly.length; i++) varCtx.lineTo(poly[i][0], poly[i][1]);
+    varCtx.closePath();
+    varCtx.fill();
   }
 
-  // Linhas de Projeção Vertical
+  // Marcações de calibração (pendente/concluída)
+  if (varCalibMode && varCalibPts.length) {
+    for (let i = 0; i < varCalibPts.length; i++) {
+      const p = varCalibPts[i];
+      varCtx.beginPath();
+      varCtx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+      varCtx.fillStyle = '#d9a036';
+      varCtx.fill();
+      varCtx.fillStyle = '#0c0d0f';
+      varCtx.font = '900 10px sans-serif';
+      varCtx.textAlign = 'center';
+      varCtx.fillText(String(i + 1), p.x, p.y + 3);
+    }
+    if (varCalibPts.length >= 2) {
+      varCtx.strokeStyle = 'rgba(217, 160, 54, 0.8)';
+      varCtx.lineWidth = 2;
+      varCtx.setLineDash([6, 4]);
+      varCtx.beginPath();
+      varCtx.moveTo(varCalibPts[0].x, varCalibPts[0].y);
+      varCtx.lineTo(varCalibPts[1].x, varCalibPts[1].y);
+      varCtx.stroke();
+      varCtx.setLineDash([]);
+    }
+    if (varCalibPts.length >= 4) {
+      varCtx.strokeStyle = 'rgba(217, 160, 54, 0.8)';
+      varCtx.lineWidth = 2;
+      varCtx.setLineDash([6, 4]);
+      varCtx.beginPath();
+      varCtx.moveTo(varCalibPts[2].x, varCalibPts[2].y);
+      varCtx.lineTo(varCalibPts[3].x, varCalibPts[3].y);
+      varCtx.stroke();
+      varCtx.setLineDash([]);
+    }
+  } else if (varCalib) {
+    varCtx.fillStyle = 'rgba(63, 163, 77, 0.9)';
+    varCtx.font = '800 10px Inter, sans-serif';
+    varCtx.textAlign = 'left';
+    varCtx.fillText('CALIBRADO · LINHA DE FUNDO', 12, 18);
+  }
+
+  // Linhas de projeção vertical
   for (const v of verticalLines) {
     varCtx.strokeStyle = v.color;
     varCtx.lineWidth = 2;
@@ -2950,47 +3897,39 @@ function drawVarOverlay() {
     varCtx.setLineDash([]);
   }
 
-  // Linhas Virtuais de Impedimento
+  // Linhas de impedimento (paralelas à linha de fundo quando calibrado)
   for (const line of offsideLines) {
+    const seg = varLineSeg(line);
     varCtx.strokeStyle = line.color;
-    varCtx.lineWidth = 2.5;
-    varCtx.setLineDash([8, 4]);
-
+    varCtx.lineWidth = 3;
+    varCtx.setLineDash([10, 5]);
     varCtx.beginPath();
-    varCtx.moveTo(line.x, 0);
-    varCtx.lineTo(line.x, varCanvas.height);
+    varCtx.moveTo(seg.x1, seg.y1);
+    varCtx.lineTo(seg.x2, seg.y2);
     varCtx.stroke();
     varCtx.setLineDash([]);
-
-    // Badge arrastável
+    varCtx.font = '900 11px Inter, sans-serif';
+    const tw = varCtx.measureText(line.label).width + 18;
     varCtx.fillStyle = line.color;
-    varCtx.fillRect(line.x - 34, line.y - 12, 68, 22);
-    varCtx.fillStyle = '#000';
-    varCtx.font = '900 10px sans-serif';
+    varCtx.fillRect(line.x - tw / 2, line.y - 13, tw, 24);
+    varCtx.fillStyle = '#0c0d0f';
     varCtx.textAlign = 'center';
-    varCtx.fillText(line.label, line.x, line.y + 3);
+    varCtx.fillText(line.label, line.x, line.y + 4);
   }
 
-  // Lupa 4x com Mira Reticular
+  // Lupa 2x/4x com mira
   if (zoomMagnifier) {
     const { x, y, radius } = zoomMagnifier;
+    const z = zoomMagnifier.zoom || 4;
+    const src = (radius * 2) / z;
     varCtx.save();
     varCtx.beginPath();
     varCtx.arc(x, y, radius, 0, Math.PI * 2);
-    varCtx.strokeStyle = '#00d2ff';
-    varCtx.lineWidth = 3;
-    varCtx.stroke();
     varCtx.clip();
-
-    // Desenha frame ampliado
-    varCtx.drawImage(
-      pvwVideo,
-      x - radius / 2, y - radius / 2, radius, radius,
-      x - radius, y - radius, radius * 2, radius * 2
-    );
-
-    // Retículo / Mira
-    varCtx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+    try {
+      varCtx.drawImage(pvwVideo, x - src / 2, y - src / 2, src, src, x - radius, y - radius, radius * 2, radius * 2);
+    } catch {}
+    varCtx.strokeStyle = 'rgba(255,255,255,0.55)';
     varCtx.lineWidth = 1;
     varCtx.beginPath();
     varCtx.moveTo(x - radius, y);
@@ -2999,20 +3938,185 @@ function drawVarOverlay() {
     varCtx.lineTo(x, y + radius);
     varCtx.stroke();
     varCtx.restore();
+    varCtx.beginPath();
+    varCtx.arc(x, y, radius, 0, Math.PI * 2);
+    varCtx.strokeStyle = '#d9a036';
+    varCtx.lineWidth = 2.5;
+    varCtx.stroke();
+    varCtx.fillStyle = 'rgba(12,13,15,0.85)';
+    varCtx.fillRect(x - 20, y + radius + 6, 40, 16);
+    varCtx.fillStyle = '#e6bd72';
+    varCtx.font = '800 9px Inter, sans-serif';
+    varCtx.textAlign = 'center';
+    varCtx.fillText(z + 'x', x, y + radius + 17);
   }
 
-  // Carimbo Oficial de Decisão
+  // Carimbo oficial
   if (varStamp) {
-    varCtx.fillStyle = 'rgba(168, 85, 247, 0.95)';
-    varCtx.fillRect(varStamp.x, varStamp.y, 240, 36);
-    varCtx.fillStyle = '#fff';
-    varCtx.font = '900 13px sans-serif';
+    varCtx.fillStyle = 'rgba(12, 13, 15, 0.92)';
+    varCtx.fillRect(varStamp.x, varStamp.y, 250, 38);
+    varCtx.strokeStyle = '#d9a036';
+    varCtx.lineWidth = 2;
+    varCtx.strokeRect(varStamp.x + 1, varStamp.y + 1, 248, 36);
+    varCtx.fillStyle = '#e6bd72';
+    varCtx.font = '900 13px Inter, sans-serif';
     varCtx.textAlign = 'left';
-    varCtx.fillText(varStamp.text, varStamp.x + 12, varStamp.y + 23);
+    varCtx.fillText(varStamp.text, varStamp.x + 12, varStamp.y + 24);
+  }
+
+  // HUD de medição (banner inferior)
+  if (measure) {
+    const text = measure.text + '  ·  ' + measure.label;
+    varCtx.font = '900 13px Inter, sans-serif';
+    const tw = varCtx.measureText(text).width + 28;
+    const bx = Math.max(10, (W - tw) / 2);
+    const by = H - 44;
+    varCtx.fillStyle = measure.offside ? 'rgba(224, 82, 74, 0.95)' : 'rgba(63, 163, 77, 0.95)';
+    varCtx.fillRect(bx, by, tw, 30);
+    varCtx.fillStyle = '#fff';
+    varCtx.textAlign = 'center';
+    varCtx.fillText(text, bx + tw / 2, by + 21);
   }
 }
 
 // Tela cheia
+// Tela cheia de um monitor (Preview/Programa): usa Fullscreen API e, se falhar, maximiza a janela.
+// Janela separada dos monitores: entrega o MediaStream certo para o pop-out.
+// PGM = canvas do programa do estúdio (mesma imagem da saída, resolução cheia, 60 Hz).
+// PVW = o próprio vídeo do clipe/sinal, sem recompressão.
+let pvwPopStream = null;
+let pgmPopStream = null;
+
+function makeCanvasStream(el, fps = 60) {
+  try {
+    const c = document.createElement('canvas');
+    const ctx = c.getContext('2d');
+    const draw = () => {
+      try {
+        if (el?.videoWidth && el.videoHeight) {
+          if (c.width !== el.videoWidth || c.height !== el.videoHeight) {
+            c.width = el.videoWidth;
+            c.height = el.videoHeight;
+          }
+          ctx.drawImage(el, 0, 0, c.width, c.height);
+        }
+      } catch {}
+      requestAnimationFrame(draw);
+    };
+    draw();
+    return c.captureStream(fps);
+  } catch {
+    return null;
+  }
+}
+
+window.__castdeckReplayStream = (view) => {
+  if (view === 'pgm') {
+    const opener = window.opener?.__castdeck;
+    const canvas = opener?.comp?.canvas;
+    if (canvas?.captureStream) {
+      if (!pgmPopStream || !pgmPopStream.active) {
+        try { pgmPopStream = canvas.captureStream(60); } catch { pgmPopStream = null; }
+      }
+      if (pgmPopStream) return pgmPopStream;
+    }
+    if (opener?.programStream) return opener.programStream;
+    if (!pgmPopStream || !pgmPopStream.active) {
+      try { pgmPopStream = pgmVideo?.captureStream?.() || makeCanvasStream(pgmVideo); } catch { pgmPopStream = makeCanvasStream(pgmVideo); }
+    }
+    return pgmPopStream;
+  }
+  const src = pvwVideo?.srcObject;
+  if (src?.getVideoTracks) {
+    try { return new MediaStream(src.getVideoTracks().map((tr) => tr.clone())); } catch {}
+  }
+  if (!pvwPopStream || !pvwPopStream.active) {
+    try { pvwPopStream = pvwVideo?.captureStream?.() || makeCanvasStream(pvwVideo); } catch { pvwPopStream = makeCanvasStream(pvwVideo); }
+  }
+  return pvwPopStream;
+};
+
+function openReplayPopout(view) {
+  const isPgm = view === 'pgm';
+  const w = window.open(
+    '/replay-popout.html?view=' + (isPgm ? 'pgm' : 'pvw'),
+    isPgm ? 'CastDeckReplayPgmPop' : 'CastDeckReplayPvwPop',
+    'width=1000,height=600,menubar=no,toolbar=no,location=no,status=no'
+  );
+  if (!w) {
+    flashPvwStatus('Pop-up bloqueado — permita janelas pop-up para esta página');
+    return;
+  }
+  try { w.focus(); } catch {}
+  flashPvwStatus((isPgm ? 'PGM' : 'PREVIEW') + ' EM JANELA SEPARADA — QUALIDADE TOTAL');
+}
+
+function toggleMonitorFullscreen(which) {
+  const id = which === 'pgm' ? 'rp-box-pgm' : 'rp-box-pvw';
+  const btnId = which === 'pgm' ? 'rp-fs-pgm' : 'rp-fs-pvw';
+  const el = document.getElementById(id);
+  const btn = document.getElementById(btnId);
+  if (!el) return;
+  const sync = () => btn?.classList.toggle('active', document.fullscreenElement === el || el.classList.contains('bc-monitor-max'));
+  if (document.fullscreenElement === el) {
+    document.exitFullscreen?.().catch(() => {});
+    el.classList.remove('bc-monitor-max');
+    sync();
+    return;
+  }
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  if (el.classList.contains('bc-monitor-max')) {
+    el.classList.remove('bc-monitor-max');
+    sync();
+    return;
+  }
+  if (el.requestFullscreen) el.requestFullscreen().catch(() => { el.classList.add('bc-monitor-max'); sync(); });
+  else { el.classList.add('bc-monitor-max'); sync(); }
+  document.addEventListener('fullscreenchange', sync, { once: true });
+}
+
+// Redimensionar o painel de eventos arrastando a alça no topo (fica salvo entre sessões).
+function initEventResize() {
+  const split = document.getElementById('bc-events-resize');
+  const main = document.querySelector('.bc-main');
+  const ev = document.querySelector('.bc-events');
+  if (!split || !main || !ev) return;
+  const KEY = 'castdeck.replay.eventsH';
+  try {
+    const h = Number(localStorage.getItem(KEY));
+    if (Number.isFinite(h) && h >= 120) main.style.setProperty('--ev-h', h + 'px');
+  } catch {}
+  let startY = 0;
+  let startH = 0;
+  let dragging = false;
+  const onMove = (e) => {
+    if (!dragging) return;
+    const maxH = Math.max(160, window.innerHeight - 280);
+    const h = Math.max(120, Math.min(maxH, startH - (e.clientY - startY)));
+    main.style.setProperty('--ev-h', h + 'px');
+  };
+  const onUp = () => {
+    if (!dragging) return;
+    dragging = false;
+    split.classList.remove('dragging');
+    try {
+      const v = Math.round(ev.getBoundingClientRect().height);
+      if (v >= 120) localStorage.setItem(KEY, String(v));
+    } catch {}
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  };
+  split.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    dragging = true;
+    startY = e.clientY;
+    startH = ev.getBoundingClientRect().height;
+    split.classList.add('dragging');
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  });
+}
+
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
     document.documentElement.requestFullscreen().catch(() => {});
